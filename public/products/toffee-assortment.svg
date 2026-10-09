@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 440" role="img" aria-label="Toffee Assortment — Variety Groceries product tile">
+  <rect width="400" height="440" fill="#E4EDDF"/>
+  <circle cx="64" cy="70" r="30" fill="#3A5A3C" opacity="0.08"/>
+  <circle cx="348" cy="320" r="46" fill="#3A5A3C" opacity="0.08"/>
+  <circle cx="352" cy="84" r="18" fill="#3A5A3C" opacity="0.12"/>
+  <rect x="28" y="28" width="344" height="284" rx="20" fill="#FFFFFF" opacity="0.45"/>
+  
+    <circle cx="200" cy="184" r="56" fill="none" stroke="#3A5A3C" stroke-width="7"/>
+    <circle cx="183" cy="170" r="6" fill="#3A5A3C"/><circle cx="214" cy="176" r="6" fill="#3A5A3C"/>
+    <circle cx="196" cy="202" r="6" fill="#3A5A3C"/><circle cx="221" cy="208" r="5" fill="#3A5A3C"/><circle cx="174" cy="200" r="5" fill="#3A5A3C"/>
+  <text x="200" y="370" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif" font-size="28" font-weight="700" fill="#26382A">Toffee</text>
+    <text x="200" y="406" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif" font-size="28" font-weight="700" fill="#26382A">Assortment</text>
+</svg>

@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 440" role="img" aria-label="Dried Maize — Variety Groceries product tile">
+  <rect width="400" height="440" fill="#E4EDDF"/>
+  <circle cx="64" cy="70" r="30" fill="#3A5A3C" opacity="0.08"/>
+  <circle cx="348" cy="320" r="46" fill="#3A5A3C" opacity="0.08"/>
+  <circle cx="352" cy="84" r="18" fill="#3A5A3C" opacity="0.12"/>
+  <rect x="28" y="28" width="344" height="284" rx="20" fill="#FFFFFF" opacity="0.45"/>
+  
+    <path d="M152 118 h 96 l 14 138 a 12 12 0 0 1 -12 13 H 150 a 12 12 0 0 1 -12 -13 Z" fill="none" stroke="#3A5A3C" stroke-width="7"/>
+    <path d="M148 152 h 104" stroke="#3A5A3C" stroke-width="6"/>
+    <circle cx="200" cy="200" r="24" fill="none" stroke="#3A5A3C" stroke-width="6"/>
+    <circle cx="192" cy="194" r="4" fill="#3A5A3C"/><circle cx="208" cy="194" r="4" fill="#3A5A3C"/><circle cx="200" cy="208" r="4" fill="#3A5A3C"/>
+  <text x="200" y="388" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif" font-size="28" font-weight="700" fill="#26382A">Dried Maize</text>
+</svg>

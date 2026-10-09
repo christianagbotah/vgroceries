@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 440" role="img" aria-label="Shito Sauce — Variety Groceries product tile">
+  <rect width="400" height="440" fill="#E4EDDF"/>
+  <circle cx="64" cy="70" r="30" fill="#3A5A3C" opacity="0.08"/>
+  <circle cx="348" cy="320" r="46" fill="#3A5A3C" opacity="0.08"/>
+  <circle cx="352" cy="84" r="18" fill="#3A5A3C" opacity="0.12"/>
+  <rect x="28" y="28" width="344" height="284" rx="20" fill="#FFFFFF" opacity="0.45"/>
+  
+    <path d="M186 248 V 150 h 28 v 98 a 14 14 0 0 1 -28 0 Z" fill="none" stroke="#3A5A3C" stroke-width="7"/>
+    <path d="M189 150 v -16 h 22 v 16" fill="none" stroke="#3A5A3C" stroke-width="6"/>
+    <path d="M193 122 h 14 v 10 h -14 Z" fill="#3A5A3C"/>
+    <path d="M158 172 q -16 36 0 72" fill="none" stroke="#3A5A3C" stroke-width="6" opacity="0.55"/>
+    <path d="M242 172 q 16 36 0 72" fill="none" stroke="#3A5A3C" stroke-width="6" opacity="0.55"/>
+  <text x="200" y="388" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif" font-size="28" font-weight="700" fill="#26382A">Shito Sauce</text>
+</svg>

@@ -1,0 +1,346 @@
+/**
+ * Returns & refunds engine — first-class workflows for online and
+ * counter orders. Guarantees:
+ * - cumulative returned quantities never exceed the original eligible balance
+ * - cumulative refunds never exceed the original paid amount
+ * - only an approved saleable disposition makes returned stock purchasable again
+ * - a refund request/approval is not a completed money transfer
+ */
+
+import type { Order, OrderLine, Refund, ReturnLine, ReturnRequest } from "@/types/domain";
+import { addQty, cmpQty, subQty } from "@/lib/quantity";
+import { nextId, nowIso } from "@/lib/id";
+import type { VgStore } from "../store";
+import { OpError, audit, orderEvent, mustOrder } from "./orders";
+import { consumeNothing } from "./inventory-helpers";
+
+export interface ReturnLineInput {
+  orderLineId: string;
+  quantity: string;
+  reason: string;
+}
+
+export interface CreateReturnInput {
+  orderId: string;
+  lines: ReturnLineInput[];
+  requestedBy: "customer" | "staff";
+  customerId?: string;
+  evidenceNote?: string;
+}
+
+/** Cumulative returned quantity per order line (from non-rejected returns). */
+function returnedSoFar(store: VgStore, orderLineId: string): string {
+  let sum = "0";
+  for (const rl of store.returnLines) {
+    const req = store.returnRequests.find((r) => r.id === rl.returnId);
+    if (rl.orderLineId === orderLineId && req && req.status !== "rejected") {
+      sum = addQty(sum, rl.quantity);
+    }
+  }
+  return sum;
+}
+
+export function eligibleReturnLines(store: VgStore, order: Order): {
+  line: OrderLine; quantity: string; returnedSoFar: string; eligible: string; unitRefundMinor: number;
+}[] {
+  return order.lines
+    .map((lid) => store.orderLines.find((l) => l.id === lid)!)
+    .filter(Boolean)
+    .filter((l) => !l.substitutionOfLineId)
+    .map((line) => {
+      const already = returnedSoFar(store, line.id);
+      const eligible = subQty(line.quantity, already);
+      const unitRefundMinor = line.unitPriceMinor;
+      return { line, quantity: line.quantity, returnedSoFar: already, eligible, unitRefundMinor };
+    });
+}
+
+export function createReturn(store: VgStore, input: CreateReturnInput): ReturnRequest {
+  const order = mustOrder(store, input.orderId);
+  if (!["delivered", "collected"].includes(order.fulfilmentStatus)) {
+    throw new OpError("VALIDATION_FAILED", "Returns are only possible after delivery or collection.");
+  }
+  if (!input.lines.length) throw new OpError("VALIDATION_FAILED", "Select at least one line to return.");
+  const eligible = eligibleReturnLines(store, order);
+  const requestLines: ReturnLine[] = [];
+  for (const l of input.lines) {
+    const match = eligible.find((e) => e.line.id === l.orderLineId);
+    if (!match) throw new OpError("VALIDATION_FAILED", "Order line is not eligible for return.");
+    if (cmpQty(l.quantity, "0") <= 0) throw new OpError("VALIDATION_FAILED", "Return quantity must be positive.");
+    if (cmpQty(l.quantity, match.eligible) > 0) {
+      throw new OpError(
+        "REFUND_LIMIT_EXCEEDED",
+        `Only ${match.eligible} × ${match.line.productName} (${match.line.variantName}) remain eligible for return.`
+      );
+    }
+    if (!l.reason?.trim()) throw new OpError("VALIDATION_FAILED", "A reason is required for each returned line.");
+    requestLines.push({
+      id: nextId("rl"),
+      returnId: "", // set below
+      orderLineId: l.orderLineId,
+      quantity: l.quantity,
+      reason: l.reason,
+      requestedRefundMinor: match.unitRefundMinor * Number(l.quantity),
+    });
+  }
+
+  const ret: ReturnRequest = {
+    id: nextId("ret"),
+    reference: `RTN-${store.sequences.rtn}`,
+    orderId: order.id,
+    channel: order.channel,
+    customerId: order.customerId,
+    requestedBy: input.requestedBy,
+    lines: [],
+    status: "requested",
+    evidenceNote: input.evidenceNote,
+    createdAt: nowIso(),
+  };
+  store.sequences.rtn += 1;
+  for (const rl of requestLines) {
+    rl.returnId = ret.id;
+    store.returnLines.push(rl);
+    ret.lines.push(rl.id);
+  }
+  store.returnRequests.unshift(ret);
+  orderEvent(order, input.requestedBy === "staff" ? "staff" : "customer", `Return ${ret.reference} requested`);
+  audit(store, input.requestedBy === "staff" ? input.requestedBy : input.customerId ?? "customer", "return.requested", "ReturnRequest", ret.id);
+  return ret;
+}
+
+/* ------------------------------------------------------------------ */
+/* Decisions & inspection                                              */
+/* ------------------------------------------------------------------ */
+
+export function decideReturn(store: VgStore, returnId: string, decision: "approve" | "reject", actor: string, note: string): ReturnRequest {
+  const ret = mustReturn(store, returnId);
+  if (ret.status !== "requested") throw new OpError("VALIDATION_FAILED", `Return is already ${ret.status}.`);
+  if (!note.trim()) throw new OpError("VALIDATION_FAILED", "A decision note is required.");
+  ret.status = decision === "approve" ? "approved" : "rejected";
+  const order = mustOrder(store, ret.orderId);
+  if (decision === "approve") {
+    for (const rl of ret.lines.map((id) => store.returnLines.find((l) => l.id === id)!)) {
+      rl.approvedRefundMinor = rl.requestedRefundMinor;
+    }
+    orderEvent(order, actor, `Return ${ret.reference} approved`, { note });
+  } else {
+    orderEvent(order, actor, `Return ${ret.reference} rejected`, { note });
+  }
+  audit(store, actor, `return.${decision === "approve" ? "approved" : "rejected"}`, "ReturnRequest", ret.id, { reason: note });
+  return ret;
+}
+
+export function receiveReturn(store: VgStore, returnId: string, actor: string): ReturnRequest {
+  const ret = mustReturn(store, returnId);
+  if (ret.status !== "approved") throw new OpError("VALIDATION_FAILED", "Only approved returns can be received.");
+  ret.status = "received";
+  ret.receivedAt = nowIso();
+  audit(store, actor, "return.received", "ReturnRequest", ret.id);
+  return ret;
+}
+
+export type DispositionKind = "restock_saleable" | "damaged_unsaleable" | "quarantine_pending" | "not_returned";
+
+export function inspectReturn(
+  store: VgStore,
+  returnId: string,
+  disposition: DispositionKind,
+  actor: string,
+  note: string
+): ReturnRequest {
+  const ret = mustReturn(store, returnId);
+  if (!["received", "inspected"].includes(ret.status)) throw new OpError("VALIDATION_FAILED", "Return must be received before inspection.");
+  if (!note.trim()) throw new OpError("VALIDATION_FAILED", "An inspection note is required.");
+  ret.status = "inspected";
+  ret.inspectedAt = nowIso();
+
+  if (disposition === "restock_saleable") {
+    // returned goods enter a properly recorded new lot — saleable again
+    for (const rl of ret.lines.map((id) => store.returnLines.find((l) => l.id === id)!)) {
+      const line = store.orderLines.find((l) => l.id === rl.orderLineId)!;
+      const lot = {
+        id: nextId("lot"),
+        variantId: line.variantId,
+        locationId: "loc_store",
+        lotNumber: `L-RET-${ret.reference}`,
+        kind: "regular" as const,
+        quantity: rl.quantity,
+        receivedAt: nowIso(),
+        expiryDate: undefined,
+        isQuarantined: false,
+        notes: `Restocked from return ${ret.reference}`,
+      };
+      store.lots.push(lot);
+      store.movements.push({
+        id: nextId("mov"),
+        variantId: line.variantId,
+        locationId: "loc_store",
+        lotId: lot.id,
+        delta: `+${rl.quantity}`,
+        resultingQty: rl.quantity,
+        reason: "return_restock",
+        reference: ret.id,
+        actorId: actor,
+        note,
+        at: nowIso(),
+      });
+    }
+  } else if (disposition === "quarantine_pending") {
+    for (const rl of ret.lines.map((id) => store.returnLines.find((l) => l.id === id)!)) {
+      const line = store.orderLines.find((l) => l.id === rl.orderLineId)!;
+      const lot = {
+        id: nextId("lot"),
+        variantId: line.variantId,
+        locationId: "loc_quarantine",
+        lotNumber: `L-QUA-${ret.reference}`,
+        kind: "returns_quarantine" as const,
+        quantity: rl.quantity,
+        receivedAt: nowIso(),
+        isQuarantined: true,
+        notes: `Quarantined from return ${ret.reference}`,
+      };
+      store.lots.push(lot);
+    }
+  } else if (disposition === "damaged_unsaleable") {
+    for (const rl of ret.lines.map((id) => store.returnLines.find((l) => l.id === id)!)) {
+      const line = store.orderLines.find((l) => l.id === rl.orderLineId)!;
+      store.lots.push({
+        id: nextId("lot"),
+        variantId: line.variantId,
+        locationId: "loc_backroom",
+        lotNumber: `L-DMG-${ret.reference}`,
+        kind: "damaged",
+        quantity: rl.quantity,
+        receivedAt: nowIso(),
+        isQuarantined: false,
+        notes: `Unsaleable from return ${ret.reference}`,
+      });
+    }
+  }
+  // "not_returned" never touches physical stock
+
+  ret.disposition = { kind: disposition, note, by: actor, at: nowIso() };
+  audit(store, actor, "return.inspected", "ReturnRequest", ret.id, { reason: note, after: disposition });
+  return ret;
+}
+
+/* ------------------------------------------------------------------ */
+/* Refunds                                                             */
+/* ------------------------------------------------------------------ */
+
+export function refundedSoFar(store: VgStore, orderId: string): number {
+  return store.refunds
+    .filter((r) => r.orderId === orderId && r.status === "succeeded")
+    .reduce((a, r) => a + r.amountMinor, 0);
+}
+
+export function refundPreview(store: VgStore, orderId: string): {
+  paidMinor: number; refundedMinor: number; refundableMinor: number;
+} {
+  const order = mustOrder(store, orderId);
+  const paid = ["succeeded", "partially_refunded", "refunded"].includes(order.paymentStatus) ? order.totalMinor : 0;
+  const refunded = refundedSoFar(store, orderId);
+  return { paidMinor: paid, refundedMinor: refunded, refundableMinor: Math.max(0, paid - refunded) };
+}
+
+export function requestRefund(store: VgStore, returnId: string, actor: string, method: Refund["method"]): Refund {
+  const ret = mustReturn(store, returnId);
+  if (!["approved", "received", "inspected", "resolved"].includes(ret.status)) {
+    throw new OpError("VALIDATION_FAILED", "Refunds require an approved return.");
+  }
+  const existingPending = store.refunds.find((r) => r.returnId === returnId && ["requested", "awaiting_approval", "processing"].includes(r.status));
+  if (existingPending) throw new OpError("VALIDATION_FAILED", "A refund request already exists for this return.");
+  const amount = ret.lines
+    .map((id) => store.returnLines.find((l) => l.id === id)!)
+    .reduce((a, l) => a + (l.approvedRefundMinor ?? l.requestedRefundMinor), 0);
+  const preview = refundPreview(store, ret.orderId);
+  if (amount > preview.refundableMinor) {
+    throw new OpError("REFUND_LIMIT_EXCEEDED", `Refund of ₵${(amount / 100).toFixed(2)} exceeds the refundable balance of ₵${(preview.refundableMinor / 100).toFixed(2)}.`);
+  }
+  const refund: Refund = {
+    id: nextId("ref"),
+    returnId,
+    orderId: ret.orderId,
+    amountMinor: amount,
+    status: "awaiting_approval",
+    method,
+    reason: `Refund for return ${ret.reference}`,
+    requestedBy: actor,
+    retryCount: 0,
+    createdAt: nowIso(),
+  };
+  store.refunds.unshift(refund);
+  audit(store, actor, "refund.requested", "Refund", refund.id, { after: `${amount}` });
+  return refund;
+}
+
+export function approveRefund(store: VgStore, refundId: string, actor: string): Refund {
+  const refund = mustRefund(store, refundId);
+  if (refund.status !== "awaiting_approval") throw new OpError("VALIDATION_FAILED", "Refund is not awaiting approval.");
+  if (refund.method === "manual_recording") {
+    // manual refunds stay clearly identified and require review
+    refund.status = "requires_review";
+    refund.approvedBy = actor;
+    audit(store, actor, "refund.manual_recorded", "Refund", refund.id, { reason: "Manual recording requires finance sign-off" });
+    return refund;
+  }
+  refund.status = "processing";
+  refund.approvedBy = actor;
+  audit(store, actor, "refund.approved", "Refund", refund.id, { before: "awaiting_approval", after: "processing" });
+  return refund;
+}
+
+export function executeRefund(store: VgStore, refundId: string, actor: string): Refund {
+  const refund = mustRefund(store, refundId);
+  if (refund.status !== "processing") throw new OpError("VALIDATION_FAILED", "Refund must be approved and processing before execution.");
+  refund.retryCount += 1;
+  // simulate a retryable provider failure on the first attempt
+  if (refund.retryCount === 1 && refund.providerTransferState !== "succeeded") {
+    refund.providerTransferState = "failed";
+    refund.status = "failed";
+    audit(store, actor, "refund.execution_failed", "Refund", refund.id, { reason: "Provider timeout (demo) — retryable" });
+    return refund;
+  }
+  refund.providerTransferState = "succeeded";
+  refund.providerRef = `HT-DEMO-RF-${9000 + Math.floor(Math.random() * 900)}`;
+  refund.status = "succeeded";
+  refund.resolvedAt = nowIso();
+
+  const order = store.orders.find((o) => o.id === refund.orderId);
+  if (order) {
+    const paid = order.totalMinor;
+    const refunded = refundedSoFar(store, order.id);
+    order.paymentStatus = refunded >= paid ? "refunded" : "partially_refunded";
+    orderEvent(order, actor, `Refund of ₵${(refund.amountMinor / 100).toFixed(2)} completed`, {
+      toStatus: order.paymentStatus,
+    });
+  }
+  if (refund.returnId) {
+    const ret = store.returnRequests.find((r) => r.id === refund.returnId);
+    if (ret && ret.status !== "resolved") ret.status = "resolved";
+  }
+  audit(store, actor, "refund.succeeded", "Refund", refund.id, { after: refund.providerRef });
+  return refund;
+}
+
+export function retryRefund(store: VgStore, refundId: string, actor: string): Refund {
+  const refund = mustRefund(store, refundId);
+  if (refund.status !== "failed") throw new OpError("VALIDATION_FAILED", "Only failed refunds can be retried.");
+  refund.status = "processing";
+  audit(store, actor, "refund.retry", "Refund", refund.id, { reason: `retry #${refund.retryCount + 1}` });
+  return refund;
+}
+
+export function mustReturn(store: VgStore, returnId: string): ReturnRequest {
+  const ret = store.returnRequests.find((r) => r.id === returnId || r.reference === returnId);
+  if (!ret) throw new OpError("VALIDATION_FAILED", "Return request not found.");
+  return ret;
+}
+
+export function mustRefund(store: VgStore, refundId: string): Refund {
+  const refund = store.refunds.find((r) => r.id === refundId);
+  if (!refund) throw new OpError("VALIDATION_FAILED", "Refund not found.");
+  return refund;
+}
+
+export { consumeNothing };
