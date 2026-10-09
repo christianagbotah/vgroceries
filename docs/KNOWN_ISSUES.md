@@ -42,14 +42,16 @@ here is hidden; each item states the impact and the follow-up.
     cost ledger (backend owns cost of goods).
 13. **Recharts not used**: report charts are lightweight CSS bars — functional and clean, but a
     richer charting pass is possible.
-14. **Engine tests run via Bun scripts, not a Vitest suite**: business rules are covered by the
+14. **Engine tests run via Bun scripts and Bun's test runner**: business rules are covered by the
     executed acceptance script (`scripts/acceptance-checks.sh`, hardened — 24 checks) and the
     handoff regression suite (`scripts/handoff-regressions.ts`, 24 assertions covering the
-    review's seven defect classes and the returns-list endpoint); both run in CI. A Vitest
-    runner wrapping the same engines remains nice-to-have cleanup.
+    review's seven defect classes and the returns-list endpoint). Eight Bun tests cover
+    multi-item return reclassification, preserved lot history, conservative expiry and
+    protection of moved/reserved returned stock and rejection of incomplete legacy
+    credit history. All suites run in CI.
 15. **Production build verified**: `next build` (Turbopack) completes with strict TypeScript
     (no `ignoreBuildErrors` bypass) and 47/47 pages prerender. CI (`.github/workflows/ci.yml`)
-    runs lint + `tsc --noEmit` + build + all three suites on every push. The earlier
+    runs lint + `tsc --noEmit` + build + the regression, acceptance and route suites. The earlier
     `useSearchParams()` prerender failures on `/account/returns`, `/track` and
     `/admin/returns` are fixed with Suspense boundaries.
 16. **CSV exports** cover the current filtered dataset for the sales/top-products tables; other
@@ -61,6 +63,16 @@ here is hidden; each item states the impact and the follow-up.
     unavailable” rows with removal, per the non-authoritative-cart rule.
 20. **Held POS drafts** reserve stock for 20 minutes (shorter than order holds) — configurable in
     the backend contract.
+21. **Return expiry provenance**: known original allocation dates are preserved conservatively
+    using the earliest date. Demo sales with no recorded batch allocation cannot establish
+    a verified return expiry; production inspection must capture provenance and quarantine
+    perishables with unknown dates. The backend design requires that workflow.
+22. **Return disposition changes**: every credited lot is tracked. Reclassification keeps
+    historical lots with zero quantity and compensating movements. Changed quantities or
+    active reservations on an affected variant block reclassification for reconciliation;
+    the mock cannot safely resolve per-lot reservation ownership. Legacy inspected returns
+    without complete `stockLots` metadata also require reconciliation. Demo reset removes
+    those older records; current inspections always record the complete credit history.
 
 ## Execution note
 

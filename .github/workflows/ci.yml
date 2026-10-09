@@ -44,6 +44,9 @@ jobs:
       - name: Domain regression suite (handoff defects)
         run: bun scripts/handoff-regressions.ts
 
+      - name: Return stock regression tests
+        run: bun test scripts/return-stock-regressions.test.ts
+
       - name: Business-rule acceptance suite (hardened)
         run: bash scripts/acceptance-checks.sh
 

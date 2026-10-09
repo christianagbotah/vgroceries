@@ -15,7 +15,11 @@ nothing below is claimed without a result.
 | API smoke | curl operations across catalogue/checkout/orders/POS/inventory/dispatch/returns/refunds/AI/demo | **PASS** — envelopes `{ok,data|error}`, correct error codes |
 | Business-rule acceptance suite | `bash scripts/acceptance-checks.sh` | **PASS — 24/24** (original 21 + catalogue non-empty + admin.returns contract; the suite now aborts on any transport, HTTP-status, or JSON-envelope failure so no assertion can pass on an empty response) |
 | Handoff regression suite | `bun scripts/handoff-regressions.ts` | **PASS — 24/24** assertions covering the review's seven defect classes (unexecuted-refund claim, double restock, duplicate return lines, double refund, released-reservation handover, negative quantities, checkout idempotency) plus the staff returns-list endpoint |
-| CI | `.github/workflows/ci.yml` | Lint + type check + production build + all three suites on every push/PR |
+| Return stock regression tests | `bun test scripts/return-stock-regressions.test.ts` | **PASS — 8/8** covering multi-item reversal, retained history, expiry, moved/reserved stock and incomplete legacy metadata |
+| CI | `.github/workflows/ci.yml` | Lint + type check + production build + all four suites on every push/PR |
+
+The independent follow-up check of the actual production server and return
+corrections is recorded in [the backend handoff checkpoint](BACKEND_HANDOFF_CHECKPOINT.md).
 
 ### Acceptance suite results (scripts/acceptance-checks.sh, last run)
 
@@ -47,7 +51,10 @@ K. each returns row links to its order (orderId present) ...................... 
 RESULT: 24 passed, 0 failed
 ```
 
-## Manual browser checks (agent-browser, Chromium)
+## Z.ai's recorded manual browser checks (agent-browser, Chromium)
+
+These browser results were recorded by Z.ai for its handoff. The independent
+follow-up checkpoint does not claim a new browser hydration or responsive pass.
 
 | Area | Checks | Result |
 |---|---|---|
@@ -66,13 +73,9 @@ Screenshots: `docs/screenshots/verify-home-final.png`, `docs/screenshots/verify-
 
 ## Not run / not possible in this environment
 
-- `bun run build` — production build is not part of the sandbox dev workflow (dev-server only per
-  environment instructions). Source compiles per-route during dev with zero errors; a production
-  build remains an integration-team step.
-- Automated unit tests (Jest/Vitest) were not added — the acceptance suite above covers the
-  inventory/duplicate-action/refund-limit/primary-workflow requirements via executed API checks.
-  Adding a formal test runner is listed in docs/KNOWN_ISSUES.md as follow-up.
 - Real payments, courier APIs, SMS, email: intentionally not connected (prototype boundary).
+- Real PostgreSQL concurrency, trusted authentication and production AI: the current
+  application remains a mock prototype; the written backend design defines those boundaries.
 
 ## Reset behaviour
 

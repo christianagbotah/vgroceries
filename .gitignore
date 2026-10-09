@@ -64,3 +64,6 @@ worklog.md
 
 # sandbox environment scripts (platform tooling, not app source)
 /.zscripts/
+
+# isolated development worktrees
+/.worktrees/

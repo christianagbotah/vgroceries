@@ -43,6 +43,7 @@ bun run lint                              # ESLint — clean
 bunx tsc --noEmit --incremental false    # TypeScript — 0 diagnostics
 bun run build                             # production build (strict TypeScript, 47/47 pages)
 bun scripts/handoff-regressions.ts       # 24 handoff-review regression assertions
+bun test                                # return stock/expiry regressions
 bash scripts/acceptance-checks.sh         # 24 business-rule scenario checks (resets demo data)
 node scripts/route-sweep.mjs             # 56 routes HTTP 200
 node scripts/generate-product-svg.mjs     # regenerate product tiles into public/products/
@@ -67,7 +68,9 @@ src/
     checkout/             cart store (zustand + localStorage, non-authoritative)
     staff/                demo role context, admin data hook
   services/
-    client.ts             THE typed API adapter — swap point for the real backend
+    client.ts             typed browser API adapter
+    server-data.ts        typed server-rendered data adapter
+    views.ts              shared response models
     mock/                 store (globalThis singleton), seed fixtures, engine, router
   types/domain.ts         all domain models, status machines, labels
   lib/                    money, quantity, id, format, permissions
@@ -84,6 +87,12 @@ response models** (`src/services/views.ts`): client components fetch through
 `src/services/client.ts`, server-rendered pages call `src/services/server-data.ts`. Both swap to
 the real backend together. Storefront catalogue pages are server-rendered for SEO with client
 islands for interactivity; admin/rider screens are client components over the same API.
+
+The [production backend design](docs/superpowers/specs/2026-10-09-production-backend-design.md)
+defines the NestJS/PostgreSQL API, worker queues, future Android/iOS clients and
+grounded AI boundary. It is a written design for owner review, not a connected
+production backend. See [the follow-up verification](docs/BACKEND_HANDOFF_CHECKPOINT.md)
+for the independent check of Z.ai's corrections and additional return fixes.
 
 ## Demo data & reset
 

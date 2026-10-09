@@ -485,6 +485,9 @@ export interface ReturnRequest {
   inspectedAt?: string;
   disposition?: {
     kind: "restock_saleable" | "damaged_unsaleable" | "quarantine_pending" | "not_returned";
+    /** Every credited lot and its original quantity, for complete, guarded reversal. */
+    stockLots?: { lotId: string; quantity: string }[];
+    /** First credited lot, retained for existing clients. */
     lotId?: string;
     note: string;
     by: string;

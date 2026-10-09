@@ -25,6 +25,13 @@ once production implementations exist and all imports are re-pointed.
   too. Checkout replays return the ORIGINAL order (no second hold); reusing a key with different
   input fails with `IDEMPOTENCY_CONFLICT`; POS replays return the original receipt and never
   double-consume stock.
+- **Return dispositions**: `disposition.stockLots` records every credited `{lotId,quantity}`;
+  `lotId` remains the first lot for existing clients. Reclassification validates every lot
+  before reversing any credit, preserves the zeroed records and records compensating
+  movements. Moved or actively reserved stock requires reconciliation. Legacy records
+  without `stockLots` also require reconciliation; one `lotId` or a remaining quantity
+  cannot establish the original credits. Known expiry dates
+  are preserved conservatively; a mixed original batch never extends an earlier expiry.
 
 ## Error codes
 
