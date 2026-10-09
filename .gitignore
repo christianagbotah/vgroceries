@@ -58,3 +58,6 @@ server.log
 /upload/
 /db/
 /download/
+
+# internal agent worklog (platform snapshots would otherwise commit it)
+worklog.md
