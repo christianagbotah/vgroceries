@@ -53,7 +53,7 @@ RESULT: 21 passed, 0 failed
 
 **Bug found and fixed by browser verification**: `rider.action` responses passed the job **ID string** into `riderJobView()` (which expects the job object), returning HTTP 500 with “Cannot read properties of undefined (reading 'map')” *after* the mutation had succeeded — mutations applied but rider screens went stale. Fixed in `src/services/mock/router.ts` (pass `mustJob(store, jobId)`); re-verified: rider job page now re-renders after every action, and the full 21-check acceptance suite plus lint pass again after the fix.
 
-Screenshots: `download/verify-home-final.png`, `verify-shop-360px.png`, `verify-dashboard.png`, `verify-admin-1440px.png`, `verify-rider-360px.png`.
+Screenshots: `docs/screenshots/verify-home-final.png`, `docs/screenshots/verify-shop-360px.png`, `docs/screenshots/verify-dashboard.png`, `docs/screenshots/verify-admin-1440px.png`, `docs/screenshots/verify-rider-360px.png`.
 
 ## Not run / not possible in this environment
 
