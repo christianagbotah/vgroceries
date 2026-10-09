@@ -26,6 +26,7 @@ are client components over the same mock API.
 | `/help` | Owner-editable help centre | |
 | `/delivery` | Delivery zones, fees, minimums, hours, COD/collection | Read from zone configuration |
 | `/returns-policy`, `/privacy`, `/terms` | Owner-editable policy drafts | |
+| `/delivery-report` | Download page for the Delivery & Integration Report (architect handover pack) | `.docx` served from `/reports/`; no login needed; staff card lives under Reports |
 
 ## Staff back office
 
@@ -56,7 +57,7 @@ are client components over the same mock API.
 | `/admin/refunds` | Approval, execution (retryable), outcome tracking |
 | `/admin/customers` | Customer history, support notes, permitted contact actions |
 | `/admin/payments` | Attempts, callbacks, settlement state, exceptions |
-| `/admin/reports` | Sales by day, top products, stock value, fulfilment/delivery, returns, cash, reconciliation; CSV export of the current dataset |
+| `/admin/reports` | Sales by day, top products, stock value, fulfilment/delivery, returns, cash, reconciliation; CSV export of the current dataset; Project documents card (architect report download) |
 | `/admin/ai` | AI suggestions with evidence/data period, review history, business questions |
 | `/admin/team` | Demo staff + permission matrix |
 | `/admin/audit` | Audit events with actor/reason/before/after |

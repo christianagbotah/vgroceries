@@ -7,7 +7,7 @@ import { LoadingState, ErrorState } from "@/components/shared/states";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { formatMoney } from "@/lib/money";
-import { Download, BarChart3, TrendingUp, Boxes, Truck, RotateCcw, Banknote, CreditCard } from "lucide-react";
+import { Download, BarChart3, TrendingUp, Boxes, Truck, RotateCcw, Banknote, CreditCard, FileText } from "lucide-react";
 import type { ReportBundle } from "@/services/mock/engine/reports";
 
 type Row = { label: string; value: string }[];
@@ -55,6 +55,30 @@ export default function AdminReportsPage() {
             <Download className="size-4" aria-hidden /> Export top products CSV
           </Button>
         </div>
+      </div>
+
+      {/* Project documents — handover deliverables, not live business data. */}
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-card p-4">
+        <div className="flex items-start gap-3">
+          <div className="flex size-10 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary" aria-hidden>
+            <FileText className="size-5" />
+          </div>
+          <div>
+            <h2 className="font-semibold">Project documents</h2>
+            <p className="mt-0.5 text-sm text-muted-foreground">
+              Delivery &amp; Integration Report — the architect handover pack (Word, 12 pages, 179 KB).
+            </p>
+          </div>
+        </div>
+        <Button asChild className="h-10">
+          {/* Same-origin static file: the download attribute triggers a save instead of navigation. */}
+          <a
+            href="/reports/Variety-Groceries-Delivery-and-Integration-Report.docx"
+            download="Variety-Groceries-Delivery-and-Integration-Report.docx"
+          >
+            <Download className="size-4" aria-hidden /> Download .docx
+          </a>
+        </Button>
       </div>
 
       <Tabs value={tab} onValueChange={setTab}>

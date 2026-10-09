@@ -8,7 +8,7 @@ Tailwind 4, shadcn/ui, Bun. Checks were actually run — nothing below is claime
 | Check | Command | Result |
 |---|---|---|
 | ESLint | `bun run lint` | **PASS — 0 errors, 0 warnings** (after fixing 3 `set-state-in-effect` errors and 2 stale directives) |
-| Route sweep | curl every implemented route | **PASS — 48/48 routes HTTP 200** (storefront 17, admin 27, rider 4 + staff login; incl. dynamic detail routes) |
+| Route sweep | `node scripts/route-sweep.mjs` | **PASS — 56/56 routes HTTP 200** (storefront, admin, rider + staff login; dynamic detail routes curled with seeded instances; was 48/48 under the prior ad-hoc count before the report download route) |
 | API smoke | curl operations across catalogue/checkout/orders/POS/inventory/dispatch/returns/refunds/AI/demo | **PASS** — envelopes `{ok,data|error}`, correct error codes |
 | Business-rule acceptance suite | `bash scripts/acceptance-checks.sh` | **PASS — 21/21** (details below) |
 
