@@ -93,7 +93,7 @@ export default function AdminRefundsPage() {
                     </td>
                     <td className="hidden p-3 lg:table-cell">
                       {r.providerRef ? <span className="font-mono text-xs">{r.providerRef}</span> : r.method === "manual_recording" ? <span className="text-xs text-muted-foreground">not a provider transfer</span> : "—"}
-                      <p className="text-xs text-muted-foreground">transfer: {r.providerTransferState.replace(/_/g, " ")}</p>
+                      <p className="text-xs text-muted-foreground">transfer: {(r.providerTransferState ?? "not_started").replace(/_/g, " ")}</p>
                     </td>
                     <td className="p-3 text-right">
                       <span className="inline-flex flex-wrap justify-end gap-1.5">

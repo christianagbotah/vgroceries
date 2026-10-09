@@ -1,8 +1,8 @@
 # Verification record
 
-**Date**: 9 October 2026 (updated after handoff-review corrections) · **Environment**: Next.js 16.1
-(App Router, Turbopack dev), TypeScript 5, Tailwind 4, shadcn/ui, Bun. Checks were actually run —
-nothing below is claimed without a result.
+**Date**: 9 October 2026 (updated after the API-boundary + documentation handoff) · **Environment**:
+Next.js 16.1 (App Router, Turbopack dev), TypeScript 5, Tailwind 4, shadcn/ui, Bun. Checks were
+actually run — nothing below is claimed without a result.
 
 ## Automated checks
 
@@ -15,7 +15,9 @@ nothing below is claimed without a result.
 | API smoke | curl operations across catalogue/checkout/orders/POS/inventory/dispatch/returns/refunds/AI/demo | **PASS** — envelopes `{ok,data|error}`, correct error codes |
 | Business-rule acceptance suite | `bash scripts/acceptance-checks.sh` | **PASS — 24/24** (original 21 + catalogue non-empty + admin.returns contract; the suite now aborts on any transport, HTTP-status, or JSON-envelope failure so no assertion can pass on an empty response) |
 | Handoff regression suite | `bun scripts/handoff-regressions.ts` | **PASS — 24/24** assertions covering the review's seven defect classes (unexecuted-refund claim, double restock, duplicate return lines, double refund, released-reservation handover, negative quantities, checkout idempotency) plus the staff returns-list endpoint |
-| CI | `.github/workflows/ci.yml` | Lint + type check + production build + all three suites on every push/PR |
+| Shared-contracts suite | `bun scripts/contracts-check.ts` | **PASS — 32/32** — request schemas reject malformed input (incl. the rider proof-method enum, aligned to the engine contract after the browser check caught a drift), live responses conform to the zod schemas, the operation registry covers all 92 router operations, and the HTTP + in-process adapters agree |
+| OpenAPI validation | YAML parse + ref/duplicate-operationId audit | **PASS — parses, 0 dangling refs, 0 duplicate operationIds (92 operations)** |
+| CI | `.github/workflows/ci.yml` | Lint + type check + production build + all four suites on every push/PR |
 
 ### Acceptance suite results (scripts/acceptance-checks.sh, last run)
 
@@ -47,7 +49,39 @@ K. each returns row links to its order (orderId present) ...................... 
 RESULT: 24 passed, 0 failed
 ```
 
-## Manual browser checks (agent-browser, Chromium)
+## Browser checks of the five required flows (agent-browser, this handoff)
+
+All five flows were walked in-browser over the live dev server after the adapter-boundary rewire
+(every screen now goes through the resolved service adapters):
+
+| Flow | Walk | Result |
+|---|---|---|
+| **Checkout** | Product page (farm-eggs) → +1 quantity → add to cart → `/checkout` (zone/slot/address/MoMo prefilled demo identity) → place order → **VG-8HWKRB, ₵99.00** → payment prompt → approve → "Thank you — payment confirmed!" | PASS |
+| **POS** | `/admin/pos` → open cashier session (float ₵100) → search "milo" → add tin (₵52) → cash received ₵60 → complete → **receipt R-00004, change ₵8.00** | PASS |
+| **Fulfilment** | `/admin/fulfilment` confirm queue shows the new paid order (5 rows) → Confirm → picking → packed (status verified after each step); queues render FEFO allocations | PASS |
+| **Rider delivery** | `/admin/dispatch` ready queue → assign rider (Abena Dufie) → `/rider` login as Abena → job detail (checklist, address, contact) → accept → tick 3 pickup items → confirm pickup → start delivery → mark delivered with **customer PIN proof (order verification code)** → job `delivered` with proof recorded | PASS |
+| **Returns/refunds** | `/account/returns` list → `/admin/returns` (3 rows) → RTN-2003 detail → `/admin/refunds` → approve ref_3002 → execute (first attempt fails retryable, transfer: failed) → retry → execute → **succeeded, providerRef HT-DEMO-RF-9558**; return detail shows the succeeded refund | PASS |
+
+**Two real defects found by these browser checks and fixed in this handoff:**
+
+1. **Rider proof-method schema drift** — the new shared zod enum for `rider.action` used
+   `photo|signature|otp|note` while the engine contract (and rider UI) uses
+   `pin|signature|photo_note`; the adapter-level request validation correctly rejected the
+   browser's `proofMethod: "pin"` and the deliver step failed. Fixed by aligning the contracts
+   (zod schema, `RiderActionRequest`, OpenAPI enum, MOBILE_READINESS wording) to the engine
+   contract, plus two new contracts-suite assertions (accepts `pin`, rejects `otp`) so the drift
+   cannot recur. The adapter boundary caught a genuine contract mismatch on its first live run —
+   exactly what it is for.
+2. **Refunds screen client crash (pre-existing, latent)** — seeded refunds `ref_3002`/`ref_3003`
+   have no `providerTransferState` until provider execution starts, and the refunds table called
+   `.replace()` on it, crashing the page after hydration (HTTP 200, so route sweeps had passed).
+   Fixed with a null-safe render (`transfer: not started`), and the `RefundRow` contract now
+   honestly declares the field optional. Screenshot: `docs/screenshots/verify-refunds-fixed.png`.
+
+Rider workspace re-verified at 375px after the boundary rewire
+(`docs/screenshots/verify-rider-boundary.png`); no horizontal overflow.
+
+## Manual browser checks (earlier rounds, agent-browser, Chromium)
 
 | Area | Checks | Result |
 |---|---|---|
@@ -66,13 +100,12 @@ Screenshots: `docs/screenshots/verify-home-final.png`, `docs/screenshots/verify-
 
 ## Not run / not possible in this environment
 
-- `bun run build` — production build is not part of the sandbox dev workflow (dev-server only per
-  environment instructions). Source compiles per-route during dev with zero errors; a production
-  build remains an integration-team step.
-- Automated unit tests (Jest/Vitest) were not added — the acceptance suite above covers the
-  inventory/duplicate-action/refund-limit/primary-workflow requirements via executed API checks.
-  Adding a formal test runner is listed in docs/KNOWN_ISSUES.md as follow-up.
-- Real payments, courier APIs, SMS, email: intentionally not connected (prototype boundary).
+- Real payments, courier APIs, SMS, email, push: intentionally not connected (prototype boundary).
+- The production `standalone` server was smoke-started in CI (workflow) rather than locally beyond
+  the build; the dev-server suites cover all business behaviour.
+- A formal unit-test runner (Jest/Vitest) was not added — the four executable suites above
+  (acceptance, handoff regressions, contracts, route sweep) cover the required behaviour over the
+  real transport; adding a runner is listed in docs/KNOWN_ISSUES.md as follow-up.
 
 ## Reset behaviour
 

@@ -1,0 +1,3132 @@
+openapi: 3.1.0
+info:
+  title: Variety Groceries API
+  version: 1.0.0
+  summary: Proposed production REST API for varietygrocery.com (Ghana)
+  description: |
+    REST rendering of the service contract the frontend already consumes.
+
+    **Provenance.** The frontend prototype speaks dot-namespaced operations
+    (`checkout.complete`, `admin.returns`, …) through the shared adapter
+    boundary in `src/services/adapters/`. This document defines the proposed
+    production REST surface under `/api/v1` for the NestJS backend, together
+    with the error, pagination, idempotency and cache conventions the
+    adapters already implement. The complete mapping from the 92 existing
+    mock operations to these endpoints is in `docs/API_CONTRACTS.md`.
+
+    **Conventions.**
+    - Money: integer minor units (GHS pesewas), never floats.
+    - Quantities: decimal strings (`"1.5"`), never floats.
+    - Timestamps: UTC ISO-8601.
+    - Payment, fulfilment, delivery, return and refund states are separate
+      dimensions on every order-bearing resource.
+    - Mutations that may be retried accept an `Idempotency-Key` header:
+      same key + same payload replays the original result; same key with a
+      different payload returns `409 IDEMPOTENCY_CONFLICT`.
+    - List endpoints paginate with `page` / `perPage` and return page
+      metadata; filters use resource-specific query parameters.
+  contact:
+    name: Variety Groceries Engineering
+    url: https://varietygrocery.com
+  license:
+    name: Proprietary
+servers:
+  - url: https://api.varietygrocery.com/api/v1
+    description: Production
+  - url: http://localhost:3000/api/mock/v1
+    description: Development mock (same envelope, dot-paths)
+
+security:
+  - bearerAuth: []
+
+tags:
+  - { name: Catalog, description: Public catalogue, pricing, availability }
+  - { name: Checkout, description: Quotes, delivery configuration, order creation }
+  - { name: Orders, description: Public order status and tracking }
+  - { name: Account, description: "Customer account: orders, addresses, returns" }
+  - { name: Returns, description: Return requests, inspection, dispositions }
+  - { name: Refunds, description: Refund ledger, approval, provider execution }
+  - { name: Payments, description: Payment attempts and reconciliation }
+  - { name: Inventory, description: Lots, movements, reservations, adjustments, stocktakes }
+  - { name: POS, description: Counter sales, holds, receipts, cashier sessions }
+  - { name: Dispatch, description: Delivery queue, jobs, providers, riders }
+  - { name: Rider, description: Rider workspace (mobile-first) }
+  - { name: AI, description: Grounded assistance (demo until backend lands) }
+  - { name: Admin, description: Staff back-office surfaces }
+  - { name: Demo, description: Development-only demo controls }
+
+paths:
+  /catalog/categories:
+    get:
+      tags: [Catalog]
+      summary: List active categories with purchasable counts
+      operationId: listCategories
+      responses:
+        "200":
+          description: Category list
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Category" }
+  /catalog/products:
+    get:
+      tags: [Catalog]
+      summary: Search/filter/sort purchasable products
+      operationId: listProducts
+      parameters:
+        - { name: q, in: query, schema: { type: string }, description: Search term }
+        - { name: category, in: query, schema: { type: string }, description: Category id or slug }
+        - { name: sort, in: query, schema: { type: string, enum: [popular, price_asc, price_desc, name, newest], default: popular } }
+        - { $ref: "#/components/parameters/Page" }
+        - { $ref: "#/components/parameters/PerPage" }
+      responses:
+        "200":
+          description: Paged product grid (zero-availability items hidden)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ProductPage" }
+  /catalog/products/{slug}:
+    get:
+      tags: [Catalog]
+      summary: Product detail with variants and availability
+      operationId: getProduct
+      parameters:
+        - { name: slug, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: Product page bundle (purchasable=false when out of stock)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ProductPageData" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /catalog/home:
+    get:
+      tags: [Catalog]
+      summary: Storefront homepage bundle (categories, offers, popular, trending)
+      operationId: catalogHome
+      responses:
+        "200":
+          description: Homepage bundle
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  categories:
+                    type: array
+                    items: { $ref: "#/components/schemas/Category" }
+                  offers:
+                    type: array
+                    items: { $ref: "#/components/schemas/Product" }
+                  popular:
+                    type: array
+                    items: { $ref: "#/components/schemas/Product" }
+                  trendingNew:
+                    type: array
+                    items: { $ref: "#/components/schemas/Product" }
+  /catalog/products:by-variants:
+    post:
+      tags: [Catalog]
+      summary: Resolve products for a set of variant ids
+      operationId: productsByVariants
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [variantIds]
+              properties:
+                variantIds: { type: array, items: { type: string }, minItems: 1 }
+      responses:
+        "200":
+          description: Products owning the requested variants
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Product" }
+
+  /checkout/quote:
+    post:
+      tags: [Checkout]
+      summary: Price a basket with live availability and zone fee
+      operationId: quoteCart
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/QuoteRequest" }
+      responses:
+        "200":
+          description: Quoted totals with per-line conflicts
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Quote" }
+        "400": { $ref: "#/components/responses/ValidationError" }
+  /checkout/complete:
+    post:
+      tags: [Checkout]
+      summary: Create an order (reservations held atomically)
+      description: |
+        Idempotent by `Idempotency-Key`. An identical retry returns the
+        original order; a reused key with different input returns
+        `409 IDEMPOTENCY_CONFLICT`. Stock is reserved atomically across all
+        lines or the request fails with `OUT_OF_STOCK` and nothing is held.
+      operationId: completeCheckout
+      parameters:
+        - { $ref: "#/components/parameters/IdempotencyKey" }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CheckoutRequest" }
+      responses:
+        "201":
+          description: Order created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CheckoutResult" }
+        "400": { $ref: "#/components/responses/ValidationError" }
+        "409": { $ref: "#/components/responses/Conflict" }
+  /checkout/zones:
+    get:
+      tags: [Checkout]
+      summary: Active delivery zones
+      operationId: listZones
+      responses:
+        "200":
+          description: Zone list
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Zone" }
+  /checkout/zones/{zoneId}/slots:
+    get:
+      tags: [Checkout]
+      summary: Bookable delivery slots for a zone
+      operationId: listSlots
+      parameters:
+        - { name: zoneId, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: Slot list
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Slot" }
+
+  /orders/{orderId}:
+    get:
+      tags: [Orders]
+      summary: Public order status (customer-safe projection)
+      operationId: getOrderStatus
+      parameters:
+        - { name: orderId, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: Order with separate payment/fulfilment/delivery states
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PublicOrder" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /orders/track:
+    post:
+      tags: [Orders]
+      summary: Track by order reference + verification code
+      operationId: trackOrder
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reference, code]
+              properties:
+                reference: { type: string }
+                code: { type: string }
+      responses:
+        "200":
+          description: Matching order
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PublicOrder" }
+        "422": { $ref: "#/components/responses/RuleViolation" }
+  /orders/{orderId}/payment-outcome:
+    post:
+      tags: [Payments]
+      summary: Provider callback — record a payment outcome
+      description: |
+        Duplicate-safe: a second callback for an already-resolved attempt is
+        acknowledged (`duplicate: true`) without changing state. A late
+        success after failure/review triggers the documented review flow.
+      operationId: recordPaymentOutcome
+      parameters:
+        - { $ref: "#/components/parameters/IdempotencyKey" }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [orderId, outcome]
+              properties:
+                orderId: { type: string }
+                outcome: { type: string, enum: [succeeded, failed, pending] }
+                providerRef: { type: string }
+      responses:
+        "200":
+          description: Outcome recorded (or duplicate acknowledged)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  duplicate: { type: boolean }
+                  paymentStatus: { $ref: "#/components/schemas/PaymentStatus" }
+        "422": { $ref: "#/components/responses/RuleViolation" }
+
+  /account/summary:
+    get:
+      tags: [Account]
+      summary: Customer snapshot (profile, addresses, counters, recent orders)
+      operationId: getAccountSummary
+      responses:
+        "200":
+          description: Summary
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AccountSummary" }
+  /account/orders:
+    get:
+      tags: [Account]
+      summary: Customer order history
+      operationId: listAccountOrders
+      responses:
+        "200":
+          description: Order rows
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/AccountOrderRow" }
+  /account/orders/{orderId}/cancel:
+    post:
+      tags: [Account]
+      summary: Cancel an order before stock consumption
+      description: Cancelling a paid order creates a linked executable refund; the payment only becomes `refunded` after a confirmed provider transfer.
+      operationId: cancelAccountOrder
+      parameters:
+        - { name: orderId, in: path, required: true, schema: { type: string } }
+        - { $ref: "#/components/parameters/IdempotencyKey" }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason]
+              properties:
+                reason: { type: string, minLength: 1 }
+      responses:
+        "200":
+          description: Cancellation accepted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  fulfilmentStatus: { $ref: "#/components/schemas/FulfilmentStatus" }
+        "409": { $ref: "#/components/responses/Conflict" }
+  /account/orders/{orderId}/return-lines:
+    post:
+      tags: [Returns]
+      summary: Eligible return lines with remaining balances
+      operationId: listReturnLines
+      parameters:
+        - { name: orderId, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: Eligibility rows
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/ReturnLineEligibility" }
+  /account/returns:
+    get:
+      tags: [Returns]
+      summary: Customer return requests
+      operationId: listAccountReturns
+      responses:
+        "200":
+          description: Return rows
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/AccountReturnRow" }
+    post:
+      tags: [Returns]
+      summary: Create a return request
+      description: |
+        Lines are aggregated per original order line; quantities beyond the
+        remaining eligible balance (prior returns included) are rejected
+        before any mutation.
+      operationId: createReturn
+      parameters:
+        - { $ref: "#/components/parameters/IdempotencyKey" }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [orderId, lines]
+              properties:
+                orderId: { type: string }
+                lines:
+                  type: array
+                  minItems: 1
+                  items:
+                    type: object
+                    required: [orderLineId, quantity, reason]
+                    properties:
+                      orderLineId: { type: string }
+                      quantity: { $ref: "#/components/schemas/Quantity" }
+                      reason: { type: string, minLength: 1 }
+                evidenceNote: { type: string }
+      responses:
+        "201":
+          description: Return request created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ReturnCreated" }
+        "409": { $ref: "#/components/responses/Conflict" }
+
+  /returns/{returnId}:
+    get:
+      tags: [Returns]
+      summary: Return detail (account + staff view)
+      operationId: getReturn
+      parameters:
+        - { name: returnId, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: Return detail
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ReturnDetail" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /returns/{returnId}/actions:
+    post:
+      tags: [Returns]
+      summary: Advance a return (approve/receive/inspect/request_refund)
+      description: |
+        Dispositions are once-only: a repeated inspection replays the
+        recorded result without a second stock movement; a disposition
+        change explicitly reverses the prior stock effect.
+      operationId: returnAction
+      parameters:
+        - { name: returnId, in: path, required: true, schema: { type: string } }
+        - { $ref: "#/components/parameters/IdempotencyKey" }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ReturnAction" }
+      responses:
+        "200":
+          description: Action applied
+          content:
+            application/json:
+              schema:
+                type: object
+                properties: { done: { type: boolean } }
+        "422": { $ref: "#/components/responses/RuleViolation" }
+
+  /refunds:
+    get:
+      tags: [Refunds]
+      summary: Refund ledger
+      operationId: listRefunds
+      responses:
+        "200":
+          description: Refund rows
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/RefundRow" }
+  /refunds/{refundId}/actions:
+    post:
+      tags: [Refunds]
+      summary: Approve/execute/retry a refund
+      description: |
+        Execution revalidates both the return-level refundable balance and
+        the order-level paid balance (completed refunds + unresolved
+        commitments). Retrying an in-flight attempt continues it; a
+        succeeded refund cannot be executed again.
+      operationId: refundAction
+      parameters:
+        - { name: refundId, in: path, required: true, schema: { type: string } }
+        - { $ref: "#/components/parameters/IdempotencyKey" }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [action]
+              properties:
+                action: { type: string, enum: [approve, execute, retry] }
+      responses:
+        "200":
+          description: Action applied
+          content:
+            application/json:
+              schema:
+                type: object
+                properties: { done: { type: boolean } }
+        "409": { $ref: "#/components/responses/Conflict" }
+  /payments:
+    get:
+      tags: [Payments]
+      summary: Payment attempts ledger with settlement states
+      operationId: listPayments
+      responses:
+        "200":
+          description: Payment rows
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/PaymentRow" }
+
+  /inventory/overview:
+    get:
+      tags: [Inventory]
+      summary: Availability per variant (physical/reserved/available)
+      operationId: inventoryOverview
+      parameters:
+        - { name: q, in: query, schema: { type: string } }
+        - { name: filter, in: query, schema: { type: string, enum: [low, zero, expiring, all], default: all } }
+      responses:
+        "200":
+          description: Overview rows
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  rows:
+                    type: array
+                    items: { $ref: "#/components/schemas/InventoryRow" }
+                  total: { type: integer }
+  /inventory/lots:
+    get:
+      tags: [Inventory]
+      summary: Lot-level stock (FEFO data)
+      operationId: listLots
+      parameters:
+        - { name: variantId, in: query, schema: { type: string } }
+      responses:
+        "200":
+          description: Lot rows
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/LotRow" }
+  /inventory/lots/{lotId}/quarantine:
+    post:
+      tags: [Inventory]
+      summary: Quarantine or release a lot
+      operationId: quarantineLot
+      parameters:
+        - { name: lotId, in: path, required: true, schema: { type: string } }
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [quarantine]
+              properties:
+                quarantine: { type: boolean }
+                note: { type: string }
+      responses:
+        "200":
+          description: Done
+          content:
+            application/json:
+              schema:
+                type: object
+                properties: { done: { type: boolean } }
+  /inventory/lots/{lotId}/dispose:
+    post:
+      tags: [Inventory]
+      summary: Dispose a lot (damaged/expired)
+      operationId: disposeLot
+      parameters:
+        - { name: lotId, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason]
+              properties:
+                reason: { type: string }
+      responses:
+        "200":
+          description: Done
+          content:
+            application/json:
+              schema:
+                type: object
+                properties: { done: { type: boolean } }
+  /inventory/receipts:
+    get:
+      tags: [Inventory]
+      summary: Goods receipts
+      operationId: listReceipts
+      responses:
+        "200":
+          description: Receipt rows
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/ReceiptRow" }
+  /inventory/receive:
+    post:
+      tags: [Inventory]
+      summary: Receive goods into lots (PO-matching)
+      operationId: receiveGoods
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ReceiveRequest" }
+      responses:
+        "201":
+          description: Receipt created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties: { receiptId: { type: string } }
+  /inventory/adjustments:
+    get:
+      tags: [Inventory]
+      summary: Adjustment requests
+      operationId: listAdjustments
+      responses:
+        "200":
+          description: Adjustment rows
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/AdjustmentRow" }
+  /inventory/adjustments/create:
+    post:
+      tags: [Inventory]
+      summary: Request an adjustment (approval-gated)
+      operationId: createAdjustment
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [lines]
+              properties:
+                lines:
+                  type: array
+                  minItems: 1
+                  items:
+                    type: object
+                    required: [variantId, delta, reason]
+                    properties:
+                      variantId: { type: string }
+                      lotId: { type: string }
+                      delta: { type: string, pattern: '^[+-]?\\d+(\\.\\d{1,3})?$' }
+                      reason: { type: string }
+                      note: { type: string }
+      responses:
+        "201":
+          description: Adjustment requested
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  adjustmentId: { type: string }
+                  status: { type: string }
+  /inventory/adjustments/decide:
+    post:
+      tags: [Inventory]
+      summary: Approve or reject an adjustment
+      operationId: decideAdjustment
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [adjustmentId, decision]
+              properties:
+                adjustmentId: { type: string }
+                decision: { type: string, enum: [approve, reject] }
+      responses:
+        "200":
+          description: Decision applied
+          content:
+            application/json:
+              schema:
+                type: object
+                properties: { status: { type: string } }
+  /inventory/stocktakes:
+    get:
+      tags: [Inventory]
+      summary: Stocktake list
+      operationId: listStocktakes
+      responses:
+        "200":
+          description: Stocktake rows
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/StocktakeRow" }
+  /inventory/stocktakes/open:
+    post:
+      tags: [Inventory]
+      summary: Open a stocktake for selected variants
+      operationId: openStocktake
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [variantIds]
+              properties:
+                variantIds: { type: array, items: { type: string }, minItems: 1 }
+      responses:
+        "201":
+          description: Stocktake opened
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  stocktakeId: { type: string }
+                  reference: { type: string }
+  /inventory/stocktakes/count:
+    post:
+      tags: [Inventory]
+      summary: Record counts
+      operationId: recordCounts
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [stocktakeId, counts]
+              properties:
+                stocktakeId: { type: string }
+                counts:
+                  type: object
+                  additionalProperties: { $ref: "#/components/schemas/Quantity" }
+      responses:
+        "200":
+          description: Counts recorded
+          content:
+            application/json:
+              schema:
+                type: object
+                properties: { status: { type: string } }
+  /inventory/stocktakes/close:
+    post:
+      tags: [Inventory]
+      summary: Close a stocktake (optionally apply corrections)
+      operationId: closeStocktake
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [stocktakeId, applyCorrections]
+              properties:
+                stocktakeId: { type: string }
+                applyCorrections: { type: boolean }
+      responses:
+        "200":
+          description: Stocktake closed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties: { status: { type: string } }
+  /inventory/expiry:
+    get:
+      tags: [Inventory]
+      summary: Expiry, quarantine and damaged lot overview
+      operationId: expiryOverview
+      responses:
+        "200":
+          description: Expiry buckets
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ExpiryOverview" }
+
+  /pos/search:
+    get:
+      tags: [POS]
+      summary: Find sellable variants (barcode or name)
+      operationId: posSearch
+      parameters:
+        - { name: q, in: query, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: Search rows with live availability
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/PosSearchRow" }
+  /pos/complete:
+    post:
+      tags: [POS]
+      summary: Complete a counter sale (idempotent)
+      description: |
+        Idempotent by `Idempotency-Key`. Quantities must be positive decimal
+        strings; cash sales require `cashReceivedMinor` >= total; payment
+        methods are restricted to the counter-supported set. Reservations
+        are created and consumed atomically — the same stock-depletion
+        invariant as online checkout.
+      operationId: posComplete
+      parameters:
+        - { $ref: "#/components/parameters/IdempotencyKey" }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PosSaleRequest" }
+      responses:
+        "201":
+          description: Sale completed with receipt
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PosSaleResult" }
+        "409": { $ref: "#/components/responses/Conflict" }
+  /pos/holds:
+    post:
+      tags: [POS]
+      summary: Hold a basket as a draft
+      operationId: posHold
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [sessionId, lines]
+              properties:
+                sessionId: { type: string }
+                label: { type: string }
+                lines:
+                  type: array
+                  minItems: 1
+                  items: { $ref: "#/components/schemas/CartLine" }
+      responses:
+        "201":
+          description: Draft held
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  draftId: { type: string }
+                  label: { type: string }
+                  expiresAt: { type: string }
+  /pos/drafts:
+    get:
+      tags: [POS]
+      summary: List held drafts for a session
+      operationId: listPosDrafts
+      parameters:
+        - { name: sessionId, in: query, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: Draft rows
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/PosDraftRow" }
+  /pos/drafts/{draftId}/resume:
+    post:
+      tags: [POS]
+      summary: Resume a held draft
+      operationId: resumePosDraft
+      parameters:
+        - { name: draftId, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: Draft contents
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id: { type: string }
+                  label: { type: string }
+                  lines:
+                    type: array
+                    items: { $ref: "#/components/schemas/CartLine" }
+  /pos/drafts/{draftId}/release:
+    post:
+      tags: [POS]
+      summary: Release a held draft
+      operationId: releasePosDraft
+      parameters:
+        - { name: draftId, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: Released
+          content:
+            application/json:
+              schema:
+                type: object
+                properties: { released: { type: boolean } }
+  /pos/receipts/{receiptNo}:
+    get:
+      tags: [POS]
+      summary: Receipt lookup with returnable lines
+      operationId: lookupReceipt
+      parameters:
+        - { name: receiptNo, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: Receipt detail
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ReceiptLookup" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /sessions:
+    get:
+      tags: [POS]
+      summary: Cashier sessions with expected cash
+      operationId: listSessions
+      responses:
+        "200":
+          description: Session rows
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/SessionRow" }
+  /sessions/open:
+    post:
+      tags: [POS]
+      summary: Open a cashier session
+      operationId: openSession
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [cashierId, openingFloatMinor]
+              properties:
+                cashierId: { type: string }
+                openingFloatMinor: { $ref: "#/components/schemas/Money" }
+      responses:
+        "201":
+          description: Session opened
+          content:
+            application/json:
+              schema:
+                type: object
+                properties: { sessionId: { type: string } }
+  /sessions/{sessionId}/movements:
+    post:
+      tags: [POS]
+      summary: Cash in/out/drop during a session
+      operationId: sessionMovement
+      parameters:
+        - { name: sessionId, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [kind, amountMinor, note]
+              properties:
+                kind: { type: string, enum: [cash_in, cash_out, drop] }
+                amountMinor: { $ref: "#/components/schemas/Money" }
+                note: { type: string, minLength: 1 }
+      responses:
+        "200":
+          description: Movement recorded
+          content:
+            application/json:
+              schema:
+                type: object
+                properties: { movements: { type: integer } }
+  /sessions/{sessionId}/close:
+    post:
+      tags: [POS]
+      summary: Close a session with a counted amount
+      operationId: closeSession
+      parameters:
+        - { name: sessionId, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [countedCashMinor, note]
+              properties:
+                countedCashMinor: { $ref: "#/components/schemas/Money" }
+                note: { type: string }
+      responses:
+        "200":
+          description: Session closed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  differenceMinor: { type: integer }
+                  differenceLabel: { type: string }
+
+  /dispatch/queue:
+    get:
+      tags: [Dispatch]
+      summary: Ready orders, active jobs, riders, providers
+      operationId: dispatchQueue
+      responses:
+        "200":
+          description: Queue bundle
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DispatchQueue" }
+  /dispatch/assign:
+    post:
+      tags: [Dispatch]
+      summary: Assign an order (rider / provider / manual)
+      operationId: assignDispatch
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [orderId]
+              properties:
+                orderId: { type: string }
+                riderId: { type: string }
+                providerId: { type: string }
+                manual: { type: boolean }
+      responses:
+        "201":
+          description: Job created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  jobId: { type: string }
+                  status: { type: string }
+  /dispatch/jobs/{jobId}/actions:
+    post:
+      tags: [Dispatch]
+      summary: Job action (reschedule / return_to_store / remit)
+      operationId: dispatchJobAction
+      parameters:
+        - { name: jobId, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [action]
+              properties:
+                action: { type: string, enum: [reschedule, return_to_store, remit] }
+                when: { type: string }
+                note: { type: string }
+                riderId: { type: string }
+                amountMinor: { $ref: "#/components/schemas/Money" }
+      responses:
+        "200":
+          description: Done
+          content:
+            application/json:
+              schema:
+                type: object
+                properties: { done: { type: boolean } }
+  /riders:
+    get:
+      tags: [Dispatch]
+      summary: Rider fleet with availability and remittances
+      operationId: listRiders
+      responses:
+        "200":
+          description: Rider rows
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/RiderRow" }
+  /riders/{riderId}/availability:
+    post:
+      tags: [Dispatch]
+      summary: Toggle rider availability
+      operationId: toggleRider
+      parameters:
+        - { name: riderId, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [available]
+              properties:
+                available: { type: boolean }
+      responses:
+        "200":
+          description: New availability
+          content:
+            application/json:
+              schema:
+                type: object
+                properties: { isAvailable: { type: boolean } }
+  /providers:
+    get:
+      tags: [Dispatch]
+      summary: Delivery provider registry
+      operationId: listProviders
+      responses:
+        "200":
+          description: Provider rows
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/ProviderRow" }
+
+  /rider/login:
+    get:
+      tags: [Rider]
+      summary: "Rider login (demo picker; production: phone + PIN/OAuth)"
+      operationId: riderLogin
+      security: []
+      responses:
+        "200":
+          description: Rider list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id: { type: string }
+                    name: { type: string }
+                    kind: { type: string }
+                    vehicle: { type: string }
+                    isDemo: { type: boolean }
+  /rider/jobs:
+    get:
+      tags: [Rider]
+      summary: Today's jobs + self + pending remittance
+      operationId: riderJobs
+      parameters:
+        - { name: riderId, in: query, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: Rider workspace bundle
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RiderWorkspace" }
+  /rider/jobs/{jobId}:
+    get:
+      tags: [Rider]
+      summary: One job (checklist, contact, proof, notes)
+      operationId: riderJob
+      parameters:
+        - { name: jobId, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: Job view
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RiderJob" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /rider/jobs/{jobId}/actions:
+    post:
+      tags: [Rider]
+      summary: Job lifecycle action (accept/pickup/out/deliver/fail/note)
+      description: |
+        `deliver` requires proof (PIN/signature/photo-note) and, for COD
+        jobs, an explicit `cashCollected` flag — cash collection, delivery
+        and remittance are separate events. `note` is queued safely while
+        offline and stays visibly pending until acknowledged.
+      operationId: riderAction
+      parameters:
+        - { name: jobId, in: path, required: true, schema: { type: string } }
+        - { $ref: "#/components/parameters/IdempotencyKey" }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/RiderAction" }
+      responses:
+        "200":
+          description: Updated job view
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RiderJob" }
+        "409": { $ref: "#/components/responses/Conflict" }
+  /rider/history:
+    get:
+      tags: [Rider]
+      summary: Completed jobs with COD/remittance state
+      operationId: riderHistory
+      parameters:
+        - { name: riderId, in: query, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: History rows
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/RiderHistoryRow" }
+
+  /ai/assistant:
+    post:
+      tags: [AI]
+      summary: Catalogue-grounded shopping assistance (Demo)
+      description: Every answer carries evidence traced to verified catalogue/stock/price records; insufficient data is stated explicitly. Provider secrets stay on the backend.
+      operationId: aiAssistant
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [question]
+              properties:
+                question: { type: string, minLength: 1 }
+      responses:
+        "200":
+          description: Answer with evidence and suggestions
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AiAssistant" }
+  /ai/budget-basket:
+    post:
+      tags: [AI]
+      summary: Best basket within a budget (Demo)
+      operationId: aiBudgetBasket
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [budgetMinor]
+              properties:
+                budgetMinor: { $ref: "#/components/schemas/Money" }
+      responses:
+        "200":
+          description: Basket
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AiBasket" }
+  /admin/ai/suggestions:
+    get:
+      tags: [AI]
+      summary: Reviewable AI suggestions (pricing/replenishment/promos)
+      operationId: listAiSuggestions
+      responses:
+        "200":
+          description: Suggestion rows
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/AiSuggestion" }
+  /admin/ai/generate:
+    post:
+      tags: [AI]
+      summary: Regenerate suggestions from live records (Demo)
+      operationId: generateAiSuggestions
+      responses:
+        "200":
+          description: Generation count
+          content:
+            application/json:
+              schema:
+                type: object
+                properties: { generated: { type: integer } }
+  /admin/ai/review:
+    post:
+      tags: [AI]
+      summary: Mark a suggestion reviewed/dismissed
+      operationId: reviewAiSuggestion
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [suggestionId, decision]
+              properties:
+                suggestionId: { type: string }
+                decision: { type: string, enum: [reviewed, dismissed] }
+      responses:
+        "200":
+          description: New status
+          content:
+            application/json:
+              schema:
+                type: object
+                properties: { status: { type: string } }
+  /admin/ai/business-question:
+    post:
+      tags: [AI]
+      summary: Business question answered from actual records (Demo)
+      operationId: aiBusinessQuestion
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [question]
+              properties:
+                question: { type: string, minLength: 1 }
+      responses:
+        "200":
+          description: Answer with evidence
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AiAnswer" }
+
+  /admin/dashboard:
+    get:
+      tags: [Admin]
+      summary: Today's snapshot + actionable counters
+      operationId: adminDashboard
+      responses:
+        "200":
+          description: Dashboard bundle
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Dashboard" }
+  /admin/orders:
+    get:
+      tags: [Admin]
+      summary: Order list with filters
+      operationId: adminListOrders
+      parameters:
+        - { name: channel, in: query, schema: { type: string, enum: [online, pos] } }
+        - { name: status, in: query, schema: { type: string } }
+        - { name: payment, in: query, schema: { type: string } }
+        - { name: q, in: query, schema: { type: string } }
+      responses:
+        "200":
+          description: Order rows
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/AdminOrderRow" }
+  /admin/orders/{orderId}:
+    get:
+      tags: [Admin]
+      summary: Order detail with internal views
+      operationId: adminGetOrder
+      parameters:
+        - { name: orderId, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: Order + reservations + notes + refund links
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  order: { $ref: "#/components/schemas/PublicOrder" }
+                  internal: { $ref: "#/components/schemas/AdminOrderInternal" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /admin/orders/{orderId}/actions:
+    post:
+      tags: [Admin]
+      summary: Order workflow action
+      description: |
+        Transitions enforce the state machines. `resolve_review` with
+        `cancel_refund` creates a linked executable refund — the order's
+        payment only becomes `refunded` after the refund transfer is
+        confirmed. Stock consumption (`deliver` for online delivery orders)
+        requires active reservations covering the order.
+      operationId: adminOrderAction
+      parameters:
+        - { name: orderId, in: path, required: true, schema: { type: string } }
+        - { $ref: "#/components/parameters/IdempotencyKey" }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/OrderAction" }
+      responses:
+        "200":
+          description: Updated public order
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PublicOrder" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "422": { $ref: "#/components/responses/RuleViolation" }
+  /admin/fulfilment:
+    get:
+      tags: [Admin]
+      summary: Fulfilment queues (confirm/pick/pack/dispatch/collection)
+      operationId: adminFulfilment
+      responses:
+        "200":
+          description: Queue bundle
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/FulfilmentQueues" }
+  /admin/returns:
+    get:
+      tags: [Admin]
+      summary: Staff returns list with refundable balances
+      operationId: adminListReturns
+      responses:
+        "200":
+          description: Return rows
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/AdminReturnRow" }
+  /admin/payments:
+    get:
+      tags: [Admin]
+      summary: Payment ledger
+      operationId: adminListPayments
+      responses:
+        "200":
+          description: Payment rows
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/PaymentRow" }
+  /admin/customers:
+    get:
+      tags: [Admin]
+      summary: Customer list
+      operationId: adminListCustomers
+      responses:
+        "200":
+          description: Customer rows
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/CustomerRow" }
+  /admin/customers/{customerId}:
+    get:
+      tags: [Admin]
+      summary: Customer detail
+      operationId: adminGetCustomer
+      parameters:
+        - { name: customerId, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: Profile + addresses + orders + returns
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CustomerDetail" }
+  /admin/products:
+    get:
+      tags: [Admin]
+      summary: Catalogue admin list
+      operationId: adminListProducts
+      parameters:
+        - { name: q, in: query, schema: { type: string } }
+      responses:
+        "200":
+          description: Product rows
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/AdminProductRow" }
+  /admin/products/{productId}:
+    get:
+      tags: [Admin]
+      summary: Product admin detail (variants, lots, movements)
+      operationId: adminGetProduct
+      parameters:
+        - { name: productId, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: Product detail
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AdminProductDetail" }
+  /admin/products/update:
+    post:
+      tags: [Admin]
+      summary: Update product fields (audited)
+      operationId: adminUpdateProduct
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "200":
+          description: Done
+          content:
+            application/json:
+              schema:
+                type: object
+                properties: { done: { type: boolean } }
+  /admin/variants/update:
+    post:
+      tags: [Admin]
+      summary: Update a variant (price changes audited)
+      operationId: adminUpdateVariant
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "200":
+          description: Done
+          content:
+            application/json:
+              schema:
+                type: object
+                properties: { done: { type: boolean } }
+  /admin/categories:
+    get:
+      tags: [Admin]
+      summary: Category admin list
+      operationId: adminListCategories
+      responses:
+        "200":
+          description: Category rows
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/AdminCategoryRow" }
+  /admin/categories/update:
+    post:
+      tags: [Admin]
+      summary: Update a category
+      operationId: adminUpdateCategory
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "200":
+          description: Done
+          content:
+            application/json:
+              schema:
+                type: object
+                properties: { done: { type: boolean } }
+  /admin/suppliers:
+    get:
+      tags: [Admin]
+      summary: Supplier list
+      operationId: adminListSuppliers
+      responses:
+        "200":
+          description: Supplier rows
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/SupplierRow" }
+  /admin/purchases:
+    get:
+      tags: [Admin]
+      summary: Purchase orders
+      operationId: adminListPurchases
+      responses:
+        "200":
+          description: Purchase rows
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/PurchaseRow" }
+  /admin/purchases/create:
+    post:
+      tags: [Admin]
+      summary: Create a purchase order
+      operationId: adminCreatePurchase
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [supplierId, lines]
+              properties:
+                supplierId: { type: string }
+                expectedOn: { type: string, format: date }
+                note: { type: string }
+                lines:
+                  type: array
+                  minItems: 1
+                  items:
+                    type: object
+                    required: [variantId, quantity, unitCostMinor]
+                    properties:
+                      variantId: { type: string }
+                      quantity: { $ref: "#/components/schemas/Quantity" }
+                      unitCostMinor: { $ref: "#/components/schemas/Money" }
+      responses:
+        "201":
+          description: Purchase created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  poId: { type: string }
+                  reference: { type: string }
+  /admin/purchases/send:
+    post:
+      tags: [Admin]
+      summary: Mark a purchase order sent to the supplier
+      operationId: adminSendPurchase
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [poId]
+              properties:
+                poId: { type: string }
+      responses:
+        "200":
+          description: New status
+          content:
+            application/json:
+              schema:
+                type: object
+                properties: { status: { type: string } }
+  /admin/reports:
+    get:
+      tags: [Admin]
+      summary: Report bundle (CSV export derived from the same records)
+      operationId: adminReports
+      responses:
+        "200":
+          description: Reports bundle
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ReportBundle" }
+  /admin/team:
+    get:
+      tags: [Admin]
+      summary: Staff team with roles
+      operationId: adminTeam
+      responses:
+        "200":
+          description: Team rows
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/TeamRow" }
+  /admin/audit:
+    get:
+      tags: [Admin]
+      summary: Audit trail
+      operationId: adminAudit
+      parameters:
+        - { name: q, in: query, schema: { type: string } }
+      responses:
+        "200":
+          description: Audit rows
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/AuditRow" }
+  /admin/settings:
+    get:
+      tags: [Admin]
+      summary: Business settings
+      operationId: adminSettings
+      responses:
+        "200":
+          description: Settings
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Settings" }
+  /admin/settings/update:
+    post:
+      tags: [Admin]
+      summary: Update business settings
+      operationId: adminUpdateSettings
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/Settings" }
+      responses:
+        "200":
+          description: Updated settings
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Settings" }
+
+  /demo/reset:
+    post:
+      tags: [Demo]
+      summary: Reset demo data (development only)
+      operationId: demoReset
+      responses:
+        "200":
+          description: Reset
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  reset: { type: boolean }
+                  seededAt: { type: string, format: date-time }
+  /demo/flags:
+    post:
+      tags: [Demo]
+      summary: Demo flags (latency, payment failure, offline)
+      operationId: demoFlags
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "200":
+          description: Current flags
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DemoFlags" }
+  /demo/scenario:
+    post:
+      tags: [Demo]
+      summary: Run a scripted demo scenario
+      operationId: demoScenario
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [scenario]
+              properties:
+                scenario: { type: string }
+      responses:
+        "200":
+          description: Scenario applied
+          content:
+            application/json:
+              schema: { type: object }
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: |
+        Access token. Role claims drive the permission matrix
+        (docs/PERMISSIONS.md); resource ownership is checked server-side for
+        customers and riders. Refresh + revocation flows are specified in
+        docs/MOBILE_READINESS.md.
+
+  parameters:
+    Page:
+      name: page
+      in: query
+      schema: { type: integer, minimum: 1, default: 1 }
+    PerPage:
+      name: perPage
+      in: query
+      schema: { type: integer, minimum: 1, maximum: 100, default: 12 }
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: false
+      schema: { type: string, minLength: 8 }
+      description: |
+        Client-generated retry key. Same key + same payload replays the
+        original result; same key + different payload returns 409
+        IDEMPOTENCY_CONFLICT.
+
+  responses:
+    NotFound:
+      description: Unknown resource
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    ValidationError:
+      description: Request failed validation
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    Conflict:
+      description: Stale state or idempotency conflict
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    RuleViolation:
+      description: Business rule refused the transition
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+
+  schemas:
+    Error:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: string
+          enum:
+            [
+              VALIDATION_FAILED,
+              NOT_FOUND,
+              UNAUTHENTICATED,
+              FORBIDDEN,
+              CONFLICT,
+              OUT_OF_STOCK,
+              RESERVATION_LOST,
+              IDEMPOTENCY_CONFLICT,
+              INVALID_INPUT,
+              RULE_VIOLATION,
+              BAD_RESPONSE,
+              NETWORK,
+              INTERNAL,
+            ]
+        message: { type: string }
+        details: {}
+
+    Money:
+      type: integer
+      format: int64
+      minimum: 0
+      description: GHS minor units (pesewas)
+
+    Quantity:
+      type: string
+      pattern: '^\d+(\.\d{1,3})?$'
+      description: Positive decimal string quantity
+
+    PaymentStatus:
+      type: string
+      enum: [unpaid, pending, succeeded, failed, expired, partially_refunded, refund_pending, refunded, requires_review]
+    FulfilmentStatus:
+      type: string
+      enum: [awaiting_confirmation, confirmed, picking, packed, dispatched, delivered, ready_for_collection, collected, cancelled]
+    DeliveryStatus:
+      type: string
+      enum: [unassigned, assigned, accepted, picked_up, out_for_delivery, delivered, failed, rescheduled, return_to_store]
+
+    PageMeta:
+      type: object
+      properties:
+        total: { type: integer }
+        page: { type: integer }
+        pages: { type: integer }
+        perPage: { type: integer }
+
+    Category:
+      type: object
+      properties:
+        id: { type: string }
+        slug: { type: string }
+        name: { type: string }
+        description: { type: string }
+        tint: { type: string }
+        isActive: { type: boolean }
+        availableProducts: { type: integer }
+
+    Variant:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+        unit: { type: string }
+        unitSize: { type: string }
+        priceMinor: { $ref: "#/components/schemas/Money" }
+        priceLabel: { type: string }
+        compareAtPriceMinor: { $ref: "#/components/schemas/Money" }
+        compareAtLabel: { type: string }
+        barcode: { type: string }
+        availableToSell: { $ref: "#/components/schemas/Quantity" }
+        isAvailable: { type: boolean }
+        safetyStock: { $ref: "#/components/schemas/Quantity" }
+
+    Product:
+      type: object
+      properties:
+        id: { type: string }
+        slug: { type: string }
+        name: { type: string }
+        categoryId: { type: string }
+        categoryName: { type: string }
+        categorySlug: { type: string }
+        shortDescription: { type: string }
+        description: { type: string }
+        tags: { type: array, items: { type: string } }
+        image: { type: string }
+        variants:
+          type: array
+          items: { $ref: "#/components/schemas/Variant" }
+        anyAvailable: { type: boolean }
+        minPriceMinor: { $ref: "#/components/schemas/Money" }
+        minPriceLabel: { type: string }
+
+    ProductPage:
+      allOf:
+        - $ref: "#/components/schemas/PageMeta"
+        - type: object
+          properties:
+            items:
+              type: array
+              items: { $ref: "#/components/schemas/Product" }
+
+    ProductPageData:
+      type: object
+      properties:
+        product: { $ref: "#/components/schemas/Product" }
+        related:
+          type: array
+          items: { $ref: "#/components/schemas/Product" }
+        purchasable: { type: boolean }
+
+    Zone:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+        areas: { type: array, items: { type: string } }
+        feeMinor: { $ref: "#/components/schemas/Money" }
+        minimumOrderMinor: { $ref: "#/components/schemas/Money" }
+        serviceHours: { type: string }
+        cutoff: { type: string }
+        slotsPerDay: { type: integer }
+        isActive: { type: boolean }
+
+    Slot:
+      type: object
+      properties:
+        id: { type: string }
+        zoneId: { type: string }
+        date: { type: string, format: date }
+        window: { type: string }
+        capacity: { type: integer }
+        booked: { type: integer }
+
+    CartLine:
+      type: object
+      required: [variantId, quantity]
+      properties:
+        variantId: { type: string }
+        quantity: { $ref: "#/components/schemas/Quantity" }
+
+    QuoteRequest:
+      type: object
+      required: [lines]
+      properties:
+        lines:
+          type: array
+          minItems: 1
+          items: { $ref: "#/components/schemas/CartLine" }
+        zoneId: { type: string }
+
+    Quote:
+      type: object
+      properties:
+        ok: { type: boolean }
+        lines:
+          type: array
+          items:
+            type: object
+            properties:
+              variantId: { type: string }
+              productId: { type: string }
+              productName: { type: string }
+              variantName: { type: string }
+              unit: { type: string }
+              quantity: { $ref: "#/components/schemas/Quantity" }
+              unitPriceMinor: { $ref: "#/components/schemas/Money" }
+              lineTotalMinor: { $ref: "#/components/schemas/Money" }
+              available: { $ref: "#/components/schemas/Quantity" }
+              availableNow: { type: boolean }
+        subtotalMinor: { $ref: "#/components/schemas/Money" }
+        deliveryFeeMinor: { $ref: "#/components/schemas/Money" }
+        totalMinor: { $ref: "#/components/schemas/Money" }
+        minOrderMinor: { $ref: "#/components/schemas/Money" }
+        meetsMinimum: { type: boolean }
+        conflicts:
+          type: array
+          items:
+            type: object
+            properties:
+              variantId: { type: string }
+              productName: { type: string }
+              variantName: { type: string }
+              requested: { $ref: "#/components/schemas/Quantity" }
+              available: { $ref: "#/components/schemas/Quantity" }
+
+    CheckoutRequest:
+      type: object
+      required: [lines, customerName, customerPhone, fulfilment, paymentMethod]
+      properties:
+        lines:
+          type: array
+          minItems: 1
+          items: { $ref: "#/components/schemas/CartLine" }
+        customerName: { type: string, minLength: 1 }
+        customerPhone: { type: string, minLength: 1 }
+        customerEmail: { type: string }
+        customerId: { type: string }
+        addressId: { type: string }
+        guestAddress:
+          type: object
+          required: [recipientName, phone, locality, street]
+          properties:
+            recipientName: { type: string }
+            phone: { type: string }
+            locality: { type: string }
+            street: { type: string }
+            landmark: { type: string }
+            ghanaPostGps: { type: string }
+        fulfilment: { type: string, enum: [delivery, collection] }
+        zoneId: { type: string }
+        slotId: { type: string }
+        paymentMethod: { type: string, enum: [mobile_money, card_hosted, bank_transfer, cash_counter, cash_on_delivery] }
+        note: { type: string }
+        idempotencyKey: { type: string, minLength: 8 }
+
+    CheckoutResult:
+      type: object
+      properties:
+        orderId: { type: string }
+        reference: { type: string }
+        verificationCode: { type: string }
+        paymentRequired: { type: boolean }
+
+    PublicOrder:
+      type: object
+      properties:
+        id: { type: string }
+        reference: { type: string }
+        channel: { type: string, enum: [online, pos] }
+        customerName: { type: string }
+        customerPhone: { type: string }
+        fulfilment: { type: string, enum: [delivery, collection] }
+        slotLabel: { type: string }
+        createdAt: { type: string, format: date-time }
+        createdAtLabel: { type: string }
+        subtotalMinor: { $ref: "#/components/schemas/Money" }
+        discountMinor: { $ref: "#/components/schemas/Money" }
+        deliveryFeeMinor: { $ref: "#/components/schemas/Money" }
+        totalMinor: { $ref: "#/components/schemas/Money" }
+        totalLabel: { type: string }
+        paymentMethod: { type: string }
+        paymentStatus: { $ref: "#/components/schemas/PaymentStatus" }
+        fulfilmentStatus: { $ref: "#/components/schemas/FulfilmentStatus" }
+        deliveryStatus: { $ref: "#/components/schemas/DeliveryStatus" }
+        paymentAttempts:
+          type: array
+          items: { $ref: "#/components/schemas/PaymentAttempt" }
+        lines:
+          type: array
+          items: { $ref: "#/components/schemas/OrderLine" }
+        notes:
+          type: array
+          items:
+            type: object
+            properties:
+              at: { type: string }
+              by: { type: string }
+              text: { type: string }
+        events:
+          type: array
+          items:
+            type: object
+            properties:
+              at: { type: string, format: date-time }
+              atLabel: { type: string }
+              actor: { type: string }
+              action: { type: string }
+              fromStatus: { type: string }
+              toStatus: { type: string }
+              note: { type: string }
+        job: { $ref: "#/components/schemas/OrderJob" }
+        returns:
+          type: array
+          items:
+            type: object
+            properties:
+              id: { type: string }
+              reference: { type: string }
+              status: { type: string }
+              createdAt: { type: string, format: date-time }
+        posReceiptNo: { type: string }
+        stockConsumedAt: { type: string, format: date-time }
+        verificationCode: { type: string }
+
+    OrderLine:
+      type: object
+      properties:
+        id: { type: string }
+        productName: { type: string }
+        variantName: { type: string }
+        unit: { type: string }
+        quantity: { $ref: "#/components/schemas/Quantity" }
+        unitPriceMinor: { $ref: "#/components/schemas/Money" }
+        lineTotalMinor: { $ref: "#/components/schemas/Money" }
+        allocations:
+          type: array
+          items:
+            type: object
+            properties:
+              lotId: { type: string }
+              quantity: { $ref: "#/components/schemas/Quantity" }
+        note: { type: string }
+        substitutionOfLineId: { type: string }
+        productId: { type: string }
+        variantId: { type: string }
+
+    PaymentAttempt:
+      type: object
+      properties:
+        id: { type: string }
+        method: { type: string }
+        status: { type: string }
+        amountMinor: { $ref: "#/components/schemas/Money" }
+        amountLabel: { type: string }
+        callbackCount: { type: integer }
+        providerRef: { type: string }
+        settlementState: { type: string }
+        failureReason: { type: string }
+        createdAt: { type: string, format: date-time }
+
+    OrderJob:
+      type: object
+      properties:
+        id: { type: string }
+        status: { type: string }
+        riderName: { type: string }
+        proof: { $ref: "#/components/schemas/Proof" }
+        failureReason: { type: string }
+        rescheduledFor: { type: string }
+        cashToCollectMinor: { $ref: "#/components/schemas/Money" }
+        cashToCollectLabel: { type: string }
+        cashCollectedAt: { type: string }
+        remittedAt: { type: string }
+
+    Proof:
+      type: object
+      properties:
+        method: { type: string, enum: [pin, signature, photo_note] }
+        detail: { type: string }
+        at: { type: string, format: date-time }
+
+    AccountSummary:
+      type: object
+      properties:
+        customer: { $ref: "#/components/schemas/Customer" }
+        addresses:
+          type: array
+          items: { $ref: "#/components/schemas/Address" }
+        ordersCount: { type: integer }
+        openOrders: { type: integer }
+        returnsCount: { type: integer }
+        recentOrders:
+          type: array
+          items:
+            type: object
+            properties:
+              id: { type: string }
+              reference: { type: string }
+              totalLabel: { type: string }
+              fulfilmentStatus: { type: string }
+              paymentStatus: { type: string }
+              createdAtLabel: { type: string }
+
+    Customer:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+        phone: { type: string }
+        email: { type: string }
+
+    Address:
+      type: object
+      properties:
+        id: { type: string }
+        label: { type: string }
+        recipientName: { type: string }
+        phone: { type: string }
+        locality: { type: string }
+        street: { type: string }
+        landmark: { type: string }
+        ghanaPostGps: { type: string }
+        isDefault: { type: boolean }
+
+    AccountOrderRow:
+      type: object
+      properties:
+        id: { type: string }
+        reference: { type: string }
+        totalLabel: { type: string }
+        fulfilmentStatus: { type: string }
+        paymentStatus: { type: string }
+        fulfilment: { type: string }
+        createdAtLabel: { type: string }
+        lineCount: { type: integer }
+
+    ReturnLineEligibility:
+      type: object
+      properties:
+        lineId: { type: string }
+        productName: { type: string }
+        variantName: { type: string }
+        quantity: { $ref: "#/components/schemas/Quantity" }
+        returnedSoFar: { $ref: "#/components/schemas/Quantity" }
+        eligible: { $ref: "#/components/schemas/Quantity" }
+        unitPriceMinor: { $ref: "#/components/schemas/Money" }
+        maxRefundMinor: { $ref: "#/components/schemas/Money" }
+
+    AccountReturnRow:
+      type: object
+      properties:
+        id: { type: string }
+        reference: { type: string }
+        orderId: { type: string }
+        orderReference: { type: string }
+        status: { type: string }
+        createdAtLabel: { type: string }
+        lines:
+          type: array
+          items:
+            type: object
+            properties:
+              productName: { type: string }
+              quantity: { $ref: "#/components/schemas/Quantity" }
+              reason: { type: string }
+              refundLabel: { type: string }
+        refund:
+          type: object
+          properties:
+            id: { type: string }
+            status: { type: string }
+            amountMinor: { $ref: "#/components/schemas/Money" }
+            method: { type: string }
+
+    ReturnCreated:
+      type: object
+      properties:
+        returnId: { type: string }
+        reference: { type: string }
+        status: { type: string }
+
+    ReturnDetail:
+      type: object
+      properties:
+        id: { type: string }
+        reference: { type: string }
+        orderId: { type: string }
+        orderReference: { type: string }
+        channel: { type: string }
+        status: { type: string }
+        requestedBy: { type: string }
+        evidenceNote: { type: string }
+        createdAtLabel: { type: string }
+        receivedAt: { type: string }
+        inspectedAt: { type: string }
+        disposition:
+          type: object
+          properties:
+            kind: { type: string }
+            note: { type: string }
+            by: { type: string }
+            at: { type: string }
+        lines:
+          type: array
+          items:
+            type: object
+            properties:
+              id: { type: string }
+              productName: { type: string }
+              variantName: { type: string }
+              quantity: { $ref: "#/components/schemas/Quantity" }
+              reason: { type: string }
+              requestedRefundLabel: { type: string }
+              approvedRefundLabel: { type: string }
+        refunds:
+          type: array
+          items: { $ref: "#/components/schemas/RefundRow" }
+
+    ReturnAction:
+      type: object
+      required: [action]
+      properties:
+        action: { type: string, enum: [approve, reject, receive, inspect, request_refund, retry_refund] }
+        disposition: { type: string, enum: [restock_saleable, restock_quarantine, dispose] }
+        method: { type: string }
+        note: { type: string }
+
+    RefundRow:
+      type: object
+      properties:
+        id: { type: string }
+        returnReference: { type: string }
+        orderReference: { type: string }
+        amountLabel: { type: string }
+        status: { type: string }
+        method: { type: string }
+        reason: { type: string }
+        requestedBy: { type: string }
+        approvedBy: { type: string }
+        providerRef: { type: string }
+        providerTransferState: { type: string }
+        retryCount: { type: integer }
+        createdAtLabel: { type: string }
+
+    PaymentRow:
+      type: object
+      properties:
+        id: { type: string }
+        orderReference: { type: string }
+        channel: { type: string }
+        method: { type: string }
+        amountLabel: { type: string }
+        status: { type: string }
+        providerRef: { type: string }
+        settlementState: { type: string }
+        callbackCount: { type: integer }
+        failureReason: { type: string }
+        createdAtLabel: { type: string }
+        orderId: { type: string }
+
+    InventoryRow:
+      type: object
+      properties:
+        variantId: { type: string }
+        productId: { type: string }
+        productName: { type: string }
+        variantName: { type: string }
+        unit: { type: string }
+        sellablePhysical: { $ref: "#/components/schemas/Quantity" }
+        reserved: { $ref: "#/components/schemas/Quantity" }
+        safetyStock: { $ref: "#/components/schemas/Quantity" }
+        availableToSell: { $ref: "#/components/schemas/Quantity" }
+        isAvailable: { type: boolean }
+        nextExpiry: { type: string }
+        lotCount: { type: integer }
+        lastMovement: { type: string }
+        lastMovementAt: { type: string }
+        image: { type: string }
+
+    LotRow:
+      type: object
+      properties:
+        id: { type: string }
+        productName: { type: string }
+        variantName: { type: string }
+        lotNumber: { type: string }
+        quantity: { $ref: "#/components/schemas/Quantity" }
+        kind: { type: string }
+        isQuarantined: { type: boolean }
+        expired: { type: boolean }
+        expiryDate: { type: string }
+        location: { type: string }
+        supplierName: { type: string }
+        variantId: { type: string }
+
+    ReceiptRow:
+      type: object
+      properties:
+        id: { type: string }
+        supplierName: { type: string }
+        poRef: { type: string }
+        receivedAtLabel: { type: string }
+        receivedBy: { type: string }
+        lines:
+          type: array
+          items:
+            type: object
+            properties:
+              productName: { type: string }
+              lotNumber: { type: string }
+              quantity: { $ref: "#/components/schemas/Quantity" }
+              expiryDate: { type: string }
+
+    ReceiveRequest:
+      type: object
+      required: [lines]
+      properties:
+        supplierId: { type: string }
+        poRef: { type: string }
+        lines:
+          type: array
+          minItems: 1
+          items:
+            type: object
+            required: [variantId, quantity]
+            properties:
+              variantId: { type: string }
+              quantity: { $ref: "#/components/schemas/Quantity" }
+              lotNumber: { type: string }
+              expiryDate: { type: string, format: date }
+              unitCostMinor: { $ref: "#/components/schemas/Money" }
+              location: { type: string }
+
+    AdjustmentRow:
+      type: object
+      properties:
+        id: { type: string }
+        productName: { type: string }
+        variantName: { type: string }
+        lotNumber: { type: string }
+        delta: { type: string }
+        reason: { type: string }
+        status: { type: string }
+        requestedBy: { type: string }
+        approvedBy: { type: string }
+        atLabel: { type: string }
+
+    StocktakeRow:
+      type: object
+      properties:
+        id: { type: string }
+        reference: { type: string }
+        status: { type: string }
+        openedAtLabel: { type: string }
+        closedAt: { type: string }
+        lines:
+          type: array
+          items:
+            type: object
+            properties:
+              variantId: { type: string }
+              productName: { type: string }
+              expectedQty: { $ref: "#/components/schemas/Quantity" }
+              countedQty: { $ref: "#/components/schemas/Quantity" }
+              variance: { type: string }
+              status: { type: string }
+
+    ExpiryOverview:
+      type: object
+      properties:
+        expired:
+          type: array
+          items: { $ref: "#/components/schemas/LotRow" }
+        soon:
+          type: array
+          items: { $ref: "#/components/schemas/LotRow" }
+        quarantined:
+          type: array
+          items: { $ref: "#/components/schemas/LotRow" }
+        damaged:
+          type: array
+          items: { $ref: "#/components/schemas/LotRow" }
+
+    PosSearchRow:
+      type: object
+      properties:
+        variantId: { type: string }
+        productId: { type: string }
+        productName: { type: string }
+        variantName: { type: string }
+        unit: { type: string }
+        priceMinor: { $ref: "#/components/schemas/Money" }
+        priceLabel: { type: string }
+        barcode: { type: string }
+        availableToSell: { $ref: "#/components/schemas/Quantity" }
+        isAvailable: { type: boolean }
+
+    PosSaleRequest:
+      type: object
+      required: [sessionId, lines, method]
+      properties:
+        sessionId: { type: string }
+        cashierId: { type: string }
+        lines:
+          type: array
+          minItems: 1
+          items: { $ref: "#/components/schemas/CartLine" }
+        method: { type: string, enum: [mobile_money, card_hosted, bank_transfer, cash_counter, cash_on_delivery] }
+        discountMinor: { $ref: "#/components/schemas/Money" }
+        customerName: { type: string }
+        customerPhone: { type: string }
+        cashReceivedMinor: { $ref: "#/components/schemas/Money" }
+        idempotencyKey: { type: string, minLength: 8 }
+
+    PosSaleResult:
+      type: object
+      properties:
+        orderId: { type: string }
+        reference: { type: string }
+        receiptNo: { type: string }
+        totalMinor: { $ref: "#/components/schemas/Money" }
+        totalLabel: { type: string }
+        changeMinor: { $ref: "#/components/schemas/Money" }
+        changeLabel: { type: string }
+        lines:
+          type: array
+          items:
+            type: object
+            properties:
+              productName: { type: string }
+              variantName: { type: string }
+              quantity: { $ref: "#/components/schemas/Quantity" }
+              unitPriceMinor: { $ref: "#/components/schemas/Money" }
+              lineTotalMinor: { $ref: "#/components/schemas/Money" }
+        businessName: { type: string }
+        at: { type: string, format: date-time }
+
+    PosDraftRow:
+      type: object
+      properties:
+        id: { type: string }
+        label: { type: string }
+        createdAtLabel: { type: string }
+        expiresAt: { type: string }
+        lineCount: { type: integer }
+        totalMinor: { $ref: "#/components/schemas/Money" }
+        lines:
+          type: array
+          items: { $ref: "#/components/schemas/CartLine" }
+
+    ReceiptLookup:
+      type: object
+      properties:
+        receiptNo: { type: string }
+        atLabel: { type: string }
+        method: { type: string }
+        totalMinor: { $ref: "#/components/schemas/Money" }
+        totalLabel: { type: string }
+        cashierName: { type: string }
+        orderId: { type: string }
+        orderReference: { type: string }
+        lines:
+          type: array
+          items: { $ref: "#/components/schemas/OrderLine" }
+        returnable:
+          type: array
+          items:
+            type: object
+            properties:
+              lineId: { type: string }
+              productName: { type: string }
+              eligible: { $ref: "#/components/schemas/Quantity" }
+              unitPriceMinor: { $ref: "#/components/schemas/Money" }
+
+    SessionRow:
+      type: object
+      properties:
+        id: { type: string }
+        cashierName: { type: string }
+        openedAtLabel: { type: string }
+        closedAtLabel: { type: string }
+        status: { type: string }
+        openingFloatMinor: { $ref: "#/components/schemas/Money" }
+        expectedMinor: { $ref: "#/components/schemas/Money" }
+        countedCashMinor: { $ref: "#/components/schemas/Money" }
+        differenceMinor: { type: integer }
+        movements:
+          type: array
+          items:
+            type: object
+            properties:
+              at: { type: string }
+              kind: { type: string, enum: [cash_in, cash_out, drop] }
+              amountMinor: { $ref: "#/components/schemas/Money" }
+              note: { type: string }
+        cashSales: { type: integer }
+
+    DispatchQueue:
+      type: object
+      properties:
+        ready:
+          type: array
+          items:
+            type: object
+            properties:
+              id: { type: string }
+              reference: { type: string }
+              customerName: { type: string }
+              zone: { type: string }
+              totalLabel: { type: string }
+              paymentMethod: { type: string }
+              paymentStatus: { type: string }
+              codAmountMinor: { $ref: "#/components/schemas/Money" }
+        jobs:
+          type: array
+          items: { $ref: "#/components/schemas/RiderJob" }
+        riders:
+          type: array
+          items: { $ref: "#/components/schemas/RiderRow" }
+        providers:
+          type: array
+          items: { $ref: "#/components/schemas/ProviderRow" }
+
+    RiderRow:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+        phone: { type: string }
+        kind: { type: string }
+        vehicle: { type: string }
+        zoneNames: { type: string }
+        isAvailable: { type: boolean }
+        activeJobId: { type: string }
+        lastLocationAt: { type: string }
+        lastLocationLabel: { type: string }
+        pendingRemittanceMinor: { $ref: "#/components/schemas/Money" }
+        completedJobs: { type: integer }
+
+    ProviderRow:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+        capabilities: { type: array, items: { type: string } }
+        status: { type: string }
+        notes: { type: string }
+        isConfigured: { type: boolean }
+
+    RiderWorkspace:
+      type: object
+      properties:
+        jobs:
+          type: array
+          items: { $ref: "#/components/schemas/RiderJob" }
+        rider:
+          type: object
+          nullable: true
+          properties:
+            id: { type: string }
+            name: { type: string }
+            phone: { type: string }
+            isAvailable: { type: boolean }
+            lastLocationAt: { type: string }
+        remittance:
+          type: object
+          properties:
+            totalMinor: { $ref: "#/components/schemas/Money" }
+            totalLabel: { type: string }
+
+    RiderJob:
+      type: object
+      properties:
+        id: { type: string }
+        orderId: { type: string }
+        orderReference: { type: string }
+        status: { type: string }
+        zone: { type: string }
+        riderId: { type: string }
+        instructions: { type: string }
+        customerName: { type: string }
+        customerPhone: { type: string }
+        address:
+          type: object
+          properties:
+            recipientName: { type: string }
+            phone: { type: string }
+            line1: { type: string }
+            landmark: { type: string }
+            ghanaPostGps: { type: string }
+        items: { type: array, items: { type: string } }
+        cashToCollectLabel: { type: string }
+        cashToCollectMinor: { $ref: "#/components/schemas/Money" }
+        cashCollectedAt: { type: string }
+        remittedAt: { type: string }
+        proof: { $ref: "#/components/schemas/Proof" }
+        failureReason: { type: string }
+        rescheduledFor: { type: string }
+        events:
+          type: array
+          items:
+            type: object
+            properties:
+              atLabel: { type: string }
+              actor: { type: string }
+              action: { type: string }
+              note: { type: string }
+
+    RiderAction:
+      type: object
+      required: [action]
+      properties:
+        action: { type: string, enum: [accept, pickup, out, deliver, fail, note] }
+        proofMethod: { type: string, enum: [pin, signature, photo_note] }
+        proofDetail: { type: string }
+        cashCollected: { type: boolean }
+        reason: { type: string }
+        note: { type: string }
+
+    RiderHistoryRow:
+      type: object
+      properties:
+        jobId: { type: string }
+        orderReference: { type: string }
+        status: { type: string }
+        deliveredAtLabel: { type: string }
+        cashToCollectMinor: { $ref: "#/components/schemas/Money" }
+        cashCollected: { type: boolean }
+        remitted: { type: boolean }
+        proof: { $ref: "#/components/schemas/Proof" }
+
+    AiAssistant:
+      type: object
+      properties:
+        answer: { type: string }
+        evidence: { type: array, items: { type: string } }
+        suggestions:
+          type: array
+          items:
+            type: object
+            properties:
+              productId: { type: string }
+              variantId: { type: string }
+              label: { type: string }
+              priceMinor: { $ref: "#/components/schemas/Money" }
+              available: { type: string }
+
+    AiBasket:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            type: object
+            properties:
+              productId: { type: string }
+              variantId: { type: string }
+              label: { type: string }
+              priceMinor: { $ref: "#/components/schemas/Money" }
+              available: { type: string }
+        totalMinor: { $ref: "#/components/schemas/Money" }
+        note: { type: string }
+
+    AiAnswer:
+      type: object
+      properties:
+        answer: { type: string }
+        evidence: { type: array, items: { type: string } }
+
+    AiSuggestion:
+      type: object
+      properties:
+        id: { type: string }
+        kind: { type: string }
+        title: { type: string }
+        detail: { type: string }
+        status: { type: string }
+        createdAtLabel: { type: string }
+
+    Dashboard:
+      type: object
+      properties:
+        today:
+          type: object
+          properties:
+            date: { type: string, format: date }
+            onlineMinor: { $ref: "#/components/schemas/Money" }
+            posMinor: { $ref: "#/components/schemas/Money" }
+            orders: { type: integer }
+        actionable:
+          type: object
+          properties:
+            awaitingConfirmation: { type: integer }
+            toPick: { type: integer }
+            toPack: { type: integer }
+            readyToDispatch: { type: integer }
+            pendingPayments: { type: integer }
+            returnsPending: { type: integer }
+            lowStock: { type: integer }
+            expiringSoon: { type: integer }
+            unassignedJobs: { type: integer }
+            openSessions: { type: integer }
+        recentOrders:
+          type: array
+          items:
+            type: object
+            properties:
+              id: { type: string }
+              reference: { type: string }
+              customer: { type: string }
+              channel: { type: string }
+              total: { type: integer }
+              totalLabel: { type: string }
+              atLabel: { type: string }
+        reports: { $ref: "#/components/schemas/ReportBundle" }
+
+    ReportBundle:
+      type: object
+      properties:
+        salesByDay:
+          type: array
+          items:
+            type: object
+            properties:
+              date: { type: string, format: date }
+              onlineMinor: { $ref: "#/components/schemas/Money" }
+              posMinor: { $ref: "#/components/schemas/Money" }
+              orders: { type: integer }
+        topProducts:
+          type: array
+          items:
+            type: object
+            properties:
+              name: { type: string }
+              variant: { type: string }
+              qty: { type: integer }
+              revenueMinor: { $ref: "#/components/schemas/Money" }
+        fulfilmentCounts: { type: object, additionalProperties: { type: integer } }
+        deliveryCounts: { type: object, additionalProperties: { type: integer } }
+        returnsSummary:
+          type: object
+          properties:
+            total: { type: integer }
+            pending: { type: integer }
+            resolved: { type: integer }
+            refundedMinor: { $ref: "#/components/schemas/Money" }
+        cashSummary:
+          type: object
+          properties:
+            openSessions: { type: integer }
+            expectedMinor: { $ref: "#/components/schemas/Money" }
+            lastClosedDiffMinor: { type: integer }
+        stockValue:
+          type: object
+          properties:
+            costBasisMinor: { $ref: "#/components/schemas/Money" }
+            sellableUnits: { type: number }
+            zeroVariants: { type: integer }
+            lowVariants: { type: integer }
+        paymentsReconciliation:
+          type: object
+          properties:
+            settled: { type: integer }
+            unsettled: { type: integer }
+            exceptions: { type: integer }
+
+    AdminOrderRow:
+      type: object
+      properties:
+        id: { type: string }
+        reference: { type: string }
+        channel: { type: string }
+        customerName: { type: string }
+        customerPhone: { type: string }
+        fulfilment: { type: string }
+        totalLabel: { type: string }
+        paymentStatus: { type: string }
+        fulfilmentStatus: { type: string }
+        deliveryStatus: { type: string }
+        lineCount: { type: integer }
+        createdAtLabel: { type: string }
+        posReceiptNo: { type: string }
+
+    AdminOrderInternal:
+      type: object
+      properties:
+        address: { $ref: "#/components/schemas/Address" }
+        zone:
+          type: object
+          properties:
+            id: { type: string }
+            name: { type: string }
+        customerId: { type: string }
+        customerNotes:
+          type: array
+          items:
+            type: object
+            properties:
+              at: { type: string }
+              by: { type: string }
+              text: { type: string }
+              internalOnly: { type: boolean }
+        reservations:
+          type: array
+          items:
+            type: object
+            properties:
+              id: { type: string }
+              quantity: { $ref: "#/components/schemas/Quantity" }
+              expiresAt: { type: string, format: date-time }
+              consumedAt: { type: string, format: date-time }
+              releasedAt: { type: string, format: date-time }
+              releasedReason: { type: string }
+              variantId: { type: string }
+        refunds:
+          type: array
+          items: { $ref: "#/components/schemas/RefundRow" }
+
+    OrderAction:
+      type: object
+      required: [action]
+      properties:
+        action:
+          type: string
+          enum:
+            [
+              confirm,
+              picking,
+              packed,
+              ready_for_collection,
+              collect,
+              dispatch,
+              deliver,
+              cancel,
+              note,
+              substitute,
+              resolve_review,
+            ]
+        note: { type: string }
+        reason: { type: string }
+        internalOnly: { type: boolean }
+        lineId: { type: string }
+        newVariantId: { type: string }
+        decision: { type: string, enum: [fulfil, cancel_refund] }
+
+    FulfilmentQueues:
+      type: object
+      properties:
+        confirm:
+          type: array
+          items: { $ref: "#/components/schemas/AdminOrderRow" }
+        pick:
+          type: array
+          items: { $ref: "#/components/schemas/FulfilmentCard" }
+        pack:
+          type: array
+          items: { $ref: "#/components/schemas/FulfilmentCard" }
+        dispatch:
+          type: array
+          items: { $ref: "#/components/schemas/AdminOrderRow" }
+        collection:
+          type: array
+          items: { $ref: "#/components/schemas/AdminOrderRow" }
+
+    FulfilmentCard:
+      allOf:
+        - $ref: "#/components/schemas/AdminOrderRow"
+        - type: object
+          properties:
+            slotLabel: { type: string }
+            lines:
+              type: array
+              items:
+                type: object
+                properties:
+                  id: { type: string }
+                  productName: { type: string }
+                  variantName: { type: string }
+                  quantity: { $ref: "#/components/schemas/Quantity" }
+                  allocations:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        lotId: { type: string }
+                        lotNumber: { type: string }
+                        quantity: { $ref: "#/components/schemas/Quantity" }
+                        expiry: { type: string }
+                  availableToSell: { $ref: "#/components/schemas/Quantity" }
+
+    AdminReturnRow:
+      allOf:
+        - $ref: "#/components/schemas/AccountReturnRow"
+        - type: object
+          properties:
+            channel: { type: string }
+            customerName: { type: string }
+            requestedBy: { type: string }
+            refundStatus: { type: string }
+            refundableMinor: { $ref: "#/components/schemas/Money" }
+
+    CustomerRow:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+        phone: { type: string }
+        email: { type: string }
+        orderCount: { type: integer }
+        spendLabel: { type: string }
+        returnCount: { type: integer }
+        addressCount: { type: integer }
+        createdAt: { type: string, format: date-time }
+
+    CustomerDetail:
+      type: object
+      properties:
+        customer: { $ref: "#/components/schemas/Customer" }
+        addresses:
+          type: array
+          items: { $ref: "#/components/schemas/Address" }
+        orders:
+          type: array
+          items: { $ref: "#/components/schemas/AdminOrderRow" }
+        returns:
+          type: array
+          items:
+            type: object
+            properties:
+              id: { type: string }
+              reference: { type: string }
+              status: { type: string }
+
+    AdminProductRow:
+      allOf:
+        - $ref: "#/components/schemas/Product"
+        - type: object
+          properties:
+            isPublished: { type: boolean }
+
+    AdminProductDetail:
+      allOf:
+        - $ref: "#/components/schemas/Product"
+        - type: object
+          properties:
+            isPublished: { type: boolean }
+            movements:
+              type: array
+              items:
+                type: object
+                properties:
+                  id: { type: string }
+                  delta: { type: string }
+                  reason: { type: string }
+                  atLabel: { type: string }
+                  resultingQty: { type: string }
+
+    AdminCategoryRow:
+      allOf:
+        - $ref: "#/components/schemas/Category"
+        - type: object
+          properties:
+            sortOrder: { type: integer }
+            productCount: { type: integer }
+
+    SupplierRow:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+        phone: { type: string }
+        email: { type: string }
+        notes: { type: string }
+        isActive: { type: boolean }
+        poCount: { type: integer }
+        openPoCount: { type: integer }
+
+    PurchaseRow:
+      type: object
+      properties:
+        id: { type: string }
+        reference: { type: string }
+        supplierName: { type: string }
+        status: { type: string }
+        expectedLabel: { type: string }
+        createdAtLabel: { type: string }
+        note: { type: string }
+        lines:
+          type: array
+          items:
+            type: object
+            properties:
+              productName: { type: string }
+              variantName: { type: string }
+              quantity: { $ref: "#/components/schemas/Quantity" }
+              unitCostLabel: { type: string }
+
+    TeamRow:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+        role: { type: string }
+        phone: { type: string }
+        openSessions: { type: integer }
+
+    AuditRow:
+      type: object
+      properties:
+        id: { type: string }
+        atLabel: { type: string }
+        actorName: { type: string }
+        action: { type: string }
+        entity: { type: string }
+        entityId: { type: string }
+        reason: { type: string }
+        before: { type: string }
+        after: { type: string }
+
+    Settings:
+      type: object
+      properties:
+        businessName: { type: string }
+        supportPhone: { type: string }
+        supportEmail: { type: string }
+        deliveryEnabled: { type: boolean }
+        collectionEnabled: { type: boolean }
+        reservationTtlMinutes: { type: integer }
+        currency: { type: string }
+        lowStockThreshold: { type: string }
+        refundsRequireApproval: { type: boolean }
+        codEnabled: { type: boolean }
+
+    DemoFlags:
+      type: object
+      properties:
+        latencyMs: { type: integer }
+        forcePaymentFailure: { type: boolean }
+        offlineMode: { type: boolean }
