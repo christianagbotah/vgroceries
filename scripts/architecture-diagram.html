@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: "Segoe UI", Arial, Helvetica, sans-serif; background: #FFFFFF; }
+  .canvas { width: 1560px; padding: 36px 40px; background: #FFFFFF; }
+  .title-row { text-align: center; margin-bottom: 26px; }
+  .title-row h1 { font-size: 26px; color: #1F4A3C; letter-spacing: 0.5px; }
+  .title-row p { font-size: 13px; color: #6B7A73; margin-top: 4px; }
+
+  .main { display: flex; gap: 28px; }
+  .stack { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+  .rail { width: 300px; flex-shrink: 0; }
+
+  /* Layer 1: interfaces */
+  .ifaces { display: flex; gap: 14px; }
+  .iface { flex: 1; background: #EDF5F2; border: 1.5px solid #2A7A65; border-radius: 10px; padding: 14px 16px; }
+  .iface h3 { font-size: 15px; color: #1F4A3C; margin-bottom: 6px; }
+  .iface .routes { font-size: 11px; color: #2A7A65; font-weight: 600; margin-bottom: 7px; text-transform: uppercase; letter-spacing: 0.4px; }
+  .iface ul { list-style: none; }
+  .iface li { font-size: 12px; color: #3D4A44; padding-left: 14px; position: relative; margin-bottom: 3px; line-height: 1.35; }
+  .iface li::before { content: ""; position: absolute; left: 0; top: 6px; width: 6px; height: 6px; border-radius: 50%; background: #2A7A65; }
+
+  /* connectors */
+  .connector { display: flex; flex-direction: column; align-items: center; padding: 2px 0; }
+  .connector .line { width: 2.5px; height: 16px; background: #2A7A65; }
+  .connector .arrow { width: 0; height: 0; border-left: 7px solid transparent; border-right: 7px solid transparent; border-top: 9px solid #2A7A65; }
+  .connector .lbl { font-size: 10.5px; color: #5B6B62; padding: 2px 0 4px; letter-spacing: 0.3px; }
+
+  /* Layer 2: client swap point */
+  .client { background: #FDF3E3; border: 2px dashed #C77E14; border-radius: 10px; padding: 13px 18px; text-align: center; position: relative; }
+  .client h2 { font-size: 16px; color: #7A4E0B; }
+  .client .mono { font-family: Consolas, Menlo, monospace; font-size: 13px; color: #7A4E0B; }
+  .client p { font-size: 11.5px; color: #8A6423; margin-top: 4px; }
+  .client .badge { position: absolute; top: -11px; left: 24px; background: #C77E14; color: #FFF; font-size: 10px; font-weight: 700; letter-spacing: 0.8px; padding: 3px 10px; border-radius: 20px; }
+
+  /* Layer 3: HTTP boundary */
+  .boundary { background: #2A7A65; border-radius: 10px; padding: 13px 18px; text-align: center; }
+  .boundary h2 { font-size: 15px; color: #FFFFFF; font-family: Consolas, Menlo, monospace; }
+  .boundary p { font-size: 11.5px; color: #D7EDE3; margin-top: 4px; }
+
+  /* Layer 4: engines */
+  .engines { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+  .engine { background: #FFFFFF; border: 1.5px solid #B7CFC5; border-top: 4px solid #2A7A65; border-radius: 8px; padding: 10px 12px; }
+  .engine .mono { font-family: Consolas, Menlo, monospace; font-size: 12.5px; color: #1F4A3C; font-weight: 600; }
+  .engine p { font-size: 10.5px; color: #5B6B62; margin-top: 4px; line-height: 1.3; }
+
+  /* Layer 5: store */
+  .store { background: #F4F4F2; border: 1.5px dashed #9AA6A0; border-radius: 10px; padding: 11px 18px; text-align: center; }
+  .store h2 { font-size: 13.5px; color: #3D4A44; }
+  .store p { font-size: 11px; color: #6B7A73; margin-top: 3px; }
+
+  /* right rail: future services */
+  .rail-box { background: #FFFFFF; border: 2px dashed #C77E14; border-radius: 10px; padding: 16px 16px; height: 100%; }
+  .rail-box h3 { font-size: 14px; color: #7A4E0B; margin-bottom: 4px; }
+  .rail-box .sub { font-size: 10.5px; color: #8A6423; margin-bottom: 12px; line-height: 1.4; }
+  .svc { background: #FBF7EF; border: 1px solid #E3CFA3; border-radius: 7px; padding: 8px 11px; margin-bottom: 8px; }
+  .svc b { font-size: 12px; color: #5C3D07; display: block; }
+  .svc span { font-size: 10.5px; color: #8A6423; line-height: 1.35; display: block; margin-top: 2px; }
+  .rail-arrow { display: flex; align-items: center; justify-content: center; margin-top: 10px; color: #C77E14; font-size: 11px; gap: 6px; }
+  .rail-arrow .dash { width: 34px; border-top: 2px dashed #C77E14; }
+</style>
+</head>
+<body>
+<div class="canvas">
+  <div class="title-row">
+    <h1>Variety Groceries — Prototype Architecture &amp; Integration Boundary</h1>
+    <p>Next.js 16 app &middot; one versioned mock API &middot; backend swap point highlighted</p>
+  </div>
+
+  <div class="main">
+    <div class="stack">
+      <!-- Layer 1 -->
+      <div class="ifaces">
+        <div class="iface">
+          <h3>Customer storefront</h3>
+          <div class="routes">22 routes</div>
+          <ul>
+            <li>Shop, category, product pages</li>
+            <li>Cart &amp; guided checkout</li>
+            <li>Payment status + order tracking</li>
+            <li>Account, lists, returns</li>
+          </ul>
+        </div>
+        <div class="iface">
+          <h3>Staff back office</h3>
+          <div class="routes">26 routes</div>
+          <ul>
+            <li>Orders, fulfilment (FEFO), POS</li>
+            <li>Inventory, purchasing, catalogue</li>
+            <li>Dispatch, riders, providers</li>
+            <li>Returns, refunds, reports, audit</li>
+          </ul>
+        </div>
+        <div class="iface">
+          <h3>Rider workspace</h3>
+          <div class="routes">4 routes</div>
+          <ul>
+            <li>Demo login (auth boundary)</li>
+            <li>Today&rsquo;s jobs, auto-refresh</li>
+            <li>Job checklist + proof of delivery</li>
+            <li>History &amp; remittance</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="connector"><div class="line"></div><div class="lbl">typed operation calls</div><div class="arrow"></div></div>
+
+      <!-- Layer 2 -->
+      <div class="client">
+        <div class="badge">THE SINGLE SWAP POINT</div>
+        <h2>Typed API client &mdash; <span class="mono">src/services/client.ts</span></h2>
+        <p>Every page calls operations here &middot; swap the transport, keep the contracts, pages unchanged</p>
+      </div>
+
+      <div class="connector"><div class="line"></div><div class="lbl">fetch &middot; JSON envelope &middot; typed errors</div><div class="arrow"></div></div>
+
+      <!-- Layer 3 -->
+      <div class="boundary">
+        <h2>/api/mock/v1/&lt;operation&gt;</h2>
+        <p>Next.js catch-all route handler &middot; 91 operations &middot; { ok, data | error(code, message, details) } &middot; idempotency keys</p>
+      </div>
+
+      <div class="connector"><div class="line"></div><div class="lbl">dispatch (router.ts)</div><div class="arrow"></div></div>
+
+      <!-- Layer 4 -->
+      <div class="engines">
+        <div class="engine"><div class="mono">availability.ts</div><p>availableToSell = lots &minus; reservations &minus; safety stock</p></div>
+        <div class="engine"><div class="mono">orders.ts</div><p>reserve &middot; checkout &middot; payments &middot; substitutions</p></div>
+        <div class="engine"><div class="mono">inventory.ts</div><p>FEFO consume &middot; receiving &middot; stocktakes &middot; adjustments</p></div>
+        <div class="engine"><div class="mono">pos.ts</div><p>idempotent sales &middot; holds &middot; cashier sessions</p></div>
+        <div class="engine"><div class="mono">delivery.ts</div><p>assignment &middot; COD triple-event &middot; proof of delivery</p></div>
+        <div class="engine"><div class="mono">returns.ts</div><p>eligible balances &middot; dispositions &middot; refunds</p></div>
+        <div class="engine"><div class="mono">ai.ts</div><p>deterministic suggestions &amp; assistant (review-first)</p></div>
+        <div class="engine"><div class="mono">reports.ts</div><p>reconciling aggregations &middot; CSV export</p></div>
+      </div>
+
+      <div class="connector"><div class="line"></div><div class="lbl">read / mutate</div><div class="arrow"></div></div>
+
+      <!-- Layer 5 -->
+      <div class="store">
+        <h2>In-memory seeded store (dev only)</h2>
+        <p>52 products &middot; 10 categories &middot; lots with expiry &middot; 14 scenario orders &middot; staff, riders, zones, slots &middot; globalThis singleton, resettable</p>
+      </div>
+    </div>
+
+    <!-- Future services rail -->
+    <div class="rail">
+      <div class="rail-box">
+        <h3>Future production services</h3>
+        <div class="sub">Replace the mock behind the same operation contracts &mdash; connected at the swap point, one capability at a time (risk-ranked).</div>
+        <div class="svc"><b>PostgreSQL + row locking</b><span>availability formula and atomic reservations in SQL transactions</span></div>
+        <div class="svc"><b>Authentication &amp; RBAC</b><span>enforce the 35-permission / 8-role matrix on every operation</span></div>
+        <div class="svc"><b>Payments (Hubtel candidate)</b><span>server-side verification, callbacks, late-payment review</span></div>
+        <div class="svc"><b>Courier adapters</b><span>quote / book / status / webhook / POD per provider</span></div>
+        <div class="svc"><b>AI provider</b><span>provider-neutral adapters with evidence + review-before-execute</span></div>
+        <div class="rail-arrow"><div class="dash"></div>&#10140; swap point<div class="dash"></div></div>
+      </div>
+    </div>
+  </div>
+</div>
+</body>
+</html>
