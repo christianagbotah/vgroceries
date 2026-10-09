@@ -154,6 +154,12 @@
   button:not(:disabled),
   a,
   [role="button"]:not([aria-disabled="true"]),
+  [role="combobox"]:not([data-disabled]):not([aria-disabled="true"]),
+  [role="option"]:not([data-disabled]):not([aria-disabled="true"]),
+  [role="menuitem"]:not([data-disabled]):not([aria-disabled="true"]),
+  [role="menuitemcheckbox"]:not([data-disabled]):not([aria-disabled="true"]),
+  [role="menuitemradio"]:not([data-disabled]):not([aria-disabled="true"]),
+  [role="tab"]:not([data-disabled]):not([aria-disabled="true"]),
   summary,
   select:not(:disabled),
   label[data-clickable],
@@ -165,6 +171,16 @@
   [aria-disabled="true"] {
     cursor: not-allowed;
     opacity: 0.6;
+  }
+  /* reasonable breathing room between a form label and the control it labels */
+  label:has(
+      + input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]),
+      + textarea,
+      + select,
+      + [data-slot="select-trigger"],
+      + [data-slot="input-otp"]
+    ) {
+    margin-bottom: 0.5rem;
   }
   /* comfortable focus visibility for keyboard users */
   :focus-visible {
