@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { Suspense, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { apiOps, ApiError } from "@/services/client";
@@ -18,7 +18,16 @@ type ReturnRow = Awaited<ReturnType<typeof apiOps.accountReturns>>[number];
 type EligibleLine = Awaited<ReturnType<typeof apiOps.returnLines>>[number];
 type OrderRow = Awaited<ReturnType<typeof apiOps.accountOrders>>[number];
 
+/** useSearchParams requires a Suspense boundary for prerendering. */
 export default function AccountReturnsPage() {
+  return (
+    <Suspense fallback={<LoadingState rows={4} label="Loading returns" />}>
+      <ReturnsWorkspace />
+    </Suspense>
+  );
+}
+
+function ReturnsWorkspace() {
   const params = useSearchParams();
   const orderId = params.get("orderId");
   const { toast } = useToast();

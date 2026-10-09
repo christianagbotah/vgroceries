@@ -1,13 +1,13 @@
 import { InfoPageShell, InfoSection } from "@/components/shared/info-page-shell";
-import { getStore } from "@/services/mock/store";
+import { getDeliveryZones } from "@/services/server-data";
 import { formatMoney } from "@/lib/money";
 import type { Metadata } from "next";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Delivery information" };
 
-export default function DeliveryPage() {
-  const zones = getStore().zones.filter((z) => z.isActive);
+export default async function DeliveryPage() {
+  const zones = await getDeliveryZones();
   return (
     <InfoPageShell
       title="Delivery information"

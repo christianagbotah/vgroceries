@@ -61,3 +61,6 @@ server.log
 
 # internal agent worklog (platform snapshots would otherwise commit it)
 worklog.md
+
+# sandbox environment scripts (platform tooling, not app source)
+/.zscripts/

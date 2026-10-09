@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { apiOps, ApiError } from "@/services/account-types";
+import { apiOps, ApiError, type AwaitedOrder } from "@/services/account-types";
 import { LoadingState, ErrorState, EmptyState } from "@/components/shared/states";
 import { MapPin } from "lucide-react";
 import { Badge } from "@/components/ui/badge";

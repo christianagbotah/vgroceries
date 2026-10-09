@@ -39,9 +39,13 @@ Then open:
 Optional checks:
 
 ```bash
-bun run lint                            # ESLint — clean
-bash scripts/acceptance-checks.sh       # 21 business-rule scenario checks (resets demo data)
-node scripts/generate-product-svg.mjs   # regenerate product tiles into public/products/
+bun run lint                              # ESLint — clean
+bunx tsc --noEmit --incremental false    # TypeScript — 0 diagnostics
+bun run build                             # production build (strict TypeScript, 47/47 pages)
+bun scripts/handoff-regressions.ts       # 24 handoff-review regression assertions
+bash scripts/acceptance-checks.sh         # 24 business-rule scenario checks (resets demo data)
+node scripts/route-sweep.mjs             # 56 routes HTTP 200
+node scripts/generate-product-svg.mjs     # regenerate product tiles into public/products/
 ```
 
 ## Architecture
@@ -69,13 +73,16 @@ src/
   lib/                    money, quantity, id, format, permissions
   schemas/                (reserved for zod input validation)
 docs/                     ROUTES, API_CONTRACTS, PERMISSIONS, DEMO_SCENARIOS, VERIFICATION,
-                          KNOWN_ISSUES, HANDOFF
-scripts/                  acceptance-checks.sh, generate-product-svg.mjs
+                          KNOWN_ISSUES, HANDOFF, HANDOFF_REVIEW (external review record)
+scripts/                  acceptance-checks.sh, handoff-regressions.ts, route-sweep.mjs,
+                          generate-product-svg.mjs
 ```
 
 **View components are separate from business operations.** Pages never read fixtures directly;
-everything flows through service operations in `src/services/mock/router.ts`, mirroring the
-proposed backend contract. Storefront catalogue pages are server-rendered for SEO with client
+everything flows through service operations behind **two adapters typed against the same shared
+response models** (`src/services/views.ts`): client components fetch through
+`src/services/client.ts`, server-rendered pages call `src/services/server-data.ts`. Both swap to
+the real backend together. Storefront catalogue pages are server-rendered for SEO with client
 islands for interactivity; admin/rider screens are client components over the same API.
 
 ## Demo data & reset

@@ -1,7 +1,5 @@
 import Link from "next/link";
-import { getStore } from "@/services/mock/store";
-import { catalogEntry } from "@/services/mock/router";
-import { isProductPurchasable, sweepExpiredReservations } from "@/services/mock/engine/availability";
+import { getCategories, getCategory, getCategoryProducts } from "@/services/server-data";
 import { ProductTile } from "@/features/catalog/product-tile";
 import { EmptyState } from "@/components/shared/states";
 import type { Metadata } from "next";
@@ -15,7 +13,7 @@ interface CategoryPageProps {
 
 export async function generateMetadata({ params }: CategoryPageProps): Promise<Metadata> {
   const { slug } = await params;
-  const category = getStore().categories.find((c) => c.slug === slug);
+  const category = await getCategory(slug);
   return {
     title: category ? category.name : "Category",
     description: category?.description ?? "Shop by category at Variety Groceries.",
@@ -24,15 +22,12 @@ export async function generateMetadata({ params }: CategoryPageProps): Promise<M
 
 export default async function CategoryPage({ params }: CategoryPageProps) {
   const { slug } = await params;
-  const store = getStore();
-  sweepExpiredReservations(store);
-  const category = store.categories.find((c) => c.slug === slug);
+  const category = await getCategory(slug);
   if (!category || !category.isActive) notFound();
 
-  const items = store.products
-    .filter((p) => p.categoryId === category.id && p.isPublished && isProductPurchasable(store, p.id))
-    .sort((a, b) => a.name.localeCompare(b.name));
-  const entries = items.map((p) => catalogEntry(store, p.id));
+  // only purchasable items, sorted by name — the service applies the rules
+  const entries = await getCategoryProducts(category.id);
+  const siblings = (await getCategories()).filter((c) => c.id !== category.id);
 
   return (
     <div className="mx-auto max-w-7xl px-4 pb-10">
@@ -67,19 +62,15 @@ export default async function CategoryPage({ params }: CategoryPageProps) {
       </div>
 
       <div className="mt-8 flex flex-wrap gap-2">
-        {store.categories
-          .filter((c) => c.id !== category.id && c.isActive)
-          .slice()
-          .sort((a, b) => a.name.localeCompare(b.name))
-          .map((c) => (
-            <Link
-              key={c.id}
-              href={`/categories/${c.slug}`}
-              className="rounded-full border px-3 py-1.5 text-sm hover:border-primary/50 hover:bg-accent"
-            >
-              {c.name}
-            </Link>
-          ))}
+        {siblings.map((c) => (
+          <Link
+            key={c.id}
+            href={`/categories/${c.slug}`}
+            className="rounded-full border px-3 py-1.5 text-sm hover:border-primary/50 hover:bg-accent"
+          >
+            {c.name}
+          </Link>
+        ))}
       </div>
     </div>
   );

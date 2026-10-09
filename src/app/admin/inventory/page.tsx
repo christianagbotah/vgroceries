@@ -132,7 +132,7 @@ export default function AdminInventoryPage() {
                       {r.nextExpiry ? formatDateTime(r.nextExpiry).split(",")[0] : "—"}
                     </td>
                     <td className="hidden p-3 text-muted-foreground xl:table-cell">
-                      {r.lastMovement ? `${r.lastMovement?.replace(/_/g, " ")} ${formatDateTime(r.lastMovementAt).split(",")[1] ?? ""}` : "—"}
+                      {r.lastMovement && r.lastMovementAt ? `${r.lastMovement.replace(/_/g, " ")} ${formatDateTime(r.lastMovementAt).split(",")[1] ?? ""}` : "—"}
                     </td>
                   </tr>
                 ))}

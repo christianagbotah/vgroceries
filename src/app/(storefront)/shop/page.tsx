@@ -1,7 +1,5 @@
 import Link from "next/link";
-import { getStore } from "@/services/mock/store";
-import { catalogEntry } from "@/services/mock/router";
-import { isProductPurchasable, sweepExpiredReservations } from "@/services/mock/engine/availability";
+import { getCategories, getShopData } from "@/services/server-data";
 import { ProductTile } from "@/features/catalog/product-tile";
 import { ShopFilters } from "@/features/catalog/shop-filters";
 import { EmptyState, NoResults } from "@/components/shared/states";
@@ -22,8 +20,6 @@ interface ShopPageProps {
 
 export default async function ShopPage({ searchParams }: ShopPageProps) {
   const sp = await searchParams;
-  const store = getStore();
-  sweepExpiredReservations(store);
 
   const search = (sp.query ?? "").toLowerCase().trim();
   const category = sp.category ?? "";
@@ -31,40 +27,12 @@ export default async function ShopPage({ searchParams }: ShopPageProps) {
   const page = Math.max(1, Number(sp.page ?? 1) || 1);
   const perPage = 12;
 
-  const categories = store.categories
-    .slice()
-    .sort((a, b) => a.name.localeCompare(b.name))
-    .map((c) => ({
-      id: c.id,
-      slug: c.slug,
-      name: c.name,
-      count: store.products.filter((p) => p.categoryId === c.id && isProductPurchasable(store, p.id)).length,
-    }));
-
-  // customers are only offered goods actually available to sell
-  let items = store.products.filter((p) => p.isPublished && isProductPurchasable(store, p.id));
-  if (category) items = items.filter((p) => p.categoryId === category);
-  if (search) {
-    items = items.filter((p) => `${p.name} ${p.shortDescription} ${p.tags.join(" ")}`.toLowerCase().includes(search));
-  }
-
-  const salesCount = new Map<string, number>();
-  for (const o of store.orders) {
-    if (o.fulfilmentStatus === "cancelled") continue;
-    for (const lid of o.lines) {
-      const l = store.orderLines.find((x) => x.id === lid);
-      if (l) salesCount.set(l.productId, (salesCount.get(l.productId) ?? 0) + Number(l.quantity));
-    }
-  }
-  if (sort === "price-asc") items.sort((a, b) => catalogEntry(store, a.id).minPriceMinor - catalogEntry(store, b.id).minPriceMinor);
-  else if (sort === "price-desc") items.sort((a, b) => catalogEntry(store, b.id).minPriceMinor - catalogEntry(store, a.id).minPriceMinor);
-  else if (sort === "name") items.sort((a, b) => a.name.localeCompare(b.name));
-  else items.sort((a, b) => (salesCount.get(b.id) ?? 0) - (salesCount.get(a.id) ?? 0));
-
-  const total = items.length;
-  const pages = Math.max(1, Math.ceil(total / perPage));
-  const paged = items.slice((page - 1) * perPage, page * perPage);
-  const entries = paged.map((p) => catalogEntry(store, p.id));
+  // the service applies availability rules, search, filter, sort and pagination
+  const categories = await getCategories();
+  const result = await getShopData({ query: search, category, sort, page, perPage });
+  const entries = result.items;
+  const total = result.total;
+  const pages = result.pages;
 
   const buildHref = (nextPage: number) => {
     const qs = new URLSearchParams();

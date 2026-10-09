@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { formatMoney } from "@/lib/money";
 import { Download, BarChart3, TrendingUp, Boxes, Truck, RotateCcw, Banknote, CreditCard, FileText } from "lucide-react";
-import type { ReportBundle } from "@/services/mock/engine/reports";
+import type { ReportBundleView as ReportBundle } from "@/services/views";
 
 type Row = { label: string; value: string }[];
 

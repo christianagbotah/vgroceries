@@ -1,8 +1,6 @@
 import Link from "next/link";
 import Image from "next/image";
-import { getStore } from "@/services/mock/store";
-import { catalogEntry } from "@/services/mock/router";
-import { isProductPurchasable, sweepExpiredReservations } from "@/services/mock/engine/availability";
+import { getProductData } from "@/services/server-data";
 import { ProductPurchasePanel } from "@/features/catalog/product-purchase-panel";
 import { ProductTile } from "@/features/catalog/product-tile";
 import { Badge } from "@/components/ui/badge";
@@ -17,29 +15,20 @@ interface ProductPageProps {
 
 export async function generateMetadata({ params }: ProductPageProps): Promise<Metadata> {
   const { slug } = await params;
-  const store = getStore();
-  const product = store.products.find((p) => p.slug === slug);
-  if (!product) return { title: "Product not found" };
+  const data = await getProductData(slug);
+  if (!data) return { title: "Product not found" };
   return {
-    title: product.name,
-    description: product.shortDescription,
-    openGraph: { title: product.name, description: product.shortDescription },
+    title: data.product.name,
+    description: data.product.shortDescription,
+    openGraph: { title: data.product.name, description: data.product.shortDescription },
   };
 }
 
 export default async function ProductPage({ params }: ProductPageProps) {
   const { slug } = await params;
-  const store = getStore();
-  sweepExpiredReservations(store);
-  const product = store.products.find((p) => p.slug === slug && p.isPublished);
-  if (!product) notFound();
-
-  const entry = catalogEntry(store, product.id);
-  const purchasable = isProductPurchasable(store, product.id);
-  const related = store.products
-    .filter((p) => p.categoryId === product.categoryId && p.id !== product.id && isProductPurchasable(store, p.id))
-    .slice(0, 4)
-    .map((p) => catalogEntry(store, p.id));
+  const data = await getProductData(slug);
+  if (!data) notFound();
+  const { product: entry, related, purchasable } = data;
 
   return (
     <div className="mx-auto max-w-7xl px-4 pb-10">
@@ -52,7 +41,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
           <Link href={`/categories/${entry.categorySlug}`} className="hover:underline focus-visible:underline">
             {entry.categoryName}
           </Link>
-          <span aria-hidden> / </span> <span aria-current="page">{product.name}</span>
+          <span aria-hidden> / </span> <span aria-current="page">{entry.name}</span>
         </nav>
       </div>
 
@@ -61,7 +50,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
           <div className="relative aspect-[5/4] overflow-hidden rounded-2xl border bg-muted">
             <Image
               src={entry.image}
-              alt={`${product.name} product tile`}
+              alt={`${entry.name} product tile`}
               fill
               sizes="(max-width: 1024px) 100vw, 560px"
               className="object-cover"
@@ -87,15 +76,15 @@ export default async function ProductPage({ params }: ProductPageProps) {
                 <Badge className="border-brand-amber/40 bg-brand-amber/15 text-[color:var(--warning-foreground)]">Offer</Badge>
               ) : null}
             </div>
-            <h1 className="font-serif text-2xl font-bold sm:text-3xl">{product.name}</h1>
-            <p className="text-[15px] text-muted-foreground">{product.shortDescription}</p>
+            <h1 className="font-serif text-2xl font-bold sm:text-3xl">{entry.name}</h1>
+            <p className="text-[15px] text-muted-foreground">{entry.shortDescription}</p>
           </div>
 
           <ProductPurchasePanel product={entry} />
 
           <div className="space-y-2 rounded-xl border bg-card p-4">
             <h2 className="text-sm font-semibold">About this item</h2>
-            <p className="text-sm leading-relaxed text-muted-foreground">{product.description}</p>
+            <p className="text-sm leading-relaxed text-muted-foreground">{entry.description}</p>
             <p className="text-xs text-muted-foreground">
               We do not publish ingredient or allergen claims — always check the physical product
               label.

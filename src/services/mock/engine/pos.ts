@@ -9,7 +9,7 @@ import { nextId, nowIso, receiptNumber } from "@/lib/id";
 import { formatQty } from "@/lib/quantity";
 import { getStore, nextSeq, type VgStore } from "../store";
 import { checkAvailability } from "./availability";
-import { audit, consumeOrderStock, orderEvent, tryReserve, OpError } from "./orders";
+import { audit, consumeOrderStock, orderEvent, tryReserve, validateMoneyMinor, validateSaleLines, OpError } from "./orders";
 
 export interface PosLineInput { variantId: string; quantity: string }
 
@@ -24,6 +24,8 @@ export interface PosCompleteInput {
   cashReceivedMinor?: number; // for cash
   idempotencyKey: string;
 }
+
+const POS_METHODS: PaymentMethod[] = ["cash_counter", "mobile_money", "card_hosted"];
 
 export function completeSale(store: VgStore, input: PosCompleteInput): { order: Order; receiptNo: string; changeMinor: number } {
   // idempotency: replaying the same key returns the original result
@@ -43,6 +45,19 @@ export function completeSale(store: VgStore, input: PosCompleteInput): { order: 
   if (!input.lines.length) throw new OpError("VALIDATION_FAILED", "The sale cart is empty.");
   const session = store.cashierSessions.find((s) => s.id === input.sessionId && s.status === "open");
   if (!session) throw new OpError("VALIDATION_FAILED", "No open cashier session. Open a session first.");
+
+  // input validation BEFORE any reservation or completion: positive quantities,
+  // permitted precision, supported counter payment methods, money bounds.
+  validateSaleLines(store, input.lines);
+  if (!POS_METHODS.includes(input.method)) {
+    throw new OpError("VALIDATION_FAILED", `Unsupported counter payment method "${input.method}".`);
+  }
+  if (input.discountMinor !== undefined) {
+    validateMoneyMinor(input.discountMinor, "Discount", { min: 0 });
+  }
+  if (input.cashReceivedMinor !== undefined) {
+    validateMoneyMinor(input.cashReceivedMinor, "Cash received", { min: 0 });
+  }
 
   // revalidate availability before completing a counter sale
   const check = checkAvailability(store, input.lines);
@@ -99,6 +114,9 @@ export function completeSale(store: VgStore, input: PosCompleteInput): { order: 
       throw new OpError("VALIDATION_FAILED", "Cash received is less than the total due.");
     }
   }
+  if (order.discountMinor > order.subtotalMinor) {
+    throw new OpError("VALIDATION_FAILED", "Discount cannot exceed the sale subtotal.");
+  }
 
   store.orders.push(order);
   for (const l of lines) store.orderLines.push(l);
@@ -154,7 +172,9 @@ export function holdSale(
   const session = store.cashierSessions.find((s) => s.id === input.sessionId && s.status === "open");
   if (!session) throw new OpError("VALIDATION_FAILED", "No open cashier session.");
   if (!input.lines.length) throw new OpError("VALIDATION_FAILED", "Nothing to hold.");
-  // held drafts reserve stock like any other sale; the expiry applies
+  // held drafts reserve stock like any other sale — same input rules apply
+  validateSaleLines(store, input.lines);
+  // the draft's hold expires after 20 minutes
   const draftId = nextId("hld");
   const reservations = tryReserve(store, input.lines, `draft:${draftId}`, "pos", 20);
   const draft: HeldDraftSale = {

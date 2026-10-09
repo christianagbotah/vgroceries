@@ -2,8 +2,15 @@
 
 These are **proposed application contracts** for the future backend — not claims about any
 third-party endpoint. The prototype implements every operation in the mock service
-(`src/services/mock/router.ts`); the typed client (`src/services/client.ts`) is the single swap
-point: point it at the real API and pages work unchanged.
+(`src/services/mock/router.ts`). The service boundary has **two adapters, typed against the
+same shared response models** (`src/services/views.ts`):
+
+- `src/services/client.ts` — client components fetch `/api/mock/v1/<operation>` over HTTP;
+- `src/services/server-data.ts` — server-rendered pages call the same operations in-process.
+
+A backend swap replaces BOTH adapters (the client points at the real API; server data calls the
+real services). Pages never import `src/services/mock` directly — the mock layer can be deleted
+once production implementations exist and all imports are re-pointed.
 
 ## Conventions
 
@@ -15,7 +22,9 @@ point: point it at the real API and pages work unchanged.
   visible `₵`. **Quantities**: decimal strings (e.g. `"1.5"`) — never floats as stock authority.
 - **Pagination**: `page` + `perPage` with `total`/`pages` in the response (catalogue).
 - **Idempotency**: checkout and POS completion carry `idempotencyKey`; payment attempts carry one
-  too. Replays return the original result and never double-consume stock.
+  too. Checkout replays return the ORIGINAL order (no second hold); reusing a key with different
+  input fails with `IDEMPOTENCY_CONFLICT`; POS replays return the original receipt and never
+  double-consume stock.
 
 ## Error codes
 
@@ -23,6 +32,8 @@ point: point it at the real API and pages work unchanged.
 |---|---|---|
 | `OUT_OF_STOCK` | Requested quantity exceeds available-to-sell (details carry line conflicts) | 409 |
 | `RESERVATION_EXPIRED` | Hold expired before completion | 409 |
+| `RESERVATION_LOST` | Consumption attempted while reservations no longer cover the order | 409 |
+| `IDEMPOTENCY_CONFLICT` | Idempotency key reused with different input | 409 |
 | `VERSION_CONFLICT` | Concurrent modification (backend duty) | 409 |
 | `PAYMENT_PENDING` | Electronic payment not confirmed yet | 400 |
 | `PAYMENT_REQUIRES_REVIEW` | Outcome needs staff/provider reconciliation | 400 |

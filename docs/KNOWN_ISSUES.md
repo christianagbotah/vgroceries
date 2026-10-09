@@ -42,11 +42,16 @@ here is hidden; each item states the impact and the follow-up.
     cost ledger (backend owns cost of goods).
 13. **Recharts not used**: report charts are lightweight CSS bars — functional and clean, but a
     richer charting pass is possible.
-14. **No automated unit-test runner**: business rules are covered by the executed acceptance
-    script (`scripts/acceptance-checks.sh`, 21 checks). A Vitest suite wrapping the engine
-    functions is recommended follow-up.
-15. **Production build not run** in this environment (dev-server-only sandbox). Type-checking and
-   linting pass; `next build` is an integration-team step.
+14. **Engine tests run via Bun scripts, not a Vitest suite**: business rules are covered by the
+    executed acceptance script (`scripts/acceptance-checks.sh`, hardened — 24 checks) and the
+    handoff regression suite (`scripts/handoff-regressions.ts`, 24 assertions covering the
+    review's seven defect classes and the returns-list endpoint); both run in CI. A Vitest
+    runner wrapping the same engines remains nice-to-have cleanup.
+15. **Production build verified**: `next build` (Turbopack) completes with strict TypeScript
+    (no `ignoreBuildErrors` bypass) and 47/47 pages prerender. CI (`.github/workflows/ci.yml`)
+    runs lint + `tsc --noEmit` + build + all three suites on every push. The earlier
+    `useSearchParams()` prerender failures on `/account/returns`, `/track` and
+    `/admin/returns` are fixed with Suspense boundaries.
 16. **CSV exports** cover the current filtered dataset for the sales/top-products tables; other
     tables export on request (pattern is established).
 17. **`src/schemas/` reserved but empty**: input validation is enforced in the service engine and

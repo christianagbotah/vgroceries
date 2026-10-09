@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { apiOps, ApiError, type PublicOrder } from "@/services/client";
@@ -14,9 +14,18 @@ import { formatDateTime } from "@/lib/format";
 import { PAYMENT_METHOD_LABELS, FULFILMENT_LABELS, DELIVERY_LABELS } from "@/types/domain";
 import { CheckCircle2, CircleDashed, MapPin, Package } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { LoadingState } from "@/components/shared/states";
 
 /** Secure tracking entry — order reference + verification code together. */
 export default function TrackPage() {
+  return (
+    <Suspense fallback={<LoadingState rows={4} label="Loading tracking" />}>
+      <TrackForm />
+    </Suspense>
+  );
+}
+
+function TrackForm() {
   const params = useSearchParams();
   const router = useRouter();
   const [reference, setReference] = useState(params.get("reference") ?? "");

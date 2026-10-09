@@ -1,0 +1,51 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Lint (ESLint)
+        run: bun run lint
+
+      - name: Type check (tsc --noEmit)
+        run: bunx tsc --noEmit --incremental false
+
+      - name: Production build
+        env:
+          NEXT_TURBOPACK_EXPERIMENTAL_USE_SYSTEM_TLS_CERTS: "1"
+          NEXT_TELEMETRY_DISABLED: "1"
+        run: bun run build
+
+      - name: Start production server
+        run: |
+          NODE_ENV=production bun .next/standalone/server.js &
+          for i in $(seq 1 60); do
+            curl -sf http://localhost:3000/ >/dev/null 2>&1 && break
+            sleep 1
+          done
+          curl -sf http://localhost:3000/ >/dev/null
+
+      - name: Domain regression suite (handoff defects)
+        run: bun scripts/handoff-regressions.ts
+
+      - name: Business-rule acceptance suite (hardened)
+        run: bash scripts/acceptance-checks.sh
+
+      - name: Route sweep
+        run: bun scripts/route-sweep.mjs http://localhost:3000

@@ -68,20 +68,9 @@ import type {
   ReturnRequest,
   StaffRole,
 } from "@/types/domain";
-import type { ReportBundle } from "@/services/mock/engine/reports";
+import type { CatalogProduct, CatalogVariant, ReportBundleView, SlotView, ZoneView } from "@/services/views";
 
-export interface CatalogVariant {
-  id: string; name: string; unit: string; unitSize: string; priceMinor: number; priceLabel: string;
-  compareAtPriceMinor?: number; compareAtLabel?: string; barcode?: string;
-  purchaseUnit?: { altUnit: string; factor: string; baseUnit: string };
-  availableToSell: string; isAvailable: boolean; safetyStock?: string;
-}
-
-export interface CatalogProduct {
-  id: string; slug: string; name: string; categoryId: string; categoryName?: string; categorySlug?: string;
-  tint?: string; shortDescription: string; description: string; tags: string[]; image: string;
-  variants: CatalogVariant[]; anyAvailable: boolean; minPriceMinor: number; minPriceLabel: string;
-}
+export type { CatalogProduct, CatalogVariant, ReportBundleView, ZoneView, SlotView };
 
 export interface PublicOrder {
   id: string; reference: string; channel: "online" | "pos"; customerName: string; customerPhone: string;
@@ -98,9 +87,60 @@ export interface PublicOrder {
   posReceiptNo?: string; stockConsumedAt?: string; verificationCode?: string;
 }
 
+/** Cashier session row exactly as `admin.sessions` returns it. */
+export interface SessionRow {
+  id: string;
+  cashierName: string;
+  openedAt: string;
+  openedAtLabel: string;
+  closedAt?: string;
+  closedAtLabel?: string;
+  status: string;
+  openingFloatMinor: number;
+  openingFloatLabel: string;
+  expectedMinor: number;
+  expectedLabel: string;
+  countedCashMinor?: number;
+  countedLabel?: string;
+  differenceMinor?: number;
+  differenceLabel?: string;
+  closeNote?: string;
+  movements: { at: string; atLabel: string; kind: "cash_in" | "cash_out" | "drop"; amountMinor: number; amountLabel: string; note?: string }[];
+  cashSales: number;
+}
+
+/** Lot row on the expiry overview screen. */
+export interface ExpiryLotRow {
+  id: string;
+  productName: string;
+  variantName: string;
+  lotNumber: string;
+  quantity: string;
+  expiryDate?: string;
+  notes?: string;
+  variantId: string;
+  kind: string;
+  isQuarantined: boolean;
+  location: string;
+}
+
+/** Business settings returned by `admin.settings`. */
+export interface SettingsView {
+  businessName: string;
+  supportPhone: string;
+  supportEmail: string;
+  deliveryEnabled: boolean;
+  collectionEnabled: boolean;
+  reservationTtlMinutes: number;
+  currency: string;
+  lowStockThreshold: string;
+  refundsRequireApproval: boolean;
+  codEnabled: boolean;
+}
+
 export const apiOps = {
   /* catalogue */
-  categories: () => api<(Category & { availableProducts: number })[]>("catalog.categories"),
+  catalogCategories: () => api<(Category & { availableProducts: number })[]>("catalog.categories"),
   products: (p: { query?: string; category?: string; sort?: string; page?: number; perPage?: number }) =>
     api<{ items: CatalogProduct[]; total: number; page: number; pages: number; perPage: number }>("catalog.list", { query: p as Record<string, QueryValue> }),
   product: (slug: string) =>
@@ -116,8 +156,8 @@ export const apiOps = {
     api<{ duplicate: boolean; paymentStatus: string }>("checkout.payment-outcome", { body: { orderId, outcome } }),
   orderStatus: (orderId: string) => api<PublicOrder>("checkout.status", { query: { orderId } }),
   track: (reference: string, code: string) => api<PublicOrder>("orders.track", { body: { reference, code } }),
-  zones: () => api<{ id: string; name: string; areas: string[]; feeMinor: number; minimumOrderMinor: number; serviceHours: string; cutoff: string; slotsPerDay: number; isActive: boolean }[]>("checkout.zones"),
-  slots: (zoneId: string) => api<{ id: string; zoneId: string; date: string; window: string; capacity: number; booked: number }[]>("checkout.slots", { query: { zoneId } }),
+  zones: () => api<ZoneView[]>("checkout.zones"),
+  slots: (zoneId: string) => api<SlotView[]>("checkout.slots", { query: { zoneId } }),
 
   /* account */
   accountSummary: (customerId?: string) => api<{
@@ -135,7 +175,7 @@ export const apiOps = {
     refund?: { id: string; status: string; amountMinor: number; method: string };
   }[]>("account.returns", { query: { customerId } }),
   returnDetail: (returnId: string) => api<{
-    id: string; reference: string; orderId: string; orderReference?: string; status: string; requestedBy: string; evidenceNote?: string;
+    id: string; reference: string; orderId: string; orderReference?: string; channel: string; status: string; requestedBy: string; evidenceNote?: string;
     createdAtLabel: string; receivedAt?: string; inspectedAt?: string;
     disposition?: { kind: string; note: string; by: string; at: string };
     lines: { id: string; productName: string; variantName: string; quantity: string; reason: string; requestedRefundLabel: string; approvedRefundLabel?: string }[];
@@ -150,7 +190,7 @@ export const apiOps = {
   dashboard: () => api<ReturnType<typeof import("@/services/mock/engine/reports").dashboardSummary>>("admin.dashboard"),
   orders: (f: { channel?: string; status?: string; payment?: string; q?: string }) =>
     api<{ id: string; reference: string; channel: string; customerName: string; customerPhone: string; fulfilment: string; totalLabel: string; paymentStatus: string; fulfilmentStatus: string; deliveryStatus: string; lineCount: number; createdAtLabel: string; posReceiptNo?: string }[]>("admin.orders", { query: f as Record<string, QueryValue> }),
-  order: (orderId: string) => api<{ order: PublicOrder; internal: { address?: unknown; zone?: unknown; customerId?: string; customerNotes: unknown; reservations: { id: string; quantity: string; expiresAt: string; consumedAt?: string; releasedAt?: string; releasedReason?: string; variantId: string }[]; suggestions: { id: string; name: string; priceLabel: string; availableToSell: string }[]; refunds: (Refund & { amountLabel: string })[] } }>("admin.order", { query: { orderId } }),
+  order: (orderId: string) => api<{ order: PublicOrder; internal: { address?: { id: string; label?: string; recipientName: string; phone: string; locality: string; street: string; landmark?: string; ghanaPostGps?: string; zoneId?: string; isDefault?: boolean }; zone?: { id: string; name: string }; customerId?: string; customerNotes: { at: string; by: string; text: string; internalOnly: boolean }[]; reservations: { id: string; quantity: string; expiresAt: string; consumedAt?: string; releasedAt?: string; releasedReason?: string; variantId: string }[]; suggestions: { id: string; name: string; priceLabel: string; availableToSell: string }[]; refunds: (Refund & { amountLabel: string })[] } }>("admin.order", { query: { orderId } }),
   orderAction: (body: Record<string, unknown>) => api<PublicOrder>("admin.order.action", { body }),
   fulfilment: () => api<{
     confirm: { id: string; reference: string; customerName: string; paymentStatus: string; paymentMethod: string; fulfilment: string; totalLabel: string; createdAtLabel: string; lineCount: number }[];
@@ -168,19 +208,19 @@ export const apiOps = {
   posResume: (draftId: string) => api<{ id: string; label: string; lines: { variantId: string; quantity: string; unitPriceMinor: number }[] }>("admin.pos.resume", { body: { draftId } }),
   posReleaseDraft: (draftId: string) => api<{ released: boolean }>("admin.pos.release-draft", { body: { draftId } }),
   posReceiptLookup: (receiptNo: string) => api<{
-    receiptNo: string; atLabel: string; method: string; totalLabel: string; cashierName: string; orderId: string; orderReference: string;
+    receiptNo: string; atLabel: string; method: string; totalMinor: number; totalLabel: string; cashierName: string; orderId: string; orderReference: string;
     lines: { id: string; productName: string; variantName: string; quantity: string; unitPriceMinor: number; unitTotal: number }[];
     returnable: { lineId: string; productName: string; variantName: string; eligible: string; unitPriceMinor: number }[];
   }>("admin.pos.receipt-lookup", { query: { receiptNo } }),
 
   /* sessions */
-  sessions: () => api<(CashierSession & { openedAtLabel: string; closedAtLabel?: string; openingFloatLabel: string; expectedLabel: string; countedLabel?: string; differenceLabel?: string; cashSales: number; movements: { atLabel: string; kind: string; amountLabel: string; note?: string }[] })[]>("admin.sessions"),
+  sessions: () => api<SessionRow[]>("admin.sessions"),
   sessionOpen: (cashierId: string, openingFloatMinor: number) => api<{ sessionId: string }>("admin.sessions.open", { body: { cashierId, openingFloatMinor } }),
   sessionMovement: (sessionId: string, kind: "cash_in" | "cash_out" | "drop", amountMinor: number, note: string, actor?: string) => api<{ movements: number }>("admin.sessions.movement", { body: { sessionId, kind, amountMinor, note, actor } }),
   sessionClose: (sessionId: string, countedCashMinor: number, note: string, actor?: string) => api<{ differenceMinor: number; differenceLabel?: string }>("admin.sessions.close", { body: { sessionId, countedCashMinor, note, actor } }),
 
   /* inventory */
-  inventory: (f: { q?: string; filter?: string }) => api<{ rows: { variantId: string; productId: string; productName: string; variantName: string; unit: string; sellablePhysical: string; reserved: string; safetyStock: string; availableToSell: string; isAvailable: boolean; nextExpiry?: string; lotCount: number; lastMovement?: string; image: string }[]; total: number }>("admin.inventory.overview", { query: f as Record<string, QueryValue> }),
+  inventory: (f: { q?: string; filter?: string }) => api<{ rows: { variantId: string; productId: string; productName: string; variantName: string; unit: string; sellablePhysical: string; reserved: string; safetyStock: string; availableToSell: string; isAvailable: boolean; nextExpiry?: string; lotCount: number; lastMovement?: string; lastMovementAt?: string; image: string }[]; total: number }>("admin.inventory.overview", { query: f as Record<string, QueryValue> }),
   lots: (variantId?: string) => api<{ id: string; productName: string; variantName: string; lotNumber: string; quantity: string; kind: string; isQuarantined: boolean; expired: boolean; expiryDate?: string; location: string; supplierName?: string; notes?: string; variantId: string }[]>("admin.inventory.lots", { query: { variantId } }),
   lotQuarantine: (lotId: string, quarantine: boolean, note?: string, actor?: string) => api<{ done: boolean }>("admin.inventory.lot.quarantine", { body: { lotId, quarantine, note, actor } }),
   lotDispose: (lotId: string, reason: string, actor?: string) => api<{ done: boolean }>("admin.inventory.lot.dispose", { body: { lotId, reason, actor } }),
@@ -194,10 +234,10 @@ export const apiOps = {
   stocktakeCount: (stocktakeId: string, counts: Record<string, string>) => api<{ status: string }>("admin.inventory.stocktakes.count", { body: { stocktakeId, counts } }),
   stocktakeClose: (stocktakeId: string, applyCorrections: boolean) => api<{ status: string }>("admin.inventory.stocktakes.close", { body: { stocktakeId, applyCorrections } }),
   expiry: () => api<{
-    expired: { id: string; productName: string; variantName: string; lotNumber: string; quantity: string; expiryDate?: string; notes?: string }[];
-    soon: { id: string; productName: string; variantName: string; lotNumber: string; quantity: string; daysLeft: number }[];
-    quarantined: { id: string; productName: string; variantName: string; lotNumber: string; quantity: string }[];
-    damaged: { id: string; productName: string; variantName: string; lotNumber: string; quantity: string }[];
+    expired: ExpiryLotRow[];
+    soon: (ExpiryLotRow & { daysLeft: number })[];
+    quarantined: ExpiryLotRow[];
+    damaged: ExpiryLotRow[];
   }>("admin.inventory.expiry"),
 
   /* catalogue admin */
@@ -232,7 +272,7 @@ export const apiOps = {
   providers: () => api<{ id: string; name: string; capabilities: string[]; status: string; notes: string; capabilitiesNote: string; isConfigured: boolean }[]>("admin.providers"),
 
   /* returns & refunds & payments & customers */
-  adminReturns: () => api<{ id: string; reference: string; orderReference?: string; channel: string; customerName?: string; requestedBy: string; status: string; createdAtLabel: string; lines: { productName: string; variantName: string; quantity: string; reason: string; refundLabel: string }[]; disposition?: { kind: string; note: string }; evidenceNote?: string; refundStatus?: string }[]>("admin.returns"),
+  adminReturns: () => api<{ id: string; reference: string; orderId: string; orderReference?: string; channel: string; customerName?: string; requestedBy: string; status: string; createdAtLabel: string; lines: { productName: string; variantName: string; quantity: string; reason: string; refundLabel: string }[]; disposition?: { kind: string; note: string }; evidenceNote?: string; refundStatus?: string; refundableMinor: number }[]>("admin.returns"),
   returnAction: (body: Record<string, unknown>) => api<{ done: boolean }>("admin.return.action", { body }),
   refunds: () => api<{ id: string; returnReference?: string; orderReference?: string; amountLabel: string; status: string; method: string; reason: string; requestedBy: string; approvedBy?: string; providerRef?: string; providerTransferState: string; retryCount: number; createdAtLabel: string }[]>("admin.refunds"),
   refundAction: (refundId: string, action: "approve" | "execute" | "retry", actor?: string) => api<{ done: boolean }>("admin.refund.action", { body: { refundId, action, actor } }),
@@ -241,15 +281,15 @@ export const apiOps = {
   customer: (customerId: string) => api<{ customer: Customer; addresses: unknown[]; orders: { id: string; reference: string; totalLabel: string; channel: string; fulfilmentStatus: string; paymentStatus: string; createdAtLabel: string }[]; returns: { id: string; reference: string; status: string }[] }>("admin.customer", { query: { customerId } }),
 
   /* reports, ai, team, audit, settings */
-  reports: () => api<ReportBundle>("admin.reports"),
+  reports: () => api<ReportBundleView>("admin.reports"),
   aiSuggestions: () => api<(AISuggestion & { createdAtLabel: string })[]>("admin.ai.suggestions"),
   aiGenerate: () => api<{ generated: number }>("admin.ai.generate", { body: {} }),
   aiReview: (suggestionId: string, decision: "reviewed" | "dismissed") => api<{ status: string }>("admin.ai.review", { body: { suggestionId, decision } }),
   aiBusinessQuestion: (question: string) => api<{ answer: string; evidence: string[] }>("admin.ai.business-question", { body: { question } }),
   team: () => api<{ id: string; name: string; role: StaffRole; phone: string; isDemo: boolean; openSessions: number }[]>("admin.team"),
   auditEvents: (q?: string) => api<{ id: string; atLabel: string; actorName: string; action: string; entity: string; entityId: string; reason?: string; before?: string; after?: string }[]>("admin.audit", { query: { q } }),
-  settings: () => api<Record<string, unknown>>("admin.settings"),
-  settingsUpdate: (body: Record<string, unknown>) => api<Record<string, unknown>>("admin.settings.update", { body }),
+  settings: () => api<SettingsView>("admin.settings"),
+  settingsUpdate: (body: Record<string, unknown>) => api<SettingsView>("admin.settings.update", { body }),
 
   /* rider */
   riderLogin: () => api<{ id: string; name: string; kind: string; vehicle: string; isDemo: boolean }[]>("rider.login"),

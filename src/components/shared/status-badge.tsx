@@ -25,7 +25,7 @@ export function statusTone(kind: "payment" | "fulfilment" | "delivery" | "return
   switch (kind) {
     case "payment":
       if (s === "succeeded" || s === "settled") return "success";
-      if (s === "pending" || s === "initiated" || s === "processing") return "warning";
+      if (s === "pending" || s === "initiated" || s === "processing" || s === "refund_pending") return "warning";
       if (s === "failed" || s === "expired") return "danger";
       if (s === "requires_review" || s === "exception") return "info";
       if (s === "refunded") return "neutral";

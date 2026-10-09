@@ -2,9 +2,9 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   output: "standalone",
-  /* config options here */
+  // Type errors fail the build — the application must type-check cleanly (tsc --noEmit in CI).
   typescript: {
-    ignoreBuildErrors: true,
+    ignoreBuildErrors: false,
   },
   reactStrictMode: false,
   // Allow the sandbox preview proxy to request /_next/* assets without cross-origin warnings.

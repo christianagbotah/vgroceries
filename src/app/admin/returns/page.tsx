@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { apiOps, ApiError } from "@/services/client";
 import { useApiData } from "@/features/staff/admin-data";
@@ -26,6 +26,14 @@ const DISPOSITIONS = [
 ] as const;
 
 export default function AdminReturnsPage() {
+  return (
+    <Suspense fallback={<LoadingState rows={6} label="Loading returns" />}>
+      <ReturnsBoard />
+    </Suspense>
+  );
+}
+
+function ReturnsBoard() {
   const params = useSearchParams();
   const { user, can } = useStaff();
   const { toast } = useToast();

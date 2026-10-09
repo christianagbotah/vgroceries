@@ -218,6 +218,7 @@ export type PaymentStatus =
   | "failed"
   | "expired"
   | "partially_refunded"
+  | "refund_pending"
   | "refunded"
   | "requires_review";
 
@@ -494,6 +495,7 @@ export interface ReturnRequest {
 
 export interface Refund {
   id: string;
+  /** undefined for cancellation refunds (paid orders cancelled before physical return) */
   returnId?: string;
   orderId: string;
   amountMinor: number;
@@ -503,10 +505,12 @@ export interface Refund {
   requestedBy: string;
   approvedBy?: string;
   providerRef?: string;
-  providerTransferState: "not_a_transfer" | "pending" | "succeeded" | "failed";
+  /** transfer state is only known once execution starts; not a transfer before that */
+  providerTransferState?: "not_a_transfer" | "pending" | "succeeded" | "failed";
   retryCount: number;
   createdAt: string;
   resolvedAt?: string;
+  note?: string;
 }
 
 /* ------------------------------------------------------------------ */
@@ -612,6 +616,7 @@ export const PAYMENT_LABELS: Record<PaymentStatus, string> = {
   failed: "Payment failed",
   expired: "Payment expired",
   partially_refunded: "Partially refunded",
+  refund_pending: "Refund pending",
   refunded: "Refunded",
   requires_review: "Needs review",
 };

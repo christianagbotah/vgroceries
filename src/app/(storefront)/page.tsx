@@ -1,7 +1,5 @@
 import Link from "next/link";
-import { getStore } from "@/services/mock/store";
-import { catalogEntry } from "@/services/mock/router";
-import { isProductPurchasable } from "@/services/mock/engine/availability";
+import { getHomeData } from "@/services/server-data";
 import { ProductTile } from "@/features/catalog/product-tile";
 import { formatMoney } from "@/lib/money";
 import { Button } from "@/components/ui/button";
@@ -12,46 +10,8 @@ import { formatDateTime } from "@/lib/format";
 export const dynamic = "force-dynamic";
 
 /** Server-rendered homepage: shop first — compact, useful, no oversized hero. */
-export default function HomePage() {
-  const store = getStore();
-
-  const categories = store.categories
-    .slice()
-    .sort((a, b) => a.name.localeCompare(b.name))
-    .map((c) => ({
-      ...c,
-      count: store.products.filter((p) => p.categoryId === c.id && isProductPurchasable(store, p.id)).length,
-    }));
-
-  // offers: variants with compare-at price that are available
-  const offerProducts = store.products
-    .filter((p) => p.isPublished)
-    .filter((p) => p.variants.some((vid) => store.variants.find((v) => v.id === vid)?.compareAtPriceMinor && isProductPurchasable(store, p.id)))
-    .slice(0, 4)
-    .map((p) => catalogEntry(store, p.id));
-
-  // popular by order history
-  const salesCount = new Map<string, number>();
-  for (const o of store.orders) {
-    if (o.fulfilmentStatus === "cancelled") continue;
-    for (const lid of o.lines) {
-      const l = store.orderLines.find((x) => x.id === lid);
-      if (l) salesCount.set(l.productId, (salesCount.get(l.productId) ?? 0) + Number(l.quantity));
-    }
-  }
-  const popular = [...salesCount.entries()]
-    .sort((a, b) => b[1] - a[1])
-    .map(([pid]) => store.products.find((p) => p.id === pid))
-    .filter((p): p is NonNullable<typeof p> => !!p && isProductPurchasable(store, p.id))
-    .slice(0, 8)
-    .map((p) => catalogEntry(store, p.id));
-
-  const trendingNew = store.products
-    .filter((p) => p.isPublished && isProductPurchasable(store, p.id) && !salesCount.has(p.id))
-    .slice(0, 4)
-    .map((p) => catalogEntry(store, p.id));
-
-  const order = store.orders.find((o) => o.reference === "VG-8Q2M1A");
+export default async function HomePage() {
+  const { categories, offers, popular, trendingNew, demoTrack } = await getHomeData();
 
   return (
     <div className="mx-auto max-w-7xl px-4 pb-10">
@@ -116,14 +76,14 @@ export default function HomePage() {
       </section>
 
       {/* offers */}
-      {offerProducts.length > 0 ? (
+      {offers.length > 0 ? (
         <section aria-labelledby="home-offers" className="mt-8">
           <div className="flex items-center gap-2">
             <BadgePercent className="size-5 text-brand-amber" aria-hidden />
             <h2 id="home-offers" className="font-serif text-xl font-bold">This week&apos;s offers</h2>
           </div>
           <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
-            {offerProducts.map((p, i) => (
+            {offers.map((p, i) => (
               <ProductTile key={p.id} product={p} priority={i < 2} />
             ))}
           </div>
@@ -166,12 +126,12 @@ export default function HomePage() {
           <p className="flex items-center gap-2 text-sm font-semibold">
             <MapPin className="size-4 text-primary" aria-hidden /> Tracking a demo order?
           </p>
-          {order ? (
+          {demoTrack ? (
             <p className="text-sm text-muted-foreground">
-              Try reference <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs">{order.reference}</code> with
-              code <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs">{order.verificationCode}</code> —
-              last updated {formatDateTime(order.events[order.events.length - 1].at)} UTC.{" "}
-              {order.paymentStatus === "partially_refunded" ? `Includes a ${formatMoney(4000)} partial refund demo.` : null}
+              Try reference <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs">{demoTrack.reference}</code> with
+              code <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs">{demoTrack.verificationCode}</code> —
+              last updated {formatDateTime(demoTrack.lastUpdatedAt)} UTC.{" "}
+              {demoTrack.partialRefundDemo ? `Includes a ${formatMoney(4000)} partial refund demo.` : null}
             </p>
           ) : (
             <p className="text-sm text-muted-foreground">Use your order reference and code from checkout.</p>

@@ -189,10 +189,10 @@ export default function CheckoutPage() {
       if (e instanceof ApiError) {
         setOrderError(e.message);
         if (e.code === "OUT_OF_STOCK" && Array.isArray(e.details)) {
-          setConflicts((e.details as typeof conflicts).map((d: never) => {
-            const x = d as { productName: string; variantName: string; requested: string; available: string };
-            return { productName: x.productName, variantName: x.variantName, requested: x.requested, available: x.available };
-          }));
+          const conflicts = e.details as { productName: string; variantName: string; requested: string; available: string }[];
+          setConflicts(conflicts.map((x) => ({
+            productName: x.productName, variantName: x.variantName, requested: x.requested, available: x.available,
+          })));
         }
       } else {
         setOrderError("The order could not be placed. Please try again.");

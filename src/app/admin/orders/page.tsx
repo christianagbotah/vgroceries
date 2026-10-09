@@ -167,6 +167,7 @@ const PAY_OPTIONS: Record<PaymentStatus, string> = {
   failed: "Payment failed",
   expired: "Payment expired",
   partially_refunded: "Partially refunded",
+  refund_pending: "Refund pending",
   refunded: "Refunded",
   requires_review: "Needs review",
 };

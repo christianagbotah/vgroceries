@@ -14,6 +14,9 @@ import { OpError, audit } from "./orders";
  * Consume quantity across eligible lots, FEFO first. Creates movements.
  * Used by the single depletion event (dispatch handover / POS completion)
  * and never for picking or packing.
+ *
+ * Shortages REJECT the whole consumption before any partial mutation —
+ * an incomplete handover must never be recorded as a completed one.
  */
 export function consumeLots(
   store: VgStore,
@@ -23,8 +26,17 @@ export function consumeLots(
   actor: string,
   reason: StockMovement["reason"]
 ): void {
+  // pre-check: enough FEFO-eligible stock exists before touching any lot
+  const lots = fefoLots(store, variantId);
+  const available = lots.reduce((a, l) => addQty(a, l.quantity), "0");
+  if (cmpQty(available, quantity) < 0) {
+    throw new OpError(
+      "OUT_OF_STOCK",
+      `Cannot consume ${quantity}: only ${available} of eligible stock remains for this item.`
+    );
+  }
   let remaining = quantity;
-  for (const lot of fefoLots(store, variantId)) {
+  for (const lot of lots) {
     if (cmpQty(remaining, "0") <= 0) break;
     const take = cmpQty(lot.quantity, remaining) >= 0 ? remaining : lot.quantity;
     if (cmpQty(take, "0") <= 0) continue;
@@ -40,22 +52,6 @@ export function consumeLots(
       reason,
       reference,
       actorId: actor,
-      at: nowIso(),
-    });
-  }
-  if (cmpQty(remaining, "0") > 0) {
-    // Physical shortfall versus the recorded reservation: record an
-    // exception movement rather than silently under-consuming.
-    store.movements.push({
-      id: nextId("mov"),
-      variantId,
-      locationId: "loc_store",
-      delta: `-${remaining}`,
-      resultingQty: "—",
-      reason: "adjustment",
-      reference,
-      actorId: actor,
-      note: "Consumption exceeded recorded sellable lots — flagged for stocktake",
       at: nowIso(),
     });
   }

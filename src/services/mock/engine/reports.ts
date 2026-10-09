@@ -8,17 +8,10 @@ import type { Order } from "@/types/domain";
 import type { VgStore } from "../store";
 import { formatMoney } from "@/lib/money";
 import { formatDateTime } from "@/lib/format";
+import type { ReportBundleView } from "@/services/views";
 
-export interface ReportBundle {
-  salesByDay: { date: string; onlineMinor: number; posMinor: number; orders: number }[];
-  topProducts: { name: string; variant: string; qty: number; revenueMinor: number }[];
-  fulfilmentCounts: Record<string, number>;
-  deliveryCounts: Record<string, number>;
-  returnsSummary: { total: number; pending: number; resolved: number; refundedMinor: number };
-  cashSummary: { openSessions: number; expectedMinor: number; lastClosedDiffMinor: number };
-  stockValue: { costBasisMinor: number; sellableUnits: number; zeroVariants: number; lowVariants: number };
-  paymentsReconciliation: { settled: number; unsettled: number; exceptions: number };
-}
+/** Shared response contract — see src/services/views.ts (used by client.ts and pages). */
+export type ReportBundle = ReportBundleView;
 
 export function buildReports(store: VgStore): ReportBundle {
   const paid = (o: Order) => ["succeeded", "partially_refunded", "refunded"].includes(o.paymentStatus);

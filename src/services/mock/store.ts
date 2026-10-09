@@ -65,8 +65,17 @@ import {
   seedZones,
 } from "./seed-ops";
 
+export interface IdempotencyRecord {
+  scope: string;
+  key: string;
+  requestHash: string;
+  orderId: string;
+  createdAt: string;
+}
+
 export interface VgStore {
   seededAt: string;
+  idempotency: IdempotencyRecord[];
   categories: Category[];
   products: Product[];
   variants: ProductVariant[];
@@ -122,6 +131,7 @@ function seedStore(): VgStore {
 
   const store: VgStore = {
     seededAt: now.toISOString(),
+    idempotency: [],
     categories: seedCategories,
     products: catalog.products,
     variants: catalog.variants,

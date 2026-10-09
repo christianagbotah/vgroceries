@@ -111,7 +111,11 @@ function ok(data: unknown): ApiResult {
 
 function err(e: unknown): ApiResult {
   if (e instanceof OpError) {
-    const status = e.code === "FORBIDDEN" ? 403 : e.code === "VALIDATION_FAILED" ? 400 : e.code === "OUT_OF_STOCK" ? 409 : 400;
+    const status =
+      e.code === "FORBIDDEN" ? 403
+      : e.code === "OUT_OF_STOCK" || e.code === "RESERVATION_LOST" || e.code === "IDEMPOTENCY_CONFLICT" ? 409
+      : e.code === "VALIDATION_FAILED" ? 400
+      : 400;
     return { status, json: { ok: false, error: { code: e.code, message: e.message, details: e.details ?? null } } };
   }
   const code = (e as { code?: string })?.code ?? "INTERNAL";
@@ -230,7 +234,7 @@ export async function handleApi(req: ApiRequest): Promise<ApiResult> {
           .filter((c) => c.isActive)
           .map((c) => {
             const count = store.products.filter((p) => p.categoryId === c.id && isProductPurchasable(store, p.id)).length;
-            return { id: c.id, slug: c.slug, name: c.name, description: c.description, tint: c.tint, availableProducts: count };
+            return { id: c.id, slug: c.slug, name: c.name, description: c.description, tint: c.tint, isActive: c.isActive, availableProducts: count };
           })
           .sort((a, b2) => a.name.localeCompare(b2.name)));
       }
@@ -267,7 +271,8 @@ export async function handleApi(req: ApiRequest): Promise<ApiResult> {
       case "catalog.product": {
         sweepExpiredReservations(store);
         const slug = q("slug");
-        const p = store.products.find((x) => x.slug === slug);
+        // the public catalogue serves published products only
+        const p = store.products.find((x) => x.slug === slug && x.isPublished);
         if (!p) return err(new OpError("VALIDATION_FAILED", "Product not found."));
         const entry = catalogEntry(store, p.id);
         const related = store.products
@@ -277,10 +282,61 @@ export async function handleApi(req: ApiRequest): Promise<ApiResult> {
         return ok({ product: entry, related, purchasable: entry.anyAvailable });
       }
 
+      case "catalog.home": {
+        sweepExpiredReservations(store);
+        const salesCount = new Map<string, number>();
+        for (const o of store.orders) {
+          if (o.fulfilmentStatus === "cancelled") continue;
+          for (const lid of o.lines) {
+            const l = store.orderLines.find((x) => x.id === lid);
+            if (l) salesCount.set(l.productId, (salesCount.get(l.productId) ?? 0) + Number(l.quantity));
+          }
+        }
+        const categories = store.categories
+          .filter((c) => c.isActive)
+          .slice()
+          .sort((a, b2) => a.name.localeCompare(b2.name))
+          .map((c) => ({
+            id: c.id,
+            slug: c.slug,
+            name: c.name,
+            tint: c.tint,
+            count: store.products.filter((p) => p.categoryId === c.id && isProductPurchasable(store, p.id)).length,
+          }));
+        const offers = store.products
+          .filter((p) => p.isPublished)
+          .filter((p) => p.variants.some((vid) => store.variants.find((v) => v.id === vid)?.compareAtPriceMinor && isProductPurchasable(store, p.id)))
+          .slice(0, 4)
+          .map((p) => catalogEntry(store, p.id));
+        const popular = [...salesCount.entries()]
+          .sort((a, b2) => b2[1] - a[1])
+          .map(([pid]) => store.products.find((p) => p.id === pid))
+          .filter((p): p is NonNullable<typeof p> => !!p && isProductPurchasable(store, p.id))
+          .slice(0, 8)
+          .map((p) => catalogEntry(store, p.id));
+        const trendingNew = store.products
+          .filter((p) => p.isPublished && isProductPurchasable(store, p.id) && !salesCount.has(p.id))
+          .slice(0, 4)
+          .map((p) => catalogEntry(store, p.id));
+        const demoOrder = store.orders.find((o) => o.reference === "VG-8Q2M1A");
+        return ok({
+          categories, offers, popular, trendingNew,
+          demoTrack: demoOrder
+            ? {
+                reference: demoOrder.reference,
+                verificationCode: demoOrder.verificationCode,
+                lastUpdatedAt: demoOrder.events[demoOrder.events.length - 1]?.at ?? demoOrder.createdAt,
+                paymentStatus: demoOrder.paymentStatus,
+                partialRefundDemo: demoOrder.paymentStatus === "partially_refunded",
+              }
+            : undefined,
+        });
+      }
+
       case "catalog.by-variants": {
         sweepExpiredReservations(store);
         const variantIds = (body.variantIds ?? []) as string[];
-        const out = [];
+        const out: ReturnType<typeof catalogEntry>[] = [];
         for (const vid of variantIds) {
           const v = store.variants.find((x) => x.id === vid);
           if (!v) continue;
@@ -327,8 +383,8 @@ export async function handleApi(req: ApiRequest): Promise<ApiResult> {
       }
       case "orders.track": {
         sweepExpiredReservations(store);
-        const reference = (body.reference || query.get("reference") || "").trim().toUpperCase();
-        const code = (body.code || query.get("code") || "").trim().toUpperCase();
+        const reference = String(body.reference ?? query.get("reference") ?? "").trim().toUpperCase();
+        const code = String(body.code ?? query.get("code") ?? "").trim().toUpperCase();
         const order = store.orders.find((o) => o.reference === reference);
         if (!order || !order.verificationCode || order.verificationCode.toUpperCase() !== code) {
           throw new OpError("VALIDATION_FAILED", "We could not match that order reference and code. Check both and try again.");
@@ -413,7 +469,7 @@ export async function handleApi(req: ApiRequest): Promise<ApiResult> {
         const refunds = store.refunds.filter((f) => f.returnId === ret.id);
         return ok({
           id: ret.id, reference: ret.reference, orderId: ret.orderId, orderReference: store.orders.find((o) => o.id === ret.orderId)?.reference,
-          status: ret.status, requestedBy: ret.requestedBy, evidenceNote: ret.evidenceNote,
+          channel: ret.channel, status: ret.status, requestedBy: ret.requestedBy, evidenceNote: ret.evidenceNote,
           createdAt: ret.createdAt, createdAtLabel: formatDateTime(ret.createdAt),
           receivedAt: ret.receivedAt, inspectedAt: ret.inspectedAt, disposition: ret.disposition,
           lines: lines.map((l) => ({
@@ -754,12 +810,14 @@ export async function handleApi(req: ApiRequest): Promise<ApiResult> {
       }
       case "admin.inventory.expiry": {
         const overview = expiryOverview(store);
-        const map = (l: { lotNumber: string; variantId: string; quantity: string; expiryDate?: string; notes?: string; id: string }) => {
+        const map = (l: { lotNumber: string; variantId: string; quantity: string; expiryDate?: string; notes?: string; id: string; kind?: string; isQuarantined?: boolean; locationId?: string }) => {
           const v = store.variants.find((x) => x.id === l.variantId);
           const p = v ? store.products.find((x) => x.id === v.productId) : undefined;
           return {
             id: l.id, productName: p?.name ?? "", variantName: v?.name ?? "", lotNumber: l.lotNumber,
             quantity: l.quantity, expiryDate: l.expiryDate, notes: l.notes, variantId: l.variantId,
+            kind: l.kind ?? "regular", isQuarantined: l.isQuarantined ?? false,
+            location: store.locations.find((x) => x.id === l.locationId)?.name ?? "",
           };
         };
         return ok({
@@ -1025,7 +1083,7 @@ export async function handleApi(req: ApiRequest): Promise<ApiResult> {
           const lines = r.lines.map((id) => store.returnLines.find((l) => l.id === id)!);
           const preview = refundPreview(store, r.orderId);
           return {
-            id: r.id, reference: r.reference, orderReference: order?.reference, channel: r.channel,
+            id: r.id, reference: r.reference, orderId: r.orderId, orderReference: order?.reference, channel: r.channel,
             customerName: order?.customerName, requestedBy: r.requestedBy, status: r.status,
             createdAt: r.createdAt, createdAtLabel: formatDateTime(r.createdAt),
             lines: lines.map((l) => ({
@@ -1037,9 +1095,9 @@ export async function handleApi(req: ApiRequest): Promise<ApiResult> {
             })),
             disposition: r.disposition, evidenceNote: r.evidenceNote,
             refundStatus: store.refunds.find((f) => f.returnId === r.id)?.status,
+            refundableMinor: preview.refundableMinor,
           };
         });
-        void preview;
         return ok(list);
       }
       case "admin.return.action": {

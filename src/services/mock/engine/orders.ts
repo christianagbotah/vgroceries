@@ -19,8 +19,9 @@ import type {
 import { addQty, cmpQty, subQty } from "@/lib/quantity";
 import { nextId, nowIso, orderReference, verificationCode } from "@/lib/id";
 import { getStore, nextSeq, type VgStore } from "../store";
-import { availability, checkAvailability, fefoLots, sweepExpiredReservations } from "./availability";
+import { availability, checkAvailability, fefoLots, sellablePhysical, sweepExpiredReservations } from "./availability";
 import { consumeLots } from "./inventory";
+import type { Refund } from "@/types/domain";
 
 export class OpError extends Error {
   code: string;
@@ -64,6 +65,63 @@ export function orderEvent(order: Order, actor: string, action: string, extra?: 
 export const RESERVATION_TTL_MINUTES = 30; // configurable
 export const ORDER_HOLD_HOURS = 20; // confirmed orders hold stock until depletion
 
+/** Deterministic JSON used to compare idempotent retries for identical input. */
+export function stableInputHash(value: unknown): string {
+  const canon = (v: unknown): unknown => {
+    if (Array.isArray(v)) return v.map(canon);
+    if (v && typeof v === "object") {
+      return Object.fromEntries(
+        Object.entries(v as Record<string, unknown>)
+          .filter(([k]) => k !== "idempotencyKey")
+          .sort(([a], [b]) => a.localeCompare(b))
+          .map(([k, x]) => [k, canon(x)])
+      );
+    }
+    return v;
+  };
+  return JSON.stringify(canon(value));
+}
+
+/**
+ * Shared input validation for every sale path (online checkout, counter sales,
+ * held drafts): positive quantities, permitted decimal precision, sane bounds,
+ * and known variants — enforced before any reservation or stock mutation.
+ */
+export function validateSaleLines(store: VgStore, lines: { variantId: string; quantity: string }[]): void {
+  if (!lines.length) throw new OpError("VALIDATION_FAILED", "At least one line is required.");
+  const merged = new Map<string, string>();
+  for (const l of lines) {
+    const variant = store.variants.find((v) => v.id === l.variantId);
+    if (!variant) throw new OpError("VALIDATION_FAILED", `Unknown variant ${l.variantId}.`);
+    const q = String(l.quantity ?? "").trim();
+    if (!/^\d+(\.\d{1,3})?$/.test(q)) {
+      throw new OpError("VALIDATION_FAILED", `Quantity for ${variant.name} must be a positive decimal with up to three places (received "${l.quantity}").`);
+    }
+    if (cmpQty(q, "0") <= 0) {
+      throw new OpError("VALIDATION_FAILED", `Quantity for ${variant.name} must be greater than zero.`);
+    }
+    if (cmpQty(q, "10000") > 0) {
+      throw new OpError("VALIDATION_FAILED", `Quantity for ${variant.name} is unreasonably large (max 10000).`);
+    }
+    merged.set(l.variantId, addQty(merged.get(l.variantId) ?? "0", q));
+  }
+  for (const [variantId, total] of merged) {
+    if (cmpQty(total, "10000") > 0) {
+      const variant = store.variants.find((v) => v.id === variantId);
+      throw new OpError("VALIDATION_FAILED", `Total requested quantity for ${variant?.name ?? variantId} is unreasonably large (max 10000).`);
+    }
+  }
+}
+
+/** Money validation: integer minor units within sane bounds. */
+export function validateMoneyMinor(amount: number, label: string, opts: { min?: number; max?: number } = {}): void {
+  if (!Number.isInteger(amount)) throw new OpError("VALIDATION_FAILED", `${label} must be a whole number of pesewas.`);
+  const min = opts.min ?? 0;
+  if (amount < min) throw new OpError("VALIDATION_FAILED", `${label} cannot be below ${min}.`);
+  const max = opts.max ?? 1_000_000_000;
+  if (amount > max) throw new OpError("VALIDATION_FAILED", `${label} exceeds the supported bound of ${max}.`);
+}
+
 export function tryReserve(
   store: VgStore,
   lines: { variantId: string; quantity: string }[],
@@ -102,13 +160,52 @@ export function releaseOrderReservations(store: VgStore, orderId: string, reason
   }
 }
 
-/** The single documented stock-depletion event. Idempotent by design. */
+/**
+ * The single documented stock-depletion event. Idempotent by design.
+ * Rechecks that the order's reservations still cover it and that physical
+ * sellable stock exists BEFORE any mutation: a shortage rejects the whole
+ * handover — a timestamp alone is never evidence of stock depletion.
+ */
 export function consumeOrderStock(store: VgStore, order: Order, actor: string): { consumed: boolean } {
   if (order.stockConsumedAt) return { consumed: false };
-  const reservations = store.reservations.filter((r) => r.orderId === order.id && !r.releasedAt);
-  for (const r of reservations) {
-    // consume FEFO across eligible lots for the reserved quantity
-    consumeLots(store, r.variantId, r.quantity, order.id, actor, "sale");
+
+  // 1. Complete allocations: active (unreleased) reservations must cover every order line.
+  const lines = orderLinesOf(store, order);
+  const active = store.reservations.filter((r) => r.orderId === order.id && !r.releasedAt && !r.consumedAt);
+  const requiredPerVariant = new Map<string, string>();
+  for (const line of lines) {
+    requiredPerVariant.set(line.variantId, addQty(requiredPerVariant.get(line.variantId) ?? "0", line.quantity));
+  }
+  for (const [variantId, required] of requiredPerVariant) {
+    const held = active
+      .filter((r) => r.variantId === variantId)
+      .reduce((a, r) => addQty(a, r.quantity), "0");
+    if (cmpQty(held, required) < 0) {
+      const variant = store.variants.find((v) => v.id === variantId);
+      throw new OpError(
+        "RESERVATION_LOST",
+        `Reservation no longer covers the order: ${variant?.name ?? variantId} needs ${required} but only ${held} is still held. Re-reserve the stock or cancel the order.`
+      );
+    }
+  }
+
+  // 2. Physical recheck inside the consumption transaction: FEFO-eligible stock must exist.
+  for (const [variantId, required] of requiredPerVariant) {
+    const physical = sellablePhysical(store, variantId);
+    if (cmpQty(physical, required) < 0) {
+      const variant = store.variants.find((v) => v.id === variantId);
+      throw new OpError(
+        "OUT_OF_STOCK",
+        `Physical stock does not cover the order: ${variant?.name ?? variantId} needs ${required} but only ${physical} is sellable.`
+      );
+    }
+  }
+
+  // 3. Consume FEFO across eligible lots for the required quantities, then retire the holds.
+  for (const [variantId, required] of requiredPerVariant) {
+    consumeLots(store, variantId, required, order.id, actor, "sale");
+  }
+  for (const r of active) {
     r.consumedAt = nowIso();
   }
   order.stockConsumedAt = nowIso();
@@ -182,7 +279,26 @@ export interface CheckoutInput {
 
 export function createOnlineOrder(store: VgStore, input: CheckoutInput): { order: Order; paymentRequired: boolean } {
   sweepExpiredReservations(store);
+
+  // Idempotent order creation: a retried request with the same key must replay the
+  // original order without a second hold; a reused key with different input conflicts.
+  if (input.idempotencyKey) {
+    const record = store.idempotency.find((i) => i.scope === "checkout" && i.key === input.idempotencyKey);
+    if (record) {
+      if (record.requestHash !== stableInputHash(input)) {
+        throw new OpError(
+          "IDEMPOTENCY_CONFLICT",
+          "This idempotency key was already used with a different request. Use a new key for a new order."
+        );
+      }
+      const original = mustOrder(store, record.orderId);
+      return { order: original, paymentRequired: ["mobile_money", "card_hosted", "bank_transfer"].includes(original.paymentMethod) };
+    }
+  }
+
   if (!input.lines.length) throw new OpError("VALIDATION_FAILED", "Cart is empty.");
+  // same quantity rules as counter sales — enforced before any reservation
+  validateSaleLines(store, input.lines);
   if (!input.customerName.trim()) throw new OpError("VALIDATION_FAILED", "A contact name is required.");
   if (!/^\+233\d{9}$/.test(input.customerPhone.replace(/[\s-]/g, ""))) {
     throw new OpError("VALIDATION_FAILED", "Phone must be a valid +233 Ghana number.");
@@ -297,6 +413,18 @@ export function createOnlineOrder(store: VgStore, input: CheckoutInput): { order
     orderEvent(order, "system", `Payment initiated (${methodLabel(input.paymentMethod)})`, { toStatus: "pending" });
   }
   audit(store, input.customerId ?? "customer", "order.created", "Order", order.id);
+
+  // persist the scoped idempotency record so retries replay this order
+  if (input.idempotencyKey) {
+    store.idempotency.push({
+      scope: "checkout",
+      key: input.idempotencyKey,
+      requestHash: stableInputHash(input),
+      orderId: order.id,
+      createdAt: nowIso(),
+    });
+  }
+
   return { order, paymentRequired };
 }
 
@@ -615,9 +743,32 @@ export function resolveReviewOrder(store: VgStore, orderId: string, actor: strin
   } else {
     releaseOrderReservations(store, order.id, "cancelled");
     order.fulfilmentStatus = "cancelled";
-    order.paymentStatus = "refunded";
-    orderEvent(order, actor, "Review resolved: cancelled; refund to be processed", { toStatus: "cancelled" });
-    order.notes.push({ at: nowIso(), by: actor, text: `Cancelled after review: ${reason}. Refund ₵${(order.totalMinor / 100).toFixed(2)} to be processed via the refunds workflow.`, internalOnly: false });
+    // Cancellation and the refund are recorded separately. The payment is NOT
+    // marked refunded here — only a confirmed refund outcome may do that. The
+    // linked refund request below is executable through the refunds workflow
+    // without requiring a fictitious physical return.
+    const electronic = ["mobile_money", "card_hosted", "bank_transfer"].includes(order.paymentMethod);
+    const refund: Refund = {
+      id: nextId("ref"),
+      returnId: undefined,
+      orderId: order.id,
+      amountMinor: order.totalMinor,
+      status: "awaiting_approval",
+      method: electronic ? order.paymentMethod : "manual_recording",
+      reason: `Cancellation refund after review: ${reason}`,
+      requestedBy: actor,
+      retryCount: 0,
+      createdAt: nowIso(),
+    };
+    store.refunds.unshift(refund);
+    order.paymentStatus = "refund_pending";
+    orderEvent(order, actor, "Review resolved: cancelled; refund requested via the refunds workflow", { toStatus: "cancelled" });
+    order.notes.push({
+      at: nowIso(),
+      by: actor,
+      text: `Cancelled after review: ${reason}. Refund of ₵${(order.totalMinor / 100).toFixed(2)} requested — process it under Refunds; the payment is only marked refunded once the transfer succeeds.`,
+      internalOnly: false,
+    });
   }
   audit(store, actor, "order.review_resolved", "Order", order.id, { reason, before: "requires_review", after: decision });
   return order;

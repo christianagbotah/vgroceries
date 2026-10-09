@@ -18,7 +18,7 @@ import { ReceiptText, Search, Trash2, Printer, Pause, Play, Barcode, Banknote, S
 import { cn } from "@/lib/utils";
 import type { PaymentMethod } from "@/types/domain";
 
-interface PosLine { variantId: string; productId: string; productName: string; variantName: string; unit: string; priceMinor: number; quantity: string; image: string; availableToSell: string; barcode?: string }
+interface PosLine { variantId: string; productId: string; productName: string; variantName: string; unit: string; priceMinor: number; priceLabel: string; quantity: string; image: string; availableToSell: string; barcode?: string }
 interface Draft { id: string; label: string; createdAtLabel: string; expiresAt: string; lineCount: number; totalMinor: number; lines: { variantId: string; quantity: string; unitPriceMinor: number }[] }
 type SearchResult = Awaited<ReturnType<typeof apiOps.posSearch>>[number];
 type Session = Awaited<ReturnType<typeof apiOps.sessions>>[number];
@@ -101,7 +101,7 @@ export default function AdminPosPage() {
       }
       return [
         ...prev,
-        { variantId: r.variantId, productId: r.productId, productName: r.productName, variantName: r.variantName, unit: r.unit, priceMinor: r.priceMinor, quantity: "1", image: r.image, availableToSell: r.availableToSell, barcode: r.barcode },
+        { variantId: r.variantId, productId: r.productId, productName: r.productName, variantName: r.variantName, unit: r.unit, priceMinor: r.priceMinor, priceLabel: r.priceLabel, quantity: "1", image: r.image, availableToSell: r.availableToSell, barcode: r.barcode },
       ];
     });
   };
@@ -201,7 +201,7 @@ export default function AdminPosPage() {
       const next: PosLine[] = [];
       for (const l of r.lines) {
         const v = products.find((p) => p.variantId === l.variantId);
-        if (v) next.push({ variantId: v.variantId, productId: v.productId, productName: v.productName, variantName: v.variantName, unit: v.unit, priceMinor: l.unitPriceMinor, quantity: l.quantity, image: v.image, availableToSell: v.availableToSell, barcode: v.barcode });
+        if (v) next.push({ variantId: v.variantId, productId: v.productId, productName: v.productName, variantName: v.variantName, unit: v.unit, priceMinor: l.unitPriceMinor, priceLabel: v.priceLabel, quantity: l.quantity, image: v.image, availableToSell: v.availableToSell, barcode: v.barcode });
       }
       setLines(next);
       await apiOps.posReleaseDraft(d.id);
