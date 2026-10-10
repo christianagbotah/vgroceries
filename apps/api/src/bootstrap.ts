@@ -7,6 +7,7 @@ import { randomUUID } from "node:crypto";
 import { API_CONFIG, ApiConfig, readConfig } from "./config";
 import { CatalogModule } from "./catalog/catalog.controller";
 import { InventoryModule } from "./inventory/inventory.controller";
+import { OrdersModule } from "./orders/orders.module";
 import { IdentityModule } from "./identity/identity.module";
 import { DatabaseModule } from "./database/database";
 import { HealthModule } from "./health/health.controller";
@@ -28,6 +29,7 @@ export async function createApplication(config: ApiConfig = readConfig()) {
       IdentityModule,
       CatalogModule,
       InventoryModule,
+      OrdersModule,
     ],
   })
   class ApplicationModule {}
