@@ -7,8 +7,11 @@ import { ApiProblem } from "../src/http/errors";
 import { AllocationService } from "../src/inventory/allocation.service";
 
 let app: INestApplication;
+let second: INestApplication;
 let db: Database;
+let secondDb: Database;
 let allocation: AllocationService;
+let secondAllocation: AllocationService;
 
 const futureDate = (days: number) => {
   const d = new Date(Date.now() + days * 86400000);
@@ -21,6 +24,9 @@ before(async () => {
   app = await createApplication();
   db = app.get(Database);
   allocation = app.get(AllocationService);
+  second = await createApplication();
+  secondDb = second.get(Database);
+  secondAllocation = second.get(AllocationService);
   await db.$executeRawUnsafe(
     'TRUNCATE "User", "Category", "Location", "StockReceipt", "Idempotency", "AuditEvent", "OutboxEvent", "LoginThrottle" CASCADE',
   );
@@ -80,6 +86,7 @@ beforeEach(async () => {
 });
 
 after(async () => {
+  await second?.close();
   await app?.close();
 });
 
@@ -157,4 +164,46 @@ test("release and expiry change active claims once without touching terminal row
   assert.equal(expired, 1);
   assert.equal((await db.reservation.findFirstOrThrow({ where: { claimId: "ord_expire" } })).state, "expired");
   assert.equal((await db.reservation.findFirstOrThrow({ where: { claimId: "ord_release" } })).state, "released");
+});
+
+
+test("two independent allocators cannot both reserve the final unit", async () => {
+  for (let round = 0; round < 10; round++) {
+    await db.reservation.deleteMany();
+    const expiresAt = new Date(Date.now() + 3600000);
+    const attempt = (
+      service: AllocationService,
+      database: Database,
+      claimId: string,
+    ) =>
+      database.$transaction((tx) =>
+        service.create(tx, {
+          claimType: "order",
+          claimId,
+          locationId: "loc_alloc",
+          expiresAt,
+          lines: [
+            { claimLineId: `line_${claimId}`, variantId: "var_short", quantity: "1" },
+          ],
+        }),
+      );
+    const results = await Promise.allSettled([
+      attempt(allocation, db, `race_a_${round}`),
+      attempt(secondAllocation, secondDb, `race_b_${round}`),
+    ]);
+    assert.equal(results.filter((r) => r.status === "fulfilled").length, 1);
+    assert.equal(results.filter((r) => r.status === "rejected").length, 1);
+    const loser = results.find((r) => r.status === "rejected");
+    assert.ok(loser && loser.status === "rejected");
+    assert.ok(loser.reason instanceof ApiProblem);
+    assert.equal((loser.reason.getResponse() as { code: string }).code, "OUT_OF_STOCK");
+    const active = await db.reservation.findMany({
+      where: { positionId: "pos_short", state: "active" },
+    });
+    assert.equal(active.reduce((sum, row) => sum + Number(row.quantity), 0), 1);
+    const [availability] = await db.$queryRaw<{ availableToSell: { toString(): string } }[]>`
+      SELECT "availableToSell" FROM variant_availability
+      WHERE "variantId"='var_short' AND "locationId"='loc_alloc'`;
+    assert.equal(availability.availableToSell.toString(), "0");
+  }
 });
