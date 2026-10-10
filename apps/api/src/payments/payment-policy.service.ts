@@ -3,6 +3,7 @@ import type {
   ElectronicPaymentMethod,
   PaymentProviderAction,
 } from "@variety/contracts";
+import type { Prisma } from "@prisma/client";
 import { API_CONFIG, type ApiConfig } from "../config";
 import { ApiProblem } from "../http/errors";
 import type { PaymentProviderAdapter } from "./payment-provider";
@@ -27,6 +28,33 @@ export class PaymentPolicyService {
     if (!adapter.capabilities().methods.includes(method))
       throw new ApiProblem(503, "UNAVAILABLE", "This electronic payment method is unavailable.");
     return adapter;
+  }
+
+  async assertCancellationSafe(
+    tx: Prisma.TransactionClient,
+    orderId: string,
+  ): Promise<void> {
+    // Orders already holds the Order row. Keep the global lock order by
+    // locking every attempt for that order in stable id order before reading
+    // payment authority.
+    await tx.$queryRaw`SELECT id FROM "PaymentAttempt" WHERE "orderId"=${orderId} ORDER BY id FOR UPDATE`;
+    const attempts = await tx.paymentAttempt.findMany({
+      where: { orderId },
+      orderBy: { id: "asc" },
+      select: { status: true },
+    });
+    if (attempts.some((attempt) => attempt.status === "succeeded"))
+      throw new ApiProblem(
+        422,
+        "RULE_VIOLATION",
+        "This order requires the refund workflow before cancellation.",
+      );
+    if (attempts.some((attempt) => attempt.status === "initiated" || attempt.status === "pending"))
+      throw new ApiProblem(
+        422,
+        "RULE_VIOLATION",
+        "Payment reconciliation is required before this order can be cancelled.",
+      );
   }
 
   validateProviderAction(action: PaymentProviderAction): PaymentProviderAction {
