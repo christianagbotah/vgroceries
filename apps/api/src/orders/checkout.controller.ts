@@ -2,11 +2,11 @@ import { Body, Controller, HttpCode, Post, Req, Res } from "@nestjs/common";
 import { ApiTags } from "@nestjs/swagger";
 import type { Response } from "express";
 import { checkoutQuoteRequestSchema, checkoutCompleteRestRequestSchema, replayKeySchema, type CompleteOrderRequest } from "@variety/contracts";
+import { CheckoutPrincipalService } from "../commerce-identity/checkout-principal.service";
+import { GuestCheckoutService } from "../commerce-identity/guest-checkout.service";
 import { ApiProblem, ApiRequest } from "../http/errors";
 import { CheckoutQuoteService } from "./checkout-quote.service";
 import { CheckoutCommandService } from "./checkout-command.service";
-import { CheckoutPrincipalService } from "./checkout-principal.service";
-import { GuestCheckoutService } from "./guest-checkout.service";
 
 @ApiTags("checkout")
 @Controller("checkout")
