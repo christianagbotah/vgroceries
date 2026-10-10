@@ -1,4 +1,4 @@
-import { Controller, Get, Param, Post, Query, Req, UseGuards } from "@nestjs/common";
+import { Controller, Get, HttpCode, Param, Post, Query, Req, UseGuards } from "@nestjs/common";
 import { ApiExcludeController, ApiTags } from "@nestjs/swagger";
 import { ApiProblem } from "../http/errors";
 import { AccessGuard } from "../identity/access.guard";
@@ -28,6 +28,7 @@ export class PaymentsController {
   }
 
   @Post(":attemptId/reconcile")
+  @HttpCode(200)
   async reconcile(@Req() req: AuthRequest, @Param("attemptId") attemptId: string) {
     this.assertAdmin(req);
     if (!/^[0-9a-f-]{36}$/i.test(attemptId))
