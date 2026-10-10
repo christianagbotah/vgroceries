@@ -20,17 +20,26 @@ import {
   refreshRequestSchema,
   byVariantsRequestSchema,
   stockReceiveRequestSchema,
+  zoneViewSchema,
+  slotViewSchema,
+  quoteResponseSchema,
+  checkoutQuoteRequestSchema,
+  checkoutCompleteRestRequestSchema,
+  publicOrderSchema,
+  trackRequestSchema,
+  accountCancelPathRequestSchema,
 } from "@variety/contracts";
 import { z } from "zod";
 
 export function foundationOpenApi(app: INestApplication) {
   const config = new DocumentBuilder()
-    .setTitle("Variety Groceries foundation API")
+    .setTitle("Variety Groceries production API")
     .setVersion("0.1.0")
     .setDescription(
-      "Implemented foundation endpoints only. Commerce, payments, delivery, worker publishing and live AI remain later milestones.",
+      "Implemented production subset: identity, catalogue, inventory receiving, delivery configuration, authoritative checkout/orders and customer cancellation. Payments, stock handover, fulfilment/dispatch, POS and public storefront cutover remain closed.",
     )
     .addCookieAuth("vg_session", { type: "apiKey", in: "cookie" }, "cookieAuth")
+    .addCookieAuth("vg_guest", { type: "apiKey", in: "cookie" }, "guestAuth")
     .addBearerAuth({ type: "http", scheme: "bearer" }, "bearerAuth")
     .build();
   const doc = SwaggerModule.createDocument(app, config);
@@ -67,6 +76,20 @@ export function foundationOpenApi(app: INestApplication) {
     InventoryRow: json(foundationInventoryRowSchema),
     InventoryOverviewResponse: json(foundationInventoryOverviewSchema),
     ReceiveResponse: json(z.object({ receiptId: z.string() })),
+    ZoneView: json(zoneViewSchema),
+    ZoneListResponse: { type: "array", items: ref("ZoneView") },
+    SlotView: json(slotViewSchema),
+    SlotListResponse: { type: "array", items: ref("SlotView") },
+    QuoteResponse: json(quoteResponseSchema),
+    CheckoutQuoteRequest: json(checkoutQuoteRequestSchema),
+    CheckoutCompleteRequest: json(checkoutCompleteRestRequestSchema),
+    CompleteOrderResponse: json(z.object({ orderId:z.string(), reference:z.string(), verificationCode:z.string(), paymentRequired:z.boolean() })),
+    PublicOrder: json(publicOrderSchema),
+    AccountOrderRow: json(z.object({ id:z.string(), reference:z.string(), totalLabel:z.string(), fulfilmentStatus:z.string(), paymentStatus:z.string(), fulfilment:z.string(), createdAtLabel:z.string(), lineCount:z.number().int().nonnegative() })),
+    AccountOrderListResponse: { type:"array", items:ref("AccountOrderRow") },
+    TrackRequest: json(trackRequestSchema),
+    AccountCancelRequest: json(accountCancelPathRequestSchema),
+    AccountCancelResponse: json(z.object({ fulfilmentStatus:z.string() })),
     LoginRequest: json(loginRequestSchema),
     RefreshRequest: json(refreshRequestSchema),
     ByVariantsRequest: json(byVariantsRequestSchema),
@@ -79,6 +102,21 @@ export function foundationOpenApi(app: INestApplication) {
       }),
     ),
   };
+  const redactPublicOrder = (node: any): void => {
+    if (!node || typeof node !== "object") return;
+    if (node.properties) {
+      delete node.properties.verificationCode;
+      delete node.properties.verificationCodeHash;
+      delete node.properties.job;
+      if (node.properties.allocations)
+        node.properties.allocations = { type: "array", maxItems: 0, items: { type: "object", additionalProperties: false, properties: {} } };
+      for (const child of Object.values(node.properties)) redactPublicOrder(child);
+    }
+    if (node.items) redactPublicOrder(node.items);
+    for (const key of ["oneOf", "anyOf", "allOf"])
+      if (Array.isArray(node[key])) for (const child of node[key]) redactPublicOrder(child);
+  };
+  redactPublicOrder(schemas.PublicOrder);
   for (const name of [
     "WebSessionResponse",
     "NativeSessionResponse",
@@ -121,6 +159,14 @@ export function foundationOpenApi(app: INestApplication) {
     "/catalog/products:by-variants": "ByVariantsResponse",
     "/inventory/overview": "InventoryOverviewResponse",
     "/inventory/receive": "ReceiveResponse",
+    "/checkout/zones": "ZoneListResponse",
+    "/checkout/zones/{zoneId}/slots": "SlotListResponse",
+    "/checkout/quote": "QuoteResponse",
+    "/checkout/complete": "CompleteOrderResponse",
+    "/orders/{orderId}": "PublicOrder",
+    "/orders/track": "PublicOrder",
+    "/account/orders": "AccountOrderListResponse",
+    "/account/orders/{orderId}/cancel": "AccountCancelResponse",
   };
   for (const name of new Set(Object.values(responses)))
     schemas[name + "Envelope"] = {
@@ -135,6 +181,10 @@ export function foundationOpenApi(app: INestApplication) {
     "/auth/refresh": "RefreshRequest",
     "/catalog/products:by-variants": "ByVariantsRequest",
     "/inventory/receive": "ReceiveRequest",
+    "/checkout/quote": "CheckoutQuoteRequest",
+    "/checkout/complete": "CheckoutCompleteRequest",
+    "/orders/track": "TrackRequest",
+    "/account/orders/{orderId}/cancel": "AccountCancelRequest",
   };
   for (const [path, item] of Object.entries(doc.paths)) {
     const suffix = path.slice("/api/v1".length);
@@ -146,10 +196,13 @@ export function foundationOpenApi(app: INestApplication) {
       if (
         suffix.startsWith("/inventory/") ||
         suffix === "/auth/me" ||
-        suffix === "/auth/logout"
-      )
-        operation.security = [{ cookieAuth: [] }, { bearerAuth: [] }];
-      operation.responses[method === "post" ? "201" : "200"] = {
+        suffix === "/auth/logout" ||
+        suffix.startsWith("/account/orders")
+      ) operation.security = [{ cookieAuth: [] }, { bearerAuth: [] }];
+      if (suffix === "/checkout/complete" || suffix === "/orders/{orderId}")
+        operation.security = [{ cookieAuth: [] }, { bearerAuth: [] }, { guestAuth: [] }];
+      const successCode = method === "post" && !["/checkout/quote","/orders/track","/account/orders/{orderId}/cancel"].includes(suffix) ? "201" : "200";
+      operation.responses[successCode] = {
         description: "Successful response",
         content: { "application/json": { schema: ref(name + "Envelope") } },
       };
@@ -206,6 +259,14 @@ export function foundationOpenApi(app: INestApplication) {
       },
     },
   ];
+  doc.paths["/api/v1/checkout/zones/{zoneId}/slots"]!.get!.parameters = [
+    {
+      name: "zoneId",
+      in: "path",
+      required: true,
+      schema: { type: "string", minLength: 1 },
+    },
+  ];
   doc.paths["/api/v1/inventory/overview"]!.get!.parameters = [
     {
       name: "locationId",
@@ -230,6 +291,37 @@ export function foundationOpenApi(app: INestApplication) {
       schema: { type: "string", pattern: "^[a-f0-9]{64}$" },
     },
   ];
+
+  doc.paths["/api/v1/checkout/complete"]!.post!.parameters = [
+    {
+      name: "Idempotency-Key", in: "header", required: true,
+      description: "8–128 letters, digits, underscores, colons or hyphens. Same principal/key/request replays one order.",
+      schema: { type: "string", pattern: "^[A-Za-z0-9:_-]{8,128}$" },
+    },
+    {
+      name: "X-CSRF-Token", in: "header", required: false,
+      description: "Required for web-cookie or guest-cookie mutation flows alongside a trusted Origin.",
+      schema: { type: "string", minLength: 1 },
+    },
+  ];
+  doc.paths["/api/v1/checkout/complete"]!.post!.description =
+    "Creates one durable online order and its Inventory-owned reservations atomically. Authenticated customers or a valid guest capability may order. Client prices, totals and customerId never establish authority.";
+  doc.paths["/api/v1/orders/{orderId}"]!.get!.description =
+    "Customer-safe owner status. Requires the owning customer session or the exact owning guest capability; knowing an order ID is insufficient.";
+  doc.paths["/api/v1/orders/track"]!.post!.security = [];
+  doc.paths["/api/v1/orders/track"]!.post!.description =
+    "Public capability lookup using order reference plus verification code. Failed attempts are durably rate-limited; submitted codes are never persisted.";
+  doc.paths["/api/v1/account/orders"]!.get!.parameters = [
+    { name: "page", in: "query", schema: { type: "integer", minimum: 1, default: 1 } },
+    { name: "perPage", in: "query", schema: { type: "integer", minimum: 1, maximum: 100, default: 50 } },
+    { name: "customerId", in: "query", required: false, description: "Compatibility only; when supplied it must match the authenticated customer.", schema: { type: "string" } },
+  ];
+  for (const [path, method] of [["/api/v1/orders/{orderId}","get"],["/api/v1/account/orders/{orderId}/cancel","post"]] as const) {
+    doc.paths[path]![method]!.parameters = [{ name: "orderId", in: "path", required: true, schema: { type: "string", minLength: 1 } }];
+  }
+  doc.paths["/api/v1/account/orders/{orderId}/cancel"]!.post!.description =
+    "Authenticated-customer-only pre-handover cancellation. Order state, Inventory reservations and delivery-slot booking release in one locked transaction; captured/refund-sensitive payments require the future refund workflow.";
+
   doc.paths["/api/v1/inventory/receive"]!.post!.description =
     "Positive exact quantities with at most three decimal places; count-based units require whole quantities. Cookie authentication requires X-CSRF-Token and a trusted Origin. supplierId is refused until purchasing exists. Client actor is ignored. A replay key covers this actor and operation.";
   return doc;

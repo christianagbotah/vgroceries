@@ -80,7 +80,7 @@ export const guestAddressInputSchema = z.object({
   ghanaPostGps: z.string().optional(),
 });
 
-export const checkoutCompleteRequestSchema = z.object({
+const checkoutCompleteBaseSchema = z.object({
   lines: z.array(cartLineInputSchema).min(1),
   customerName: z.string().min(1),
   customerPhone: z.string().min(1),
@@ -99,9 +99,33 @@ export const checkoutCompleteRequestSchema = z.object({
     "cash_on_delivery",
   ]),
   note: z.string().optional(),
-  idempotencyKey: z
-    .string()
-    .min(8, "Idempotency keys must be at least 8 characters"),
+});
+
+export const replayKeySchema = z.string().regex(/^[A-Za-z0-9:_-]{8,128}$/);
+
+export const checkoutCompleteRequestSchema = checkoutCompleteBaseSchema.extend({
+  idempotencyKey: replayKeySchema,
+});
+
+/** Production REST body: Idempotency-Key is authoritative transport metadata. */
+export const checkoutCompleteRestRequestSchema = checkoutCompleteBaseSchema.extend({
+  idempotencyKey: replayKeySchema.optional(),
+});
+
+export const trackRequestSchema = z.object({
+  reference: z.string().trim().min(1).max(128),
+  code: z.string().trim().min(1).max(64),
+});
+
+export const accountOrdersQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).max(1_000_000).default(1),
+  perPage: z.coerce.number().int().min(1).max(100).default(50),
+  customerId: idSchema.optional(),
+});
+
+export const accountCancelPathRequestSchema = z.object({
+  reason: z.string().trim().min(1).max(500),
+  orderId: idSchema.optional(),
 });
 
 export const paymentOutcomeRequestSchema = z.object({
@@ -312,6 +336,17 @@ export const zoneViewSchema = z.object({
   cutoff: z.string(),
   slotsPerDay: z.number(),
   isActive: z.boolean(),
+  slotPolicy: z.enum(["required", "optional", "none"]).optional(),
+  codEnabled: z.boolean().optional(),
+});
+
+export const slotViewSchema = z.object({
+  id: z.string(),
+  zoneId: z.string(),
+  date: z.string(),
+  window: z.string(),
+  capacity: z.number().int().positive(),
+  booked: z.number().int().nonnegative(),
 });
 
 export const quoteResponseSchema = z.object({

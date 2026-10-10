@@ -1,7 +1,7 @@
 # Variety Groceries — API Contracts
 
 **Audience:** the engineering team implementing the production NestJS backend and the future React Native clients.
-**Status:** the web frontend already speaks this contract through the adapter boundary described below; the REST rendering under `/api/v1` is the proposed production surface, fully specified in [`docs/openapi.yaml`](openapi.yaml).
+**Status:** the web frontend already speaks this contract through the adapter boundary described below. `docs/openapi.yaml` remains the broader 92-operation target; the implemented NestJS subset is generated in `docs/openapi-foundation.json` and described in `BACKEND_FOUNDATION.md` / `CHECKOUT_ORDERS_AUTHORITY.md`.
 
 ---
 
@@ -322,3 +322,7 @@ remains the full 92-operation target and must not be read as 92 implemented
 backend endpoints. Identity supplies web cookie/CSRF and native rotating token
 contracts; inventory receiving requires durable replay keys and derives actor
 permissions from the session. Public frontend activation awaits commerce parity.
+
+## Implemented checkout and order authority
+
+The executable NestJS backend now implements the eight production checkout/order routes documented in `CHECKOUT_ORDERS_AUTHORITY.md`: zones, slots, quote, checkout complete, owner status, public reference+code tracking, customer order history and pre-handover cancellation. `checkout.complete` requires `Idempotency-Key`; guest mutations additionally require the guest capability, trusted Origin and matching CSRF token. Customer/account routes never accept `customerId` as authorization. The 92-operation table remains the broader target rather than a claim of implementation; payment outcome, POS, staff fulfilment, refunds and dispatch remain absent, and public frontend cutover is still prohibited.

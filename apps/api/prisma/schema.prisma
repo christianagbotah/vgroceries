@@ -24,6 +24,8 @@ model User {
   createdAt DateTime @default(now()) @db.Timestamptz(3)
   sessions Session[]
   locations UserLocation[]
+  customerAddresses CustomerAddress[]
+  orders Order[]
 }
 
 model Session {
@@ -218,4 +220,170 @@ model OutboxEvent {
   createdAt DateTime @default(now()) @db.Timestamptz(3)
   publishedAt DateTime? @db.Timestamptz(3)
   @@index([publishedAt, createdAt])
+}
+
+
+model GuestCheckoutSession {
+  id String @id @default(uuid())
+  tokenHash String @unique
+  csrfHash String
+  expiresAt DateTime @db.Timestamptz(3)
+  revokedAt DateTime? @db.Timestamptz(3)
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  lastSeenAt DateTime @default(now()) @db.Timestamptz(3)
+  orders Order[]
+  @@index([expiresAt, revokedAt])
+}
+
+model CustomerAddress {
+  id String @id @default(uuid())
+  userId String
+  user User @relation(fields: [userId], references: [id])
+  label String
+  recipientName String
+  phone String
+  locality String
+  street String
+  landmark String?
+  ghanaPostGps String?
+  isDefault Boolean @default(false)
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+  @@index([userId, isDefault])
+}
+
+model DeliveryZone {
+  id String @id
+  name String
+  areas String[]
+  active Boolean @default(true)
+  feeMinor Int
+  minimumOrderMinor Int
+  serviceHours String
+  cutoff String
+  slotsPerDay Int
+  slotPolicy String @default("required")
+  codEnabled Boolean @default(false)
+  slots DeliverySlot[]
+  orders Order[]
+  @@index([active, name])
+}
+
+model DeliverySlot {
+  id String @id
+  zoneId String
+  zone DeliveryZone @relation(fields: [zoneId], references: [id])
+  startsAt DateTime @db.Timestamptz(3)
+  endsAt DateTime @db.Timestamptz(3)
+  capacity Int
+  active Boolean @default(true)
+  bookings DeliverySlotBooking[]
+  orders Order[]
+  @@index([zoneId, active, startsAt])
+}
+
+model Order {
+  id String @id @default(uuid())
+  reference String @unique
+  channel String @default("online")
+  customerUserId String?
+  customerUser User? @relation(fields: [customerUserId], references: [id])
+  guestSessionId String?
+  guestSession GuestCheckoutSession? @relation(fields: [guestSessionId], references: [id])
+  customerName String
+  customerPhone String
+  customerEmail String?
+  fulfilment String
+  zoneId String?
+  zone DeliveryZone? @relation(fields: [zoneId], references: [id])
+  slotId String?
+  slot DeliverySlot? @relation(fields: [slotId], references: [id])
+  paymentMethod String
+  paymentStatus String
+  fulfilmentStatus String
+  deliveryStatus String
+  subtotalMinor Int
+  discountMinor Int @default(0)
+  deliveryFeeMinor Int @default(0)
+  totalMinor Int
+  verificationKeyVersion Int
+  verificationCodeHash String
+  version Int @default(1)
+  note String?
+  stockConsumedAt DateTime? @db.Timestamptz(3)
+  cancelledAt DateTime? @db.Timestamptz(3)
+  cancelledReason String?
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+  lines OrderLine[]
+  events OrderEvent[]
+  deliveryAddress OrderDeliveryAddress?
+  slotBooking DeliverySlotBooking?
+  @@index([customerUserId, createdAt])
+  @@index([guestSessionId, createdAt])
+  @@index([zoneId, createdAt])
+  @@index([slotId, createdAt])
+}
+
+model OrderDeliveryAddress {
+  orderId String @id
+  order Order @relation(fields: [orderId], references: [id])
+  label String
+  recipientName String
+  phone String
+  locality String
+  street String
+  landmark String?
+  ghanaPostGps String?
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+}
+
+model OrderLine {
+  id String @id @default(uuid())
+  orderId String
+  order Order @relation(fields: [orderId], references: [id])
+  variantId String
+  productId String
+  productName String
+  variantName String
+  unit String
+  quantity Decimal @db.Decimal(15, 3)
+  unitPriceMinor Int
+  lineTotalMinor Int
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  @@index([orderId, id])
+  @@index([variantId])
+}
+
+model OrderEvent {
+  id String @id @default(uuid())
+  orderId String
+  order Order @relation(fields: [orderId], references: [id])
+  actorKind String
+  actorId String?
+  action String
+  fromStatus String?
+  toStatus String?
+  note String?
+  customerSafe Boolean @default(true)
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  @@index([orderId, createdAt])
+}
+
+model DeliverySlotBooking {
+  id String @id @default(uuid())
+  orderId String @unique
+  order Order @relation(fields: [orderId], references: [id])
+  slotId String
+  slot DeliverySlot @relation(fields: [slotId], references: [id])
+  state String @default("active")
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  releasedAt DateTime? @db.Timestamptz(3)
+  @@index([slotId, state])
+}
+
+model TrackingThrottle {
+  key String @id
+  windowStart DateTime @db.Timestamptz(3)
+  attempts Int
 }
