@@ -94,12 +94,15 @@ test("live payment attempts block cancellation while failed and expired attempts
 
   const captured = await orderAndAttempt(token, "captured-attempt");
   await db.paymentAttempt.update({ where: { id: captured.attempt.id }, data: { status: "succeeded", resolvedAt: new Date(), version: { increment: 1 } } });
-  // Deliberately leave the order row pending: cancellation must trust the durable
-  // attempt authority too, not only the denormalized Order.paymentStatus field.
-  const refused = await cancel(token, captured.orderId);
-  assert.equal(refused.response.status, 422);
-  assert.ok(String(refused.body.error.message).toLowerCase().includes("refund"));
-  assert.ok(await db.reservation.count({ where: { claimId: captured.orderId, state: "active" } }));
+  // Deliberately leave the order projection pending: cancellation trusts the durable
+  // successful capture, creates the refund obligation, and derives refund_pending.
+  const cancelled = await cancel(token, captured.orderId);
+  assert.equal(cancelled.response.status, 200);
+  const paidOrder = await db.order.findUniqueOrThrow({ where: { id: captured.orderId } });
+  assert.equal(paidOrder.fulfilmentStatus, "cancelled");
+  assert.equal(paidOrder.paymentStatus, "refund_pending");
+  assert.equal(await db.refund.count({ where: { orderId: captured.orderId, paymentAttemptId: captured.attempt.id } }), 1);
+  assert.equal(await db.reservation.count({ where: { claimId: captured.orderId, state: "active" } }), 0);
 });
 
 test("verified success racing cancellation serializes to paid order and refused cancellation", async () => {
