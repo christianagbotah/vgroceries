@@ -320,6 +320,7 @@ model Order {
   deliveryAddress OrderDeliveryAddress?
   slotBooking DeliverySlotBooking?
   paymentAttempts PaymentAttempt[]
+  refunds Refund[]
   @@index([customerUserId, createdAt])
   @@index([guestSessionId, createdAt])
   @@index([zoneId, createdAt])
@@ -412,6 +413,7 @@ model PaymentAttempt {
   version Int @default(1)
   providerEvents PaymentProviderEvent[]
   reconciliations PaymentReconciliation[]
+  refunds Refund[]
   @@unique([provider, providerRef])
   @@index([orderId, createdAt])
   @@index([status, settlementState, createdAt])
@@ -456,5 +458,81 @@ model PaymentReconciliation {
   requestId String
   createdAt DateTime @default(now()) @db.Timestamptz(3)
   @@index([paymentAttemptId, createdAt])
+  @@index([provider, result, createdAt])
+}
+
+model Refund {
+  id String @id @default(uuid())
+  orderId String
+  order Order @relation(fields: [orderId], references: [id])
+  paymentAttemptId String
+  paymentAttempt PaymentAttempt @relation(fields: [paymentAttemptId], references: [id])
+  provider String
+  method String
+  currency String @default("GHS")
+  amountMinor Int
+  sourceType String
+  returnId String?
+  reason String
+  status String @default("awaiting_approval")
+  requestedBy String
+  approvedBy String?
+  approvedAt DateTime? @db.Timestamptz(3)
+  failureReason String?
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+  resolvedAt DateTime? @db.Timestamptz(3)
+  version Int @default(1)
+  execution RefundExecution?
+  reconciliations RefundReconciliation[]
+  @@index([orderId, createdAt])
+  @@index([paymentAttemptId, createdAt])
+  @@index([status, createdAt])
+}
+
+model RefundExecution {
+  id String @id @default(uuid())
+  refundId String @unique
+  refund Refund @relation(fields: [refundId], references: [id])
+  provider String
+  method String
+  currency String @default("GHS")
+  amountMinor Int
+  merchantRefundReference String @unique
+  originalPaymentMerchantReference String
+  originalPaymentProviderReference String?
+  providerRefundReference String?
+  status String @default("created")
+  reconciliationState String @default("unreconciled")
+  attemptCount Int @default(0)
+  failureCode String?
+  failureReason String?
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+  resolvedAt DateTime? @db.Timestamptz(3)
+  version Int @default(1)
+  reconciliations RefundReconciliation[]
+  @@unique([provider, providerRefundReference])
+  @@index([status, reconciliationState, createdAt])
+}
+
+model RefundReconciliation {
+  id String @id @default(uuid())
+  refundId String
+  refund Refund @relation(fields: [refundId], references: [id])
+  refundExecutionId String
+  refundExecution RefundExecution @relation(fields: [refundExecutionId], references: [id])
+  provider String
+  trigger String
+  observedState String
+  providerRefundReference String?
+  observedAmountMinor Int?
+  observedCurrency String?
+  result String
+  safeNote String?
+  requestId String
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  @@index([refundExecutionId, createdAt])
+  @@index([refundId, createdAt])
   @@index([provider, result, createdAt])
 }
