@@ -1768,11 +1768,1142 @@
         ],
         "description": "Positive exact quantities with at most three decimal places; count-based units require whole quantities. Cookie authentication requires X-CSRF-Token and a trusted Origin. supplierId is refused until purchasing exists. Client actor is ignored. A replay key covers this actor and operation."
       }
+    },
+    "/api/v1/checkout/quote": {
+      "post": {
+        "operationId": "CheckoutController_quote",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QuoteResponseEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Safe error envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Safe error envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Safe error envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Safe error envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Safe error envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Safe error envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Safe error envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Safe error envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Safe error envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Safe error envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "checkout"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CheckoutQuoteRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/checkout/complete": {
+      "post": {
+        "operationId": "CheckoutController_complete",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "description": "8–128 letters, digits, underscores, colons or hyphens. Same principal/key/request replays one order.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9:_-]{8,128}$"
+            }
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": false,
+            "description": "Required for web-cookie or guest-cookie mutation flows alongside a trusted Origin.",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CompleteOrderResponseEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Safe error envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Safe error envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Safe error envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Safe error envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Safe error envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Safe error envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Safe error envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Safe error envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Safe error envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Safe error envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "checkout"
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          },
+          {
+            "guestAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CheckoutCompleteRequest"
+              }
+            }
+          }
+        },
+        "description": "Creates one durable online order and its Inventory-owned reservations atomically. Authenticated customers or a valid guest capability may order. Client prices, totals and customerId never establish authority."
+      }
+    },
+    "/api/v1/orders/{orderId}": {
+      "get": {
+        "operationId": "OrdersController_status",
+        "parameters": [
+          {
+            "name": "orderId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicOrderEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Safe error envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Safe error envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Safe error envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Safe error envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Safe error envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Safe error envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Safe error envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Safe error envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Safe error envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Safe error envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "orders"
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          },
+          {
+            "guestAuth": []
+          }
+        ],
+        "description": "Customer-safe owner status. Requires the owning customer session or the exact owning guest capability; knowing an order ID is insufficient."
+      }
+    },
+    "/api/v1/orders/track": {
+      "post": {
+        "operationId": "OrdersController_track",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicOrderEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Safe error envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Safe error envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Safe error envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Safe error envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Safe error envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Safe error envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Safe error envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Safe error envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Safe error envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Safe error envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "orders"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TrackRequest"
+              }
+            }
+          }
+        },
+        "security": [],
+        "description": "Public capability lookup using order reference plus verification code. Failed attempts are durably rate-limited; submitted codes are never persisted."
+      }
+    },
+    "/api/v1/account/orders": {
+      "get": {
+        "operationId": "AccountOrdersController_list",
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1
+            }
+          },
+          {
+            "name": "perPage",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 50
+            }
+          },
+          {
+            "name": "customerId",
+            "in": "query",
+            "required": false,
+            "description": "Compatibility only; when supplied it must match the authenticated customer.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountOrderListResponseEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Safe error envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Safe error envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Safe error envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Safe error envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Safe error envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Safe error envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Safe error envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Safe error envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Safe error envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Safe error envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "account"
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/account/orders/{orderId}/cancel": {
+      "post": {
+        "operationId": "AccountOrdersController_cancel",
+        "parameters": [
+          {
+            "name": "orderId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountCancelResponseEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Safe error envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Safe error envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Safe error envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Safe error envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Safe error envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Safe error envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Safe error envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Safe error envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Safe error envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Safe error envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "account"
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AccountCancelRequest"
+              }
+            }
+          }
+        },
+        "description": "Authenticated-customer-only pre-handover cancellation. Order state, Inventory reservations and delivery-slot booking release in one locked transaction; captured/refund-sensitive payments require the future refund workflow."
+      }
+    },
+    "/api/v1/checkout/zones": {
+      "get": {
+        "operationId": "DeliveryConfigController_zones",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ZoneListResponseEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Safe error envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Safe error envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Safe error envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Safe error envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Safe error envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Safe error envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Safe error envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Safe error envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Safe error envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Safe error envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "checkout"
+        ]
+      }
+    },
+    "/api/v1/checkout/zones/{zoneId}/slots": {
+      "get": {
+        "operationId": "DeliveryConfigController_slots",
+        "parameters": [
+          {
+            "name": "zoneId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SlotListResponseEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Safe error envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Safe error envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Safe error envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Safe error envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Safe error envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Safe error envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Safe error envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Safe error envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Safe error envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Safe error envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "checkout"
+        ]
+      }
     }
   },
   "info": {
-    "title": "Variety Groceries foundation API",
-    "description": "Implemented foundation endpoints only. Commerce, payments, delivery, worker publishing and live AI remain later milestones.",
+    "title": "Variety Groceries production API",
+    "description": "Implemented production subset: identity, catalogue, inventory receiving, delivery configuration, authoritative checkout/orders and customer cancellation. Payments, stock handover, fulfilment/dispatch, POS and public storefront cutover remain closed.",
     "version": "0.1.0",
     "contact": {}
   },
@@ -1784,6 +2915,11 @@
         "type": "apiKey",
         "in": "cookie",
         "name": "vg_session"
+      },
+      "guestAuth": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "vg_guest"
       },
       "bearerAuth": {
         "scheme": "bearer",
@@ -2363,6 +3499,586 @@
         ],
         "additionalProperties": false
       },
+      "ZoneView": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "areas": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "feeMinor": {
+            "type": "number"
+          },
+          "minimumOrderMinor": {
+            "type": "number"
+          },
+          "serviceHours": {
+            "type": "string"
+          },
+          "cutoff": {
+            "type": "string"
+          },
+          "slotsPerDay": {
+            "type": "number"
+          },
+          "isActive": {
+            "type": "boolean"
+          },
+          "slotPolicy": {
+            "type": "string",
+            "enum": [
+              "required",
+              "optional",
+              "none"
+            ]
+          },
+          "codEnabled": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "areas",
+          "feeMinor",
+          "minimumOrderMinor",
+          "serviceHours",
+          "cutoff",
+          "slotsPerDay",
+          "isActive"
+        ],
+        "additionalProperties": false
+      },
+      "ZoneListResponse": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/ZoneView"
+        }
+      },
+      "SlotView": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "zoneId": {
+            "type": "string"
+          },
+          "date": {
+            "type": "string"
+          },
+          "window": {
+            "type": "string"
+          },
+          "capacity": {
+            "type": "integer",
+            "exclusiveMinimum": true,
+            "maximum": 9007199254740991
+          },
+          "booked": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          }
+        },
+        "required": [
+          "id",
+          "zoneId",
+          "date",
+          "window",
+          "capacity",
+          "booked"
+        ],
+        "additionalProperties": false
+      },
+      "SlotListResponse": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/SlotView"
+        }
+      },
+      "QuoteResponse": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "lines": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "variantId": {
+                  "type": "string"
+                },
+                "productId": {
+                  "type": "string"
+                },
+                "productName": {
+                  "type": "string"
+                },
+                "variantName": {
+                  "type": "string"
+                },
+                "unit": {
+                  "type": "string"
+                },
+                "quantity": {
+                  "type": "string"
+                },
+                "unitPriceMinor": {
+                  "type": "number"
+                },
+                "lineTotalMinor": {
+                  "type": "number"
+                },
+                "available": {
+                  "type": "string"
+                },
+                "availableNow": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "variantId",
+                "productId",
+                "productName",
+                "variantName",
+                "unit",
+                "quantity",
+                "unitPriceMinor",
+                "lineTotalMinor",
+                "available",
+                "availableNow"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "subtotalMinor": {
+            "type": "number"
+          },
+          "deliveryFeeMinor": {
+            "type": "number"
+          },
+          "totalMinor": {
+            "type": "number"
+          },
+          "minOrderMinor": {
+            "type": "number"
+          },
+          "meetsMinimum": {
+            "type": "boolean"
+          },
+          "conflicts": {
+            "type": "array",
+            "items": {}
+          }
+        },
+        "required": [
+          "ok",
+          "lines",
+          "subtotalMinor",
+          "deliveryFeeMinor",
+          "totalMinor",
+          "minOrderMinor",
+          "meetsMinimum",
+          "conflicts"
+        ],
+        "additionalProperties": false
+      },
+      "CheckoutQuoteRequest": {
+        "type": "object",
+        "properties": {
+          "lines": {
+            "minItems": 1,
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "variantId": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "quantity": {
+                  "type": "string",
+                  "pattern": "^\\d+(\\.\\d{1,3})?$"
+                }
+              },
+              "required": [
+                "variantId",
+                "quantity"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "zoneId": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "lines"
+        ],
+        "additionalProperties": false
+      },
+      "CheckoutCompleteRequest": {
+        "type": "object",
+        "properties": {
+          "lines": {
+            "minItems": 1,
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "variantId": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "quantity": {
+                  "type": "string",
+                  "pattern": "^\\d+(\\.\\d{1,3})?$"
+                }
+              },
+              "required": [
+                "variantId",
+                "quantity"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "customerName": {
+            "type": "string",
+            "minLength": 1
+          },
+          "customerPhone": {
+            "type": "string",
+            "minLength": 1
+          },
+          "customerEmail": {
+            "type": "string"
+          },
+          "customerId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "addressId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "guestAddress": {
+            "type": "object",
+            "properties": {
+              "label": {
+                "type": "string"
+              },
+              "recipientName": {
+                "type": "string",
+                "minLength": 1
+              },
+              "phone": {
+                "type": "string",
+                "minLength": 1
+              },
+              "locality": {
+                "type": "string",
+                "minLength": 1
+              },
+              "street": {
+                "type": "string",
+                "minLength": 1
+              },
+              "landmark": {
+                "type": "string"
+              },
+              "ghanaPostGps": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "recipientName",
+              "phone",
+              "locality",
+              "street"
+            ],
+            "additionalProperties": false
+          },
+          "fulfilment": {
+            "type": "string",
+            "enum": [
+              "delivery",
+              "collection"
+            ]
+          },
+          "zoneId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "slotId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "paymentMethod": {
+            "type": "string",
+            "enum": [
+              "mobile_money",
+              "card_hosted",
+              "bank_transfer",
+              "cash_counter",
+              "cash_on_delivery"
+            ]
+          },
+          "note": {
+            "type": "string"
+          },
+          "idempotencyKey": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9:_-]{8,128}$"
+          }
+        },
+        "required": [
+          "lines",
+          "customerName",
+          "customerPhone",
+          "fulfilment",
+          "paymentMethod"
+        ],
+        "additionalProperties": false
+      },
+      "CompleteOrderResponse": {
+        "type": "object",
+        "properties": {
+          "orderId": {
+            "type": "string"
+          },
+          "reference": {
+            "type": "string"
+          },
+          "verificationCode": {
+            "type": "string"
+          },
+          "paymentRequired": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "orderId",
+          "reference",
+          "verificationCode",
+          "paymentRequired"
+        ],
+        "additionalProperties": false
+      },
+      "PublicOrder": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "reference": {
+            "type": "string"
+          },
+          "channel": {
+            "type": "string",
+            "enum": [
+              "online",
+              "pos"
+            ]
+          },
+          "customerName": {
+            "type": "string"
+          },
+          "customerPhone": {
+            "type": "string"
+          },
+          "fulfilment": {
+            "type": "string",
+            "enum": [
+              "delivery",
+              "collection"
+            ]
+          },
+          "createdAt": {
+            "type": "string"
+          },
+          "createdAtLabel": {
+            "type": "string"
+          },
+          "subtotalMinor": {
+            "type": "number"
+          },
+          "discountMinor": {
+            "type": "number"
+          },
+          "deliveryFeeMinor": {
+            "type": "number"
+          },
+          "totalMinor": {
+            "type": "number"
+          },
+          "totalLabel": {
+            "type": "string"
+          },
+          "paymentStatus": {
+            "type": "string"
+          },
+          "fulfilmentStatus": {
+            "type": "string"
+          },
+          "deliveryStatus": {
+            "type": "string"
+          },
+          "paymentAttempts": {
+            "type": "array",
+            "items": {}
+          },
+          "lines": {
+            "type": "array",
+            "items": {}
+          },
+          "notes": {
+            "type": "array",
+            "items": {}
+          },
+          "events": {
+            "type": "array",
+            "items": {}
+          },
+          "returns": {
+            "type": "array",
+            "items": {}
+          }
+        },
+        "required": [
+          "id",
+          "reference",
+          "channel",
+          "customerName",
+          "customerPhone",
+          "fulfilment",
+          "createdAt",
+          "createdAtLabel",
+          "subtotalMinor",
+          "discountMinor",
+          "deliveryFeeMinor",
+          "totalMinor",
+          "totalLabel",
+          "paymentStatus",
+          "fulfilmentStatus",
+          "deliveryStatus",
+          "paymentAttempts",
+          "lines",
+          "notes",
+          "events",
+          "returns"
+        ],
+        "additionalProperties": false
+      },
+      "AccountOrderRow": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "reference": {
+            "type": "string"
+          },
+          "totalLabel": {
+            "type": "string"
+          },
+          "fulfilmentStatus": {
+            "type": "string"
+          },
+          "paymentStatus": {
+            "type": "string"
+          },
+          "fulfilment": {
+            "type": "string"
+          },
+          "createdAtLabel": {
+            "type": "string"
+          },
+          "lineCount": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          }
+        },
+        "required": [
+          "id",
+          "reference",
+          "totalLabel",
+          "fulfilmentStatus",
+          "paymentStatus",
+          "fulfilment",
+          "createdAtLabel",
+          "lineCount"
+        ],
+        "additionalProperties": false
+      },
+      "AccountOrderListResponse": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/AccountOrderRow"
+        }
+      },
+      "TrackRequest": {
+        "type": "object",
+        "properties": {
+          "reference": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "code": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          }
+        },
+        "required": [
+          "reference",
+          "code"
+        ],
+        "additionalProperties": false
+      },
+      "AccountCancelRequest": {
+        "type": "object",
+        "properties": {
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          },
+          "orderId": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "reason"
+        ],
+        "additionalProperties": false
+      },
+      "AccountCancelResponse": {
+        "type": "object",
+        "properties": {
+          "fulfilmentStatus": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "fulfilmentStatus"
+        ],
+        "additionalProperties": false
+      },
       "LoginRequest": {
         "type": "object",
         "properties": {
@@ -2769,6 +4485,139 @@
           },
           "data": {
             "$ref": "#/components/schemas/ReceiveResponse"
+          }
+        }
+      },
+      "ZoneListResponseEnvelope": {
+        "type": "object",
+        "required": [
+          "ok",
+          "data"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "data": {
+            "$ref": "#/components/schemas/ZoneListResponse"
+          }
+        }
+      },
+      "SlotListResponseEnvelope": {
+        "type": "object",
+        "required": [
+          "ok",
+          "data"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "data": {
+            "$ref": "#/components/schemas/SlotListResponse"
+          }
+        }
+      },
+      "QuoteResponseEnvelope": {
+        "type": "object",
+        "required": [
+          "ok",
+          "data"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "data": {
+            "$ref": "#/components/schemas/QuoteResponse"
+          }
+        }
+      },
+      "CompleteOrderResponseEnvelope": {
+        "type": "object",
+        "required": [
+          "ok",
+          "data"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "data": {
+            "$ref": "#/components/schemas/CompleteOrderResponse"
+          }
+        }
+      },
+      "PublicOrderEnvelope": {
+        "type": "object",
+        "required": [
+          "ok",
+          "data"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "data": {
+            "$ref": "#/components/schemas/PublicOrder"
+          }
+        }
+      },
+      "AccountOrderListResponseEnvelope": {
+        "type": "object",
+        "required": [
+          "ok",
+          "data"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "data": {
+            "$ref": "#/components/schemas/AccountOrderListResponse"
+          }
+        }
+      },
+      "AccountCancelResponseEnvelope": {
+        "type": "object",
+        "required": [
+          "ok",
+          "data"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "data": {
+            "$ref": "#/components/schemas/AccountCancelResponse"
           }
         }
       }

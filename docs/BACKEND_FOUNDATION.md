@@ -28,6 +28,11 @@ is `docs/openapi-foundation.json`, also served at `/api/v1/openapi.json`.
 | `POST /catalog/products:by-variants` | Resolve 1–100 public variant IDs |
 | `GET /inventory/overview` | Owner admin at any active location; inventory manager at granted locations |
 | `POST /inventory/receive` | Same permissions, whole-request validation and durable idempotency |
+| `GET /checkout/zones`, `GET /checkout/zones/{zoneId}/slots` | Public active delivery configuration and derived slot capacity |
+| `POST /checkout/quote` | Public authoritative current-price/availability quote; no stock promise |
+| `POST /checkout/complete` | Customer/guest atomic order + Inventory reservation + optional slot booking; durable replay |
+| `GET /orders/{orderId}`, `POST /orders/track` | Owner-safe status and reference+verification-code capability tracking |
+| `GET /account/orders`, `POST /account/orders/{orderId}/cancel` | Customer-owned history and atomic pre-handover cancellation |
 
 Catalogue list filters to available products at `API_STOCK_LOCATION_ID`. Product
 detail can display a published, out-of-stock product. Disabled categories and
@@ -41,9 +46,7 @@ today are ineligible. Quarantine/damage/disposal are excluded and quantities use
 exact decimals. Read-time checks work without an expiry worker. The first
 Commerce Authority slice now adds an internal, lot-specific FEFO allocation
 service with transactional position locks, whole-request rollback, safety-stock
-protection and release/expiry. There is still no public reservation HTTP command;
-orders, POS and stock depletion/handover remain later slices. See
-`COMMERCE_RESERVATION_CORE.md`.
+protection and release/expiry. There is still no standalone public reservation HTTP command: online checkout now consumes the internal allocator atomically, while POS and stock depletion/handover remain later slices. See `COMMERCE_RESERVATION_CORE.md` and `CHECKOUT_ORDERS_AUTHORITY.md`.
 
 Receiving requires an `Idempotency-Key` of 8–128 letters/digits/`_`/`:`/`-`.
 Same actor, operation, key and normalized request replays the original receipt;
@@ -132,9 +135,7 @@ still checks its own build, regression suites, contracts and routes.
 
 Outbox records are durable, but there is no publisher/Redis/BullMQ worker in this
 milestone. Lot-specific reservation allocation is now implemented internally and
-audited in the caller transaction. Durable order/checkout commands, POS workflow,
-handover/depletion, worker publishing, payments/refunds, delivery, full admin CRUD,
-native screens and grounded AI are subsequent work. No provider credentials or AI
+audited in the caller transaction. POS workflow, handover/depletion, worker publishing, payments/refunds, staff fulfilment/dispatch, full admin CRUD, native screens and grounded AI are subsequent work. No provider credentials or AI
 calls were introduced.
 Identity and resource guards are reusable by those modules; AI tools will invoke
 the same authorised domain commands and cannot directly alter stock or money.
@@ -142,3 +143,7 @@ the same authorised domain commands and cannot directly alter stock or money.
 Backend dependency overrides pin patched `deepmerge-ts`, `mysql2` and `js-yaml`
 versions until upstream constraints include them. Full API/CLI verification is
 required when updating these pins. They do not change the web dependency graph.
+
+## Checkout and orders authority
+
+The production API now includes durable quote/checkout/order-read/tracking/cancellation primitives described in `docs/CHECKOUT_ORDERS_AUTHORITY.md`. Inventory remains the sole reservation writer. Online checkout reuses that authority atomically; payments, stock handover/depletion, POS, staff fulfilment/dispatch and public web cutover remain closed.
