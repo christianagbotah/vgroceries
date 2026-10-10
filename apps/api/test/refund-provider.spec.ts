@@ -1,10 +1,13 @@
 import { after, test } from "node:test";
 import assert from "node:assert/strict";
 import type { INestApplication } from "@nestjs/common";
+import type { ElectronicPaymentMethod } from "@variety/contracts";
 import { createApplication } from "../src/bootstrap";
 import { readConfig } from "../src/config";
 import { Database } from "../src/database/database";
-import { commerceTestPassword, seedCommerceFixtures } from "./commerce-fixtures";
+import type { RefundProviderAdapter } from "../src/payments/refund-provider";
+import { RefundProviderRegistry } from "../src/payments/refund-provider.registry";
+import { seedCommerceFixtures } from "./commerce-fixtures";
 import { FakePaymentProvider } from "./fake-payment-provider";
 
 const apps: INestApplication[] = [];
@@ -21,18 +24,21 @@ const env = () => ({
   PAYMENT_RECONCILE_AFTER_SECONDS: "120", PAYMENT_HOSTED_DOMAINS: "pay.example.test",
 });
 
-function refundAdapter(id = "fake", methods = ["mobile_money", "card_hosted", "bank_transfer"]) {
+function refundAdapter(
+  id = "fake",
+  methods: ElectronicPaymentMethod[] = ["mobile_money", "card_hosted", "bank_transfer"],
+): RefundProviderAdapter {
   return {
     id,
     capabilities: () => ({ methods, lookupSupported: true, safeRetryAfterDefinitiveFailure: false, safeRetryAfterNoRecord: false, safeRetryAfterUnknown: false }),
     initiateRefund: async () => ({ kind: "accepted", state: "pending" }),
-    lookupRefund: async (input: any) => ({ providerId: id, merchantRefundReference: input.merchantRefundReference, state: "pending" }),
+    lookupRefund: async (input) => ({ providerId: id, merchantRefundReference: input.merchantRefundReference, state: "pending" }),
   };
 }
 
-async function start(refunds: any[] = []) {
+async function start(refunds: RefundProviderAdapter[] = []) {
   const payment = new FakePaymentProvider();
-  const app = await (createApplication as any)(readConfig(env()), [payment], refunds);
+  const app = await createApplication(readConfig(env()), [payment], refunds);
   apps.push(app);
   await app.listen(0, "127.0.0.1");
   await seedCommerceFixtures(app.get(Database));
@@ -55,13 +61,10 @@ test("compatible refund adapter restores readiness", async () => {
 });
 
 test("refund adapter IDs must be stable lowercase identifiers", async () => {
-  const payment = new FakePaymentProvider();
-  let app: INestApplication | undefined;
-  try {
-    app = await (createApplication as any)(readConfig(env()), [payment], [refundAdapter("BAD ID")]);
-    if (app) apps.push(app);
-    assert.fail("invalid refund adapter id was accepted");
-  } catch (error) {
-    assert.match(String(error), /stable lowercase|identifier/i);
-  }
+  const { app } = await start([refundAdapter()]);
+  const registry = app.get(RefundProviderRegistry);
+  assert.throws(
+    () => registry.register(refundAdapter("BAD ID")),
+    /stable lowercase|identifier/i,
+  );
 });
