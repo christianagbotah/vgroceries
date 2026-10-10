@@ -950,8 +950,8 @@ test("foundation OpenAPI describes only implemented routes with cookie/native se
   const r = await fetch(base + "/api/v1/openapi.json");
   assert.equal(r.status, 200);
   const d = await r.json();
-  assert.equal(Object.keys(d.paths).length, 16);
-  assert.equal(d.paths["/api/v1/checkout/complete"], undefined);
+  assert.equal(Object.keys(d.paths).length, 17);
+  assert.ok(d.paths["/api/v1/checkout/complete"]);
   assert.deepEqual(d.paths["/api/v1/inventory/receive"].post.security, [
     { cookieAuth: [] },
     { bearerAuth: [] },

@@ -24,6 +24,7 @@ import {
   slotViewSchema,
   quoteResponseSchema,
   checkoutQuoteRequestSchema,
+  checkoutCompleteRestRequestSchema,
 } from "@variety/contracts";
 import { z } from "zod";
 
@@ -77,6 +78,8 @@ export function foundationOpenApi(app: INestApplication) {
     SlotListResponse: { type: "array", items: ref("SlotView") },
     QuoteResponse: json(quoteResponseSchema),
     CheckoutQuoteRequest: json(checkoutQuoteRequestSchema),
+    CheckoutCompleteRequest: json(checkoutCompleteRestRequestSchema),
+    CompleteOrderResponse: json(z.object({ orderId:z.string(), reference:z.string(), verificationCode:z.string(), paymentRequired:z.boolean() })),
     LoginRequest: json(loginRequestSchema),
     RefreshRequest: json(refreshRequestSchema),
     ByVariantsRequest: json(byVariantsRequestSchema),
@@ -134,6 +137,7 @@ export function foundationOpenApi(app: INestApplication) {
     "/checkout/zones": "ZoneListResponse",
     "/checkout/zones/{zoneId}/slots": "SlotListResponse",
     "/checkout/quote": "QuoteResponse",
+    "/checkout/complete": "CompleteOrderResponse",
   };
   for (const name of new Set(Object.values(responses)))
     schemas[name + "Envelope"] = {
@@ -149,6 +153,7 @@ export function foundationOpenApi(app: INestApplication) {
     "/catalog/products:by-variants": "ByVariantsRequest",
     "/inventory/receive": "ReceiveRequest",
     "/checkout/quote": "CheckoutQuoteRequest",
+    "/checkout/complete": "CheckoutCompleteRequest",
   };
   for (const [path, item] of Object.entries(doc.paths)) {
     const suffix = path.slice("/api/v1".length);
