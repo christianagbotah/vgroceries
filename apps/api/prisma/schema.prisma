@@ -1,0 +1,211 @@
+generator client {
+  provider = "prisma-client-js"
+  output = "../node_modules/.prisma/client"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  admin
+  inventory_manager
+  customer
+  rider
+}
+
+model User {
+  id String @id @default(uuid())
+  email String @unique
+  name String
+  passwordHash String
+  role Role
+  active Boolean @default(true)
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  sessions Session[]
+  locations UserLocation[]
+}
+
+model Session {
+  id String @id @default(uuid())
+  userId String
+  user User @relation(fields: [userId], references: [id])
+  channel String
+  tokenHash String? @unique
+  csrfHash String?
+  accessHash String? @unique
+  accessExpiresAt DateTime? @db.Timestamptz(3)
+  currentRefreshHash String? @unique
+  expiresAt DateTime @db.Timestamptz(3)
+  revokedAt DateTime? @db.Timestamptz(3)
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  refreshHistory RefreshToken[]
+  @@index([userId, expiresAt])
+}
+
+model RefreshToken {
+  hash String @id
+  sessionId String
+  session Session @relation(fields: [sessionId], references: [id])
+  usedAt DateTime? @db.Timestamptz(3)
+}
+
+model LoginThrottle {
+  key String @id
+  windowStart DateTime @db.Timestamptz(3)
+  attempts Int
+}
+
+model Location {
+  id String @id
+  name String
+  active Boolean @default(true)
+  grants UserLocation[]
+  positions StockPosition[]
+}
+
+model UserLocation {
+  userId String
+  user User @relation(fields: [userId], references: [id])
+  locationId String
+  location Location @relation(fields: [locationId], references: [id])
+  @@id([userId, locationId])
+}
+
+model Category {
+  id String @id @default(uuid())
+  slug String @unique
+  name String
+  description String @default("")
+  tint String?
+  active Boolean @default(true)
+  sortOrder Int @default(0)
+  products Product[]
+}
+
+model Product {
+  id String @id @default(uuid())
+  slug String @unique
+  name String
+  categoryId String
+  category Category @relation(fields: [categoryId], references: [id])
+  description String @default("")
+  shortDescription String @default("")
+  image String @default("")
+  tags String[]
+  published Boolean @default(false)
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  variants Variant[]
+  @@index([categoryId, published])
+}
+
+model Variant {
+  id String @id @default(uuid())
+  productId String
+  product Product @relation(fields: [productId], references: [id])
+  sku String @unique
+  name String
+  unit String
+  unitSize String @default("1")
+  priceMinor Int
+  compareAtPriceMinor Int?
+  barcode String? @unique
+  active Boolean @default(true)
+  positions StockPosition[]
+  @@index([productId, active])
+}
+
+model StockPosition {
+  id String @id @default(uuid())
+  variantId String
+  variant Variant @relation(fields: [variantId], references: [id])
+  locationId String
+  location Location @relation(fields: [locationId], references: [id])
+  safetyStock Decimal @default(0) @db.Decimal(15, 3)
+  lots StockLot[]
+  reservations Reservation[]
+  @@unique([variantId, locationId])
+}
+
+model StockLot {
+  id String @id @default(uuid())
+  positionId String
+  position StockPosition @relation(fields: [positionId], references: [id])
+  receiptId String?
+  receipt StockReceipt? @relation(fields: [receiptId], references: [id])
+  lotNumber String
+  quantity Decimal @db.Decimal(15, 3)
+  expiryDate DateTime? @db.Date
+  quarantined Boolean @default(false)
+  kind String @default("regular")
+  unitCostMinor Int?
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  movements StockMovement[]
+  @@index([positionId, kind, quarantined, expiryDate])
+}
+
+// Reserved quantities remain internal until the commerce milestone adds commands.
+model Reservation {
+  id String @id @default(uuid())
+  positionId String
+  position StockPosition @relation(fields: [positionId], references: [id])
+  quantity Decimal @db.Decimal(15, 3)
+  state String @default("active")
+  expiresAt DateTime @db.Timestamptz(3)
+  @@index([positionId, state, expiresAt])
+}
+
+model StockReceipt {
+  id String @id @default(uuid())
+  receivedBy String
+  note String?
+  poRef String?
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  lots StockLot[]
+  movements StockMovement[]
+}
+
+model StockMovement {
+  id String @id @default(uuid())
+  lotId String
+  lot StockLot @relation(fields: [lotId], references: [id])
+  receiptId String
+  receipt StockReceipt @relation(fields: [receiptId], references: [id])
+  delta Decimal @db.Decimal(15, 3)
+  resultingQty Decimal @db.Decimal(15, 3)
+  actorId String
+  reason String
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  @@index([lotId, createdAt])
+}
+
+model Idempotency {
+  actorId String
+  operation String
+  key String
+  requestHash String
+  outcome Json
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  @@id([actorId, operation, key])
+}
+
+model AuditEvent {
+  id String @id @default(uuid())
+  actorId String
+  action String
+  entityId String
+  requestId String
+  details Json
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  @@index([entityId, createdAt])
+}
+
+model OutboxEvent {
+  id String @id @default(uuid())
+  type String
+  aggregateId String
+  payload Json
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  publishedAt DateTime? @db.Timestamptz(3)
+  @@index([publishedAt, createdAt])
+}

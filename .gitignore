@@ -67,3 +67,12 @@ worklog.md
 
 # isolated development worktrees
 /.worktrees/
+
+# Independent API/contracts builds and local execution state
+/apps/api/dist/
+/packages/contracts/dist/
+/.superpowers/
+!/apps/api/.env.example
+
+!/apps/api/test/
+!/apps/api/test/**

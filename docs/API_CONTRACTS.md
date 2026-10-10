@@ -312,3 +312,13 @@ Today the prototype is unauthenticated (honest boundary; see `docs/KNOWN_ISSUES.
 | Handoff regressions | `bun scripts/handoff-regressions.ts` | The 7 audited defects + admin.returns contract stay fixed. |
 | Type check | `npx tsc --noEmit` | Screen ↔ contract typing with no suppression. |
 | CI | `.github/workflows/ci.yml` | lint + tsc + build + all five suites on every push. |
+
+## Implemented backend foundation (10 October 2026)
+
+The contract source is now `packages/contracts/src`; prior web paths re-export
+it. `apps/api` implements the limited surface in `BACKEND_FOUNDATION.md`, with
+`openapi-foundation.json` generated from that application. The mapping above
+remains the full 92-operation target and must not be read as 92 implemented
+backend endpoints. Identity supplies web cookie/CSRF and native rotating token
+contracts; inventory receiving requires durable replay keys and derives actor
+permissions from the session. Public frontend activation awaits commerce parity.

@@ -3,6 +3,15 @@
 Honest inventory of what is not finished, simplified, or impossible in this prototype. Nothing
 here is hidden; each item states the impact and the follow-up.
 
+## Private backend foundation
+
+A separate NestJS/PostgreSQL foundation now implements durable identity,
+permission-scoped catalogue/inventory reads and atomic receiving; see
+[BACKEND_FOUNDATION.md](BACKEND_FOUNDATION.md). It is not connected to the public
+frontend. The limitations below describe the currently running prototype.
+Commerce, payments/delivery, publishing workers, frontend authentication UX,
+registration/recovery/MFA, native apps and live AI remain subsequent milestones.
+
 ## Prototype boundaries (by design)
 
 1. **No authentication.** `/staff/login` and `/rider/login` are demo role pickers persisted in

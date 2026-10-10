@@ -12,6 +12,18 @@ the NestJS backend, native mobile apps and AI module.
 > AI, or live courier connections. Our engineering team owns the backend, real integrations,
 > authentication, database, and production validation.
 
+## Backend foundation
+
+`apps/api` now contains an independently built **NestJS + PostgreSQL** foundation:
+web/native identity, permissions, catalogue reads and transactional receiving.
+The frontend still uses its existing prototype mode; orders, payments, delivery,
+workers and live AI have not been ported. Shared contracts are packaged under
+`packages/contracts`, with compatibility exports for existing web imports.
+
+See [setup and implemented endpoints](docs/BACKEND_FOUNDATION.md) and
+[foundation OpenAPI](docs/openapi-foundation.json). The broader 92-operation
+OpenAPI remains the target for completing the backend.
+
 ## Stack
 
 - **Next.js 16 (App Router) + TypeScript 5 + Tailwind CSS 4 + shadcn/ui** — as supplied by the
