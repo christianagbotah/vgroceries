@@ -7,11 +7,16 @@ import { VerificationCodeService } from "./verification-code.service";
 import { CheckoutQuoteService } from "./checkout-quote.service";
 import { CheckoutCommandService } from "./checkout-command.service";
 import { CheckoutController } from "./checkout.controller";
+import { OrdersController } from "./orders.controller";
+import { AccountOrdersController } from "./account-orders.controller";
+import { OrderProjectionService } from "./order-projection.service";
+import { OrderQueryService } from "./order-query.service";
+import { TrackingThrottleService } from "./tracking-throttle.service";
 
 @Module({
   imports: [InventoryModule, DeliveryConfigModule],
-  controllers: [CheckoutController],
-  providers: [GuestCheckoutService, CheckoutPrincipalService, VerificationCodeService, CheckoutQuoteService, CheckoutCommandService],
-  exports: [GuestCheckoutService, CheckoutPrincipalService, VerificationCodeService, CheckoutQuoteService, CheckoutCommandService],
+  controllers: [CheckoutController, OrdersController, AccountOrdersController],
+  providers: [GuestCheckoutService, CheckoutPrincipalService, VerificationCodeService, CheckoutQuoteService, CheckoutCommandService, OrderProjectionService, OrderQueryService, TrackingThrottleService],
+  exports: [GuestCheckoutService, CheckoutPrincipalService, VerificationCodeService, CheckoutQuoteService, CheckoutCommandService, OrderProjectionService, OrderQueryService, TrackingThrottleService],
 })
 export class OrdersModule {}

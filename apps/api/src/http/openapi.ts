@@ -25,6 +25,8 @@ import {
   quoteResponseSchema,
   checkoutQuoteRequestSchema,
   checkoutCompleteRestRequestSchema,
+  publicOrderSchema,
+  trackRequestSchema,
 } from "@variety/contracts";
 import { z } from "zod";
 
@@ -80,6 +82,10 @@ export function foundationOpenApi(app: INestApplication) {
     CheckoutQuoteRequest: json(checkoutQuoteRequestSchema),
     CheckoutCompleteRequest: json(checkoutCompleteRestRequestSchema),
     CompleteOrderResponse: json(z.object({ orderId:z.string(), reference:z.string(), verificationCode:z.string(), paymentRequired:z.boolean() })),
+    PublicOrder: json(publicOrderSchema),
+    AccountOrderRow: json(z.object({ id:z.string(), reference:z.string(), totalLabel:z.string(), fulfilmentStatus:z.string(), paymentStatus:z.string(), fulfilment:z.string(), createdAtLabel:z.string(), lineCount:z.number().int().nonnegative() })),
+    AccountOrderListResponse: { type:"array", items:ref("AccountOrderRow") },
+    TrackRequest: json(trackRequestSchema),
     LoginRequest: json(loginRequestSchema),
     RefreshRequest: json(refreshRequestSchema),
     ByVariantsRequest: json(byVariantsRequestSchema),
@@ -138,6 +144,9 @@ export function foundationOpenApi(app: INestApplication) {
     "/checkout/zones/{zoneId}/slots": "SlotListResponse",
     "/checkout/quote": "QuoteResponse",
     "/checkout/complete": "CompleteOrderResponse",
+    "/orders/{orderId}": "PublicOrder",
+    "/orders/track": "PublicOrder",
+    "/account/orders": "AccountOrderListResponse",
   };
   for (const name of new Set(Object.values(responses)))
     schemas[name + "Envelope"] = {
@@ -154,6 +163,7 @@ export function foundationOpenApi(app: INestApplication) {
     "/inventory/receive": "ReceiveRequest",
     "/checkout/quote": "CheckoutQuoteRequest",
     "/checkout/complete": "CheckoutCompleteRequest",
+    "/orders/track": "TrackRequest",
   };
   for (const [path, item] of Object.entries(doc.paths)) {
     const suffix = path.slice("/api/v1".length);
@@ -165,10 +175,11 @@ export function foundationOpenApi(app: INestApplication) {
       if (
         suffix.startsWith("/inventory/") ||
         suffix === "/auth/me" ||
-        suffix === "/auth/logout"
+        suffix === "/auth/logout" ||
+        suffix === "/account/orders"
       )
         operation.security = [{ cookieAuth: [] }, { bearerAuth: [] }];
-      const successCode = method === "post" && suffix !== "/checkout/quote" ? "201" : "200";
+      const successCode = method === "post" && !["/checkout/quote","/orders/track"].includes(suffix) ? "201" : "200";
       operation.responses[successCode] = {
         description: "Successful response",
         content: { "application/json": { schema: ref(name + "Envelope") } },
