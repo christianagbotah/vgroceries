@@ -35,13 +35,16 @@ export async function createApplication(
     imports: [
       ConfigModule,
       DatabaseModule,
-      PaymentsModule,
       HealthModule,
       IdentityModule,
       CatalogModule,
       InventoryModule,
       OrdersModule,
       DeliveryConfigModule,
+      // Keep staged, Swagger-excluded Payments routes after the established
+      // production modules so adding internal payment controllers cannot churn
+      // the 21-path public OpenAPI snapshot before the Task 10 cutover.
+      PaymentsModule,
     ],
   })
   class ApplicationModule {}
