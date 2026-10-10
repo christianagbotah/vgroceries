@@ -7,8 +7,8 @@ import {
 import type { Request, Response } from "express";
 
 export class ApiProblem extends HttpException {
-  constructor(status: number, code: string, message: string) {
-    super({ code, message }, status);
+  constructor(status: number, code: string, message: string, details?: unknown) {
+    super(details === undefined ? { code, message } : { code, message, details }, status);
   }
 }
 export type ApiRequest = Request & { requestId: string };
@@ -29,7 +29,7 @@ export class ApiExceptionFilter implements ExceptionFilter {
             : 500;
     const supplied =
       exception instanceof ApiProblem
-        ? (exception.getResponse() as { code: string; message: string })
+        ? (exception.getResponse() as { code: string; message: string; details?: unknown })
         : null;
     const defaults: Record<number, [string, string]> = {
       400: ["VALIDATION_FAILED", "Invalid request."],

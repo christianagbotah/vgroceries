@@ -141,18 +141,28 @@ model StockLot {
   unitCostMinor Int?
   createdAt DateTime @default(now()) @db.Timestamptz(3)
   movements StockMovement[]
+  reservations Reservation[]
+  @@unique([id, positionId])
   @@index([positionId, kind, quarantined, expiryDate])
 }
 
-// Reserved quantities remain internal until the commerce milestone adds commands.
 model Reservation {
   id String @id @default(uuid())
   positionId String
   position StockPosition @relation(fields: [positionId], references: [id])
+  lotId String
+  lot StockLot @relation(fields: [lotId, positionId], references: [id, positionId])
+  claimType String
+  claimId String
+  claimLineId String
   quantity Decimal @db.Decimal(15, 3)
   state String @default("active")
   expiresAt DateTime @db.Timestamptz(3)
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  @@unique([claimType, claimId, claimLineId, lotId])
   @@index([positionId, state, expiresAt])
+  @@index([lotId, state, expiresAt])
+  @@index([claimType, claimId, state])
 }
 
 model StockReceipt {

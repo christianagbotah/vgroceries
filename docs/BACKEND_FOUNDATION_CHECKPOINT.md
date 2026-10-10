@@ -86,3 +86,37 @@ actions, as described in the existing architecture spec.
 
 Setup: [BACKEND_FOUNDATION.md](BACKEND_FOUNDATION.md).
 Implemented HTTP contract: [openapi-foundation.json](openapi-foundation.json).
+
+## Commerce reservation core follow-up — 10 October 2026
+
+The first Commerce Authority slice is now implemented internally on top of the
+foundation. `AllocationService` is inventory-owned and shared by future orders
+and POS; no public reservation/allocation controller was added. Reservations are
+lot-specific, FEFO, exact-decimal, location-scoped, safety-stock aware and created
+under stable PostgreSQL row locks. Multi-line shortages roll back the whole claim.
+Release and expiry are once-only state transitions. Allocation, audit and outbox
+records share the caller transaction. PostgreSQL additionally enforces that a
+reservation lot belongs to its declared stock position and that claim types stay
+within the currently supported order/POS-draft authorities. Batch expiry emits
+claim-level audit/outbox records.
+
+Measured evidence on this branch before the final root verification:
+
+| Check | Observed result |
+| --- | --- |
+| Foundation baseline | 40/40 API tests passed |
+| Current API suite after allocation/event/provenance hardening | 55/55 passed |
+| Allocation service suite | 8/8 passed |
+| Final-unit concurrency | 10 rounds across two independent API/Prisma instances; one winner and one `OUT_OF_STOCK` loser every round |
+| Multi-line shortage | No stray reservation committed |
+| Safety stock / unsaleable lots | Protected; expired/today/quarantined/damaged lots excluded |
+| Injected allocation outbox failure | Reservation, audit and outbox all rolled back |
+| Fresh empty database migration | Foundation + commerce migration applied successfully |
+| Implemented OpenAPI | Still 13 HTTP operations; no reservation/allocation route |
+
+The public web remains on demo transport. Orders/checkout, POS, stock handover,
+payments/refunds, delivery and queue publishing are not made production-authority
+by this slice. The next backend plan must create durable online orders by calling
+the shared allocator; it must not introduce another stock-reservation path.
+
+Detailed invariant and API notes: [COMMERCE_RESERVATION_CORE.md](COMMERCE_RESERVATION_CORE.md).
