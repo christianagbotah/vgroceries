@@ -20,6 +20,8 @@ import {
   refreshRequestSchema,
   byVariantsRequestSchema,
   stockReceiveRequestSchema,
+  zoneViewSchema,
+  slotViewSchema,
 } from "@variety/contracts";
 import { z } from "zod";
 
@@ -67,6 +69,10 @@ export function foundationOpenApi(app: INestApplication) {
     InventoryRow: json(foundationInventoryRowSchema),
     InventoryOverviewResponse: json(foundationInventoryOverviewSchema),
     ReceiveResponse: json(z.object({ receiptId: z.string() })),
+    ZoneView: json(zoneViewSchema),
+    ZoneListResponse: { type: "array", items: ref("ZoneView") },
+    SlotView: json(slotViewSchema),
+    SlotListResponse: { type: "array", items: ref("SlotView") },
     LoginRequest: json(loginRequestSchema),
     RefreshRequest: json(refreshRequestSchema),
     ByVariantsRequest: json(byVariantsRequestSchema),
@@ -121,6 +127,8 @@ export function foundationOpenApi(app: INestApplication) {
     "/catalog/products:by-variants": "ByVariantsResponse",
     "/inventory/overview": "InventoryOverviewResponse",
     "/inventory/receive": "ReceiveResponse",
+    "/checkout/zones": "ZoneListResponse",
+    "/checkout/zones/{zoneId}/slots": "SlotListResponse",
   };
   for (const name of new Set(Object.values(responses)))
     schemas[name + "Envelope"] = {
@@ -204,6 +212,14 @@ export function foundationOpenApi(app: INestApplication) {
         enum: ["popular", "name", "price-asc", "price-desc"],
         default: "popular",
       },
+    },
+  ];
+  doc.paths["/api/v1/checkout/zones/{zoneId}/slots"]!.get!.parameters = [
+    {
+      name: "zoneId",
+      in: "path",
+      required: true,
+      schema: { type: "string", minLength: 1 },
     },
   ];
   doc.paths["/api/v1/inventory/overview"]!.get!.parameters = [
