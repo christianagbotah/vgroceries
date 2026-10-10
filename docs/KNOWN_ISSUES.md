@@ -42,37 +42,41 @@ here is hidden; each item states the impact and the follow-up.
     cost ledger (backend owns cost of goods).
 13. **Recharts not used**: report charts are lightweight CSS bars — functional and clean, but a
     richer charting pass is possible.
-14. **Engine tests run via Bun scripts and Bun's test runner**: business rules are covered by the
-    executed acceptance script (`scripts/acceptance-checks.sh`, hardened — 24 checks) and the
+14. **Engine tests run via Bun scripts and the Bun test runner**: business rules are covered by the
+    executed acceptance script (`scripts/acceptance-checks.sh`, hardened — 24 checks), the
     handoff regression suite (`scripts/handoff-regressions.ts`, 24 assertions covering the
-    review's seven defect classes and the returns-list endpoint). Eight Bun tests cover
-    multi-item return reclassification, preserved lot history, conservative expiry and
-    protection of moved/reserved returned stock and rejection of incomplete legacy
-    credit history. All suites run in CI.
+    review's seven defect classes and the returns-list endpoint) and the shared-contracts suite
+    (`scripts/contracts-check.ts`, 32 assertions); all run in CI, alongside 35 Bun tests for return stock, REST transport, cache races and backend mode.
 15. **Production build verified**: `next build` (Turbopack) completes with strict TypeScript
     (no `ignoreBuildErrors` bypass) and 47/47 pages prerender. CI (`.github/workflows/ci.yml`)
-    runs lint + `tsc --noEmit` + build + the regression, acceptance and route suites. The earlier
+    runs lint + `tsc --noEmit` + build + all five suites on every push. The earlier
     `useSearchParams()` prerender failures on `/account/returns`, `/track` and
     `/admin/returns` are fixed with Suspense boundaries.
 16. **CSV exports** cover the current filtered dataset for the sales/top-products tables; other
     tables export on request (pattern is established).
-17. **`src/schemas/` reserved but empty**: input validation is enforced in the service engine and
-    forms (inline) rather than shared zod schemas; extracting them is cleanup work.
+17. **Input validation is now layered**: shared zod request schemas live in
+    `src/services/contracts/validation.ts` and run at the adapter boundary (client-side, fast
+    feedback) and in the contracts suite; the service engines re-validate authoritatively
+    (defense in depth). The NestJS backend must re-validate again — the shared schemas are the
+    reference. The old `src/schemas/` reservation is gone.
 18. **GhanaPostGPS** is stored and validated as text only (no geocoding claim), as required.
 19. **Cart persistence** is localStorage convenience; stale cart lines surface as “currently
     unavailable” rows with removal, per the non-authoritative-cart rule.
 20. **Held POS drafts** reserve stock for 20 minutes (shorter than order holds) — configurable in
     the backend contract.
-21. **Return expiry provenance**: known original allocation dates are preserved conservatively
-    using the earliest date. Demo sales with no recorded batch allocation cannot establish
-    a verified return expiry; production inspection must capture provenance and quarantine
-    perishables with unknown dates. The backend design requires that workflow.
-22. **Return disposition changes**: every credited lot is tracked. Reclassification keeps
-    historical lots with zero quantity and compensating movements. Changed quantities or
-    active reservations on an affected variant block reclassification for reconciliation;
-    the mock cannot safely resolve per-lot reservation ownership. Legacy inspected returns
-    without complete `stockLots` metadata also require reconciliation. Demo reset removes
-    those older records; current inspections always record the complete credit history.
+21. **Production-without-backend fallback**: a production bundle with no `API_BASE_URL` /
+    `NEXT_PUBLIC_API_BASE_URL` falls back to the in-process mock adapter with a one-time console
+    warning so the demo remains demonstrable — a demo affordance, not a production
+    configuration (documented in docs/API_CONTRACTS.md §1).
+Both backend URLs are required together; mock routes return 404 when either selects backend mode.
+
+22. **Client cache default TTL is 0 (no-store)**: the tag-invalidation machinery is complete and
+    exercised, but reads are intentionally not cached in the prototype because stock changes
+    live; raising `NEXT_PUBLIC_CACHE_TTL_MS` enables short-TTL caching for the real API.
+
+23. **Validation coverage**: request schemas cover 16 high-impact operations and selected response shapes. The backend must authoritatively validate every operation. Wire tests establish mapping, not the existence of 92 live endpoints.
+24. **Return provenance/reconciliation**: all credited lots are tracked and reversals preserve history. Moved/reserved stock or incomplete legacy metadata blocks reclassification. Unknown perishable provenance must remain quarantined in production.
+25. **Browser refresh**: the shared hook listens for mutation invalidation and ignores older completions. Custom loaders still require their own refresh handling; cross-session realtime updates are not implemented.
 
 ## Execution note
 

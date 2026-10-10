@@ -10,6 +10,9 @@ import { handleApi } from "@/services/mock/router";
 export const dynamic = "force-dynamic";
 
 async function handle(req: NextRequest, ctx: { params: Promise<{ path?: string[] }> }): Promise<NextResponse> {
+  if (process.env.API_BASE_URL || process.env.NEXT_PUBLIC_API_BASE_URL) {
+    return NextResponse.json({ ok: false, error: { code: "NOT_FOUND", message: "Demo operations are unavailable in backend mode." } }, { status: 404 });
+  }
   const { path } = await ctx.params;
   const method = req.method === "POST" ? "POST" : "GET";
   const query = new URL(req.url).searchParams;
