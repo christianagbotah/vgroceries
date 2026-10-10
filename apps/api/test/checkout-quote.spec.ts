@@ -49,3 +49,10 @@ test("quote rejects invalid zone variants duplicate lines and fractional count u
 test("public quote bootstraps guest cookies but creates no order reservation or booking", async()=>{
   const x=await post({lines:[{variantId:"var-rice",quantity:"1"}]}); assert.equal(x.r.status,200); assert.match(x.r.headers.get("set-cookie")??"",/vg_guest=/); assert.equal(await db.order.count(),0); assert.equal(await db.deliverySlotBooking.count(),0);
 });
+
+test("quote fails closed when the configured commerce stock location becomes inactive", async()=>{
+  await db.location.update({where:{id:"loc_accra"},data:{active:false}});
+  const x=await post({lines:[{variantId:"var-rice",quantity:"1"}]});
+  assert.equal(x.r.status,503); assert.equal(x.body.error.code,"UNAVAILABLE");
+  assert.equal(await db.order.count(),0); assert.equal(await db.reservation.count(),0);
+});

@@ -18,6 +18,8 @@ export class CheckoutQuoteService {
   }
   async quote(input: CheckoutQuoteInput): Promise<QuoteResponse> {
     const commerce=this.commerce();
+    const location=await this.db.location.findUnique({where:{id:commerce.locationId},select:{active:true}});
+    if(!location?.active) throw new ApiProblem(503,"UNAVAILABLE","Commerce stock location is unavailable.");
     if (!Array.isArray(input.lines) || input.lines.length < 1 || input.lines.length > 100)
       throw new ApiProblem(400,"VALIDATION_FAILED","Checkout requires between 1 and 100 lines.");
     const ids=[...new Set(input.lines.map(x=>x.variantId))];

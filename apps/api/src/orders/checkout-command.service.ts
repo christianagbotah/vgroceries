@@ -30,6 +30,8 @@ export class CheckoutCommandService {
     return this.db.$transaction(async tx=>{
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${JSON.stringify([principal.actorScope,"checkout.complete",key])},0))`;
       const replay=await this.replay(tx,principal.actorScope,key,hash); if(replay)return replay;
+      const location=await tx.location.findUnique({where:{id:commerce.locationId},select:{active:true}});
+      if(!location?.active) throw new ApiProblem(503,"UNAVAILABLE","Commerce stock location is unavailable.");
       const ids=[...new Set(input.lines.map(x=>x.variantId))];
       const variants=await tx.variant.findMany({where:{id:{in:ids},active:true,product:{published:true,category:{active:true}}},include:{product:true}});
       if(variants.length!==ids.length)throw new ApiProblem(404,"NOT_FOUND","One or more products are unavailable.");
