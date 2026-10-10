@@ -17,6 +17,8 @@ export interface ZoneView {
   cutoff: string;
   slotsPerDay: number;
   isActive: boolean;
+  slotPolicy?: "required" | "optional" | "none";
+  codEnabled?: boolean;
 }
 
 export interface SlotView {
