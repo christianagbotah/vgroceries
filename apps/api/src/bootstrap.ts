@@ -14,18 +14,28 @@ import { DatabaseModule } from "./database/database";
 import { HealthModule } from "./health/health.controller";
 import { foundationOpenApi } from "./http/openapi";
 import { ApiExceptionFilter, ApiRequest } from "./http/errors";
+import { PaymentsModule } from "./payments/payments.module";
+import type { PaymentProviderAdapter } from "./payments/payment-provider";
+import { PAYMENT_PROVIDER_ADAPTERS } from "./payments/payment-provider.registry";
 
-export async function createApplication(config: ApiConfig = readConfig()) {
+export async function createApplication(
+  config: ApiConfig = readConfig(),
+  paymentAdapters: PaymentProviderAdapter[] = [],
+) {
   @Global()
   @Module({
-    providers: [{ provide: API_CONFIG, useValue: config }],
-    exports: [API_CONFIG],
+    providers: [
+      { provide: API_CONFIG, useValue: config },
+      { provide: PAYMENT_PROVIDER_ADAPTERS, useValue: paymentAdapters },
+    ],
+    exports: [API_CONFIG, PAYMENT_PROVIDER_ADAPTERS],
   })
   class ConfigModule {}
   @Module({
     imports: [
       ConfigModule,
       DatabaseModule,
+      PaymentsModule,
       HealthModule,
       IdentityModule,
       CatalogModule,
