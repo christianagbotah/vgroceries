@@ -38,9 +38,12 @@ Currency is GHS, prices use integer pesewas, and labels use ₵.
 Availability is a PostgreSQL view over eligible physical lots minus active,
 unexpired reservations and safety stock. Expiry uses UTC dates; lots expiring
 today are ineligible. Quarantine/damage/disposal are excluded and quantities use
-exact decimals. Read-time checks work without an expiry worker. Reserving and
-depleting stock remain the next commerce milestone; no HTTP reservation command
-exists yet.
+exact decimals. Read-time checks work without an expiry worker. The first
+Commerce Authority slice now adds an internal, lot-specific FEFO allocation
+service with transactional position locks, whole-request rollback, safety-stock
+protection and release/expiry. There is still no public reservation HTTP command;
+orders, POS and stock depletion/handover remain later slices. See
+`COMMERCE_RESERVATION_CORE.md`.
 
 Receiving requires an `Idempotency-Key` of 8–128 letters/digits/`_`/`:`/`-`.
 Same actor, operation, key and normalized request replays the original receipt;
@@ -128,9 +131,11 @@ the API suite and checks generated OpenAPI drift. The existing frontend workflow
 still checks its own build, regression suites, contracts and routes.
 
 Outbox records are durable, but there is no publisher/Redis/BullMQ worker in this
-milestone. Worker deduplication/recovery tests, transactional order/POS allocation,
-handover, payments/refunds, delivery, full admin CRUD, native screens and grounded
-AI are subsequent work. No provider credentials or AI calls were introduced.
+milestone. Lot-specific reservation allocation is now implemented internally and
+audited in the caller transaction. Durable order/checkout commands, POS workflow,
+handover/depletion, worker publishing, payments/refunds, delivery, full admin CRUD,
+native screens and grounded AI are subsequent work. No provider credentials or AI
+calls were introduced.
 Identity and resource guards are reusable by those modules; AI tools will invoke
 the same authorised domain commands and cannot directly alter stock or money.
 
