@@ -950,7 +950,7 @@ test("foundation OpenAPI describes only implemented routes with cookie/native se
   const r = await fetch(base + "/api/v1/openapi.json");
   assert.equal(r.status, 200);
   const d = await r.json();
-  assert.equal(Object.keys(d.paths).length, 15);
+  assert.equal(Object.keys(d.paths).length, 16);
   assert.equal(d.paths["/api/v1/checkout/complete"], undefined);
   assert.deepEqual(d.paths["/api/v1/inventory/receive"].post.security, [
     { cookieAuth: [] },
@@ -1053,7 +1053,7 @@ test("foundation OpenAPI defines complete response data and inventory location s
       const op = item[method];
       if (!op) continue;
       const response = resolve(
-        op.responses[method === "post" ? "201" : "200"].content[
+        op.responses[method === "post" && path !== "/api/v1/checkout/quote" ? "201" : "200"].content[
           "application/json"
         ].schema,
       );

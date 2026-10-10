@@ -22,6 +22,8 @@ import {
   stockReceiveRequestSchema,
   zoneViewSchema,
   slotViewSchema,
+  quoteResponseSchema,
+  checkoutQuoteRequestSchema,
 } from "@variety/contracts";
 import { z } from "zod";
 
@@ -73,6 +75,8 @@ export function foundationOpenApi(app: INestApplication) {
     ZoneListResponse: { type: "array", items: ref("ZoneView") },
     SlotView: json(slotViewSchema),
     SlotListResponse: { type: "array", items: ref("SlotView") },
+    QuoteResponse: json(quoteResponseSchema),
+    CheckoutQuoteRequest: json(checkoutQuoteRequestSchema),
     LoginRequest: json(loginRequestSchema),
     RefreshRequest: json(refreshRequestSchema),
     ByVariantsRequest: json(byVariantsRequestSchema),
@@ -129,6 +133,7 @@ export function foundationOpenApi(app: INestApplication) {
     "/inventory/receive": "ReceiveResponse",
     "/checkout/zones": "ZoneListResponse",
     "/checkout/zones/{zoneId}/slots": "SlotListResponse",
+    "/checkout/quote": "QuoteResponse",
   };
   for (const name of new Set(Object.values(responses)))
     schemas[name + "Envelope"] = {
@@ -143,6 +148,7 @@ export function foundationOpenApi(app: INestApplication) {
     "/auth/refresh": "RefreshRequest",
     "/catalog/products:by-variants": "ByVariantsRequest",
     "/inventory/receive": "ReceiveRequest",
+    "/checkout/quote": "CheckoutQuoteRequest",
   };
   for (const [path, item] of Object.entries(doc.paths)) {
     const suffix = path.slice("/api/v1".length);
@@ -157,7 +163,8 @@ export function foundationOpenApi(app: INestApplication) {
         suffix === "/auth/logout"
       )
         operation.security = [{ cookieAuth: [] }, { bearerAuth: [] }];
-      operation.responses[method === "post" ? "201" : "200"] = {
+      const successCode = method === "post" && suffix !== "/checkout/quote" ? "201" : "200";
+      operation.responses[successCode] = {
         description: "Successful response",
         content: { "application/json": { schema: ref(name + "Envelope") } },
       };
