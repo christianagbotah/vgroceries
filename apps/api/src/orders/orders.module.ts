@@ -12,11 +12,12 @@ import { AccountOrdersController } from "./account-orders.controller";
 import { OrderProjectionService } from "./order-projection.service";
 import { OrderQueryService } from "./order-query.service";
 import { TrackingThrottleService } from "./tracking-throttle.service";
+import { OrderCancellationService } from "./order-cancellation.service";
 
 @Module({
   imports: [InventoryModule, DeliveryConfigModule],
   controllers: [CheckoutController, OrdersController, AccountOrdersController],
-  providers: [GuestCheckoutService, CheckoutPrincipalService, VerificationCodeService, CheckoutQuoteService, CheckoutCommandService, OrderProjectionService, OrderQueryService, TrackingThrottleService],
-  exports: [GuestCheckoutService, CheckoutPrincipalService, VerificationCodeService, CheckoutQuoteService, CheckoutCommandService, OrderProjectionService, OrderQueryService, TrackingThrottleService],
+  providers: [GuestCheckoutService, CheckoutPrincipalService, VerificationCodeService, CheckoutQuoteService, CheckoutCommandService, OrderProjectionService, OrderQueryService, TrackingThrottleService, OrderCancellationService],
+  exports: [GuestCheckoutService, CheckoutPrincipalService, VerificationCodeService, CheckoutQuoteService, CheckoutCommandService, OrderProjectionService, OrderQueryService, TrackingThrottleService, OrderCancellationService],
 })
 export class OrdersModule {}

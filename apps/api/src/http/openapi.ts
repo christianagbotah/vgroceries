@@ -27,6 +27,7 @@ import {
   checkoutCompleteRestRequestSchema,
   publicOrderSchema,
   trackRequestSchema,
+  accountCancelPathRequestSchema,
 } from "@variety/contracts";
 import { z } from "zod";
 
@@ -86,6 +87,8 @@ export function foundationOpenApi(app: INestApplication) {
     AccountOrderRow: json(z.object({ id:z.string(), reference:z.string(), totalLabel:z.string(), fulfilmentStatus:z.string(), paymentStatus:z.string(), fulfilment:z.string(), createdAtLabel:z.string(), lineCount:z.number().int().nonnegative() })),
     AccountOrderListResponse: { type:"array", items:ref("AccountOrderRow") },
     TrackRequest: json(trackRequestSchema),
+    AccountCancelRequest: json(accountCancelPathRequestSchema),
+    AccountCancelResponse: json(z.object({ fulfilmentStatus:z.string() })),
     LoginRequest: json(loginRequestSchema),
     RefreshRequest: json(refreshRequestSchema),
     ByVariantsRequest: json(byVariantsRequestSchema),
@@ -147,6 +150,7 @@ export function foundationOpenApi(app: INestApplication) {
     "/orders/{orderId}": "PublicOrder",
     "/orders/track": "PublicOrder",
     "/account/orders": "AccountOrderListResponse",
+    "/account/orders/{orderId}/cancel": "AccountCancelResponse",
   };
   for (const name of new Set(Object.values(responses)))
     schemas[name + "Envelope"] = {
@@ -164,6 +168,7 @@ export function foundationOpenApi(app: INestApplication) {
     "/checkout/quote": "CheckoutQuoteRequest",
     "/checkout/complete": "CheckoutCompleteRequest",
     "/orders/track": "TrackRequest",
+    "/account/orders/{orderId}/cancel": "AccountCancelRequest",
   };
   for (const [path, item] of Object.entries(doc.paths)) {
     const suffix = path.slice("/api/v1".length);
@@ -176,10 +181,10 @@ export function foundationOpenApi(app: INestApplication) {
         suffix.startsWith("/inventory/") ||
         suffix === "/auth/me" ||
         suffix === "/auth/logout" ||
-        suffix === "/account/orders"
+        suffix.startsWith("/account/orders")
       )
         operation.security = [{ cookieAuth: [] }, { bearerAuth: [] }];
-      const successCode = method === "post" && !["/checkout/quote","/orders/track"].includes(suffix) ? "201" : "200";
+      const successCode = method === "post" && !["/checkout/quote","/orders/track","/account/orders/{orderId}/cancel"].includes(suffix) ? "201" : "200";
       operation.responses[successCode] = {
         description: "Successful response",
         content: { "application/json": { schema: ref(name + "Envelope") } },
