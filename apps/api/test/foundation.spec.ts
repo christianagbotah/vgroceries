@@ -182,10 +182,22 @@ before(async () => {
     data: [
       {
         positionId: "pos_rice",
+        lotId: "lot_rice",
+        claimType: "order",
+        claimId: "fixture-active",
+        claimLineId: "fixture-active-line",
         quantity: "1.125",
         expiresAt: new Date(Date.now() + 3600000),
       },
-      { positionId: "pos_rice", quantity: "999", expiresAt: new Date(0) },
+      {
+        positionId: "pos_rice",
+        lotId: "lot_rice",
+        claimType: "order",
+        claimId: "fixture-expired",
+        claimLineId: "fixture-expired-line",
+        quantity: "999",
+        expiresAt: new Date(0),
+      },
     ],
   });
   await db.variant.create({
@@ -632,6 +644,51 @@ test("inventory reads require role and location grants", async () => {
       )
     ).r.status,
     403,
+  );
+});
+test("lot-specific reservations are durable, constrained and reflected in availability", async () => {
+  const w = await login("warehouse@example.test", "native");
+  const headers = { authorization: "Bearer " + w.body.data.accessToken };
+  await db.$executeRaw`INSERT INTO "Reservation"
+    (id,"positionId","lotId","claimType","claimId","claimLineId",quantity,state,"expiresAt","createdAt")
+    VALUES ('res_task1','pos_rice','lot_rice','order','ord_task1','line_task1',0.5,'active',${new Date(Date.now() + 3600000)},now())`;
+  const held = await request(
+    "/inventory/overview?locationId=loc_accra",
+    undefined,
+    headers,
+  );
+  assert.equal(
+    held.body.data.rows.find(
+      (r: { variantId: string }) => r.variantId === "var_rice",
+    ).availableToSell,
+    "6.5",
+  );
+  await db.$executeRaw`UPDATE "Reservation" SET state='released' WHERE id='res_task1'`;
+  const released = await request(
+    "/inventory/overview?locationId=loc_accra",
+    undefined,
+    headers,
+  );
+  assert.equal(
+    released.body.data.rows.find(
+      (r: { variantId: string }) => r.variantId === "var_rice",
+    ).availableToSell,
+    "7",
+  );
+  await assert.rejects(() =>
+    db.$executeRaw`INSERT INTO "Reservation"
+      (id,"positionId","lotId","claimType","claimId","claimLineId",quantity,state,"expiresAt","createdAt")
+      VALUES ('res_zero','pos_rice','lot_rice','order','ord_zero','line_zero',0,'active',${new Date(Date.now() + 3600000)},now())`,
+  );
+  await assert.rejects(() =>
+    db.$executeRaw`INSERT INTO "Reservation"
+      (id,"positionId","lotId","claimType","claimId","claimLineId",quantity,state,"expiresAt","createdAt")
+      VALUES ('res_bad_state','pos_rice','lot_rice','order','ord_bad','line_bad',1,'invalid',${new Date(Date.now() + 3600000)},now())`,
+  );
+  await assert.rejects(() =>
+    db.$executeRaw`INSERT INTO "Reservation"
+      (id,"positionId","lotId","claimType","claimId","claimLineId",quantity,state,"expiresAt","createdAt")
+      VALUES ('res_duplicate','pos_rice','lot_rice','order','ord_task1','line_task1',1,'active',${new Date(Date.now() + 3600000)},now())`,
   );
 });
 test("native grant changes are enforced on the next request", async () => {
