@@ -8,6 +8,7 @@ import { Database } from "../src/database/database";
 import { AllocationService } from "../src/inventory/allocation.service";
 import { commerceTestPassword, seedCommerceFixtures } from "./commerce-fixtures";
 import { FakePaymentProvider } from "./fake-payment-provider";
+import { FakeRefundProvider } from "./fake-refund-provider";
 
 let app: INestApplication;
 let base = "";
@@ -29,7 +30,7 @@ const config = () => readConfig({
 async function start() {
   if (app) await app.close();
   fake = new FakePaymentProvider();
-  app = await createApplication(config(), [fake]);
+  app = await createApplication(config(), [fake], [new FakeRefundProvider()]);
   await app.listen(0, "127.0.0.1");
   base = await app.getUrl();
   db = app.get(Database);

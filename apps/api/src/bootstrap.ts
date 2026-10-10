@@ -17,18 +17,22 @@ import { ApiExceptionFilter, ApiRequest } from "./http/errors";
 import { PaymentsModule } from "./payments/payments.module";
 import type { PaymentProviderAdapter } from "./payments/payment-provider";
 import { PAYMENT_PROVIDER_ADAPTERS } from "./payments/payment-provider.registry";
+import type { RefundProviderAdapter } from "./payments/refund-provider";
+import { REFUND_PROVIDER_ADAPTERS } from "./payments/refund-provider.registry";
 
 export async function createApplication(
   config: ApiConfig = readConfig(),
   paymentAdapters: PaymentProviderAdapter[] = [],
+  refundAdapters: RefundProviderAdapter[] = [],
 ) {
   @Global()
   @Module({
     providers: [
       { provide: API_CONFIG, useValue: config },
       { provide: PAYMENT_PROVIDER_ADAPTERS, useValue: paymentAdapters },
+      { provide: REFUND_PROVIDER_ADAPTERS, useValue: refundAdapters },
     ],
-    exports: [API_CONFIG, PAYMENT_PROVIDER_ADAPTERS],
+    exports: [API_CONFIG, PAYMENT_PROVIDER_ADAPTERS, REFUND_PROVIDER_ADAPTERS],
   })
   class ConfigModule {}
   @Module({

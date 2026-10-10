@@ -8,12 +8,14 @@ import { API_CONFIG, type ApiConfig } from "../config";
 import { ApiProblem } from "../http/errors";
 import type { PaymentProviderAdapter } from "./payment-provider";
 import { PaymentProviderRegistry } from "./payment-provider.registry";
+import { RefundProviderRegistry } from "./refund-provider.registry";
 
 @Injectable()
 export class PaymentPolicyService {
   constructor(
     @Inject(API_CONFIG) private readonly config: ApiConfig,
     private readonly registry: PaymentProviderRegistry,
+    private readonly refundRegistry: RefundProviderRegistry,
   ) {}
 
   assertElectronicMethodAvailable(
@@ -27,7 +29,15 @@ export class PaymentPolicyService {
     const adapter = this.registry.requireConfigured();
     if (!adapter.capabilities().methods.includes(method))
       throw new ApiProblem(503, "UNAVAILABLE", "This electronic payment method is unavailable.");
+    this.refundRegistry.require(adapter.id, method);
     return adapter;
+  }
+
+  assertReadyIfConfigured(): void {
+    const payment = this.config.payments;
+    if (!payment) return;
+    this.registry.requireConfigured();
+    for (const method of payment.enabledMethods) this.assertElectronicMethodAvailable(method);
   }
 
   async assertCancellationSafe(

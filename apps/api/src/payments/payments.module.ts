@@ -11,6 +11,7 @@ import { PaymentReconciliationService } from "./payment-reconciliation.service";
 import { PaymentOutcomeService } from "./payment-outcome.service";
 import { PaymentPolicyService } from "./payment-policy.service";
 import { PaymentProviderRegistry } from "./payment-provider.registry";
+import { RefundProviderRegistry } from "./refund-provider.registry";
 
 @Module({
   imports: [CommerceIdentityModule],
@@ -21,6 +22,7 @@ import { PaymentProviderRegistry } from "./payment-provider.registry";
     // make generated route ordering depend on a second controller graph.
     AllocationService,
     PaymentProviderRegistry,
+    RefundProviderRegistry,
     PaymentPolicyService,
     PaymentInitiationService,
     PaymentOutcomeService,
@@ -30,6 +32,7 @@ import { PaymentProviderRegistry } from "./payment-provider.registry";
   ],
   exports: [
     PaymentProviderRegistry,
+    RefundProviderRegistry,
     PaymentPolicyService,
     PaymentInitiationService,
     PaymentOutcomeService,

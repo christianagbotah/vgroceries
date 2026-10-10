@@ -1,7 +1,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-const contracts = require("@variety/contracts") as Record<string, any>;
+import * as contractExports from "@variety/contracts";
+
+const contracts = contractExports as unknown as Record<string, any>;
 
 test("refund contracts expose the approved strict production vocabulary", () => {
   for (const name of [

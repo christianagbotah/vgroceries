@@ -6,6 +6,7 @@ import { readConfig } from "../src/config";
 import { Database } from "../src/database/database";
 import { commerceTestPassword, seedCommerceFixtures } from "./commerce-fixtures";
 import { FakePaymentProvider } from "./fake-payment-provider";
+import { FakeRefundProvider } from "./fake-refund-provider";
 
 let app: INestApplication;
 let second: INestApplication;
@@ -31,8 +32,8 @@ beforeEach(async () => {
   if (second) await second.close();
   if (app) await app.close();
   fake = new FakePaymentProvider();
-  app = await createApplication(config(), [fake]);
-  second = await createApplication(config(), [new FakePaymentProvider()]);
+  app = await createApplication(config(), [fake], [new FakeRefundProvider()]);
+  second = await createApplication(config(), [new FakePaymentProvider()], [new FakeRefundProvider()]);
   await app.listen(0, "127.0.0.1");
   base = await app.getUrl();
   db = app.get(Database);
