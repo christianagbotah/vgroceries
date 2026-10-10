@@ -84,13 +84,13 @@ function verifiedAdapter() {
   };
 }
 
-async function send(attempt: { merchantReference: string; providerRef: string | null; amountMinor: number }, eventId: string, state: string, overrides: Record<string,unknown> = {}) {
+async function send(attempt: { merchantReference: string; providerRef: string | null; amountMinor: number }, eventId: string, state: string, overrides: Record<string,unknown> = {}, headers: Record<string,string> = {}) {
   const payload = {
     eventId, merchantReference: attempt.merchantReference, providerReference: attempt.providerRef,
     state, amountMinor: attempt.amountMinor, currency: "GHS", ...overrides,
   };
   const response = await fetch(base + "/api/v1/payments/providers/fake/events", {
-    method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(payload),
+    method: "POST", headers: { "content-type": "application/json", ...headers }, body: JSON.stringify(payload),
   });
   const body = await response.json();
   return { response, body };
@@ -131,20 +131,43 @@ test("different provider event ids reporting the same success apply financial ef
   assert.equal((await db.order.findUniqueOrThrow({ where: { id: orderId } })).paymentStatus, "succeeded");
 });
 
-test("persisted event resumes safely after an injected outcome outbox failure", async () => {
+test("persisted event resumes safely after an injected outcome outbox failure without leaking raw provider secrets", async () => {
   verifiedAdapter();
-  const { orderId, attempt } = await createOrderAndAttempt();
+  const { token, orderId, attempt } = await createOrderAndAttempt();
+  const rawSecret = "RAW_CALLBACK_SECRET_DO_NOT_STORE_7341";
+  const signatureSecret = "SIGNATURE_SECRET_DO_NOT_STORE_9275";
   await db.$executeRawUnsafe(`CREATE OR REPLACE FUNCTION reject_payment_success_outbox() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.type='payment.succeeded' THEN RAISE EXCEPTION 'payment success outbox fault'; END IF; RETURN NEW; END; $$`);
   await db.$executeRawUnsafe(`CREATE TRIGGER reject_payment_success_outbox BEFORE INSERT ON "OutboxEvent" FOR EACH ROW EXECUTE FUNCTION reject_payment_success_outbox()`);
-  const first = await send(attempt, "evt-redelivery", "succeeded");
+  const logged:string[]=[];
+  const originalError=console.error;
+  console.error=(...args:unknown[])=>{ logged.push(args.map(String).join(" ")); };
+  let first;
+  try {
+    first = await send(attempt, "evt-redelivery", "succeeded", { secretNoise: rawSecret }, { "x-provider-signature": signatureSecret });
+  } finally {
+    console.error=originalError;
+  }
   assert.equal(first.response.status, 500);
   assert.equal(await db.paymentProviderEvent.count({ where: { providerEventId: "evt-redelivery" } }), 1);
   assert.equal((await db.paymentAttempt.findUniqueOrThrow({ where: { id: attempt.id } })).status, "pending");
   assert.notEqual((await db.order.findUniqueOrThrow({ where: { id: orderId } })).paymentStatus, "succeeded");
+  const owner = await fetch(base + `/api/v1/orders/${orderId}`, { headers: { authorization: `Bearer ${token}` } });
+  assert.equal(owner.status, 200);
+  const persisted = JSON.stringify({
+    providerEvents: await db.paymentProviderEvent.findMany({ where: { paymentAttemptId: attempt.id } }),
+    audits: await db.auditEvent.findMany({ where: { OR: [{ entityId: attempt.id }, { entityId: orderId }] } }),
+    outbox: await db.outboxEvent.findMany({ where: { OR: [{ aggregateId: attempt.id }, { aggregateId: orderId }] } }),
+    orderEvents: await db.orderEvent.findMany({ where: { orderId } }),
+    publicOrder: await owner.json(),
+  });
+  for(const secret of [rawSecret,signatureSecret]){
+    assert.equal(persisted.includes(secret),false);
+    assert.equal(logged.join("\n").includes(secret),false);
+  }
   await db.$executeRawUnsafe(`DROP TRIGGER reject_payment_success_outbox ON "OutboxEvent"`);
   await db.$executeRawUnsafe(`DROP FUNCTION reject_payment_success_outbox()`);
 
-  const retry = await send(attempt, "evt-redelivery", "succeeded");
+  const retry = await send(attempt, "evt-redelivery", "succeeded", { secretNoise: rawSecret }, { "x-provider-signature": signatureSecret });
   assert.equal(retry.response.status, 200);
   assert.equal(retry.body.data.duplicate, true);
   assert.equal((await db.paymentAttempt.findUniqueOrThrow({ where: { id: attempt.id } })).status, "succeeded");

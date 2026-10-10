@@ -23,7 +23,20 @@ test("payments and orders preserve stock and verified money source authority",()
   assert.match(paymentFiles["payment-reconciliation.service.ts"]??"",/\.outcomes\.apply\s*\(/);
   assert.match(paymentFiles["payment-outcome.service.ts"]??"",/paymentStatus\s*:\s*["']succeeded["']/);
 
-  const ordersDir=join(process.cwd(),"src/orders");
-  const allOrders=readdirSync(ordersDir).filter(x=>x.endsWith(".ts")).map(x=>readFileSync(join(ordersDir,x),"utf8")).join("\n");
-  assert.doesNotMatch(allOrders,/\.paymentAttempt\.(?:create|update|updateMany|upsert|delete|deleteMany)\s*\(/);
+  const productionSources: { path:string; source:string }[]=[];
+  const walk=(dir:string,relative="")=>{
+    for(const entry of readdirSync(dir,{withFileTypes:true})){
+      const rel=relative?`${relative}/${entry.name}`:entry.name;
+      const full=join(dir,entry.name);
+      if(entry.isDirectory()) walk(full,rel);
+      else if(entry.isFile()&&entry.name.endsWith(".ts")) productionSources.push({path:rel,source:readFileSync(full,"utf8")});
+    }
+  };
+  walk(join(process.cwd(),"src"));
+  const paymentAttemptMutation=/\.paymentAttempt\.(?:create|update|updateMany|updateManyAndReturn|upsert|delete|deleteMany)\s*\(/;
+  const reservationMutation=/\.reservation\.(?:create|update|updateMany|updateManyAndReturn|upsert|delete|deleteMany)\s*\(/;
+  for(const file of productionSources){
+    if(!file.path.startsWith("payments/")) assert.doesNotMatch(file.source,paymentAttemptMutation,`PaymentAttempt mutation outside Payments: ${file.path}`);
+    if(!file.path.startsWith("inventory/")) assert.doesNotMatch(file.source,reservationMutation,`Reservation mutation outside Inventory: ${file.path}`);
+  }
 });
