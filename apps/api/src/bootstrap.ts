@@ -1,7 +1,7 @@
 import "reflect-metadata";
 import { Global, Module } from "@nestjs/common";
 import { NestFactory } from "@nestjs/core";
-import { json } from "express";
+import { json, raw } from "express";
 import helmet from "helmet";
 import { randomUUID } from "node:crypto";
 import { API_CONFIG, ApiConfig, readConfig } from "./config";
@@ -43,7 +43,7 @@ export async function createApplication(
       DeliveryConfigModule,
       // Keep staged, Swagger-excluded Payments routes after the established
       // production modules so adding internal payment controllers cannot churn
-      // the 21-path public OpenAPI snapshot before the Task 10 cutover.
+      // the public OpenAPI snapshot before the Task 10 cutover.
       PaymentsModule,
     ],
   })
@@ -63,6 +63,12 @@ export async function createApplication(
     },
   );
   app.use(helmet());
+  // Provider verification must receive the exact bytes that were signed.
+  // This narrowly scoped raw parser must run before the generic JSON parser.
+  app.use(
+    "/api/v1/payments/providers/:provider/events",
+    raw({ type: "application/json", limit: "64kb" }),
+  );
   app.use(json({ limit: "64kb" }));
   app.enableCors({
     origin: config.webOrigins,
