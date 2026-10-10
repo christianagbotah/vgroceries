@@ -157,11 +157,12 @@ model Reservation {
   claimType String
   claimId String
   claimLineId String
+  generation Int @default(1)
   quantity Decimal @db.Decimal(15, 3)
   state String @default("active")
   expiresAt DateTime @db.Timestamptz(3)
   createdAt DateTime @default(now()) @db.Timestamptz(3)
-  @@unique([claimType, claimId, claimLineId, lotId])
+  @@unique([claimType, claimId, claimLineId, lotId, generation])
   @@index([positionId, state, expiresAt])
   @@index([lotId, state, expiresAt])
   @@index([claimType, claimId, state])
@@ -221,7 +222,6 @@ model OutboxEvent {
   publishedAt DateTime? @db.Timestamptz(3)
   @@index([publishedAt, createdAt])
 }
-
 
 model GuestCheckoutSession {
   id String @id @default(uuid())
@@ -319,6 +319,7 @@ model Order {
   events OrderEvent[]
   deliveryAddress OrderDeliveryAddress?
   slotBooking DeliverySlotBooking?
+  paymentAttempts PaymentAttempt[]
   @@index([customerUserId, createdAt])
   @@index([guestSessionId, createdAt])
   @@index([zoneId, createdAt])
@@ -386,4 +387,74 @@ model TrackingThrottle {
   key String @id
   windowStart DateTime @db.Timestamptz(3)
   attempts Int
+}
+
+model PaymentAttempt {
+  id String @id @default(uuid())
+  orderId String
+  order Order @relation(fields: [orderId], references: [id])
+  provider String
+  method String
+  currency String @default("GHS")
+  amountMinor Int
+  merchantReference String @unique
+  providerRef String?
+  status String @default("initiated")
+  initiationState String @default("created")
+  settlementState String @default("unsettled")
+  callbackCount Int @default(0)
+  failureCode String?
+  failureReason String?
+  providerExpiresAt DateTime? @db.Timestamptz(3)
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+  resolvedAt DateTime? @db.Timestamptz(3)
+  version Int @default(1)
+  providerEvents PaymentProviderEvent[]
+  reconciliations PaymentReconciliation[]
+  @@unique([provider, providerRef])
+  @@index([orderId, createdAt])
+  @@index([status, settlementState, createdAt])
+}
+
+model PaymentProviderEvent {
+  id String @id @default(uuid())
+  provider String
+  providerEventId String?
+  dedupeKey String
+  paymentAttemptId String?
+  paymentAttempt PaymentAttempt? @relation(fields: [paymentAttemptId], references: [id])
+  providerRef String?
+  rawBodyHash String
+  verificationResult String
+  observedState String?
+  observedAmountMinor Int?
+  observedCurrency String?
+  providerTimestamp DateTime? @db.Timestamptz(3)
+  processingResult String?
+  safeMetadata Json
+  receivedAt DateTime @default(now()) @db.Timestamptz(3)
+  processedAt DateTime? @db.Timestamptz(3)
+  @@unique([provider, providerEventId])
+  @@unique([provider, dedupeKey])
+  @@index([paymentAttemptId, receivedAt])
+  @@index([provider, processingResult, receivedAt])
+}
+
+model PaymentReconciliation {
+  id String @id @default(uuid())
+  paymentAttemptId String
+  paymentAttempt PaymentAttempt @relation(fields: [paymentAttemptId], references: [id])
+  provider String
+  trigger String
+  observedState String
+  providerRef String?
+  observedAmountMinor Int?
+  observedCurrency String?
+  result String
+  safeNote String?
+  requestId String
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  @@index([paymentAttemptId, createdAt])
+  @@index([provider, result, createdAt])
 }
