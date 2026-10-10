@@ -1,9 +1,9 @@
 import { Injectable } from "@nestjs/common";
 import type { AccountOrderRow, PublicOrder } from "@variety/contracts";
+import type { CheckoutPrincipal } from "../commerce-identity/checkout-principal.service";
 import { Database } from "../database/database";
 import { ApiProblem } from "../http/errors";
 import { tokenHash } from "../identity/crypto";
-import type { CheckoutPrincipal } from "./checkout-principal.service";
 import { OrderProjectionService } from "./order-projection.service";
 import { TrackingThrottleService } from "./tracking-throttle.service";
 import { VerificationCodeService } from "./verification-code.service";

@@ -7,9 +7,9 @@ import { Database } from "../database/database";
 import { AllocationService } from "../inventory/allocation.service";
 import { DeliveryConfigService } from "../delivery-config/delivery-config.service";
 import { ApiProblem, ApiRequest } from "../http/errors";
+import type { CheckoutPrincipal } from "../commerce-identity/checkout-principal.service";
 import { checkoutRequestHash, roundLineTotalMinor, validateCheckoutContact, validateCheckoutLines } from "./checkout.values";
 import { VerificationCodeService } from "./verification-code.service";
-import type { CheckoutPrincipal } from "./checkout-principal.service";
 
 const electronic = new Set(["mobile_money","card_hosted","bank_transfer"]);
 @Injectable()
