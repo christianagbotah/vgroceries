@@ -9,6 +9,7 @@ import { ApiProblem } from "../http/errors";
 import type { PaymentProviderAdapter } from "./payment-provider";
 import { PaymentProviderRegistry } from "./payment-provider.registry";
 import { RefundProviderRegistry } from "./refund-provider.registry";
+import { PaymentCaptureService } from "./payment-capture.service";
 
 @Injectable()
 export class PaymentPolicyService {
@@ -16,6 +17,7 @@ export class PaymentPolicyService {
     @Inject(API_CONFIG) private readonly config: ApiConfig,
     private readonly registry: PaymentProviderRegistry,
     private readonly refundRegistry: RefundProviderRegistry,
+    private readonly captures: PaymentCaptureService,
   ) {}
 
   assertElectronicMethodAvailable(
@@ -44,22 +46,15 @@ export class PaymentPolicyService {
     tx: Prisma.TransactionClient,
     orderId: string,
   ): Promise<void> {
-    // Orders already holds the Order row. Keep the global lock order by
-    // locking every attempt for that order in stable id order before reading
-    // payment authority.
-    await tx.$queryRaw`SELECT id FROM "PaymentAttempt" WHERE "orderId"=${orderId} ORDER BY id FOR UPDATE`;
-    const attempts = await tx.paymentAttempt.findMany({
-      where: { orderId },
-      orderBy: { id: "asc" },
-      select: { status: true },
-    });
-    if (attempts.some((attempt) => attempt.status === "succeeded"))
+    // Orders already holds the Order row. Payments owns the stable attempt lock/classification boundary.
+    const state = await this.captures.lockForOrder(tx, orderId);
+    if (state.successfulCaptures.length > 0)
       throw new ApiProblem(
         422,
         "RULE_VIOLATION",
         "This order requires the refund workflow before cancellation.",
       );
-    if (attempts.some((attempt) => attempt.status === "initiated" || attempt.status === "pending"))
+    if (state.liveAttempts.length > 0)
       throw new ApiProblem(
         422,
         "RULE_VIOLATION",
