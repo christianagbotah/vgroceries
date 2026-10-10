@@ -14,6 +14,22 @@ export interface CreateAllocationInput {
   lines: AllocationLineInput[];
 }
 
+export interface EnsureClaimCoverageInput {
+  claimType: "order";
+  claimId: string;
+  locationId: string;
+  expiresAt: Date;
+  actorId: string;
+  requestId: string;
+  lines: AllocationLineInput[];
+}
+
+export interface EnsureClaimCoverageResult {
+  generation: number;
+  reused: boolean;
+  reservationIds: string[];
+}
+
 export interface AllocationOperationContext {
   actorId: string;
   requestId: string;
