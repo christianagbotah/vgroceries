@@ -1,5 +1,10 @@
 # Verification record
 
+The current NestJS/PostgreSQL foundation verification is recorded in
+[BACKEND_FOUNDATION_CHECKPOINT.md](BACKEND_FOUNDATION_CHECKPOINT.md) (10 October
+2026): 40 real HTTP/database tests, isolated API-only setup/CLI checks and fresh
+web regressions. The earlier prototype records below remain historical.
+
 **Date**: 9 October 2026 (updated after the API-boundary + documentation handoff) · **Environment**:
 Next.js 16.1 (App Router, Turbopack dev), TypeScript 5, Tailwind 4, shadcn/ui, Bun. Checks were
 actually run — nothing below is claimed without a result.

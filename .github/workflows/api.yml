@@ -1,0 +1,48 @@
+name: API foundation
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+jobs:
+  verify-api:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: variety_foundation_test
+        ports: [5432:5432]
+        options: >-
+          --health-cmd "pg_isready -U postgres -d variety_foundation_test"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/variety_foundation_test
+      WEB_ORIGINS: http://localhost:3000
+      API_STOCK_LOCATION_ID: loc_accra
+      API_INSECURE_COOKIES: "true"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - name: Build shared contracts
+        run: |
+          npm ci --prefix packages/contracts
+          npm run --prefix packages/contracts build
+      - name: Install and generate API client
+        run: |
+          npm ci --prefix apps/api
+          npm run --prefix apps/api generate
+      - name: Apply migrations to empty PostgreSQL
+        run: npm run --prefix apps/api migrate:deploy
+      - name: API integration and security tests
+        run: npm test --prefix apps/api
+      - name: Confirm foundation OpenAPI matches implementation
+        working-directory: apps/api
+        run: |
+          npm run openapi
+          git diff --exit-code -- ../../docs/openapi-foundation.json
