@@ -20,8 +20,22 @@ export class FakePaymentProvider implements PaymentProviderAdapter {
   initiationResult: PaymentProviderInitiationResult = { kind: "accepted", providerReference: "fake-ref", action: { kind: "prompt", message: "Approve the payment" } };
   lookupResult: PaymentProviderObservation = { providerId: "fake", merchantReference: "unset", state: "pending", amountMinor: 1, currency: "GHS" };
   verificationResult: PaymentProviderEventVerification = { verification: "invalid" };
+  initiateHandler?: (input: PaymentProviderInitiationInput) => Promise<PaymentProviderInitiationResult>;
+  lookupHandler?: (input: PaymentProviderLookupInput) => Promise<PaymentProviderObservation>;
+  verifyHandler?: (input: PaymentProviderEventInput) => Promise<PaymentProviderEventVerification>;
+
   capabilities() { return this.capabilitiesValue; }
-  async initiate(input: PaymentProviderInitiationInput) { this.initiateCalls.push(input); return this.initiationResult; }
-  async verifyEvent(input: PaymentProviderEventInput) { this.verifyCalls.push(input); return this.verificationResult; }
-  async lookup(input: PaymentProviderLookupInput) { this.lookupCalls.push(input); return { ...this.lookupResult, merchantReference: this.lookupResult.merchantReference === "unset" ? input.merchantReference : this.lookupResult.merchantReference }; }
+  async initiate(input: PaymentProviderInitiationInput) {
+    this.initiateCalls.push(input);
+    return this.initiateHandler ? this.initiateHandler(input) : this.initiationResult;
+  }
+  async verifyEvent(input: PaymentProviderEventInput) {
+    this.verifyCalls.push(input);
+    return this.verifyHandler ? this.verifyHandler(input) : this.verificationResult;
+  }
+  async lookup(input: PaymentProviderLookupInput) {
+    this.lookupCalls.push(input);
+    if (this.lookupHandler) return this.lookupHandler(input);
+    return { ...this.lookupResult, merchantReference: this.lookupResult.merchantReference === "unset" ? input.merchantReference : this.lookupResult.merchantReference };
+  }
 }
