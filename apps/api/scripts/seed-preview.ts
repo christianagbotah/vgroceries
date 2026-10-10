@@ -14,6 +14,28 @@ async function main() {
         create: { id: config.stockLocationId, name: "Preview stock location" },
         update: {},
       });
+      if (config.commerce && config.commerce.locationId !== config.stockLocationId) {
+        await tx.location.upsert({
+          where: { id: config.commerce.locationId },
+          create: { id: config.commerce.locationId, name: "Preview commerce location" },
+          update: { active: true },
+        });
+      }
+      if (config.commerce) {
+        await tx.deliveryZone.upsert({
+          where: { id: "preview-zone" },
+          create: { id: "preview-zone", name: "Preview Accra zone", areas: ["Labone", "Osu"], feeMinor: 1200, minimumOrderMinor: 5000, serviceHours: "08:00-18:00", cutoff: "16:00", slotsPerDay: 2, slotPolicy: "required", codEnabled: true },
+          update: { active: true },
+        });
+        const start = new Date(Date.now() + 24 * 60 * 60 * 1000);
+        start.setUTCMinutes(0, 0, 0);
+        const end = new Date(start.getTime() + 2 * 60 * 60 * 1000);
+        await tx.deliverySlot.upsert({
+          where: { id: "preview-slot" },
+          create: { id: "preview-slot", zoneId: "preview-zone", startsAt: start, endsAt: end, capacity: 10 },
+          update: { startsAt: start, endsAt: end, capacity: 10, active: true },
+        });
+      }
       await tx.category.upsert({
         where: { id: "preview_food" },
         create: {
