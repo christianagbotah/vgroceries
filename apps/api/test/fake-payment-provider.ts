@@ -20,14 +20,17 @@ export class FakePaymentProvider implements PaymentProviderAdapter {
   initiationResult: PaymentProviderInitiationResult = { kind: "accepted", providerReference: "fake-ref", action: { kind: "prompt", message: "Approve the payment" } };
   lookupResult: PaymentProviderObservation = { providerId: "fake", merchantReference: "unset", state: "pending", amountMinor: 1, currency: "GHS" };
   verificationResult: PaymentProviderEventVerification = { verification: "invalid" };
-  initiateHandler?: (input: PaymentProviderInitiationInput) => Promise<PaymentProviderInitiationResult>;
+  initiateHandler?: (input: PaymentProviderInitiationInput) => Promise<PaymentProviderInitiationResult | void>;
   lookupHandler?: (input: PaymentProviderLookupInput) => Promise<PaymentProviderObservation>;
   verifyHandler?: (input: PaymentProviderEventInput) => Promise<PaymentProviderEventVerification>;
 
   capabilities() { return this.capabilitiesValue; }
-  async initiate(input: PaymentProviderInitiationInput) {
+  async initiate(input: PaymentProviderInitiationInput): Promise<PaymentProviderInitiationResult> {
     this.initiateCalls.push(input);
-    return this.initiateHandler ? this.initiateHandler(input) : this.initiationResult;
+    if (!this.initiateHandler) return this.initiationResult;
+    const result = await this.initiateHandler(input);
+    if (!result) throw new Error("Fake initiation handler completed without a result");
+    return result;
   }
   async verifyEvent(input: PaymentProviderEventInput) {
     this.verifyCalls.push(input);
