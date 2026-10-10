@@ -9,29 +9,15 @@
 
 Every screen — storefront, account, staff back office, POS, dispatch and rider — obtains business data through **one explicit service interface**. No page imports the mock store; the mock is an implementation detail of the development adapter.
 
-```
-┌────────────────────────────────────────────────────────────────────┐
-│  Screens (48 pages, server components + client islands)            │
-│    import { apiOps } from "@/services/client"        (client)      │
-│    import { getHomeData … } from "@/services/server-data" (RSC)    │
-└──────────────┬─────────────────────────────────────┬───────────────┘
-               ▼                                     ▼
-   src/services/adapters/browser.ts        src/services/adapters/server.ts
-   (browser resolution + cache tags)       (server resolution)
-               │                                     │
-               ▼                                     ▼
-   ┌───────────────────────── HttpServiceAdapter ─────────────────┐
-   │  NEXT_PUBLIC_API_BASE_URL set → production REST API          │
-   │  unset → this app's /api/mock/v1 route (development mock)    │
-   └──────────────────────────────────────────────────────────────┘
-   ┌───────────────────────── MockServiceAdapter ─────────────────┐
-   │  API_BASE_URL set → (not used)                               │
-   │  unset → in-process mock router (development + prerender)    │
-   └──────────────────────────────────────────────────────────────┘
-               │
-               ▼
-   src/services/contracts/  ← FRAMEWORK-FREE (types + zod schemas)
-   Consumable by: Next.js web · NestJS backend · React Native apps
+```mermaid
+flowchart TD
+  Browser["Browser screens"] --> Client["Client adapter"]
+  Pages["Server rendered pages"] --> Server["Server adapter"]
+  Client -->|Backend mode| API["REST API"]
+  Server -->|Backend mode| API
+  Client -->|Demo mode| Route["Mock HTTP route"]
+  Server -->|Demo mode| Mock["Mock engine"]
+  Route --> Mock
 ```
 
 ### Files that form the boundary
@@ -54,12 +40,12 @@ Every screen — storefront, account, staff back office, POS, dispatch and rider
 ```bash
 # Browser/client components:
 NEXT_PUBLIC_API_BASE_URL=https://api.varietygrocery.com/api/v1
-# Server components (optional — server can keep going through the API too):
+# Server components (required with the browser URL):
 API_BASE_URL=https://api.varietygrocery.com/api/v1
 API_SERVICE_TOKEN=<server-to-server token>
 ```
 
-No page or component changes. If neither variable is set, a production bundle falls back to the in-process mock with a one-time loud warning so the prototype remains demonstrable — **this fallback is a demo affordance, not a production configuration**.
+The transport selects the documented REST mapping when both URLs are configured. Partial configuration fails with `CONFIGURATION_ERROR`, and `/api/mock/v1` returns 404 in backend mode. With neither URL set, the application remains the demonstrable prototype. Real identity, permissions, persistence and provider integrations require backend implementation.
 
 ---
 
@@ -111,31 +97,35 @@ Operations that may be retried accept a client-generated idempotency key:
 - **Mock protocol today:** `idempotencyKey` body field (checkout complete, POS complete) — engines persist scoped idempotency records.
 - **REST protocol:** `Idempotency-Key` request header (the HTTP adapter forwards it automatically when a caller passes one).
 
-Guarantees (enforced by engines, verified by regression suite):
+Replay guarantees below are enforced for mock checkout/POS. The production backend must implement durable replay for every operation it declares retryable; forwarding a header alone does not establish that guarantee.
 
-1. Same key + same payload → **replays the original result**; no second side effect (no double reservation, no double stock deduction, no double refund).
+1. Same key + same payload → **replays the original result**; no second side effect.
 2. Same key + different payload → `409 IDEMPOTENCY_CONFLICT`; nothing applied.
 3. New key → normal execution.
 
 ### 2.6 Cache refresh after stock/order/payment/return changes
 
-`src/services/operation-registry.ts` declares, per operation, which resource families a successful mutation invalidates: `catalog`, `stock`, `orders`, `payments`, `returns`, `delivery`, `sessions`, `config`, `ai`. After a successful mutation the browser adapter drops matching cached reads (default GET TTL is 0 = no-store, correct for live stock; raise with `NEXT_PUBLIC_CACHE_TTL_MS`) and dispatches a `vg:cache-invalidated` `CustomEvent` so mounted screens refetch. `demo.reset` invalidates everything. Server components render per request (dynamic), so RSC reads are always fresh.
+`src/services/operation-registry.ts` declares, per operation, which resource families a successful mutation invalidates: `catalog`, `stock`, `orders`, `payments`, `returns`, `delivery`, `sessions`, `config`, `ai`. After a successful mutation the browser adapter drops matching cached reads (default GET TTL is 0 = no-store, correct for live stock; raise with `NEXT_PUBLIC_CACHE_TTL_MS`) and dispatches a `vg:cache-invalidated` `CustomEvent`. Screens using the shared `useApiData` hook subscribe and reload; custom loaders need their own refresh handling. Cache keys encode query tuples; generation and per-key request guards prevent invalidated or older reads from restoring stale data. `demo.reset` invalidates everything. Server components render per request (dynamic), so RSC reads are always fresh.
 
 **Example:** after `admin.pos.complete`, cached `catalog`, `stock`, `orders`, `payments` and `sessions` reads are dropped — POS search, inventory overview and the dashboard all refetch.
 
 ### 2.7 Validation schemas
 
-`src/services/contracts/validation.ts` holds the zod request schemas for every mutating operation (quantities positive decimal strings, money non-negative integers, payment-method enums, idempotency key length ≥ 8, `min(1)` line arrays, …). They run:
+`src/services/contracts/validation.ts` holds the zod request schemas for 16 high-impact operations (quantities positive decimal strings, money non-negative integers, payment-method enums, idempotency key length ≥ 8, `min(1)` line arrays, …). They run:
 
 - **client-side** in both adapters before a request is sent (fast feedback),
 - **server-side** in the future NestJS backend (authoritative — the backend MUST re-validate; client validation is UX, not security),
-- **in CI** via `scripts/contracts-check.ts`, which also validates live responses against the response schemas so the contracts cannot drift from behaviour (30 assertions).
+- **in CI** via `scripts/contracts-check.ts`, which also validates live responses against the response schemas for the covered operations (32 assertions). This is selected response coverage, not complete runtime response validation for every operation.
 
 ---
 
+### 2.8 Return stock history
+
+Every inspection records all credited `{lotId, quantity}` entries in `disposition.stockLots`. The first `lotId` remains for compatibility. Reclassification validates all entries before reversing any credit, retains zeroed historical lots and records compensating movements. Moved/reserved stock or legacy records with incomplete history require reconciliation. Use the earliest known original expiry; production inspection must quarantine unknown perishable provenance.
+
 ## 3. Operation surface and REST mapping
 
-**92 mock operations today** (the router's dispatch table) map to the proposed REST endpoints below. The OpenAPI definition (`docs/openapi.yaml`, 92 operations) is normative for shapes; this table is the complete inventory and the migration checklist. A REST adapter maps dot-paths to paths mechanically: `checkout.complete` → `POST /checkout/complete`.
+**92 mock operations today** (the router's dispatch table) map to the proposed REST endpoints below. The OpenAPI definition (`docs/openapi.yaml`, 92 operations) is normative for shapes; this table is the complete inventory and the migration checklist. The executable mapping is `src/services/contracts/endpoints.ts`. REST paths and methods are explicit; resource IDs are encoded into path parameters, and catalogue search translates `query` to `q`. Demo HTTP calls use an explicitly selected mock protocol. CI checks all 92 mapping rows against OpenAPI and actual HTTP requests.
 
 ### 3.1 Catalogue (public, no auth)
 
@@ -290,7 +280,7 @@ Guarantees (enforced by engines, verified by regression suite):
 
 Today the prototype is unauthenticated (honest boundary; see `docs/KNOWN_ISSUES.md`). The contract reserves:
 
-- `bearerAuth` (JWT access tokens) on the OpenAPI security scheme; the browser adapter already attaches `Authorization: Bearer …` from `vg.api_token` storage when a production base URL is configured, and the server adapter attaches `API_SERVICE_TOKEN`.
+- `bearerAuth` (JWT access tokens) on the OpenAPI security scheme; native clients supply bearer credentials through a secure session adapter. Web HTTP uses `credentials: include` for planned secure HttpOnly sessions, with backend origin/CSRF checks and credentialed CORS where needed. No web bearer credential is read from localStorage. The server adapter can attach `API_SERVICE_TOKEN`; authentication itself is not implemented by this handoff.
 - `UNAUTHENTICATED` (401) and `FORBIDDEN` (403) error codes with defined screen behaviour (re-auth prompt vs. permission notice).
 - The **35-permission / 8-role matrix** in `docs/PERMISSIONS.md` is the authorisation model the backend must enforce per operation; customer and rider endpoints additionally enforce **resource ownership** (`customerId`, `riderId` must match the session principal).
 - Refresh, revocation, device sessions: see `docs/MOBILE_READINESS.md`.
@@ -301,7 +291,7 @@ Today the prototype is unauthenticated (honest boundary; see `docs/KNOWN_ISSUES.
 - **Stock handover** (`consume`) revalidates reservation coverage and physical lot quantities inside the operation; failures return `RESERVATION_LOST` / `OUT_OF_STOCK` and mutate nothing.
 - **Provider callbacks are idempotent** — duplicate events are acknowledged, never double-applied; late successes route to review.
 - **Refunds revalidate balances** at execution: per-return refundable amount and order-level paid amount, accounting for completed refunds and unresolved commitments.
-- Client retry policy: safe to retry any operation carrying an idempotency key; other mutations should be user-initiated (buttons) rather than auto-retried. Transport failures raise `NETWORK` and leave local state unchanged.
+- Client retry policy: retry automatically only when the backend implements durable key replay for that operation; other mutations should be user-initiated (buttons) rather than auto-retried. Transport failures raise `NETWORK`. The server may already have committed a mutation before its response was lost; retain the original key and reconcile the outcome before presenting success or resubmitting.
 
 ## 6. Versioning & compatibility
 
@@ -321,4 +311,4 @@ Today the prototype is unauthenticated (honest boundary; see `docs/KNOWN_ISSUES.
 | Acceptance suite | `bash scripts/acceptance-checks.sh` | 24 business rules over HTTP (transport/HTTP/JSON failures abort — no false passes). |
 | Handoff regressions | `bun scripts/handoff-regressions.ts` | The 7 audited defects + admin.returns contract stay fixed. |
 | Type check | `npx tsc --noEmit` | Screen ↔ contract typing with no suppression. |
-| CI | `.github/workflows/ci.yml` | lint + tsc + build + all four suites on every push. |
+| CI | `.github/workflows/ci.yml` | lint + tsc + build + all five suites on every push. |

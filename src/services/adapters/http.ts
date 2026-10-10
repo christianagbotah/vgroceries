@@ -1,108 +1,125 @@
-/**
- * HTTP service adapter — the production client.
- *
- * Talks to any base URL that renders the service contract:
- *   - today: the Next.js dev mock route (`/api/mock/v1`) — same envelope;
- *   - production: the NestJS API (e.g. https://api.varietygrocery.com/api/v1)
- *     selected via NEXT_PUBLIC_API_BASE_URL (browser) / API_BASE_URL (server).
- *
- * Behaviour:
- *   - GET for reads, POST for mutations (body present).
- *   - `Idempotency-Key` header when the caller passes one.
- *   - Request bodies are validated against the shared zod schemas
- *     (src/services/contracts/validation.ts) BEFORE the request is sent.
- *   - Accepts both the current `{ok,data|error}` envelope and RFC 7807
- *     `application/problem+json` from the future REST backend; both are
- *     normalised into `ApiError` with canonical codes.
- *   - Transport failures and unreadable payloads raise NETWORK / BAD_RESPONSE.
- *   - 20s timeout per request via AbortController.
- */
-
-import { ApiError, type ServiceAdapter, type ServiceRequest } from "./types";
+/** HTTP transport for the production REST contract or the explicit demo protocol. */
+import { ApiError, normalizedRequestBody, type ServiceAdapter, type ServiceRequest } from "./types";
 import { validateRequest } from "../contracts/validation";
+import { restEndpoints } from "../contracts/endpoints";
 
 const REQUEST_TIMEOUT_MS = 20_000;
+export interface HttpAdapterOptions {
+  headers?: () => Record<string, string>;
+  kind?: string;
+  protocol?: "rest" | "mock";
+  credentials?: RequestCredentials;
+  timeoutMs?: number;
+}
 
-function buildUrl(base: string, req: ServiceRequest): string {
-  const method = req.body !== undefined ? "POST" : "GET";
-  // Mock operations use "." namespaces; the dev route maps them to "/".
-  // A REST base URL receives the same path form (see docs/API_CONTRACTS.md §Mapping).
-  const suffix = req.op.replace(/\./g, "/");
-  const qs = new URLSearchParams();
-  for (const [k, v] of Object.entries(req.query ?? {})) {
-    if (v !== undefined && v !== null && v !== "") qs.set(k, String(v));
+function buildRequest(base: string, req: ServiceRequest, body: Record<string, unknown> | undefined, protocol: "rest" | "mock") {
+  const query = new URLSearchParams();
+  for (const [key, value] of Object.entries(req.query ?? {})) {
+    if (value !== undefined && value !== null && value !== "") query.set(key, String(value));
   }
-  const s = qs.toString();
-  return `${base.replace(/\/$/, "")}/${suffix}${method === "GET" && s ? `?${s}` : ""}`;
+  let method: "GET" | "POST";
+  let path: string;
+  if (protocol === "mock") {
+    method = body !== undefined ? "POST" : "GET";
+    path = `/${req.op.replace(/\./g, "/")}`;
+  } else {
+    const endpoint = Object.hasOwn(restEndpoints, req.op) ? restEndpoints[req.op] : undefined;
+    if (!endpoint) throw new ApiError("NOT_FOUND", `Unknown service operation: ${req.op}`);
+    method = endpoint.method;
+    path = endpoint.path.replace(/\{([^}]+)\}/g, (_, key: string) => {
+      const value = req.query?.[key] ?? body?.[key];
+      if (value === undefined || value === null || value === "") {
+        throw new ApiError("VALIDATION_FAILED", `${key} is required for ${req.op}.`);
+      }
+      query.delete(key);
+      return encodeURIComponent(String(value));
+    });
+    for (const [screenKey, restKey] of Object.entries(endpoint.queryAliases ?? {})) {
+      const value = query.get(screenKey);
+      if (value !== null && !query.has(restKey)) query.set(restKey, value);
+      query.delete(screenKey);
+    }
+  }
+  const suffix = method === "GET" && query.size > 0 ? `?${query}` : "";
+  return { url: `${base.replace(/\/+$/, "")}${path}${suffix}`, method };
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+function textField(value: unknown): string | undefined {
+  return typeof value === "string" && value.trim() ? value : undefined;
+}
+function statusCode(status: number): string {
+  return ({ 400: "VALIDATION_FAILED", 401: "UNAUTHENTICATED", 403: "FORBIDDEN", 404: "NOT_FOUND",
+    409: "CONFLICT", 422: "RULE_VIOLATION", 500: "INTERNAL" } as Record<number, string>)[status] ?? `HTTP_${status}`;
+}
+function decode<T>(res: Response, json: unknown): T {
+  if (isRecord(json) && "ok" in json) {
+    if (json.ok === true && Object.hasOwn(json, "data") && json.error === undefined) {
+      if (res.ok) return json.data as T;
+      throw new ApiError(statusCode(res.status), "The response status contradicts its success envelope.");
+    }
+    if (json.ok === false && isRecord(json.error)) {
+      const code = textField(json.error.code), message = textField(json.error.message);
+      if (code && message) throw new ApiError(code, message, json.error.details);
+    }
+    throw new ApiError("BAD_RESPONSE", "The service returned a malformed response envelope.");
+  }
+  if (res.ok) {
+    if (isRecord(json) || Array.isArray(json)) return json as T;
+    throw new ApiError("BAD_RESPONSE", "The service returned an invalid resource.");
+  }
+  const problem = isRecord(json) ? json : {};
+  const type = textField(problem.type);
+  const code = textField(problem.code) ?? (type && /^[A-Z][A-Z0-9_]+$/.test(type) ? type : statusCode(res.status));
+  throw new ApiError(code, textField(problem.detail) ?? textField(problem.message) ?? textField(problem.title) ?? "Request failed.", problem.details);
 }
 
 export class HttpServiceAdapter implements ServiceAdapter {
   readonly kind: string;
-  private readonly base: string;
-  /** Extra header injection hook (auth bearer, trace ids, …). */
-  private readonly headers?: () => Record<string, string>;
-
-  constructor(base: string, opts: { headers?: () => Record<string, string>; kind?: string } = {}) {
-    this.base = base;
-    this.headers = opts.headers;
+  private readonly protocol: "rest" | "mock";
+  private readonly timeoutMs: number;
+  constructor(private readonly base: string, private readonly opts: HttpAdapterOptions = {}) {
     this.kind = opts.kind ?? `http:${base}`;
+    this.protocol = opts.protocol ?? "rest";
+    this.timeoutMs = opts.timeoutMs ?? REQUEST_TIMEOUT_MS;
+    if (!Number.isFinite(this.timeoutMs) || this.timeoutMs <= 0) throw new RangeError("Request timeout must be positive.");
   }
 
   async request<T = unknown>(req: ServiceRequest): Promise<T> {
-    const method = req.body !== undefined ? "POST" : "GET";
-
+    const body = normalizedRequestBody(req);
+    const { url, method } = buildRequest(this.base, req, body, this.protocol);
     if (method === "POST" && !req.skipValidation) {
-      const checked = validateRequest(req.op, req.body ?? {});
-      if (!checked.ok) {
-        throw new ApiError("VALIDATION_FAILED", `Invalid request for ${req.op}: ${checked.issues.join("; ")}`);
-      }
+      const checked = validateRequest(req.op, body ?? {});
+      if (!checked.ok) throw new ApiError("VALIDATION_FAILED", `Invalid request for ${req.op}: ${checked.issues.join("; ")}`);
     }
-
+    const key = req.idempotencyKey ?? textField(body?.idempotencyKey);
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
-    let res: Response;
+    const timer = setTimeout(() => controller.abort(), this.timeoutMs);
     try {
-      res = await fetch(buildUrl(this.base, req), {
-        method,
-        headers: {
+      const res = await fetch(url, {
+        method, headers: {
           ...(method === "POST" ? { "Content-Type": "application/json" } : {}),
-          ...(req.idempotencyKey ? { "Idempotency-Key": req.idempotencyKey } : {}),
-          ...(this.headers?.() ?? {}),
+          ...(this.opts.headers?.() ?? {}),
+          ...(key ? { "Idempotency-Key": key } : {}),
         },
-        body: method === "POST" ? JSON.stringify(req.body ?? {}) : undefined,
-        cache: "no-store",
-        signal: controller.signal,
+        body: method === "POST" ? JSON.stringify(body ?? {}) : undefined,
+        credentials: this.opts.credentials ?? "same-origin", cache: "no-store", signal: controller.signal,
       });
-    } catch (err) {
-      clearTimeout(timer);
-      const aborted = err instanceof DOMException && err.name === "AbortError";
-      throw new ApiError(
-        "NETWORK",
-        aborted ? `Request to ${req.op} timed out.` : "Could not reach the service. Check your connection and try again."
-      );
-    }
-    clearTimeout(timer);
-
-    let json: unknown;
-    try {
-      json = await res.json();
-    } catch {
-      throw new ApiError("BAD_RESPONSE", "The service returned an unreadable response.");
-    }
-
-    // Current mock envelope: {ok:true,data} | {ok:false,error{code,message}}
-    if (typeof json === "object" && json !== null && "ok" in json) {
-      const env = json as { ok?: boolean; data?: T; error?: { code: string; message: string; details?: unknown } };
-      if (res.ok && env.ok && env.error === undefined) return env.data as T;
-      if (env.error) {
-        throw new ApiError(env.error.code ?? `HTTP_${res.status}`, env.error.message ?? "Request failed.", env.error.details);
+      let json: unknown;
+      try { json = await res.json(); }
+      catch {
+        if (controller.signal.aborted) throw new ApiError("NETWORK", `Request to ${req.op} timed out.`);
+        throw new ApiError("BAD_RESPONSE", "The service returned an unreadable response.");
       }
-      throw new ApiError(`HTTP_${res.status}`, "Request failed.");
+      return decode<T>(res, json);
+    } catch (error) {
+      if (error instanceof ApiError) throw error;
+      throw new ApiError("NETWORK", controller.signal.aborted ? `Request to ${req.op} timed out.`
+        : "Could not reach the service. Check your connection and try again.");
+    } finally {
+      clearTimeout(timer);
     }
-
-    // Future REST rendering: RFC 7807 problem+json or bare resource on 2xx.
-    if (res.ok) return json as T;
-    const problem = json as { title?: string; detail?: string; type?: string };
-    throw new ApiError(problem.type ?? `HTTP_${res.status}`, problem.detail ?? problem.title ?? "Request failed.");
   }
 }

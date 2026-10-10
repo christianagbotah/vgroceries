@@ -14,12 +14,15 @@
 
 import { HttpServiceAdapter } from "./http";
 import { MockServiceAdapter } from "./mock";
-import type { ServiceAdapter } from "./types";
+import { ApiError, type ServiceAdapter } from "./types";
 
 let serverAdapter: ServiceAdapter | undefined;
 
 /** The adapter used by server components (src/services/server-data.ts). */
 export function resolveServerAdapter(): ServiceAdapter {
+  if (Boolean(process.env.API_BASE_URL) !== Boolean(process.env.NEXT_PUBLIC_API_BASE_URL)) {
+    throw new ApiError("CONFIGURATION_ERROR", "Configure both API_BASE_URL and NEXT_PUBLIC_API_BASE_URL to select the same backend mode.");
+  }
   if (serverAdapter) return serverAdapter;
   const base = process.env.API_BASE_URL;
   serverAdapter = base

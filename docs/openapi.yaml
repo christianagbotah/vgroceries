@@ -32,12 +32,13 @@ info:
     name: Proprietary
 servers:
   - url: https://api.varietygrocery.com/api/v1
-    description: Production
-  - url: http://localhost:3000/api/mock/v1
-    description: Development mock (same envelope, dot-paths)
+    description: Proposed production deployment
+  - url: http://localhost:4000/api/v1
+    description: Planned local NestJS API; the mock route uses a different wire protocol
 
 security:
   - bearerAuth: []
+  - sessionCookie: []
 
 tags:
   - { name: Catalog, description: Public catalogue, pricing, availability }
@@ -1770,6 +1771,11 @@ paths:
 
 components:
   securitySchemes:
+    sessionCookie:
+      type: apiKey
+      in: cookie
+      name: vg_session
+      description: Planned secure HttpOnly web session. Mutations require backend origin/CSRF checks.
     bearerAuth:
       type: http
       scheme: bearer
@@ -1805,21 +1811,29 @@ components:
       content:
         application/json:
           schema: { $ref: "#/components/schemas/Error" }
+        application/problem+json:
+          schema: { $ref: "#/components/schemas/Problem" }
     ValidationError:
       description: Request failed validation
       content:
         application/json:
           schema: { $ref: "#/components/schemas/Error" }
+        application/problem+json:
+          schema: { $ref: "#/components/schemas/Problem" }
     Conflict:
       description: Stale state or idempotency conflict
       content:
         application/json:
           schema: { $ref: "#/components/schemas/Error" }
+        application/problem+json:
+          schema: { $ref: "#/components/schemas/Problem" }
     RuleViolation:
       description: Business rule refused the transition
       content:
         application/json:
           schema: { $ref: "#/components/schemas/Error" }
+        application/problem+json:
+          schema: { $ref: "#/components/schemas/Problem" }
 
   schemas:
     Error:
@@ -1828,23 +1842,22 @@ components:
       properties:
         code:
           type: string
-          enum:
-            [
-              VALIDATION_FAILED,
-              NOT_FOUND,
-              UNAUTHENTICATED,
-              FORBIDDEN,
-              CONFLICT,
-              OUT_OF_STOCK,
-              RESERVATION_LOST,
-              IDEMPOTENCY_CONFLICT,
-              INVALID_INPUT,
-              RULE_VIOLATION,
-              BAD_RESPONSE,
-              NETWORK,
-              INTERNAL,
-            ]
+          description: Stable machine-readable domain code, including operation-specific codes.
+          example: OUT_OF_STOCK
         message: { type: string }
+        details: {}
+
+    Problem:
+      type: object
+      required: [type, title, status, code]
+      description: Problem details with a stable domain code extension; type is a URI, not the code.
+      properties:
+        type: { type: string, format: uri }
+        title: { type: string }
+        status: { type: integer, minimum: 400, maximum: 599 }
+        detail: { type: string }
+        instance: { type: string }
+        code: { type: string, example: OUT_OF_STOCK }
         details: {}
 
     Money:

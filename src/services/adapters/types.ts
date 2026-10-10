@@ -53,6 +53,15 @@ export class ApiError extends Error {
   }
 }
 
+/** Normalize replay metadata before either transport validates or sends it. */
+export function normalizedRequestBody(req: ServiceRequest): Record<string, unknown> | undefined {
+  if (req.idempotencyKey !== undefined && req.body?.idempotencyKey !== undefined && req.body.idempotencyKey !== req.idempotencyKey) {
+    throw new ApiError("IDEMPOTENCY_CONFLICT", "The transport and body idempotency keys disagree.");
+  }
+  if (req.body === undefined && req.idempotencyKey === undefined) return undefined;
+  return { ...(req.body ?? {}), ...(req.idempotencyKey !== undefined ? { idempotencyKey: req.idempotencyKey } : {}) };
+}
+
 /** The service interface. Implementations must be safe to share per runtime. */
 export interface ServiceAdapter {
   /** Unique name for diagnostics (e.g. "http:https://api…", "mock"). */

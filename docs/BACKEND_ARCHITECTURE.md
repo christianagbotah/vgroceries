@@ -7,7 +7,7 @@
 
 ## 1. Target workspace
 
-A pnpm/bun workspace keeps web, API, workers, mobile and shared contracts in one repository without forcing a wholesale rewrite — the current Next.js app moves in as `apps/web` **unchanged** (its adapter seam already speaks the contract).
+A pnpm/bun workspace can hold web, API, workers, mobile and shared contracts. Introduce backend packages alongside the current web application first; move the web directory into `apps/web` as a separate verified migration, including build paths and deployment configuration.
 
 ```
 vgroceries/                        (monorepo)
@@ -26,8 +26,8 @@ vgroceries/                        (monorepo)
 
 **Migration order (proportionate, no rewrite):**
 
-1. Move the current repo into `apps/web` with `packages/contracts` extracted; verify the web build and all five suites still pass (they run against the dev mock adapter).
-2. Stand up `apps/api` with identity + catalogue + inventory (read paths first) and point `NEXT_PUBLIC_API_BASE_URL`/`API_BASE_URL` at it — the web app switches by env var only.
+1. Introduce API/worker packages alongside the current web application. Move the web directory and extract shared packages as a separate verified workspace migration.
+2. Stand up identity, catalogue and inventory reads in a private integration preview. Keep the public shop on one consistent authority until commerce, money and delivery are ready; a live catalogue must not feed mock checkout.
 3. Port write paths module-by-module (checkout/POS first — they exercise reservations), porting each mock engine's rules as service tests before implementation.
 4. Add workers, then providers (payments, couriers), then AI.
 
@@ -37,7 +37,7 @@ The current SQLite/Prisma starter was **deleted from this repo** (unused scaffol
 
 ## 2. Module boundaries (NestJS)
 
-Each module owns its tables, enforces its invariants, and communicates with others via **domain events through the outbox** (never cross-module table writes). Public operations map 1:1 to the REST contract.
+Each module owns its tables and exposes explicit services. Commands needing atomic order/stock/payment changes call those services synchronously in one PostgreSQL transaction; no module edits another module’s tables directly. Outbox events deliver background work after commit. Stable frontend operations map to the REST contract; aliases can share a resource.
 
 | Module | Owns | Key invariants |
 | --- | --- | --- |
@@ -80,6 +80,9 @@ unit_conversions(id PK, variant_id FK, base_unit, alt_unit, factor NUMERIC(12,3)
                  UNIQUE(variant_id, alt_unit))
 price_history(id PK, variant_id FK, price_minor BIGINT, changed_by FK, changed_at, reason)
 locations(id PK, kind /* store|zone|shelf|bin|quarantine */, code UNIQUE, parent_id FK NULL, name)
+inventory_stock_keys(variant_id FK, location_id FK, PRIMARY KEY (variant_id, location_id))
+  -- stable coordination rows created before use; lock affected keys in consistent order
+stock_depletion_events(id PK, order_id FK UNIQUE, occurred_at)
 
 lots(id PK, variant_id FK, lot_number, location_id FK, kind /* regular|quarantine|damaged|returned */,
      quantity NUMERIC(12,3) CHECK (quantity >= 0), unit_cost_minor BIGINT,
@@ -90,11 +93,14 @@ stock_movements(id PK, lot_id FK, variant_id FK, delta NUMERIC(12,3),           
      reason /* receive|sale_consume|return_restock|return_dispose|adjust|stocktake|quarantine|transfer */,
      order_id FK NULL, return_id FK NULL, reservation_id FK NULL, adjustment_id FK NULL,
      resulting_quantity NUMERIC(12,3), actor_id FK, occurred_at, note,
-     dedupe_key UNIQUE NULL)          -- e.g. "consume:{orderId}" → duplicate execution rejected
+     depletion_event_id FK NULL,
+     dedupe_key UNIQUE NULL)          -- e.g. "consume:{orderId}:{allocationId}"
 
 reservations(id PK, variant_id FK, order_id FK, quantity NUMERIC(12,3) CHECK (quantity > 0),
      status /* active|consumed|released|expired */, expires_at, consumed_at, consumed_by_movement_id FK NULL,
      released_at, released_reason, created_at)
+reservation_allocations(id PK, reservation_id FK, order_line_id FK, lot_id FK,
+     quantity NUMERIC(12,3) CHECK (quantity > 0))
 ```
 
 **Availability is derived, never stored loosely:** `sellable_physical(variant, location) = Σ active lots(kind regular, not quarantined, not expired, quantity>0)`; `reserved = Σ reservations active`; `available_to_sell = sellable_physical − reserved − safety_stock`. The frontend's availability engine (`src/services/mock/engine/availability.ts`) is the reference semantics.
@@ -181,25 +187,25 @@ outbox(id PK, aggregate_type, aggregate_id, event_type, payload JSONB, created_a
 | --- | --- |
 | Positive quantities everywhere | `CHECK (quantity > 0)` on order_lines, return_lines, reservations, purchase_lines + zod at the edge (the POS negative-quantity defect class) |
 | Separate state dimensions | Three columns on `orders`; three state machines in services; no derived coupling |
-| One depletion per handover | `stock_movements.dedupe_key UNIQUE` (`consume:{orderId}`) + `orders.stock_consumed_at` written in the same transaction |
+| One depletion per handover | `stock_depletion_events.order_id UNIQUE`; movements use distinct per-allocation keys and link to that event; `orders.stock_consumed_at` is written in the same transaction |
 | Reservation integrity | Consumption transaction: `SELECT … FOR UPDATE` the active reservations of the order; require full coverage; require lot physical ≥ allocation before any mutation |
 | Refund ceilings | Trigger/service: Σ succeeded + Σ unresolved(processing/awaiting) refunds per return ≤ approved refundable; per order ≤ paid − already refunded |
 | Idempotent checkout | `idempotency_records(scope='checkout', key)` unique; same hash → replay, different hash → conflict |
-| Audit | Row-level security: `audit_log` insert-only for the app role |
+| Audit | Application role has INSERT and authorised SELECT, with no UPDATE/DELETE privilege on audit records |
 | Outbox atomicity | Outbox insert happens in the SAME transaction as the state change (see §5) |
 
 ### 3.5 Migration approach
 
 1. Prisma (or Drizzle — either works; Prisma matches the team's NestJS convention) schema from §3, generated into `apps/api`.
-2. Seed from the prototype's fixtures: `src/services/mock/seed-catalog.ts` (52 products/10 categories) and `seed-ops.ts` (14 scenario orders, payments, returns, jobs) port to seed scripts — the demo scenarios keep working against PostgreSQL, and the acceptance suites (which run over HTTP) transfer unchanged.
-3. Cutover per §1: reads first, then checkout/POS, then the rest; at every step the 21+3 acceptance checks, 7-defect regressions and 30 contracts checks must pass against the new backend.
+2. Port the prototype catalogue and scenario fixtures to database seed scripts. Preserve the scenarios while adapting HTTP tests to REST routes and real session fixtures.
+3. Implement in a private integration preview before complete production cutover. Port direct-engine regressions to database-backed tests; HTTP suites must use the REST surface and planned API fixtures rather than unchanged mock URLs.
 4. The SQLite starter is gone; no data to migrate.
 
 ---
 
 ## 4. Money, quantities, and calculation policy
 
-- **All money is `BIGINT` minor units** (pesewas). No float columns, no float arithmetic anywhere authoritative. Line totals = integer price × integer-scaled quantity, computed server-side with exact decimal math (`NUMERIC` semantics, banker-free truncation policy documented per market rule); totals = Σ line totals − discount + delivery fee. Discounts/taxes are configured amounts in minor units with documented rounding at the line vs order level (single choice, enforced in one shared money service).
+- **All money is `BIGINT` minor units** (pesewas). No float columns, no float arithmetic anywhere authoritative. Line totals = integer price × integer-scaled quantity, computed server-side with exact decimal math (`NUMERIC` semantics, owner-configured rounding policy enforced by one money service); totals = Σ line totals − discount + delivery fee. Discounts/taxes are configured amounts in minor units with documented rounding at the line vs order level (single choice, enforced in one shared money service).
 - **Quantities are `NUMERIC(12,3)`** decimal strings over the wire (never JS numbers); unit conversions use exact factors (`NUMERIC`), never binary floats.
 - **Prices, totals and refund caps are always server-calculated** — the client may display but never submit them. Refund caps: per-line `unit_price × quantity` aggregates, per-return approved amount, per-order paid balance.
 
@@ -209,7 +215,7 @@ outbox(id PK, aggregate_type, aggregate_id, event_type, payload JSONB, created_a
 
 ```
 BEGIN;
-  lock variant rows (SELECT … FOR UPDATE on lots/reservations)
+  lock all affected inventory_stock_keys rows in consistent variant/location order
   for each line: verify available_to_sell ≥ qty (physical − reserved − safety)
   create order + lines (totals server-computed)
   create reservations (expires_at = now + settings.reservationTtlMinutes)
@@ -218,9 +224,9 @@ BEGIN;
 COMMIT;
 ```
 
-Any failure rolls back everything — the prototype's behaviour (OUT_OF_STOCK with per-line conflicts, nothing held) is the specification.
+All stock-mutating commands use the same coordination locks, including POS, expiry, release, transfers, adjustments and return dispositions. Relevant allocation/reservation rows are then locked and revalidated before any mutation. Any failure rolls back everything — the prototype's behaviour (OUT_OF_STOCK with per-line conflicts, nothing held) is the specification.
 
-**One stock-depletion event per handover:** consumption runs in one transaction — re-lock reservations (all must be `active`, covering the order), re-check lot physical quantities FEFO, write one `stock_movements` row per allocation with `dedupe_key = consume:{orderId}`, set `stock_consumed_at`, mark reservations `consumed`, insert `order.stock_consumed` + `delivery.*` events into the outbox, commit. A retried consumption hits the dedupe key and replays the original result; a released/expired reservation fails with `RESERVATION_LOST` and mutates nothing.
+**One stock-depletion event per handover:** consumption locks affected coordination rows and allocations in consistent order, rechecks active unexpired reservation coverage and eligible lot quantities, then writes one unique order depletion event and distinct movements keyed by `consume:{orderId}:{allocationId}`. Record `stock_consumed_at`, consume reservations and insert outbox events in the same transaction. A retry replays the completed event; a released/expired reservation fails with `RESERVATION_LOST` and mutates nothing.
 
 **Outbox pattern:** every state change that needs background work (provider calls, notifications, report refresh, AI enqueue) writes its event in the same transaction. A dispatcher worker polls `outbox WHERE dispatched_at IS NULL AND next_attempt_at <= now()`, delivers to BullMQ queues, and marks rows dispatched with exponential backoff (`attempts`, `last_error` give failure visibility). Workers are separately deployable (`apps/workers`), horizontally scalable, and safe to restart — undelivered events simply retry.
 
@@ -233,6 +239,8 @@ Any failure rolls back everything — the prototype's behaviour (OUT_OF_STOCK wi
 | `delivery` | courier dispatch, notifications, slot booking | 5 attempts |
 | `reports` | nightly/daily aggregates, CSV builds | 3 attempts |
 | `ai` | forecasting, long-running assistance | 3 attempts; see AI doc |
+
+**Delivery guarantee:** outbox publication is at least once. Consumers durably deduplicate event IDs; external provider calls retain command idempotency keys and reconcile uncertain outcomes. A crash after publication can cause another delivery, so no exactly-once notification guarantee is assumed.
 
 **Monitoring & failure visibility:** worker heartbeats + queue depth + dead-letter counts exported (Prometheus `/metrics`); every failed job appears in an internal ops screen backed by `outbox.last_error` and BullMQ failed-job metadata — no silent drops. The admin dashboard's actionable counters (pending payments, unassigned jobs, exceptions) read the same tables, so staff see failures in-product, not only in dashboards.
 

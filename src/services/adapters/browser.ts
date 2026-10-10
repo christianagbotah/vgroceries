@@ -17,40 +17,42 @@
  */
 
 import { HttpServiceAdapter } from "./http";
-import { ApiError, type ServiceAdapter, type ServiceRequest } from "./types";
+import { ApiError, normalizedRequestBody, type ServiceAdapter, type ServiceRequest } from "./types";
 import { invalidatesTags, readTags } from "../operation-registry";
 import type { CacheInvalidationEvent, CacheTag } from "../contracts/common";
+import { restEndpoints } from "../contracts/endpoints";
 
 export const CACHE_INVALIDATED_EVENT = "vg:cache-invalidated";
 
 interface CacheEntry {
   at: number;
   value: unknown;
+  tags: CacheTag[];
 }
 
 const TTL_MS = Number(process.env.NEXT_PUBLIC_CACHE_TTL_MS ?? 0) || 0;
 const cache = new Map<string, CacheEntry>();
+let cacheEpoch = 0;
+let readSequence = 0;
+const latestReads = new Map<string, number>();
 
 function cacheKey(req: ServiceRequest): string {
   const q = Object.entries(req.query ?? {})
     .filter(([, v]) => v !== undefined && v !== null && v !== "")
-    .map(([k, v]) => `${k}=${String(v)}`)
-    .sort()
-    .join("&");
-  return `${req.op}${q ? `?${q}` : ""}`;
+    .map(([k, v]) => [k, String(v)])
+    .sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0);
+  return JSON.stringify([req.op, q]);
 }
 
 function dropTagged(tags: CacheTag[]): void {
+  cacheEpoch++;
   if (tags.includes("*")) {
     cache.clear();
     return;
   }
   for (const key of cache.keys()) {
     const entry = cache.get(key);
-    if (entry && Array.isArray((entry as CacheEntry & { tags?: CacheTag[] }).tags)) {
-      const entryTags = (entry as CacheEntry & { tags: CacheTag[] }).tags;
-      if (entryTags.some((t) => tags.includes(t))) cache.delete(key);
-    }
+    if (entry?.tags.some((t) => tags.includes(t))) cache.delete(key);
   }
 }
 
@@ -64,14 +66,26 @@ class CachingBrowserAdapter implements ServiceAdapter {
   }
 
   async request<T = unknown>(req: ServiceRequest): Promise<T> {
-    const isMutation = req.body !== undefined;
+    const isMutation = normalizedRequestBody(req) !== undefined ||
+      (Object.hasOwn(restEndpoints, req.op) && restEndpoints[req.op].method === "POST");
     if (!isMutation && TTL_MS > 0 && readTags(req.op).length > 0) {
       const key = cacheKey(req);
       const hit = cache.get(key);
       if (hit && Date.now() - hit.at < TTL_MS) return hit.value as T;
-      const value = await this.inner.request<T>(req);
-      cache.set(key, { at: Date.now(), value, tags: readTags(req.op) } as CacheEntry & { tags: CacheTag[] });
-      return value;
+      const epoch = cacheEpoch;
+      const sequence = ++readSequence;
+      latestReads.set(key, sequence);
+      try {
+        const value = await this.inner.request<T>(req);
+        // Only the latest read may populate this key. Mutations invalidate
+        // responses started before their stock/order changes.
+        if (epoch === cacheEpoch && latestReads.get(key) === sequence) {
+          cache.set(key, { at: Date.now(), value, tags: readTags(req.op) });
+        }
+        return value;
+      } finally {
+        if (latestReads.get(key) === sequence) latestReads.delete(key);
+      }
     }
     const value = await this.inner.request<T>(req);
     if (isMutation) {
@@ -92,6 +106,7 @@ class CachingBrowserAdapter implements ServiceAdapter {
 
   /** Test/demo hook: wipe the client cache. */
   clearCache(): void {
+    cacheEpoch++;
     cache.clear();
   }
 }
@@ -109,17 +124,12 @@ export function resolveClientAdapter(): ServiceAdapter {
     browserAdapter = new CachingBrowserAdapter(
       new HttpServiceAdapter(base, {
         kind: "http:api",
-        headers: (): Record<string, string> => {
-          // Future: attach the bearer/session token here — see
-          // docs/MOBILE_READINESS.md §Authentication.
-          const token = typeof window !== "undefined" ? window.localStorage.getItem("vg.api_token") : null;
-          return token ? { Authorization: `Bearer ${token}` } : {};
-        },
+        credentials: "include",
       })
     );
   } else {
     // Development: this app's own versioned mock route.
-    browserAdapter = new CachingBrowserAdapter(new HttpServiceAdapter("/api/mock/v1", { kind: "http:mock-route" }));
+    browserAdapter = new CachingBrowserAdapter(new HttpServiceAdapter("/api/mock/v1", { kind: "http:mock-route", protocol: "mock" }));
   }
   return browserAdapter;
 }

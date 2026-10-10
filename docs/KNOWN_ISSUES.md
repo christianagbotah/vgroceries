@@ -42,15 +42,14 @@ here is hidden; each item states the impact and the follow-up.
     cost ledger (backend owns cost of goods).
 13. **Recharts not used**: report charts are lightweight CSS bars — functional and clean, but a
     richer charting pass is possible.
-14. **Engine tests run via Bun scripts, not a Vitest suite**: business rules are covered by the
+14. **Engine tests run via Bun scripts and the Bun test runner**: business rules are covered by the
     executed acceptance script (`scripts/acceptance-checks.sh`, hardened — 24 checks), the
     handoff regression suite (`scripts/handoff-regressions.ts`, 24 assertions covering the
     review's seven defect classes and the returns-list endpoint) and the shared-contracts suite
-    (`scripts/contracts-check.ts`, 32 assertions); all run in CI. A Vitest runner wrapping the
-    same engines remains nice-to-have cleanup.
+    (`scripts/contracts-check.ts`, 32 assertions); all run in CI, alongside 35 Bun tests for return stock, REST transport, cache races and backend mode.
 15. **Production build verified**: `next build` (Turbopack) completes with strict TypeScript
     (no `ignoreBuildErrors` bypass) and 47/47 pages prerender. CI (`.github/workflows/ci.yml`)
-    runs lint + `tsc --noEmit` + build + all four suites on every push. The earlier
+    runs lint + `tsc --noEmit` + build + all five suites on every push. The earlier
     `useSearchParams()` prerender failures on `/account/returns`, `/track` and
     `/admin/returns` are fixed with Suspense boundaries.
 16. **CSV exports** cover the current filtered dataset for the sales/top-products tables; other
@@ -69,9 +68,15 @@ here is hidden; each item states the impact and the follow-up.
     `NEXT_PUBLIC_API_BASE_URL` falls back to the in-process mock adapter with a one-time console
     warning so the demo remains demonstrable — a demo affordance, not a production
     configuration (documented in docs/API_CONTRACTS.md §1).
+Both backend URLs are required together; mock routes return 404 when either selects backend mode.
+
 22. **Client cache default TTL is 0 (no-store)**: the tag-invalidation machinery is complete and
     exercised, but reads are intentionally not cached in the prototype because stock changes
     live; raising `NEXT_PUBLIC_CACHE_TTL_MS` enables short-TTL caching for the real API.
+
+23. **Validation coverage**: request schemas cover 16 high-impact operations and selected response shapes. The backend must authoritatively validate every operation. Wire tests establish mapping, not the existence of 92 live endpoints.
+24. **Return provenance/reconciliation**: all credited lots are tracked and reversals preserve history. Moved/reserved stock or incomplete legacy metadata blocks reclassification. Unknown perishable provenance must remain quarantined in production.
+25. **Browser refresh**: the shared hook listens for mutation invalidation and ignores older completions. Custom loaders still require their own refresh handling; cross-session realtime updates are not implemented.
 
 ## Execution note
 

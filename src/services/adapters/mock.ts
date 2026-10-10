@@ -15,7 +15,7 @@
  */
 
 import { handleApi } from "../mock/router";
-import { ApiError, type ServiceAdapter, type ServiceRequest } from "./types";
+import { ApiError, normalizedRequestBody, type ServiceAdapter, type ServiceRequest } from "./types";
 import { validateRequest } from "../contracts/validation";
 
 let warnedPrototypeMode = false;
@@ -32,8 +32,9 @@ export class MockServiceAdapter implements ServiceAdapter {
       );
     }
 
-    if (req.body !== undefined && !req.skipValidation) {
-      const checked = validateRequest(req.op, req.body ?? {});
+    const normalizedBody = normalizedRequestBody(req);
+    if (normalizedBody !== undefined && !req.skipValidation) {
+      const checked = validateRequest(req.op, normalizedBody);
       if (!checked.ok) {
         throw new ApiError("VALIDATION_FAILED", `Invalid request for ${req.op}: ${checked.issues.join("; ")}`);
       }
@@ -46,12 +47,11 @@ export class MockServiceAdapter implements ServiceAdapter {
 
     // The mock engines read idempotency keys from the body; surface the
     // header-style key there so both transports behave identically.
-    const body = { ...(req.body ?? {}) } as Record<string, unknown>;
-    if (req.idempotencyKey && body.idempotencyKey === undefined) body.idempotencyKey = req.idempotencyKey;
+    const body = normalizedBody ?? {};
 
     const result = await handleApi({
       path: req.op,
-      method: req.body !== undefined ? "POST" : "GET",
+      method: normalizedBody !== undefined ? "POST" : "GET",
       query,
       body,
     });

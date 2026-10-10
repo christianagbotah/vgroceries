@@ -176,27 +176,42 @@ function originalLotExpiry(store: VgStore, rl: ReturnLine): { expiryDate?: strin
     .map((a) => store.lots.find((x) => x.id === a.lotId))
     .filter((x): x is NonNullable<typeof x> => Boolean(x));
   const dates = lots.map((l) => l.expiryDate).filter((d): d is string => Boolean(d)).sort();
-  return { expiryDate: dates[dates.length - 1], lotNumbers: lots.map((l) => l.lotNumber) };
+  // A partial return does not identify which original batch came back. Use the
+  // earliest known expiry so an older item never inherits a newer batch's date.
+  return { expiryDate: dates[0], lotNumbers: lots.map((l) => l.lotNumber) };
 }
 
-/** Remove a lot created by a previous disposition and record the reversal honestly. */
-function reverseDispositionLot(store: VgStore, ret: ReturnRequest, lotId: string, actor: string): void {
-  const lot = store.lots.find((l) => l.id === lotId);
-  if (!lot) return;
-  store.lots = store.lots.filter((l) => l.id !== lotId);
-  store.movements.push({
-    id: nextId("mov"),
-    variantId: lot.variantId,
-    locationId: lot.locationId,
-    lotId: lot.id,
-    delta: `-${lot.quantity}`,
-    resultingQty: "0",
-    reason: "adjustment",
-    reference: ret.id,
-    actorId: actor,
-    note: `Disposition change on ${ret.reference}: previous stock effect reversed`,
-    at: nowIso(),
+/** Reverse every prior credit atomically, retaining lot records for history. */
+function reverseDispositionLots(store: VgStore, ret: ReturnRequest, actor: string): void {
+  const effects = ret.disposition?.stockLots;
+  // Legacy lotId metadata can omit other credited items, and a lot's current
+  // quantity cannot establish its original credit after stock has moved.
+  if (!effects) {
+    throw new OpError("VALIDATION_FAILED", "This return has incomplete stock history; reconcile its lots before changing the disposition.");
+  }
+  const now = nowIso();
+  const lots = effects.map((effect) => {
+    const lot = store.lots.find((entry) => entry.id === effect.lotId);
+    if (!lot || cmpQty(lot.quantity, effect.quantity) !== 0) {
+      throw new OpError("VALIDATION_FAILED", "Returned stock has moved or changed; reconcile it before changing the disposition.");
+    }
+    // Mock reservations are variant-level, so conservatively protect any active
+    // hold on an affected variant. The real backend will use lot allocations.
+    if (store.reservations.some((r) => r.variantId === lot.variantId && !r.consumedAt && !r.releasedAt && r.expiresAt > now)) {
+      throw new OpError("VALIDATION_FAILED", "Returned stock has active reservations; reconcile them before changing the disposition.");
+    }
+    return lot;
   });
+  // Validate all credits first: a conflict on the final item leaves every item intact.
+  for (const lot of lots) {
+    store.movements.push({
+      id: nextId("mov"), variantId: lot.variantId, locationId: lot.locationId,
+      lotId: lot.id, delta: `-${lot.quantity}`, resultingQty: "0",
+      reason: "adjustment", reference: ret.id, actorId: actor,
+      note: `Disposition change on ${ret.reference}: previous stock effect reversed`, at: now,
+    });
+    lot.quantity = "0";
+  }
 }
 
 export function inspectReturn(
@@ -219,12 +234,12 @@ export function inspectReturn(
       return ret; // idempotent retry: return the recorded result, no second stock effect
     }
     // A disposition change must reconcile the previous stock effect, not add another copy.
-    if (prior.lotId) reverseDispositionLot(store, ret, prior.lotId, actor);
+    reverseDispositionLots(store, ret, actor);
   } else if (ret.status !== "received") {
     throw new OpError("VALIDATION_FAILED", "Return must be received before inspection.");
   }
 
-  let createdLotId: string | undefined;
+  const stockLots: { lotId: string; quantity: string }[] = [];
   if (disposition === "restock_saleable") {
     // returned goods enter a properly recorded new lot — saleable again,
     // carrying the expiry information of the original sale's lots
@@ -244,7 +259,7 @@ export function inspectReturn(
         notes: `Restocked from return ${ret.reference}${origin.lotNumbers.length ? ` (original lots: ${origin.lotNumbers.join(", ")})` : ""}`,
       };
       store.lots.push(lot);
-      createdLotId = lot.id;
+      stockLots.push({ lotId: lot.id, quantity: lot.quantity });
       store.movements.push({
         id: nextId("mov"),
         variantId: line.variantId,
@@ -262,6 +277,7 @@ export function inspectReturn(
   } else if (disposition === "quarantine_pending") {
     for (const rl of ret.lines.map((id) => store.returnLines.find((l) => l.id === id)!)) {
       const line = store.orderLines.find((l) => l.id === rl.orderLineId)!;
+      const origin = originalLotExpiry(store, rl);
       const lot = {
         id: nextId("lot"),
         variantId: line.variantId,
@@ -270,15 +286,22 @@ export function inspectReturn(
         kind: "returns_quarantine" as const,
         quantity: rl.quantity,
         receivedAt: nowIso(),
+        expiryDate: origin.expiryDate,
         isQuarantined: true,
         notes: `Quarantined from return ${ret.reference}`,
       };
       store.lots.push(lot);
-      createdLotId = lot.id;
+      stockLots.push({ lotId: lot.id, quantity: lot.quantity });
+      store.movements.push({
+        id: nextId("mov"), variantId: lot.variantId, locationId: lot.locationId,
+        lotId: lot.id, delta: `+${lot.quantity}`, resultingQty: lot.quantity,
+        reason: "quarantine", reference: ret.id, actorId: actor, note, at: nowIso(),
+      });
     }
   } else if (disposition === "damaged_unsaleable") {
     for (const rl of ret.lines.map((id) => store.returnLines.find((l) => l.id === id)!)) {
       const line = store.orderLines.find((l) => l.id === rl.orderLineId)!;
+      const origin = originalLotExpiry(store, rl);
       const lot = {
         id: nextId("lot"),
         variantId: line.variantId,
@@ -287,18 +310,24 @@ export function inspectReturn(
         kind: "damaged" as const,
         quantity: rl.quantity,
         receivedAt: nowIso(),
+        expiryDate: origin.expiryDate,
         isQuarantined: false,
         notes: `Unsaleable from return ${ret.reference}`,
       };
       store.lots.push(lot);
-      createdLotId = lot.id;
+      stockLots.push({ lotId: lot.id, quantity: lot.quantity });
+      store.movements.push({
+        id: nextId("mov"), variantId: lot.variantId, locationId: lot.locationId,
+        lotId: lot.id, delta: `+${lot.quantity}`, resultingQty: lot.quantity,
+        reason: "adjustment", reference: ret.id, actorId: actor, note, at: nowIso(),
+      });
     }
   }
   // "not_returned" never touches physical stock
 
   ret.status = "inspected";
   ret.inspectedAt = nowIso();
-  ret.disposition = { kind: disposition, lotId: createdLotId, note, by: actor, at: nowIso() };
+  ret.disposition = { kind: disposition, stockLots, lotId: stockLots[0]?.lotId, note, by: actor, at: nowIso() };
   audit(store, actor, "return.inspected", "ReturnRequest", ret.id, { reason: note, after: disposition });
   return ret;
 }

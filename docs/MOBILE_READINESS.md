@@ -2,7 +2,7 @@
 
 **Status:** design prepared now; implementation is a later phase. The constraint that matters today: **mobile compatibility must be designed in**, and it already is — the API contract, the shared schemas and the operation semantics are framework-free and portable. This document specifies what the Android/iOS customer and rider apps will need so the backend team can build it right the first time.
 
-Two apps on one Expo codebase, role-gated:
+Separate customer and rider Expo applications share contracts and client packages:
 
 - **Customer app:** catalogue, cart, checkout, order tracking, returns, AI assistant.
 - **Rider app (mobile-first today in web):** today's jobs, lifecycle actions, proof of delivery, COD collection, history.
@@ -24,7 +24,7 @@ Two apps on one Expo codebase, role-gated:
 
 ## 3. Device registration and push notifications
 
-- `POST /devices` registers `{ platform, pushToken, locale, appVersion }`; tokens refresh on Expo Push Token rotation; the backend sends transactional pushes (order confirmed, out for delivery, delivered, refund completed) **from the outbox** so notifications are exactly-once with the underlying event.
+- Planned `POST /devices` registers `{ platform, pushToken, locale, appVersion }`; tokens refresh on Expo Push Token rotation; the backend sends transactional pushes (order confirmed, out for delivery, delivered, refund completed) **from the outbox** with at-least-once publication. Consumers deduplicate event IDs; notifications can still repeat and only prompt a fresh fetch.
 - Notification taps deep-link via the app's URL scheme (`vgroceries://orders/{id}`), which mirrors the web routes (`docs/ROUTES.md`) — same resource ids everywhere.
 - Riders additionally subscribe to assignment pings; quiet hours and duty rota respect rider availability state (the `/riders/{id}/availability` operation already models it).
 
@@ -41,22 +41,22 @@ Two apps on one Expo codebase, role-gated:
 
 ## 6. Pending uploads and safe retries
 
-Every network mutation goes through an **outbox queue on device** (not to be confused with the server outbox):
+Eligible offline work, such as rider notes and pending evidence, uses an **outbox queue on device** (separate from the server outbox). Checkout, payment, refund approval and authoritative stock decisions require an online response; an offline draft never completes those operations.
 
 1. Action performed offline → written to a local queue with status **Visibly pending** (badge + "waiting to sync" row; never presented as done).
-2. Queue drains FIFO when connectivity returns; each request carries its original `Idempotency-Key`, so a retry after an interrupted response replays the server's original outcome instead of duplicating it — the exact semantics the mock engines already enforce (checkout, POS, refunds, rider actions).
+2. Queue drains when connectivity returns; each request retains its original action ID and `Idempotency-Key`. The backend must durably implement replay for every queued operation. Current checkout/POS key replay and selected transition guards do not establish generic retry safety for all refunds/rider actions.
 3. Terminal failures (409/422) surface with the server's message and stay inspectable; the user decides to discard or keep the draft.
 4. **Local data is always marked provisional:** drafts, cart, notes, pending evidence. The authoritative state — completed sales, payment results, stock reservations, delivery status — is only what the server confirmed; screens re-sync on foreground and render server state as the source of truth (the pending badge disappears only on acknowledged server response).
 
 ## 7. API compatibility with older installed versions
 
-- `/api/v1` is additive-only within the version: new fields optional, existing fields never renamed or removed. The zod response schemas in `packages/contracts` are the compatibility gate — CI validates the live API against them on every release (the web contracts suite already does exactly this against the mock; the same suite runs against staging).
+- `/api/v1` is additive-only within the version: new fields optional, existing fields never renamed or removed. The zod response schemas in `packages/contracts` are the compatibility gate — full staging coverage must be added as the backend is implemented. The current web suite checks selected mock response models.
 - Mobile releases lag web: keep deprecated fields for **at least two app release cycles**; then remove behind `/api/v2`. Contract tests fail the backend build on any breaking shape change.
 - Minimum-version floor: the API advertises its version and the app warns (never bricks) when its floor is exceeded — the app keeps functioning read-only, mirroring the web's honest degraded states.
 
 ## 8. What the rider app reuses from today's web work
 
-The rider workspace already demonstrates, over the shared API: job checklist, contact call link, proof dialog with method+detail, failure reporting with reason, pending notes, COD collection as a separate explicit step, remittance history, and auto-refresh of today's queue. The RN app is a re-skin of those same operations plus native camera/location/push — no new server operations are required beyond media upload requests and location reporting (both specified above).
+The rider workspace already demonstrates, over the shared API: job checklist, contact call link, proof dialog with method+detail, failure reporting with reason, pending notes, COD collection as a separate explicit step, remittance history, and auto-refresh of today's queue. Native apps reuse these operation semantics. Production session/device management, push registration, media uploads and location reporting still need complete backend contracts and implementation.
 
 ## 9. Build/ops notes
 

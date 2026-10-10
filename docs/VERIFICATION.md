@@ -4,6 +4,8 @@
 Next.js 16.1 (App Router, Turbopack dev), TypeScript 5, Tailwind 4, shadcn/ui, Bun. Checks were
 actually run — nothing below is claimed without a result.
 
+The independent follow-up to `4260a0d` is in [API_BOUNDARY_CHECKPOINT.md](API_BOUNDARY_CHECKPOINT.md). Historical browser results below were recorded by Z.ai; fresh scoped independent checks are listed in the follow-up.
+
 ## Automated checks
 
 | Check | Command | Result |
@@ -17,7 +19,8 @@ actually run — nothing below is claimed without a result.
 | Handoff regression suite | `bun scripts/handoff-regressions.ts` | **PASS — 24/24** assertions covering the review's seven defect classes (unexecuted-refund claim, double restock, duplicate return lines, double refund, released-reservation handover, negative quantities, checkout idempotency) plus the staff returns-list endpoint |
 | Shared-contracts suite | `bun scripts/contracts-check.ts` | **PASS — 32/32** — request schemas reject malformed input (incl. the rider proof-method enum, aligned to the engine contract after the browser check caught a drift), live responses conform to the zod schemas, the operation registry covers all 92 router operations, and the HTTP + in-process adapters agree |
 | OpenAPI validation | YAML parse + ref/duplicate-operationId audit | **PASS — parses, 0 dangling refs, 0 duplicate operationIds (92 operations)** |
-| CI | `.github/workflows/ci.yml` | Lint + type check + production build + all four suites on every push/PR |
+| Bun regression tests | `bun test` | **PASS — 35 tests**: return stock, 92-operation REST mapping, transport errors/timeouts, cache races and backend-mode guards |
+| CI | `.github/workflows/ci.yml` | Lint + type check + production build + all five suites on every push/PR |
 
 ### Acceptance suite results (scripts/acceptance-checks.sh, last run)
 

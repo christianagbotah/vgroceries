@@ -50,7 +50,8 @@ Optional checks:
 ```bash
 bun run lint                              # ESLint — clean
 bunx tsc --noEmit --incremental false    # TypeScript — 0 diagnostics
-bun run build                             # production build (strict TypeScript, 56/56 pages)
+bun run build                             # strict TypeScript; 47 static pages generated
+bun test                              # return-stock and API boundary regressions
 bun scripts/handoff-regressions.ts       # 24 handoff-review regression assertions
 bun scripts/contracts-check.ts            # 30 shared-contract assertions (schemas + registry)
 bash scripts/acceptance-checks.sh         # 24 business-rule scenario checks (resets demo data)
@@ -100,9 +101,9 @@ scripts/                  acceptance-checks.sh, handoff-regressions.ts, contract
 never import the mock store; everything flows through the **service interface**
 (`src/services/adapters/types.ts`). Client components go through `src/services/client.ts` (HTTP →
 dev mock route or production API), server-rendered pages through `src/services/server-data.ts`
-(in-process mock in development, production API over HTTP when `API_BASE_URL` is set). Both
+(in-process mock in development, production API over HTTP when both backend URLs are set). Both
 adapters are typed against the **framework-free shared contracts** and validate request bodies
-with the same zod schemas; successful mutations invalidate cached reads by resource family
+with 16 shared zod schemas; the backend must validate all operations authoritatively. Successful mutations invalidate cached reads by resource family
 (stock/orders/payments/returns) so screens refresh after changes. Storefront catalogue pages are
 server-rendered for SEO with client islands for interactivity; admin/rider screens are client
 components over the same API. Full details: **docs/API_CONTRACTS.md**.
@@ -117,6 +118,9 @@ components over the same API. Full details: **docs/API_CONTRACTS.md**.
 | `docs/BACKEND_ARCHITECTURE.md` | NestJS + PostgreSQL + Redis/BullMQ design: modules, schema, reservations, outbox, workers, migration path |
 | `docs/MOBILE_READINESS.md` | React Native/Expo plan: shared contracts, auth, push, camera/barcode, location, offline retries, version compatibility |
 | `docs/AI_ARCHITECTURE.md` | AI module design: provider adapters, grounding, permission-controlled tools, streaming, queues, cost/eval/audit |
+| [Production backend design](docs/superpowers/specs/2026-10-09-production-backend-design.md) | Consolidated web/native/AI architecture |
+| [API boundary checkpoint](docs/API_BOUNDARY_CHECKPOINT.md) | Independent REST transport corrections, coverage and verification |
+| [Earlier return checkpoint](docs/BACKEND_HANDOFF_CHECKPOINT.md) | Retained return stock and expiry corrections |
 | `docs/ROUTES.md`, `docs/PERMISSIONS.md`, `docs/DEMO_SCENARIOS.md`, `docs/VERIFICATION.md`, `docs/KNOWN_ISSUES.md`, `docs/HANDOFF.md` | Routes, role matrix, demo walkthroughs, verification log, honest boundary list, original handoff |
 
 ## Demo data & reset

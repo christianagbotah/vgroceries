@@ -105,9 +105,9 @@ export interface SortSpec {
 /* ------------------------------------------------------------------ */
 
 /**
- * Retry-safety contract. Operations that may be retried (checkout, POS
- * completion, refunds, provider callbacks) accept a client-generated
- * idempotency key. Semantics enforced by the engines:
+ * Retry-safety contract. Checkout/POS currently replay stored keys; the
+ * backend must implement durable replay for every operation it declares
+ * retryable. Forwarding a key alone does not provide this guarantee:
  *  - same key + same input  → replay the ORIGINAL result, no new side effect;
  *  - same key + new input   → IDEMPOTENCY_CONFLICT, nothing applied;
  *  - new key                → normal execution.

@@ -106,7 +106,7 @@ export const accountCancelRequestSchema = z.object({
 
 export const createReturnRequestSchema = z.object({
   orderId: idSchema,
-  requestedBy: z.string().min(1),
+  requestedBy: z.string().min(1).optional(),
   lines: z
     .array(
       z.object({
@@ -117,6 +117,8 @@ export const createReturnRequestSchema = z.object({
     )
     .min(1),
   note: z.string().optional(),
+  evidenceNote: z.string().optional(),
+  customerId: idSchema.optional(),
 });
 
 export const posCompleteRequestSchema = z.object({

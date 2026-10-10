@@ -10,7 +10,7 @@
 
 | # | Review finding | Status | Where |
 | --- | --- | --- | --- |
-| 1 | Production prerender failure on `/account/returns` (`useSearchParams` without Suspense) | **Fixed** | Suspense boundaries on `/account/returns`, `/track`, `/admin/returns` (the build exposed all three). Build now compiles and prerenders 56/56 pages with **no error bypass**. |
+| 1 | Production prerender failure on `/account/returns` (`useSearchParams` without Suspense) | **Fixed** | Suspense boundaries on `/account/returns`, `/track`, `/admin/returns` (the build exposed all three). Build now compiles and prerenders 47/47 static pages with **no error bypass**. |
 | 2 | 40 TypeScript diagnostics (missing imports, mismatched response types, duplicate keys, undefined types, variable scope) | **Fixed** | `npx tsc --noEmit` → 0 diagnostics; `typescript.ignoreBuildErrors` removed from `next.config.ts`. |
 | 3 | Staff returns endpoint 500 (`admin.returns` referencing `preview` out of scope) | **Fixed** | Router branch corrected; regression checks `admin.returns` contract (rows + orderId links) in two suites. |
 | 4 | Build-error bypass in `next.config.ts` | **Fixed** | `ignoreBuildErrors: false`; tsc + build run in CI on every push. |
@@ -41,7 +41,7 @@ Each defect was reproduced first, then fixed, then locked by assertions in `scri
    - `client.ts`/`server-data.ts` rewired through the adapters with the page import surface unchanged; `views.ts` is now a compat shim over contracts.
 2. **Proposed REST API:** `docs/openapi.yaml` (OpenAPI 3.1, 92 operations, 78 schemas, validated: parses, no dangling refs, no duplicate operationIds) + full mock→REST mapping table in `docs/API_CONTRACTS.md`.
 3. **Architecture docs:** `docs/BACKEND_ARCHITECTURE.md` (NestJS modules, PostgreSQL schema with the constraints that encode these rules, outbox, workers), `docs/MOBILE_READINESS.md`, `docs/AI_ARCHITECTURE.md`.
-4. **New regression suite:** `scripts/contracts-check.ts` (30 assertions: request-schema rejection, live response conformance, registry completeness, adapter equivalence) + wired into CI.
+4. **New regression suite:** `scripts/contracts-check.ts` (32 assertions: request-schema rejection, live response conformance, registry completeness, adapter equivalence) + wired into CI.
 5. **CI hardening bug found and fixed:** the workflow's branch filter was intact; contracts suite added (`.github/workflows/ci.yml`).
 
 ## 4. Verification actually run (this handoff)
@@ -50,10 +50,10 @@ Each defect was reproduced first, then fixed, then locked by assertions in `scri
 | --- | --- | --- |
 | Lint | `npx eslint .` | 0 errors, 0 warnings |
 | Type check | `npx tsc --noEmit` | 0 diagnostics (no suppression anywhere) |
-| Production build | `NEXT_TURBOPACK_EXPERIMENTAL_USE_SYSTEM_TLS_CERTS=1 NEXT_TELEMETRY_DISABLED=1 bun run build` | PASS — 56/56 pages, strict types, no `ignoreBuildErrors` |
+| Production build | `NEXT_TURBOPACK_EXPERIMENTAL_USE_SYSTEM_TLS_CERTS=1 NEXT_TELEMETRY_DISABLED=1 bun run build` | PASS — 47/47 static pages, strict types, no `ignoreBuildErrors` |
 | Acceptance suite | `bash scripts/acceptance-checks.sh` | **24/24** (transport/HTTP/JSON failures abort — no false passes) |
 | Handoff regressions | `bun scripts/handoff-regressions.ts` | **24/24** |
-| Contracts suite | `bun scripts/contracts-check.ts` | **30/30** |
+| Contracts suite | `bun scripts/contracts-check.ts` | **32/32** |
 | Route sweep | `node scripts/route-sweep.mjs` | **56/56** HTTP 200 |
 | Browser checks | agent-browser: checkout, POS, fulfilment, rider delivery, returns/refunds | See `docs/VERIFICATION.md` |
 | OpenAPI validation | YAML parse + ref/duplication audit | Parses; 0 dangling refs; 0 duplicate operationIds |
@@ -69,7 +69,11 @@ Each defect was reproduced first, then fixed, then locked by assertions in `scri
 ## 6. Backend integration instructions (for the implementing team)
 
 1. Read order: `README.md` → this file → `docs/API_CONTRACTS.md` → `docs/openapi.yaml` → `docs/BACKEND_ARCHITECTURE.md` → engine sources under `src/services/mock/engine/` (the executable rule spec).
-2. Move the app into the monorepo layout (`BACKEND_ARCHITECTURE.md` §1) — the web app moves unchanged; contracts become `packages/contracts`.
-3. Implement modules in the migration order; before each module, port the corresponding engine's rules as tests (regression suites show the expected observable behaviour over HTTP).
-4. Point the web app at the API with `NEXT_PUBLIC_API_BASE_URL` + `API_BASE_URL`; run all five suites against it (they are transport-agnostic over HTTP).
+2. Introduce API/worker packages alongside the web application. Extract shared packages and move the web directory as a separately verified workspace migration.
+3. Implement modules in a private integration preview; port engine rules to database-backed service tests. Keep the public shop on one consistent authority until a complete cutover is ready.
+4. Configure both backend URLs and test the production REST adapter. Adapt mock-path HTTP scripts to REST/session fixtures; the existing suites include direct engine tests and are not all transport-agnostic HTTP tests.
 5. Keep the invariants: all-or-nothing reservations shared by checkout/POS, one stock-depletion event per handover, server-calculated money in integer minor units, separate state machines, idempotent provider events, transactional outbox, review-before-mutation for AI proposals.
+
+## Independent follow-up
+
+Read [API_BOUNDARY_CHECKPOINT.md](API_BOUNDARY_CHECKPOINT.md) before integrating the backend. The `4260a0d` handoff required REST routing, replay-header, customer-return, error/timeout, cache-refresh and configuration corrections. The original mock suites did not establish production adapter correctness. Direct-engine tests must be ported to database tests, and mock-path HTTP scripts adapted to REST/session fixtures.
