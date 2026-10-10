@@ -1,12 +1,11 @@
 import { Body, Controller, HttpCode, Param, Post, Req, Res } from "@nestjs/common";
-import { ApiExcludeController, ApiTags } from "@nestjs/swagger";
+import { ApiTags } from "@nestjs/swagger";
 import type { Response } from "express";
 import { paymentInitiationRequestSchema, replayKeySchema } from "@variety/contracts";
 import { CheckoutPrincipalService } from "../commerce-identity/checkout-principal.service";
 import { ApiProblem, type ApiRequest } from "../http/errors";
 import { PaymentInitiationService } from "./payment-initiation.service";
 
-@ApiExcludeController()
 @ApiTags("payments")
 @Controller("orders")
 export class PaymentAttemptsController {

@@ -17,8 +17,8 @@ import { PaymentProviderRegistry } from "./payment-provider.registry";
   controllers: [PaymentAttemptsController, PaymentEventsController, PaymentsController],
   providers: [
     // Reuse Inventory's allocation authority class directly. Importing the
-    // controller-bearing InventoryModule here would reorder Swagger's staged
-    // module traversal before the intentional Task 10 API cutover.
+    // controller-bearing InventoryModule would blur the module boundary and
+    // make generated route ordering depend on a second controller graph.
     AllocationService,
     PaymentProviderRegistry,
     PaymentPolicyService,

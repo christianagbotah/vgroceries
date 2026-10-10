@@ -57,38 +57,68 @@ export interface PaymentListQuery {
   provider?: string;
   method?: ElectronicPaymentMethod;
   orderReference?: string;
-  dateFrom?: string;
-  dateTo?: string;
+  from?: string;
+  to?: string;
 }
 
-const isoTimestampSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:/, "Expected an ISO-8601 timestamp");
+const isoTimestampSchema = z.string().datetime({ offset: true });
 
 export const paymentListQuerySchema = z
   .object({
     page: z.coerce.number().int().min(1).max(1_000_000).default(1),
-    perPage: z.coerce.number().int().min(1).max(100).default(50),
-    status: z.string().trim().min(1).max(64).optional(),
-    settlementState: z.string().trim().min(1).max(64).optional(),
-    provider: z.string().trim().min(1).max(64).optional(),
+    perPage: z.coerce.number().int().min(1).max(100).default(25),
+    status: z.enum(["initiated", "pending", "succeeded", "failed", "expired"]).optional(),
+    settlementState: z.enum(["unsettled", "settled", "reconciled", "exception"]).optional(),
+    provider: z.string().regex(/^[a-z0-9][a-z0-9_-]{0,63}$/).optional(),
     method: electronicPaymentMethodSchema.optional(),
     orderReference: z.string().trim().min(1).max(128).optional(),
-    dateFrom: isoTimestampSchema.optional(),
-    dateTo: isoTimestampSchema.optional(),
+    from: isoTimestampSchema.optional(),
+    to: isoTimestampSchema.optional(),
   })
+  .strict();
+
+export const paymentLedgerRowSchema = z
+  .object({
+    attemptId: z.string().min(1),
+    orderId: z.string().min(1),
+    orderReference: z.string().min(1),
+    provider: z.string().min(1).max(64),
+    method: electronicPaymentMethodSchema,
+    currency: z.literal("GHS"),
+    amountMinor: z.number().int().positive(),
+    status: z.enum(["initiated", "pending", "succeeded", "failed", "expired"]),
+    initiationState: z.enum(["created", "accepted", "uncertain", "rejected"]),
+    settlementState: z.enum(["unsettled", "settled", "reconciled", "exception"]),
+    callbackCount: z.number().int().nonnegative(),
+    providerReference: z.string().min(1).optional(),
+    failureReason: z.string().min(1).optional(),
+    createdAt: isoTimestampSchema,
+    updatedAt: isoTimestampSchema,
+    resolvedAt: isoTimestampSchema.optional(),
+  })
+  .strict();
+
+export const paymentListResponseSchema = z
+  .object({
+    page: z.number().int().min(1),
+    perPage: z.number().int().min(1).max(100),
+    total: z.number().int().nonnegative(),
+    items: z.array(paymentLedgerRowSchema),
+  })
+  .strict();
+
+export const paymentProviderEventResponseSchema = z
+  .object({ accepted: z.literal(true), duplicate: z.boolean() })
   .strict();
 
 export interface PaymentReconcileResponse {
   attemptId: string;
-  status: string;
-  settlementState: string;
-  changed: boolean;
+  result: "matched" | "exception";
 }
 
 export const paymentReconcileResponseSchema = z
   .object({
     attemptId: z.string().min(1),
-    status: z.string().min(1),
-    settlementState: z.string().min(1),
-    changed: z.boolean(),
+    result: z.enum(["matched", "exception"]),
   })
   .strict();

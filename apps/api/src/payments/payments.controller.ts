@@ -1,12 +1,11 @@
 import { Controller, Get, HttpCode, Param, Post, Query, Req, UseGuards } from "@nestjs/common";
-import { ApiExcludeController, ApiTags } from "@nestjs/swagger";
+import { ApiTags } from "@nestjs/swagger";
 import { ApiProblem } from "../http/errors";
 import { AccessGuard } from "../identity/access.guard";
 import type { AuthRequest } from "../identity/identity.service";
 import { PaymentQueryService } from "./payment-query.service";
 import { PaymentReconciliationService } from "./payment-reconciliation.service";
 
-@ApiExcludeController()
 @ApiTags("payments")
 @Controller("payments")
 @UseGuards(AccessGuard)

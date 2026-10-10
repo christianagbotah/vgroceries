@@ -41,9 +41,8 @@ export async function createApplication(
       InventoryModule,
       OrdersModule,
       DeliveryConfigModule,
-      // Keep staged, Swagger-excluded Payments routes after the established
-      // production modules so adding internal payment controllers cannot churn
-      // the public OpenAPI snapshot before the Task 10 cutover.
+      // Keep Payments after the established modules so generated OpenAPI ordering
+      // remains deterministic while the four Payments Authority routes are public.
       PaymentsModule,
     ],
   })

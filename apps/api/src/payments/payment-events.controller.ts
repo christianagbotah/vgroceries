@@ -1,10 +1,9 @@
 import { Controller, HttpCode, Param, Post, Req } from "@nestjs/common";
-import { ApiExcludeController } from "@nestjs/swagger";
+
 import type { Request } from "express";
 import { ApiProblem, type ApiRequest } from "../http/errors";
 import { PaymentEventService } from "./payment-event.service";
 
-@ApiExcludeController()
 @Controller("payments/providers")
 export class PaymentEventsController {
   constructor(private readonly events: PaymentEventService) {}
