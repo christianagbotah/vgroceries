@@ -175,6 +175,33 @@ test("release and expiry change active claims once without touching terminal row
 });
 
 
+test("expiry audit and outbox identify each affected claim", async () => {
+  await createClaim("ord_expire_audit_a", [
+    { claimLineId: "line_expire_audit_a", variantId: "var_good", quantity: "1" },
+  ]);
+  await createClaim("ord_expire_audit_b", [
+    { claimLineId: "line_expire_audit_b", variantId: "var_good", quantity: "1" },
+  ]);
+  await db.reservation.updateMany({
+    where: { claimId: { in: ["ord_expire_audit_a", "ord_expire_audit_b"] } },
+    data: { expiresAt: new Date(0) },
+  });
+  const expired = await db.$transaction((tx) =>
+    allocation.expire(tx, new Date(), { actorId: "actor_expire_batch", requestId: "req_expire_batch" }),
+  );
+  assert.equal(expired, 2);
+  const audit = await db.auditEvent.findMany({
+    where: { action: "inventory.expired", requestId: "req_expire_batch" },
+    orderBy: { entityId: "asc" },
+  });
+  const outbox = await db.outboxEvent.findMany({
+    where: { type: "inventory.expired", payload: { path: ["requestId"], equals: "req_expire_batch" } },
+    orderBy: { aggregateId: "asc" },
+  });
+  assert.deepEqual(audit.map((row) => row.entityId), ["ord_expire_audit_a", "ord_expire_audit_b"]);
+  assert.deepEqual(outbox.map((row) => row.aggregateId), ["ord_expire_audit_a", "ord_expire_audit_b"]);
+});
+
 test("two independent allocators cannot both reserve the final unit", async () => {
   for (let round = 0; round < 10; round++) {
     await db.reservation.deleteMany();

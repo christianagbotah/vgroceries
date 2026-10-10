@@ -95,15 +95,18 @@ and POS; no public reservation/allocation controller was added. Reservations are
 lot-specific, FEFO, exact-decimal, location-scoped, safety-stock aware and created
 under stable PostgreSQL row locks. Multi-line shortages roll back the whole claim.
 Release and expiry are once-only state transitions. Allocation, audit and outbox
-records share the caller transaction.
+records share the caller transaction. PostgreSQL additionally enforces that a
+reservation lot belongs to its declared stock position and that claim types stay
+within the currently supported order/POS-draft authorities. Batch expiry emits
+claim-level audit/outbox records.
 
 Measured evidence on this branch before the final root verification:
 
 | Check | Observed result |
 | --- | --- |
 | Foundation baseline | 40/40 API tests passed |
-| Current API suite after allocation/event work | 52/52 passed |
-| Allocation-focused suite | 7/7 passed |
+| Current API suite after allocation/event/provenance hardening | 55/55 passed |
+| Allocation service suite | 8/8 passed |
 | Final-unit concurrency | 10 rounds across two independent API/Prisma instances; one winner and one `OUT_OF_STOCK` loser every round |
 | Multi-line shortage | No stray reservation committed |
 | Safety stock / unsaleable lots | Protected; expired/today/quarantined/damaged lots excluded |

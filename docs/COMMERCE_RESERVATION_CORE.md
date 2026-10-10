@@ -51,8 +51,11 @@ count-based units require whole quantities. Safety stock is never allocatable.
 
 Migration `202610100002_commerce_reservation_core` upgrades `Reservation` from
 the foundation placeholder to durable lot-linked claims with `lotId`, claim
-provenance, `createdAt`, uniqueness on claim/line/lot, and lookup indexes. Its
-allowed lifecycle is `active`, `released`, `consumed`, `expired`.
+provenance, `createdAt`, uniqueness on claim/line/lot, and lookup indexes. A
+composite lot/position foreign key prevents a reservation from claiming a lot
+owned by another stock position, and PostgreSQL restricts `claimType` to the
+currently supported `order` / `pos_draft` authorities. Its allowed lifecycle is
+`active`, `released`, `consumed`, `expired`.
 
 The foundation had no production reservation command, so pre-commerce
 position-only placeholder rows could not be reconciled to a real lot or claim.
@@ -61,8 +64,10 @@ making provenance columns mandatory rather than inventing history.
 
 Successful allocation writes `inventory.allocated` audit and outbox records in
 the same caller transaction. Context-bearing release/expiry operations similarly
-write `inventory.released` / `inventory.expired`. A database failure during the
-outbox insert rolls back reservations and audit together. Outbox persistence is
+write `inventory.released` / `inventory.expired`; a batch expiry emits claim-level
+audit/outbox records so the affected business entity remains traceable. A
+database failure during the outbox insert rolls back reservations and audit
+together. Outbox persistence is
 not a running queue publisher; worker delivery remains later work.
 
 ## Verification evidence
@@ -79,9 +84,10 @@ PostgreSQL 17 compatibility authority.
 - Final-unit race: ten rounds across two independent Nest/Prisma instances; each
   round produced exactly one winner, one `OUT_OF_STOCK` loser, one unit held and
   zero remaining available; full suite 50/50.
-- Atomic events: 7/7 allocation tests passed including an injected PostgreSQL
-  outbox failure proving no reservation/audit/event partial commit; full suite
-  52/52.
+- Atomic events: allocation tests include an injected PostgreSQL outbox failure
+  proving no reservation/audit/event partial commit.
+- Hardening regressions prove lot/position provenance, supported claim types and
+  claim-level expiry audit/outbox identity. The final API suite is 55/55.
 - Migration 001 + 002 applied successfully to a purpose-created database with
   zero prior public tables; `reservation_positive`, the four-state lifecycle
   constraint, and `variant_availability` were present afterward.
@@ -92,7 +98,7 @@ Final repository-wide verification on the same branch also passed: root ESLint,
 strict TypeScript and production Next.js build; 24/24 handoff regressions; 35/35
 Bun tests; 32/32 shared-contract checks; 24/24 business acceptance checks; and
 56/56 built routes returning HTTP 200 from an isolated localhost production
-server. The final API rerun remained 52/52.
+server. The final API rerun after provenance hardening is 55/55.
 
 ## Next slice
 

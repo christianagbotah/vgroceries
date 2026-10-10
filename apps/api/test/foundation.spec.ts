@@ -691,6 +691,20 @@ test("lot-specific reservations are durable, constrained and reflected in availa
       VALUES ('res_duplicate','pos_rice','lot_rice','order','ord_task1','line_task1',1,'active',${new Date(Date.now() + 3600000)},now())`,
   );
 });
+test("reservation provenance rejects a lot from another stock position", async () => {
+  await assert.rejects(() =>
+    db.$executeRaw`INSERT INTO "Reservation"
+      (id,"positionId","lotId","claimType","claimId","claimLineId",quantity,state,"expiresAt","createdAt")
+      VALUES ('res_wrong_position','pos_salt','lot_rice','order','ord_wrong_position','line_wrong_position',1,'active',${new Date(Date.now() + 3600000)},now())`,
+  );
+});
+test("reservation provenance rejects unsupported claim types", async () => {
+  await assert.rejects(() =>
+    db.$executeRaw`INSERT INTO "Reservation"
+      (id,"positionId","lotId","claimType","claimId","claimLineId",quantity,state,"expiresAt","createdAt")
+      VALUES ('res_bad_claim_type','pos_rice','lot_rice','other','ord_bad_claim_type','line_bad_claim_type',1,'active',${new Date(Date.now() + 3600000)},now())`,
+  );
+});
 test("native grant changes are enforced on the next request", async () => {
   const w = await login("warehouse@example.test", "native");
   const headers = { authorization: "Bearer " + w.body.data.accessToken };

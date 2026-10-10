@@ -142,6 +142,7 @@ model StockLot {
   createdAt DateTime @default(now()) @db.Timestamptz(3)
   movements StockMovement[]
   reservations Reservation[]
+  @@unique([id, positionId])
   @@index([positionId, kind, quarantined, expiryDate])
 }
 
@@ -150,7 +151,7 @@ model Reservation {
   positionId String
   position StockPosition @relation(fields: [positionId], references: [id])
   lotId String
-  lot StockLot @relation(fields: [lotId], references: [id])
+  lot StockLot @relation(fields: [lotId, positionId], references: [id, positionId])
   claimType String
   claimId String
   claimLineId String

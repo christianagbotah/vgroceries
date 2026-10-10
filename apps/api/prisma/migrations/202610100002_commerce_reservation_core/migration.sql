@@ -16,9 +16,12 @@ ALTER TABLE "Reservation"
   ALTER COLUMN "claimId" SET NOT NULL,
   ALTER COLUMN "claimLineId" SET NOT NULL;
 
+CREATE UNIQUE INDEX "StockLot_id_positionId_key"
+  ON "StockLot"("id","positionId");
+
 ALTER TABLE "Reservation"
-  ADD CONSTRAINT "Reservation_lotId_fkey"
-  FOREIGN KEY ("lotId") REFERENCES "StockLot"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+  ADD CONSTRAINT "Reservation_lotId_positionId_fkey"
+  FOREIGN KEY ("lotId","positionId") REFERENCES "StockLot"("id","positionId") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 CREATE UNIQUE INDEX "Reservation_claimType_claimId_claimLineId_lotId_key"
   ON "Reservation"("claimType","claimId","claimLineId","lotId");
@@ -30,6 +33,8 @@ CREATE INDEX "Reservation_claimType_claimId_state_idx"
 ALTER TABLE "Reservation" DROP CONSTRAINT reservation_state;
 ALTER TABLE "Reservation" ADD CONSTRAINT reservation_state
   CHECK (state IN ('active','released','consumed','expired'));
+ALTER TABLE "Reservation" ADD CONSTRAINT reservation_claim_type
+  CHECK ("claimType" IN ('order','pos_draft'));
 
 DROP VIEW "variant_availability";
 CREATE VIEW "variant_availability" AS

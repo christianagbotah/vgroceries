@@ -224,24 +224,43 @@ export class AllocationService {
       select: { id: true, claimId: true, claimType: true },
     });
     if (changed.length && context) {
-      const reservationIds = changed.map((row) => row.id);
-      const claimIds = [...new Set(changed.map((row) => row.claimId))];
-      await tx.auditEvent.create({
-        data: {
-          actorId: context.actorId,
-          action: "inventory.expired",
-          entityId: context.requestId,
-          requestId: context.requestId,
-          details: { reservationIds, claimIds },
-        },
-      });
-      await tx.outboxEvent.create({
-        data: {
-          type: "inventory.expired",
-          aggregateId: context.requestId,
-          payload: { reservationIds, claimIds },
-        },
-      });
+      const claims = new Map<string, { claimType: string; claimId: string; reservationIds: string[] }>();
+      for (const row of changed) {
+        const key = `${row.claimType}:${row.claimId}`;
+        const claim = claims.get(key) ?? {
+          claimType: row.claimType,
+          claimId: row.claimId,
+          reservationIds: [],
+        };
+        claim.reservationIds.push(row.id);
+        claims.set(key, claim);
+      }
+      for (const claim of claims.values()) {
+        await tx.auditEvent.create({
+          data: {
+            actorId: context.actorId,
+            action: "inventory.expired",
+            entityId: claim.claimId,
+            requestId: context.requestId,
+            details: {
+              claimType: claim.claimType,
+              reservationIds: claim.reservationIds,
+            },
+          },
+        });
+        await tx.outboxEvent.create({
+          data: {
+            type: "inventory.expired",
+            aggregateId: claim.claimId,
+            payload: {
+              claimType: claim.claimType,
+              claimId: claim.claimId,
+              reservationIds: claim.reservationIds,
+              requestId: context.requestId,
+            },
+          },
+        });
+      }
     }
     return changed.length;
   }
