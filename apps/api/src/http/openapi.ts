@@ -28,6 +28,11 @@ import {
   publicOrderSchema,
   trackRequestSchema,
   accountCancelPathRequestSchema,
+  paymentInitiationRequestSchema,
+  paymentInitiationResultSchema,
+  paymentProviderEventResponseSchema,
+  paymentListResponseSchema,
+  paymentReconcileResponseSchema,
 } from "@variety/contracts";
 import { z } from "zod";
 
@@ -36,7 +41,7 @@ export function foundationOpenApi(app: INestApplication) {
     .setTitle("Variety Groceries production API")
     .setVersion("0.1.0")
     .setDescription(
-      "Implemented production subset: identity, catalogue, inventory receiving, delivery configuration, authoritative checkout/orders and customer cancellation. Payments, stock handover, fulfilment/dispatch, POS and public storefront cutover remain closed.",
+      "Implemented production subset: identity, catalogue, inventory receiving, delivery configuration, authoritative checkout/orders and provider-neutral Payments Authority. Stock handover, refunds, fulfilment/dispatch, POS and public storefront cutover remain closed.",
     )
     .addCookieAuth("vg_session", { type: "apiKey", in: "cookie" }, "cookieAuth")
     .addCookieAuth("vg_guest", { type: "apiKey", in: "cookie" }, "guestAuth")
@@ -90,6 +95,11 @@ export function foundationOpenApi(app: INestApplication) {
     TrackRequest: json(trackRequestSchema),
     AccountCancelRequest: json(accountCancelPathRequestSchema),
     AccountCancelResponse: json(z.object({ fulfilmentStatus:z.string() })),
+    PaymentInitiationRequest: json(paymentInitiationRequestSchema),
+    PaymentInitiationResponse: json(paymentInitiationResultSchema),
+    PaymentProviderEventResponse: json(paymentProviderEventResponseSchema),
+    PaymentListResponse: json(paymentListResponseSchema),
+    PaymentReconcileResponse: json(paymentReconcileResponseSchema),
     LoginRequest: json(loginRequestSchema),
     RefreshRequest: json(refreshRequestSchema),
     ByVariantsRequest: json(byVariantsRequestSchema),
@@ -167,6 +177,10 @@ export function foundationOpenApi(app: INestApplication) {
     "/orders/track": "PublicOrder",
     "/account/orders": "AccountOrderListResponse",
     "/account/orders/{orderId}/cancel": "AccountCancelResponse",
+    "/orders/{orderId}/payment-attempts": "PaymentInitiationResponse",
+    "/payments/providers/{provider}/events": "PaymentProviderEventResponse",
+    "/payments": "PaymentListResponse",
+    "/payments/{attemptId}/reconcile": "PaymentReconcileResponse",
   };
   for (const name of new Set(Object.values(responses)))
     schemas[name + "Envelope"] = {
@@ -185,6 +199,7 @@ export function foundationOpenApi(app: INestApplication) {
     "/checkout/complete": "CheckoutCompleteRequest",
     "/orders/track": "TrackRequest",
     "/account/orders/{orderId}/cancel": "AccountCancelRequest",
+    "/orders/{orderId}/payment-attempts": "PaymentInitiationRequest",
   };
   for (const [path, item] of Object.entries(doc.paths)) {
     const suffix = path.slice("/api/v1".length);
@@ -197,11 +212,13 @@ export function foundationOpenApi(app: INestApplication) {
         suffix.startsWith("/inventory/") ||
         suffix === "/auth/me" ||
         suffix === "/auth/logout" ||
-        suffix.startsWith("/account/orders")
+        suffix.startsWith("/account/orders") ||
+        suffix === "/payments" ||
+        suffix === "/payments/{attemptId}/reconcile"
       ) operation.security = [{ cookieAuth: [] }, { bearerAuth: [] }];
-      if (suffix === "/checkout/complete" || suffix === "/orders/{orderId}")
+      if (suffix === "/checkout/complete" || suffix === "/orders/{orderId}" || suffix === "/orders/{orderId}/payment-attempts")
         operation.security = [{ cookieAuth: [] }, { bearerAuth: [] }, { guestAuth: [] }];
-      const successCode = method === "post" && !["/checkout/quote","/orders/track","/account/orders/{orderId}/cancel"].includes(suffix) ? "201" : "200";
+      const successCode = method === "post" && !["/checkout/quote","/orders/track","/account/orders/{orderId}/cancel","/payments/providers/{provider}/events","/payments/{attemptId}/reconcile"].includes(suffix) ? "201" : "200";
       operation.responses[successCode] = {
         description: "Successful response",
         content: { "application/json": { schema: ref(name + "Envelope") } },
@@ -320,7 +337,64 @@ export function foundationOpenApi(app: INestApplication) {
     doc.paths[path]![method]!.parameters = [{ name: "orderId", in: "path", required: true, schema: { type: "string", minLength: 1 } }];
   }
   doc.paths["/api/v1/account/orders/{orderId}/cancel"]!.post!.description =
-    "Authenticated-customer-only pre-handover cancellation. Order state, Inventory reservations and delivery-slot booking release in one locked transaction; captured/refund-sensitive payments require the future refund workflow.";
+    "Authenticated-customer-only pre-handover cancellation. Order state, Inventory reservations and delivery-slot booking release in one locked transaction; live payments require reconciliation and captured/refund-sensitive payments require the future refund workflow.";
+
+  const paymentInitiation = doc.paths["/api/v1/orders/{orderId}/payment-attempts"]!.post!;
+  paymentInitiation.parameters = [
+    { name: "orderId", in: "path", required: true, schema: { type: "string", minLength: 1 } },
+    {
+      name: "Idempotency-Key", in: "header", required: true,
+      description: "8–128 letters, digits, underscores, colons or hyphens. Same owner/key/request replays one durable attempt.",
+      schema: { type: "string", pattern: "^[A-Za-z0-9:_-]{8,128}$" },
+    },
+    {
+      name: "X-CSRF-Token", in: "header", required: false,
+      description: "Required for web-cookie or guest-cookie mutation flows alongside a trusted Origin.",
+      schema: { type: "string", minLength: 1 },
+    },
+  ];
+  paymentInitiation.description =
+    "Creates or safely replays one durable electronic payment attempt for the owning customer/guest order. Amount, currency, payment method and provider authority are derived server-side from the immutable order and configured adapter; the request accepts no card PAN/CVV or client-supplied money truth.";
+
+  const providerEvent = doc.paths["/api/v1/payments/providers/{provider}/events"]!.post!;
+  providerEvent.security = [];
+  providerEvent.parameters = [
+    { name: "provider", in: "path", required: true, schema: { type: "string", minLength: 1, maxLength: 64 } },
+  ];
+  providerEvent.requestBody = {
+    required: true,
+    description: "Provider-defined JSON. Variety preserves the exact raw request bytes for adapter verification before parsing/trusting any payment observation; raw payloads and authentication/signature headers are not persisted.",
+    content: { "application/json": { schema: { type: "object", additionalProperties: true } } },
+  };
+  providerEvent.description =
+    "Provider callback authenticated by the configured payment adapter using exact raw bytes and provider-specific verification/lookup. This route does not use customer authentication and callback fields alone never establish paid state.";
+
+  const paymentList = doc.paths["/api/v1/payments"]!.get!;
+  paymentList.description =
+    "Administrator-only, bounded staff payments ledger. Returns safe payment/settlement state without raw provider events, signatures, credentials or reconciliation internals.";
+  paymentList.parameters = [
+    { name: "page", in: "query", schema: { type: "integer", minimum: 1, maximum: 1000000, default: 1 } },
+    { name: "perPage", in: "query", schema: { type: "integer", minimum: 1, maximum: 100, default: 25 } },
+    { name: "status", in: "query", schema: { type: "string", enum: ["initiated","pending","succeeded","failed","expired"] } },
+    { name: "settlementState", in: "query", schema: { type: "string", enum: ["unsettled","settled","reconciled","exception"] } },
+    { name: "provider", in: "query", schema: { type: "string", maxLength: 64 } },
+    { name: "method", in: "query", schema: { type: "string", enum: ["mobile_money","card_hosted","bank_transfer"] } },
+    { name: "orderReference", in: "query", schema: { type: "string", maxLength: 128 } },
+    { name: "from", in: "query", schema: { type: "string", format: "date-time" } },
+    { name: "to", in: "query", schema: { type: "string", format: "date-time" } },
+  ];
+
+  const reconcilePayment = doc.paths["/api/v1/payments/{attemptId}/reconcile"]!.post!;
+  reconcilePayment.parameters = [
+    { name: "attemptId", in: "path", required: true, schema: { type: "string", format: "uuid" } },
+    {
+      name: "X-CSRF-Token", in: "header", required: false,
+      description: "Required for administrator web-cookie mutation flows alongside a trusted Origin.",
+      schema: { type: "string", minLength: 1 },
+    },
+  ];
+  reconcilePayment.description =
+    "Administrator-only reconciliation command. Reads an immutable attempt snapshot, performs authoritative provider lookup outside the database transaction, then rechecks Order→Attempt locks before applying the observation through PaymentOutcomeService. Repeat execution cannot duplicate financial effects.";
 
   doc.paths["/api/v1/inventory/receive"]!.post!.description =
     "Positive exact quantities with at most three decimal places; count-based units require whole quantities. Cookie authentication requires X-CSRF-Token and a trusted Origin. supplierId is refused until purchasing exists. Client actor is ignored. A replay key covers this actor and operation.";

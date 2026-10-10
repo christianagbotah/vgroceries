@@ -6,8 +6,8 @@ import { createApplication } from "../src/bootstrap";
 import { Database } from "../src/database/database";
 import { ApiProblem } from "../src/http/errors";
 import { csrfTokenFor, tokenHash } from "../src/identity/crypto";
-import { GuestCheckoutService } from "../src/orders/guest-checkout.service";
-import { CheckoutPrincipalService } from "../src/orders/checkout-principal.service";
+import { GuestCheckoutService } from "../src/commerce-identity/guest-checkout.service";
+import { CheckoutPrincipalService } from "../src/commerce-identity/checkout-principal.service";
 import { seedCommerceFixtures } from "./commerce-fixtures";
 import { readConfig } from "../src/config";
 

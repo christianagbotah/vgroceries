@@ -1,8 +1,8 @@
 import { Body,Controller,Get,HttpCode,Param,Post,Req } from "@nestjs/common";
 import { ApiTags } from "@nestjs/swagger";
 import { trackRequestSchema } from "@variety/contracts";
+import { CheckoutPrincipalService } from "../commerce-identity/checkout-principal.service";
 import { ApiProblem,ApiRequest } from "../http/errors";
-import { CheckoutPrincipalService } from "./checkout-principal.service";
 import { OrderQueryService } from "./order-query.service";
 @ApiTags("orders") @Controller("orders")
 export class OrdersController {constructor(private readonly principals:CheckoutPrincipalService,private readonly orders:OrderQueryService){}

@@ -32,7 +32,10 @@ is `docs/openapi-foundation.json`, also served at `/api/v1/openapi.json`.
 | `POST /checkout/quote` | Public authoritative current-price/availability quote; no stock promise |
 | `POST /checkout/complete` | Customer/guest atomic order + Inventory reservation + optional slot booking; durable replay |
 | `GET /orders/{orderId}`, `POST /orders/track` | Owner-safe status and reference+verification-code capability tracking |
-| `GET /account/orders`, `POST /account/orders/{orderId}/cancel` | Customer-owned history and atomic pre-handover cancellation |
+| `GET /account/orders`, `POST /account/orders/{orderId}/cancel` | Customer-owned history and payment-aware atomic pre-handover cancellation |
+| `POST /orders/{orderId}/payment-attempts` | Owner/guest durable electronic payment initiation; server-derived money/provider authority |
+| `POST /payments/providers/{provider}/events` | Adapter-verified exact-raw-byte provider evidence; no customer auth |
+| `GET /payments`, `POST /payments/{attemptId}/reconcile` | Administrator-only safe ledger and authoritative reconciliation |
 
 Catalogue list filters to available products at `API_STOCK_LOCATION_ID`. Product
 detail can display a published, out-of-stock product. Disabled categories and
@@ -134,9 +137,7 @@ the API suite and checks generated OpenAPI drift. The existing frontend workflow
 still checks its own build, regression suites, contracts and routes.
 
 Outbox records are durable, but there is no publisher/Redis/BullMQ worker in this
-milestone. Lot-specific reservation allocation is now implemented internally and
-audited in the caller transaction. POS workflow, handover/depletion, worker publishing, payments/refunds, staff fulfilment/dispatch, full admin CRUD, native screens and grounded AI are subsequent work. No provider credentials or AI
-calls were introduced.
+milestone. Lot-specific reservation allocation and provider-neutral Payments Authority are now implemented and audited in their caller transactions. POS workflow, physical handover/depletion, worker publishing, refunds, staff fulfilment/dispatch, full admin CRUD, native screens and grounded AI remain subsequent work. No live payment-provider credentials or AI calls were introduced.
 Identity and resource guards are reusable by those modules; AI tools will invoke
 the same authorised domain commands and cannot directly alter stock or money.
 
@@ -146,4 +147,8 @@ required when updating these pins. They do not change the web dependency graph.
 
 ## Checkout and orders authority
 
-The production API now includes durable quote/checkout/order-read/tracking/cancellation primitives described in `docs/CHECKOUT_ORDERS_AUTHORITY.md`. Inventory remains the sole reservation writer. Online checkout reuses that authority atomically; payments, stock handover/depletion, POS, staff fulfilment/dispatch and public web cutover remain closed.
+The production API includes durable quote/checkout/order-read/tracking/cancellation primitives described in `docs/CHECKOUT_ORDERS_AUTHORITY.md`. Inventory remains the sole reservation writer. Online checkout reuses that authority atomically.
+
+## Payments authority
+
+The production API now also includes the provider-neutral payment primitives in `docs/PAYMENTS_AUTHORITY.md`: durable owner-scoped initiation, authenticated raw-byte provider events, an administrator payments ledger and administrator reconciliation. Provider network I/O occurs outside database row locks; verified money observations are applied through one central outcome service; late success must preserve money truth and reacquire Inventory coverage or move the order to `requires_review`. Payment-aware cancellation refuses live/paid/review states that need reconciliation or the future refund workflow. The live Hubtel adapter remains disabled until its merchant-specific contract is supplied and verified. Physical stock handover/depletion, refunds, POS, staff fulfilment/dispatch and public web cutover remain closed.

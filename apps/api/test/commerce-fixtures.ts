@@ -10,6 +10,7 @@ const future = (hours: number) => new Date(Date.now() + hours * 3600000);
 
 export async function resetCommerce(db: Database) {
   const tables = [
+    "PaymentReconciliation", "PaymentProviderEvent", "PaymentAttempt",
     "TrackingThrottle", "DeliverySlotBooking", "OrderEvent", "OrderLine", "OrderDeliveryAddress", "Order",
     "DeliverySlot", "DeliveryZone", "CustomerAddress", "GuestCheckoutSession", "Reservation", "StockMovement", "StockLot",
     "StockReceipt", "StockPosition", "Variant", "Product", "Category", "UserLocation", "RefreshToken", "Session", "User",

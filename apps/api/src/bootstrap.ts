@@ -1,7 +1,7 @@
 import "reflect-metadata";
 import { Global, Module } from "@nestjs/common";
 import { NestFactory } from "@nestjs/core";
-import { json } from "express";
+import { json, raw } from "express";
 import helmet from "helmet";
 import { randomUUID } from "node:crypto";
 import { API_CONFIG, ApiConfig, readConfig } from "./config";
@@ -14,12 +14,21 @@ import { DatabaseModule } from "./database/database";
 import { HealthModule } from "./health/health.controller";
 import { foundationOpenApi } from "./http/openapi";
 import { ApiExceptionFilter, ApiRequest } from "./http/errors";
+import { PaymentsModule } from "./payments/payments.module";
+import type { PaymentProviderAdapter } from "./payments/payment-provider";
+import { PAYMENT_PROVIDER_ADAPTERS } from "./payments/payment-provider.registry";
 
-export async function createApplication(config: ApiConfig = readConfig()) {
+export async function createApplication(
+  config: ApiConfig = readConfig(),
+  paymentAdapters: PaymentProviderAdapter[] = [],
+) {
   @Global()
   @Module({
-    providers: [{ provide: API_CONFIG, useValue: config }],
-    exports: [API_CONFIG],
+    providers: [
+      { provide: API_CONFIG, useValue: config },
+      { provide: PAYMENT_PROVIDER_ADAPTERS, useValue: paymentAdapters },
+    ],
+    exports: [API_CONFIG, PAYMENT_PROVIDER_ADAPTERS],
   })
   class ConfigModule {}
   @Module({
@@ -32,6 +41,9 @@ export async function createApplication(config: ApiConfig = readConfig()) {
       InventoryModule,
       OrdersModule,
       DeliveryConfigModule,
+      // Keep Payments after the established modules so generated OpenAPI ordering
+      // remains deterministic while the four Payments Authority routes are public.
+      PaymentsModule,
     ],
   })
   class ApplicationModule {}
@@ -50,6 +62,12 @@ export async function createApplication(config: ApiConfig = readConfig()) {
     },
   );
   app.use(helmet());
+  // Provider verification must receive the exact bytes that were signed.
+  // This narrowly scoped raw parser must run before the generic JSON parser.
+  app.use(
+    "/api/v1/payments/providers/:provider/events",
+    raw({ type: "application/json", limit: "64kb" }),
+  );
   app.use(json({ limit: "64kb" }));
   app.enableCors({
     origin: config.webOrigins,

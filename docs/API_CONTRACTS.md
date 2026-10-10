@@ -143,7 +143,7 @@ Every inspection records all credited `{lotId, quantity}` entries in `dispositio
 | --- | --- | --- |
 | `checkout.quote` | `POST /checkout/quote` | Live availability + zone fee + minimum. |
 | `checkout.complete` | `POST /checkout/complete` | **Idempotent.** Atomic all-line reservation. |
-| `checkout.payment-outcome` | `POST /orders/{orderId}/payment-outcome` | Provider callback; duplicate-safe. |
+| `checkout.payment-outcome` | `POST /orders/{orderId}/payment-outcome` | **Demo/mock only.** Production payment truth is provider-adapter verified and this route is intentionally absent from the production API. |
 | `checkout.status` | `GET /orders/{orderId}` | Customer-safe projection. |
 | `orders.detail` | `GET /orders/{orderId}` | Same projection (staff auth in production). |
 | `orders.track` | `POST /orders/track` | Reference + verification code. |
@@ -156,7 +156,7 @@ Every inspection records all credited `{lotId, quantity}` entries in `dispositio
 | --- | --- | --- |
 | `account.summary` | `GET /account/summary` | |
 | `account.orders` | `GET /account/orders` | |
-| `account.cancel` | `POST /account/orders/{orderId}/cancel` | Paid orders get a linked executable refund. |
+| `account.cancel` | `POST /account/orders/{orderId}/cancel` | Broader target: paid orders get a linked executable refund. Current production Payments Authority refuses refund-sensitive cancellation until Refunds Authority exists. |
 | `account.return-lines` | `POST /account/orders/{orderId}/return-lines` | Semantically a read; POST keeps mock body transport. |
 | `account.create-return` | `POST /account/returns` | **Idempotent.** Duplicate-line aggregation enforced. |
 | `account.returns` | `GET /account/returns` | |
@@ -325,4 +325,10 @@ permissions from the session. Public frontend activation awaits commerce parity.
 
 ## Implemented checkout and order authority
 
-The executable NestJS backend now implements the eight production checkout/order routes documented in `CHECKOUT_ORDERS_AUTHORITY.md`: zones, slots, quote, checkout complete, owner status, public reference+code tracking, customer order history and pre-handover cancellation. `checkout.complete` requires `Idempotency-Key`; guest mutations additionally require the guest capability, trusted Origin and matching CSRF token. Customer/account routes never accept `customerId` as authorization. The 92-operation table remains the broader target rather than a claim of implementation; payment outcome, POS, staff fulfilment, refunds and dispatch remain absent, and public frontend cutover is still prohibited.
+The executable NestJS backend implements the eight production checkout/order routes documented in `CHECKOUT_ORDERS_AUTHORITY.md`: zones, slots, quote, checkout complete, owner status, public reference+code tracking, customer order history and pre-handover cancellation. `checkout.complete` requires `Idempotency-Key`; guest mutations additionally require the guest capability, trusted Origin and matching CSRF token. Customer/account routes never accept `customerId` as authorization.
+
+## Implemented Payments Authority
+
+The executable backend also implements the four provider-neutral production payment routes documented in `PAYMENTS_AUTHORITY.md`: owner-scoped payment initiation, raw-byte provider events, the administrator payments ledger and administrator reconciliation. Client/browser fields never establish paid state; verified adapter evidence or authoritative provider lookup flows through the central payment outcome service. Payment attempts and provider/reconciliation evidence are durable, Inventory remains the sole reservation writer, and late paid orders either reacquire stock in a later reservation generation or remain paid with `requires_review`. Hubtel is **not** enabled by this milestone; its live adapter stays closed until the exact merchant integration contract and credentials are supplied and verified.
+
+The 92-operation table remains the broader target rather than a claim of implementation. The mock `checkout.payment-outcome` operation is intentionally absent from production. POS, physical stock handover/depletion, refunds, staff fulfilment/dispatch and public frontend cutover remain closed.
