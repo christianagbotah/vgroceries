@@ -9,6 +9,7 @@ import {
 } from "./allocation.values";
 import type {
   AllocationLotResult,
+  AllocationOperationContext,
   CreateAllocationInput,
 } from "./allocation.types";
 
@@ -147,6 +148,35 @@ export class AllocationService {
       if (remaining.gt(0))
         throw new ApiProblem(409, "OUT_OF_STOCK", "Stock changed while allocating.");
     }
+    const reservationIds = results.map((row) => row.reservationId);
+    const affectedVariantIds = [...new Set(results.map((row) => row.variantId))];
+    await tx.auditEvent.create({
+      data: {
+        actorId: input.actorId,
+        action: "inventory.allocated",
+        entityId: input.claimId,
+        requestId: input.requestId,
+        details: {
+          claimType: input.claimType,
+          locationId: input.locationId,
+          reservationIds,
+          variantIds: affectedVariantIds,
+        },
+      },
+    });
+    await tx.outboxEvent.create({
+      data: {
+        type: "inventory.allocated",
+        aggregateId: input.claimId,
+        payload: {
+          claimType: input.claimType,
+          claimId: input.claimId,
+          locationId: input.locationId,
+          reservationIds,
+          variantIds: affectedVariantIds,
+        },
+      },
+    });
     return results;
   }
 
@@ -154,19 +184,65 @@ export class AllocationService {
     tx: Prisma.TransactionClient,
     claimType: string,
     claimId: string,
+    context?: AllocationOperationContext,
   ): Promise<number> {
-    const result = await tx.reservation.updateMany({
+    const changed = await tx.reservation.updateManyAndReturn({
       where: { claimType, claimId, state: "active" },
       data: { state: "released" },
+      select: { id: true },
     });
-    return result.count;
+    if (changed.length && context) {
+      const reservationIds = changed.map((row) => row.id);
+      await tx.auditEvent.create({
+        data: {
+          actorId: context.actorId,
+          action: "inventory.released",
+          entityId: claimId,
+          requestId: context.requestId,
+          details: { claimType, reservationIds },
+        },
+      });
+      await tx.outboxEvent.create({
+        data: {
+          type: "inventory.released",
+          aggregateId: claimId,
+          payload: { claimType, claimId, reservationIds },
+        },
+      });
+    }
+    return changed.length;
   }
 
-  async expire(tx: Prisma.TransactionClient, now: Date): Promise<number> {
-    const result = await tx.reservation.updateMany({
+  async expire(
+    tx: Prisma.TransactionClient,
+    now: Date,
+    context?: AllocationOperationContext,
+  ): Promise<number> {
+    const changed = await tx.reservation.updateManyAndReturn({
       where: { state: "active", expiresAt: { lte: now } },
       data: { state: "expired" },
+      select: { id: true, claimId: true, claimType: true },
     });
-    return result.count;
+    if (changed.length && context) {
+      const reservationIds = changed.map((row) => row.id);
+      const claimIds = [...new Set(changed.map((row) => row.claimId))];
+      await tx.auditEvent.create({
+        data: {
+          actorId: context.actorId,
+          action: "inventory.expired",
+          entityId: context.requestId,
+          requestId: context.requestId,
+          details: { reservationIds, claimIds },
+        },
+      });
+      await tx.outboxEvent.create({
+        data: {
+          type: "inventory.expired",
+          aggregateId: context.requestId,
+          payload: { reservationIds, claimIds },
+        },
+      });
+    }
+    return changed.length;
   }
 }

@@ -9,7 +9,14 @@ export interface CreateAllocationInput {
   claimId: string;
   locationId: string;
   expiresAt: Date;
+  actorId: string;
+  requestId: string;
   lines: AllocationLineInput[];
+}
+
+export interface AllocationOperationContext {
+  actorId: string;
+  requestId: string;
 }
 
 export interface AllocationLotResult {

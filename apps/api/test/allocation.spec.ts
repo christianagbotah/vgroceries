@@ -97,6 +97,8 @@ async function createClaim(claimId: string, lines: { claimLineId: string; varian
       claimId,
       locationId: "loc_alloc",
       expiresAt: new Date(Date.now() + 3600000),
+      actorId: "actor_test",
+      requestId: `req_${claimId}`,
       lines,
     }),
   );
@@ -151,16 +153,22 @@ test("release and expiry change active claims once without touching terminal row
   await createClaim("ord_release", [
     { claimLineId: "line_release", variantId: "var_good", quantity: "1" },
   ]);
-  const released = await db.$transaction((tx) => allocation.release(tx, "order", "ord_release"));
+  const released = await db.$transaction((tx) =>
+    allocation.release(tx, "order", "ord_release", { actorId: "actor_release", requestId: "req_release" }),
+  );
   assert.equal(released, 1);
   assert.equal(await db.$transaction((tx) => allocation.release(tx, "order", "ord_release")), 0);
+  assert.equal(await db.auditEvent.count({ where: { action: "inventory.released", entityId: "ord_release" } }), 1);
+  assert.equal(await db.outboxEvent.count({ where: { type: "inventory.released", aggregateId: "ord_release" } }), 1);
   assert.equal((await db.reservation.findFirstOrThrow({ where: { claimId: "ord_release" } })).state, "released");
 
   await createClaim("ord_expire", [
     { claimLineId: "line_expire", variantId: "var_good", quantity: "1" },
   ]);
   await db.reservation.updateMany({ where: { claimId: "ord_expire" }, data: { expiresAt: new Date(0) } });
-  const expired = await db.$transaction((tx) => allocation.expire(tx, new Date()));
+  const expired = await db.$transaction((tx) =>
+    allocation.expire(tx, new Date(), { actorId: "actor_expire", requestId: "req_expire" }),
+  );
   assert.equal(expired, 1);
   assert.equal((await db.reservation.findFirstOrThrow({ where: { claimId: "ord_expire" } })).state, "expired");
   assert.equal((await db.reservation.findFirstOrThrow({ where: { claimId: "ord_release" } })).state, "released");
@@ -182,6 +190,8 @@ test("two independent allocators cannot both reserve the final unit", async () =
           claimId,
           locationId: "loc_alloc",
           expiresAt,
+          actorId: `actor_${claimId}`,
+          requestId: `req_${claimId}`,
           lines: [
             { claimLineId: `line_${claimId}`, variantId: "var_short", quantity: "1" },
           ],
@@ -205,5 +215,45 @@ test("two independent allocators cannot both reserve the final unit", async () =
       SELECT "availableToSell" FROM variant_availability
       WHERE "variantId"='var_short' AND "locationId"='loc_alloc'`;
     assert.equal(availability.availableToSell.toString(), "0");
+  }
+});
+
+
+test("successful allocation writes audit and outbox records in the same transaction", async () => {
+  const rows = await createClaim("ord_events", [
+    { claimLineId: "line_events", variantId: "var_good", quantity: "1" },
+  ]);
+  const audit = await db.auditEvent.findMany({ where: { entityId: "ord_events" } });
+  const outbox = await db.outboxEvent.findMany({ where: { aggregateId: "ord_events" } });
+  assert.equal(audit.length, 1);
+  assert.equal(audit[0].actorId, "actor_test");
+  assert.equal(audit[0].requestId, "req_ord_events");
+  assert.equal(audit[0].action, "inventory.allocated");
+  assert.equal(outbox.length, 1);
+  assert.equal(outbox[0].type, "inventory.allocated");
+  const payload = outbox[0].payload as { reservationIds: string[]; variantIds: string[] };
+  assert.deepEqual(payload.reservationIds, rows.map((row) => row.reservationId));
+  assert.deepEqual(payload.variantIds, ["var_good"]);
+});
+
+test("outbox failure rolls back allocation, audit and event effects", async () => {
+  await db.$executeRawUnsafe(
+    "CREATE FUNCTION test_reject_allocation_outbox() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.type = 'inventory.allocated' THEN RAISE EXCEPTION 'allocation outbox fault'; END IF; RETURN NEW; END; $$",
+  );
+  await db.$executeRawUnsafe(
+    'CREATE TRIGGER test_allocation_outbox_failure BEFORE INSERT ON "OutboxEvent" FOR EACH ROW EXECUTE FUNCTION test_reject_allocation_outbox()',
+  );
+  try {
+    await assert.rejects(() =>
+      createClaim("ord_event_fail", [
+        { claimLineId: "line_event_fail", variantId: "var_good", quantity: "1" },
+      ]),
+    );
+    assert.equal(await db.reservation.count({ where: { claimId: "ord_event_fail" } }), 0);
+    assert.equal(await db.auditEvent.count({ where: { entityId: "ord_event_fail" } }), 0);
+    assert.equal(await db.outboxEvent.count({ where: { aggregateId: "ord_event_fail" } }), 0);
+  } finally {
+    await db.$executeRawUnsafe('DROP TRIGGER test_allocation_outbox_failure ON "OutboxEvent"');
+    await db.$executeRawUnsafe("DROP FUNCTION test_reject_allocation_outbox()");
   }
 });
