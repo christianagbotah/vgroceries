@@ -27,6 +27,10 @@ CREATE INDEX "Reservation_lotId_state_expiresAt_idx"
 CREATE INDEX "Reservation_claimType_claimId_state_idx"
   ON "Reservation"("claimType","claimId","state");
 
+ALTER TABLE "Reservation" DROP CONSTRAINT reservation_state;
+ALTER TABLE "Reservation" ADD CONSTRAINT reservation_state
+  CHECK (state IN ('active','released','consumed','expired'));
+
 DROP VIEW "variant_availability";
 CREATE VIEW "variant_availability" AS
 SELECT sp.id AS "positionId", sp."variantId", sp."locationId", sp."safetyStock",

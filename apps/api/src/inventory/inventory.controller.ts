@@ -18,6 +18,7 @@ import { ApiProblem } from "../http/errors";
 import { AccessGuard, Permission } from "../identity/access.guard";
 import { AuthRequest } from "../identity/identity.service";
 import { InventoryService } from "./inventory.service";
+import { AllocationService } from "./allocation.service";
 
 @ApiTags("inventory")
 @ApiCookieAuth()
@@ -110,5 +111,9 @@ export class InventoryController {
     };
   }
 }
-@Module({ controllers: [InventoryController], providers: [InventoryService] })
+@Module({
+  controllers: [InventoryController],
+  providers: [InventoryService, AllocationService],
+  exports: [AllocationService],
+})
 export class InventoryModule {}
