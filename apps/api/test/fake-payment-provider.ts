@@ -1,0 +1,27 @@
+import type {
+  PaymentProviderAdapter,
+  PaymentProviderCapabilities,
+  PaymentProviderEventInput,
+  PaymentProviderEventVerification,
+  PaymentProviderInitiationInput,
+  PaymentProviderInitiationResult,
+  PaymentProviderLookupInput,
+  PaymentProviderObservation,
+} from "../src/payments/payment-provider";
+
+export class FakePaymentProvider implements PaymentProviderAdapter {
+  readonly id = "fake";
+  readonly initiateCalls: PaymentProviderInitiationInput[] = [];
+  readonly lookupCalls: PaymentProviderLookupInput[] = [];
+  readonly verifyCalls: PaymentProviderEventInput[] = [];
+  capabilitiesValue: PaymentProviderCapabilities = {
+    methods: ["mobile_money", "card_hosted", "bank_transfer"], trustMode: "verified_event", safeInitiationRetry: true,
+  };
+  initiationResult: PaymentProviderInitiationResult = { kind: "accepted", providerReference: "fake-ref", action: { kind: "prompt", message: "Approve the payment" } };
+  lookupResult: PaymentProviderObservation = { providerId: "fake", merchantReference: "unset", state: "pending", amountMinor: 1, currency: "GHS" };
+  verificationResult: PaymentProviderEventVerification = { verification: "invalid" };
+  capabilities() { return this.capabilitiesValue; }
+  async initiate(input: PaymentProviderInitiationInput) { this.initiateCalls.push(input); return this.initiationResult; }
+  async verifyEvent(input: PaymentProviderEventInput) { this.verifyCalls.push(input); return this.verificationResult; }
+  async lookup(input: PaymentProviderLookupInput) { this.lookupCalls.push(input); return { ...this.lookupResult, merchantReference: this.lookupResult.merchantReference === "unset" ? input.merchantReference : this.lookupResult.merchantReference }; }
+}
