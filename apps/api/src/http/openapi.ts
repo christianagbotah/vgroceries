@@ -28,8 +28,6 @@ import {
   publicOrderSchema,
   trackRequestSchema,
   accountCancelPathRequestSchema,
-  paymentInitiationRequestSchema,
-  paymentInitiationResultSchema,
 } from "@variety/contracts";
 import { z } from "zod";
 
@@ -38,7 +36,7 @@ export function foundationOpenApi(app: INestApplication) {
     .setTitle("Variety Groceries production API")
     .setVersion("0.1.0")
     .setDescription(
-      "Implemented production subset: identity, catalogue, inventory receiving, delivery configuration, authoritative checkout/orders, customer cancellation and customer/guest electronic-payment initiation. Provider callbacks, reconciliation, stock handover, fulfilment/dispatch, POS and public storefront cutover remain closed.",
+      "Implemented production subset: identity, catalogue, inventory receiving, delivery configuration, authoritative checkout/orders and customer cancellation. Payments, stock handover, fulfilment/dispatch, POS and public storefront cutover remain closed.",
     )
     .addCookieAuth("vg_session", { type: "apiKey", in: "cookie" }, "cookieAuth")
     .addCookieAuth("vg_guest", { type: "apiKey", in: "cookie" }, "guestAuth")
@@ -92,8 +90,6 @@ export function foundationOpenApi(app: INestApplication) {
     TrackRequest: json(trackRequestSchema),
     AccountCancelRequest: json(accountCancelPathRequestSchema),
     AccountCancelResponse: json(z.object({ fulfilmentStatus:z.string() })),
-    PaymentInitiationRequest: json(paymentInitiationRequestSchema),
-    PaymentInitiationResponse: json(paymentInitiationResultSchema),
     LoginRequest: json(loginRequestSchema),
     RefreshRequest: json(refreshRequestSchema),
     ByVariantsRequest: json(byVariantsRequestSchema),
@@ -169,7 +165,6 @@ export function foundationOpenApi(app: INestApplication) {
     "/checkout/complete": "CompleteOrderResponse",
     "/orders/{orderId}": "PublicOrder",
     "/orders/track": "PublicOrder",
-    "/orders/{orderId}/payment-attempts": "PaymentInitiationResponse",
     "/account/orders": "AccountOrderListResponse",
     "/account/orders/{orderId}/cancel": "AccountCancelResponse",
   };
@@ -189,7 +184,6 @@ export function foundationOpenApi(app: INestApplication) {
     "/checkout/quote": "CheckoutQuoteRequest",
     "/checkout/complete": "CheckoutCompleteRequest",
     "/orders/track": "TrackRequest",
-    "/orders/{orderId}/payment-attempts": "PaymentInitiationRequest",
     "/account/orders/{orderId}/cancel": "AccountCancelRequest",
   };
   for (const [path, item] of Object.entries(doc.paths)) {
@@ -205,11 +199,8 @@ export function foundationOpenApi(app: INestApplication) {
         suffix === "/auth/logout" ||
         suffix.startsWith("/account/orders")
       ) operation.security = [{ cookieAuth: [] }, { bearerAuth: [] }];
-      if (
-        suffix === "/checkout/complete" ||
-        suffix === "/orders/{orderId}" ||
-        suffix === "/orders/{orderId}/payment-attempts"
-      ) operation.security = [{ cookieAuth: [] }, { bearerAuth: [] }, { guestAuth: [] }];
+      if (suffix === "/checkout/complete" || suffix === "/orders/{orderId}")
+        operation.security = [{ cookieAuth: [] }, { bearerAuth: [] }, { guestAuth: [] }];
       const successCode = method === "post" && !["/checkout/quote","/orders/track","/account/orders/{orderId}/cancel"].includes(suffix) ? "201" : "200";
       operation.responses[successCode] = {
         description: "Successful response",
@@ -320,25 +311,6 @@ export function foundationOpenApi(app: INestApplication) {
   doc.paths["/api/v1/orders/track"]!.post!.security = [];
   doc.paths["/api/v1/orders/track"]!.post!.description =
     "Public capability lookup using order reference plus verification code. Failed attempts are durably rate-limited; submitted codes are never persisted.";
-  doc.paths["/api/v1/orders/{orderId}/payment-attempts"]!.post!.parameters = [
-    {
-      name: "orderId", in: "path", required: true,
-      description: "Order owned by the authenticated customer or exact owning guest capability.",
-      schema: { type: "string", minLength: 1 },
-    },
-    {
-      name: "Idempotency-Key", in: "header", required: true,
-      description: "8–128 letters, digits, underscores, colons or hyphens. Same principal/key/request replays one durable payment attempt.",
-      schema: { type: "string", pattern: "^[A-Za-z0-9:_-]{8,128}$" },
-    },
-    {
-      name: "X-CSRF-Token", in: "header", required: false,
-      description: "Required for web-cookie or guest-cookie mutation flows alongside a trusted Origin.",
-      schema: { type: "string", minLength: 1 },
-    },
-  ];
-  doc.paths["/api/v1/orders/{orderId}/payment-attempts"]!.post!.description =
-    "Creates or replays one durable electronic-payment attempt for the owning customer or guest. Provider, method, currency and amount are derived server-side from the order and payment policy; client money fields are rejected. Provider network calls occur only after durable intent commits, and ambiguous initiation is recovered by lookup before any retry.";
   doc.paths["/api/v1/account/orders"]!.get!.parameters = [
     { name: "page", in: "query", schema: { type: "integer", minimum: 1, default: 1 } },
     { name: "perPage", in: "query", schema: { type: "integer", minimum: 1, maximum: 100, default: 50 } },
