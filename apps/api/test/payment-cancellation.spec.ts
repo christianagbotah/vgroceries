@@ -7,6 +7,7 @@ import { Database } from "../src/database/database";
 import { PaymentOutcomeService } from "../src/payments/payment-outcome.service";
 import { commerceTestPassword, seedCommerceFixtures } from "./commerce-fixtures";
 import { FakePaymentProvider } from "./fake-payment-provider";
+import { FakeRefundProvider } from "./fake-refund-provider";
 
 let app: INestApplication;
 let base = "";
@@ -30,7 +31,7 @@ beforeEach(async () => {
     throw Error("Payment cancellation tests require an isolated *variety_foundation_test database");
   if (app) await app.close();
   fake = new FakePaymentProvider();
-  app = await createApplication(config(), [fake]);
+  app = await createApplication(config(), [fake], [new FakeRefundProvider()]);
   await app.listen(0, "127.0.0.1");
   base = await app.getUrl();
   db = app.get(Database);
@@ -93,12 +94,15 @@ test("live payment attempts block cancellation while failed and expired attempts
 
   const captured = await orderAndAttempt(token, "captured-attempt");
   await db.paymentAttempt.update({ where: { id: captured.attempt.id }, data: { status: "succeeded", resolvedAt: new Date(), version: { increment: 1 } } });
-  // Deliberately leave the order row pending: cancellation must trust the durable
-  // attempt authority too, not only the denormalized Order.paymentStatus field.
-  const refused = await cancel(token, captured.orderId);
-  assert.equal(refused.response.status, 422);
-  assert.ok(String(refused.body.error.message).toLowerCase().includes("refund"));
-  assert.ok(await db.reservation.count({ where: { claimId: captured.orderId, state: "active" } }));
+  // Deliberately leave the order projection pending: cancellation trusts the durable
+  // successful capture, creates the refund obligation, and derives refund_pending.
+  const cancelled = await cancel(token, captured.orderId);
+  assert.equal(cancelled.response.status, 200);
+  const paidOrder = await db.order.findUniqueOrThrow({ where: { id: captured.orderId } });
+  assert.equal(paidOrder.fulfilmentStatus, "cancelled");
+  assert.equal(paidOrder.paymentStatus, "refund_pending");
+  assert.equal(await db.refund.count({ where: { orderId: captured.orderId, paymentAttemptId: captured.attempt.id } }), 1);
+  assert.equal(await db.reservation.count({ where: { claimId: captured.orderId, state: "active" } }), 0);
 });
 
 test("verified success racing cancellation serializes to paid order and refused cancellation", async () => {

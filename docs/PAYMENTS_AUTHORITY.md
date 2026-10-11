@@ -68,8 +68,9 @@ Payments calls Inventory `ensureClaimCoverage` inside the same transaction:
 If real money succeeds but stock can no longer be reacquired, Variety records the
 payment as succeeded evidence, sets settlement/order review state to `exception` /
 `requires_review`, and creates no fabricated or partial stock hold. A success that
-arrives after cancellation is likewise preserved and routed to review for the
-future refund workflow.
+arrives after cancellation is likewise preserved and routed to review; the
+Refunds Authority can then create the missing return-of-funds obligation without
+discarding capture truth.
 
 ## Reconciliation and staff ledger
 
@@ -100,8 +101,10 @@ Cancellation behavior is:
 - no attempt, or only terminal failed/expired attempts: existing pre-handover
   cancellation may proceed;
 - a live initiated/pending attempt: cancellation is refused until reconciliation;
-- succeeded payment or refund/review-sensitive order state: cancellation is
-  refused and the future refund workflow is required.
+- a succeeded payment on an eligible pre-handover order: Refunds Authority creates
+  every missing per-capture obligation atomically before cancellation/stock release;
+- refund/review-sensitive states are resolved through Refunds Authority or explicit
+  reconciliation rather than by rewriting capture truth.
 
 A verified success racing cancellation therefore serializes to one safe result;
 stock cannot be released while a live charge can still become paid.
@@ -137,13 +140,14 @@ payment domains. No guessed Hubtel endpoint or secret field is committed.
 Still outside this milestone:
 
 - provider-specific live charging/Hubtel activation;
-- refunds and refund execution;
 - physical stock depletion/handover;
 - staff fulfilment/dispatch and rider operations;
 - outbox publisher/worker scheduling;
 - POS payment authority;
 - public frontend production-backend cutover.
 
-The generated production specification is `docs/openapi-foundation.json`. It now
-contains 25 paths: the previous 21 commerce/foundation paths plus the four Payments
-Authority routes above.
+Refund execution is now implemented separately by the provider-neutral `docs/REFUNDS_AUTHORITY.md`; live Hubtel remains disabled there as well.
+
+The generated production specification is `docs/openapi-foundation.json`. After
+Refunds Authority it contains 28 paths: the previous 21 commerce/foundation paths,
+the four Payments routes above, and three Refunds routes.

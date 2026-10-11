@@ -86,13 +86,13 @@ export interface RefundRow {
   createdAtLabel: string;
 }
 
-export interface RefundActionRequest {
+export interface LegacyRefundActionRequest {
   refundId: string;
   action: "approve" | "execute" | "retry";
   actor?: string;
 }
 
-export interface RefundActionResponse {
+export interface LegacyRefundActionResponse {
   done: boolean;
 }
 

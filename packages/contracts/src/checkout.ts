@@ -1,3 +1,5 @@
+import type { CustomerRefundView } from "./refunds";
+
 /**
  * Shared API contracts — checkout, payment status, public order tracking.
  * Status dimensions stay SEPARATE (payment / fulfilment / delivery) per the
@@ -245,6 +247,7 @@ export interface PublicOrder {
   fulfilmentStatus: FulfilmentStatus;
   deliveryStatus: DeliveryStatus;
   paymentAttempts: PaymentAttemptView[];
+  refunds?: CustomerRefundView[];
   lines: OrderLineView[];
   notes: PublicOrderNote[];
   events: OrderEventView[];

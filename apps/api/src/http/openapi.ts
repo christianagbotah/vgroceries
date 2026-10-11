@@ -33,6 +33,11 @@ import {
   paymentProviderEventResponseSchema,
   paymentListResponseSchema,
   paymentReconcileResponseSchema,
+  refundActionRequestSchema,
+  refundActionResponseSchema,
+  refundListResponseSchema,
+  adminOrderFinancialActionRequestSchema,
+  adminOrderFinancialActionResponseSchema,
 } from "@variety/contracts";
 import { z } from "zod";
 
@@ -41,7 +46,7 @@ export function foundationOpenApi(app: INestApplication) {
     .setTitle("Variety Groceries production API")
     .setVersion("0.1.0")
     .setDescription(
-      "Implemented production subset: identity, catalogue, inventory receiving, delivery configuration, authoritative checkout/orders and provider-neutral Payments Authority. Stock handover, refunds, fulfilment/dispatch, POS and public storefront cutover remain closed.",
+      "Implemented production subset: identity, catalogue, inventory receiving, delivery configuration, authoritative checkout/orders, provider-neutral Payments Authority and provider-neutral Refunds Authority. Stock handover, physical returns, fulfilment/dispatch, POS and public storefront cutover remain closed.",
     )
     .addCookieAuth("vg_session", { type: "apiKey", in: "cookie" }, "cookieAuth")
     .addCookieAuth("vg_guest", { type: "apiKey", in: "cookie" }, "guestAuth")
@@ -100,6 +105,11 @@ export function foundationOpenApi(app: INestApplication) {
     PaymentProviderEventResponse: json(paymentProviderEventResponseSchema),
     PaymentListResponse: json(paymentListResponseSchema),
     PaymentReconcileResponse: json(paymentReconcileResponseSchema),
+    RefundListResponse: json(refundListResponseSchema),
+    RefundActionRequest: json(refundActionRequestSchema),
+    RefundActionResponse: json(refundActionResponseSchema),
+    AdminOrderFinancialActionRequest: json(adminOrderFinancialActionRequestSchema),
+    AdminOrderFinancialActionResponse: json(adminOrderFinancialActionResponseSchema),
     LoginRequest: json(loginRequestSchema),
     RefreshRequest: json(refreshRequestSchema),
     ByVariantsRequest: json(byVariantsRequestSchema),
@@ -181,6 +191,9 @@ export function foundationOpenApi(app: INestApplication) {
     "/payments/providers/{provider}/events": "PaymentProviderEventResponse",
     "/payments": "PaymentListResponse",
     "/payments/{attemptId}/reconcile": "PaymentReconcileResponse",
+    "/refunds": "RefundListResponse",
+    "/refunds/{refundId}/actions": "RefundActionResponse",
+    "/admin/orders/{orderId}/actions": "AdminOrderFinancialActionResponse",
   };
   for (const name of new Set(Object.values(responses)))
     schemas[name + "Envelope"] = {
@@ -200,6 +213,8 @@ export function foundationOpenApi(app: INestApplication) {
     "/orders/track": "TrackRequest",
     "/account/orders/{orderId}/cancel": "AccountCancelRequest",
     "/orders/{orderId}/payment-attempts": "PaymentInitiationRequest",
+    "/refunds/{refundId}/actions": "RefundActionRequest",
+    "/admin/orders/{orderId}/actions": "AdminOrderFinancialActionRequest",
   };
   for (const [path, item] of Object.entries(doc.paths)) {
     const suffix = path.slice("/api/v1".length);
@@ -214,11 +229,14 @@ export function foundationOpenApi(app: INestApplication) {
         suffix === "/auth/logout" ||
         suffix.startsWith("/account/orders") ||
         suffix === "/payments" ||
-        suffix === "/payments/{attemptId}/reconcile"
+        suffix === "/payments/{attemptId}/reconcile" ||
+        suffix === "/refunds" ||
+        suffix === "/refunds/{refundId}/actions" ||
+        suffix === "/admin/orders/{orderId}/actions"
       ) operation.security = [{ cookieAuth: [] }, { bearerAuth: [] }];
       if (suffix === "/checkout/complete" || suffix === "/orders/{orderId}" || suffix === "/orders/{orderId}/payment-attempts")
         operation.security = [{ cookieAuth: [] }, { bearerAuth: [] }, { guestAuth: [] }];
-      const successCode = method === "post" && !["/checkout/quote","/orders/track","/account/orders/{orderId}/cancel","/payments/providers/{provider}/events","/payments/{attemptId}/reconcile"].includes(suffix) ? "201" : "200";
+      const successCode = method === "post" && !["/checkout/quote","/orders/track","/account/orders/{orderId}/cancel","/payments/providers/{provider}/events","/payments/{attemptId}/reconcile","/refunds/{refundId}/actions","/admin/orders/{orderId}/actions"].includes(suffix) ? "201" : "200";
       operation.responses[successCode] = {
         description: "Successful response",
         content: { "application/json": { schema: ref(name + "Envelope") } },
@@ -337,7 +355,7 @@ export function foundationOpenApi(app: INestApplication) {
     doc.paths[path]![method]!.parameters = [{ name: "orderId", in: "path", required: true, schema: { type: "string", minLength: 1 } }];
   }
   doc.paths["/api/v1/account/orders/{orderId}/cancel"]!.post!.description =
-    "Authenticated-customer-only pre-handover cancellation. Order state, Inventory reservations and delivery-slot booking release in one locked transaction; live payments require reconciliation and captured/refund-sensitive payments require the future refund workflow.";
+    "Authenticated-customer-only pre-handover cancellation. Order state, Refund obligations for every successful capture, Inventory reservation release and delivery-slot release commit atomically. Live or uncertain payments require reconciliation before cancellation; provider refund execution happens separately after approval.";
 
   const paymentInitiation = doc.paths["/api/v1/orders/{orderId}/payment-attempts"]!.post!;
   paymentInitiation.parameters = [
@@ -395,6 +413,64 @@ export function foundationOpenApi(app: INestApplication) {
   ];
   reconcilePayment.description =
     "Administrator-only reconciliation command. Reads an immutable attempt snapshot, performs authoritative provider lookup outside the database transaction, then rechecks Order→Attempt locks before applying the observation through PaymentOutcomeService. Repeat execution cannot duplicate financial effects.";
+
+
+  const refundList = doc.paths["/api/v1/refunds"]!.get!;
+  refundList.description =
+    "Administrator-only bounded Refunds ledger. Shows durable refund obligations, capture/refund balances and safe execution/reconciliation state without merchant refund references, original capture references, raw provider evidence, signatures or credentials.";
+  refundList.parameters = [
+    { name: "page", in: "query", schema: { type: "integer", minimum: 1, maximum: 1000000, default: 1 } },
+    { name: "perPage", in: "query", schema: { type: "integer", minimum: 1, maximum: 100, default: 25 } },
+    { name: "status", in: "query", schema: { type: "string", enum: ["awaiting_approval","approved","processing","succeeded","failed","requires_review"] } },
+    { name: "provider", in: "query", schema: { type: "string", pattern: "^[a-z0-9][a-z0-9_-]{0,63}$" } },
+    { name: "method", in: "query", schema: { type: "string", enum: ["mobile_money","card_hosted","bank_transfer"] } },
+    { name: "sourceType", in: "query", schema: { type: "string", enum: ["customer_cancellation","payment_review_cancellation","overcharge_correction","return"] } },
+    { name: "orderReference", in: "query", schema: { type: "string", maxLength: 128 } },
+    { name: "from", in: "query", schema: { type: "string", format: "date-time" } },
+    { name: "to", in: "query", schema: { type: "string", format: "date-time" } },
+  ];
+
+  const refundAction = doc.paths["/api/v1/refunds/{refundId}/actions"]!.post!;
+  refundAction.parameters = [
+    { name: "refundId", in: "path", required: true, schema: { type: "string", minLength: 1 } },
+    {
+      name: "Idempotency-Key", in: "header", required: true,
+      description: "Durable administrator-scoped replay key. Same key and action replays the same refund operation; changed action conflicts.",
+      schema: { type: "string", minLength: 8, maxLength: 128 },
+    },
+    {
+      name: "X-CSRF-Token", in: "header", required: false,
+      description: "Required for administrator web-cookie mutation flows alongside a trusted Origin.",
+      schema: { type: "string", minLength: 1 },
+    },
+  ];
+  refundAction.description =
+    "Administrator-only Refund action. Approval changes obligation state only; execute/retry/reconcile use the immutable server-derived capture, provider, amount and GHS currency. Provider I/O occurs outside database transactions, uncertain retries lookup the same merchant refund reference first, and request bodies cannot choose money/provider identity.";
+  refundAction.requestBody = {
+    required: true,
+    content: { "application/json": { schema: json(refundActionRequestSchema) } },
+  };
+
+  const adminOrderAction = doc.paths["/api/v1/admin/orders/{orderId}/actions"]!.post!;
+  adminOrderAction.parameters = [
+    { name: "orderId", in: "path", required: true, schema: { type: "string", minLength: 1 } },
+    {
+      name: "Idempotency-Key", in: "header", required: true,
+      description: "Durable administrator-scoped replay key for the financial order action.",
+      schema: { type: "string", minLength: 8, maxLength: 128 },
+    },
+    {
+      name: "X-CSRF-Token", in: "header", required: false,
+      description: "Required for administrator web-cookie mutation flows alongside a trusted Origin.",
+      schema: { type: "string", minLength: 1 },
+    },
+  ];
+  adminOrderAction.description =
+    "Administrator-only financial order resolution. cancel_refund atomically ensures all missing successful-capture refund obligations before cancelling/releasing pre-handover resources; refund_excess_capture creates only the server-derived verified over-capture correction and never changes fulfilment or stock. The client cannot choose refund amount, provider, currency or payment attempt.";
+  adminOrderAction.requestBody = {
+    required: true,
+    content: { "application/json": { schema: json(adminOrderFinancialActionRequestSchema) } },
+  };
 
   doc.paths["/api/v1/inventory/receive"]!.post!.description =
     "Positive exact quantities with at most three decimal places; count-based units require whole quantities. Cookie authentication requires X-CSRF-Token and a trusted Origin. supplierId is refused until purchasing exists. Client actor is ignored. A replay key covers this actor and operation.";

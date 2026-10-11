@@ -58,7 +58,7 @@ import type {
   PurchaseSendResponse,
   QuoteResponse,
   ReceiptLookupResponse,
-  RefundActionResponse,
+  LegacyRefundActionResponse,
   RefundRow,
   ReturnActionResponse,
   ReturnDetailView,
@@ -248,7 +248,7 @@ export const apiOps = {
   returnAction: (body: Record<string, unknown>) => api<ReturnActionResponse>("admin.return.action", { body }),
   refunds: () => api<RefundRow[]>("admin.refunds"),
   refundAction: (refundId: string, action: "approve" | "execute" | "retry", actor?: string) =>
-    api<RefundActionResponse>("admin.refund.action", { body: { refundId, action, actor } }),
+    api<LegacyRefundActionResponse>("admin.refund.action", { body: { refundId, action, actor } }),
   payments: () => api<import("./contracts").PaymentRow[]>("admin.payments"),
   customers: () => api<import("./contracts").CustomerRow[]>("admin.customers"),
   customer: (customerId: string) => api<import("./contracts").CustomerDetailResponse>("admin.customer", { query: { customerId } }),

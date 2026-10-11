@@ -7,6 +7,7 @@ import { PaymentPolicyService } from "../src/payments/payment-policy.service";
 import { readConfig } from "../src/config";
 import { commerceTestPassword, seedCommerceFixtures } from "./commerce-fixtures";
 import { FakePaymentProvider } from "./fake-payment-provider";
+import { FakeRefundProvider } from "./fake-refund-provider";
 
 const apps: INestApplication[] = [];
 after(async () => { for (const app of apps.reverse()) await app.close(); });
@@ -25,7 +26,7 @@ const env = (payments = true) => ({
 });
 
 async function start(config = readConfig(env()), fake?: FakePaymentProvider) {
-  const app = await createApplication(config, fake ? [fake] : []); apps.push(app);
+  const app = await createApplication(config, fake ? [fake] : [], [new FakeRefundProvider()]); apps.push(app);
   await app.listen(0, "127.0.0.1"); await seedCommerceFixtures(app.get(Database));
   return { app, base: await app.getUrl(), policy: app.get(PaymentPolicyService), db: app.get(Database) };
 }

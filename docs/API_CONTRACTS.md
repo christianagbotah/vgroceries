@@ -1,7 +1,7 @@
 # Variety Groceries — API Contracts
 
 **Audience:** the engineering team implementing the production NestJS backend and the future React Native clients.
-**Status:** the web frontend already speaks this contract through the adapter boundary described below. `docs/openapi.yaml` remains the broader 92-operation target; the implemented NestJS subset is generated in `docs/openapi-foundation.json` and described in `BACKEND_FOUNDATION.md` / `CHECKOUT_ORDERS_AUTHORITY.md`.
+**Status:** the web frontend already speaks this contract through the adapter boundary described below. `docs/openapi.yaml` remains the broader 92-operation target; the implemented NestJS subset is generated in `docs/openapi-foundation.json` and described in `BACKEND_FOUNDATION.md` / `CHECKOUT_ORDERS_AUTHORITY.md` / `PAYMENTS_AUTHORITY.md` / `REFUNDS_AUTHORITY.md`.
 
 ---
 
@@ -156,7 +156,7 @@ Every inspection records all credited `{lotId, quantity}` entries in `dispositio
 | --- | --- | --- |
 | `account.summary` | `GET /account/summary` | |
 | `account.orders` | `GET /account/orders` | |
-| `account.cancel` | `POST /account/orders/{orderId}/cancel` | Broader target: paid orders get a linked executable refund. Current production Payments Authority refuses refund-sensitive cancellation until Refunds Authority exists. |
+| `account.cancel` | `POST /account/orders/{orderId}/cancel` | Implemented: eligible paid pre-handover cancellation atomically creates every missing successful-capture Refund obligation before stock/slot release; live/uncertain payments still require reconciliation. |
 | `account.return-lines` | `POST /account/orders/{orderId}/return-lines` | Semantically a read; POST keeps mock body transport. |
 | `account.create-return` | `POST /account/returns` | **Idempotent.** Duplicate-line aggregation enforced. |
 | `account.returns` | `GET /account/returns` | |
@@ -180,7 +180,7 @@ Every inspection records all credited `{lotId, quantity}` entries in `dispositio
 | `admin.dashboard` | `GET /admin/dashboard` | |
 | `admin.orders` | `GET /admin/orders` | Filters `channel/status/payment/q`. |
 | `admin.order` | `GET /admin/orders/{orderId}` | + internal reservations/notes/refunds. |
-| `admin.order.action` | `POST /admin/orders/{orderId}/actions` | **Idempotent.** State machines + review resolution. |
+| `admin.order.action` | `POST /admin/orders/{orderId}/actions` | Production Refunds subset implements idempotent `cancel_refund` and server-derived `refund_excess_capture`; broader fulfilment actions remain target-only. |
 | `admin.fulfilment` | `GET /admin/fulfilment` | FEFO lot allocations exposed. |
 
 ### 3.6 Staff: POS & cashier sessions
@@ -250,8 +250,8 @@ Every inspection records all credited `{lotId, quantity}` entries in `dispositio
 | --- | --- | --- |
 | `admin.returns` | `GET /admin/returns` | Rows carry `refundableMinor`. |
 | `admin.return.action` | `POST /returns/{returnId}/actions` | Once-only dispositions. |
-| `admin.refunds` | `GET /refunds` | |
-| `admin.refund.action` | `POST /refunds/{refundId}/actions` | Approve/execute/retry; balance revalidation. |
+| `admin.refunds` | `GET /refunds` | Implemented administrator-only bounded refund ledger; safe execution/reconciliation fields only. |
+| `admin.refund.action` | `POST /refunds/{refundId}/actions` | Implemented `approve` / `execute` / `retry` / `reconcile`; durable replay and per-capture balance revalidation. |
 | `admin.payments` | `GET /payments` | Settlement states. |
 | `admin.customers` | `GET /admin/customers` | |
 | `admin.customer` | `GET /admin/customers/{customerId}` | |
@@ -331,4 +331,8 @@ The executable NestJS backend implements the eight production checkout/order rou
 
 The executable backend also implements the four provider-neutral production payment routes documented in `PAYMENTS_AUTHORITY.md`: owner-scoped payment initiation, raw-byte provider events, the administrator payments ledger and administrator reconciliation. Client/browser fields never establish paid state; verified adapter evidence or authoritative provider lookup flows through the central payment outcome service. Payment attempts and provider/reconciliation evidence are durable, Inventory remains the sole reservation writer, and late paid orders either reacquire stock in a later reservation generation or remain paid with `requires_review`. Hubtel is **not** enabled by this milestone; its live adapter stays closed until the exact merchant integration contract and credentials are supplied and verified.
 
-The 92-operation table remains the broader target rather than a claim of implementation. The mock `checkout.payment-outcome` operation is intentionally absent from production. POS, physical stock handover/depletion, refunds, staff fulfilment/dispatch and public frontend cutover remain closed.
+## Implemented Refunds Authority
+
+The executable backend also implements the provider-neutral Refunds Authority documented in `REFUNDS_AUTHORITY.md`: administrator refund ledger/actions, administrator paid-review cancellation/excess-capture correction, and paid customer cancellation backed by durable per-capture Refund obligations. Approval is not transfer completion; provider execution commits one stable intent before network I/O, uncertain retries lookup before any resend, and verified outcomes flow through a central state machine. The customer/tracking projection remains secret-free. Hubtel remains disabled until its exact merchant refund contract is supplied and verified.
+
+The 92-operation table remains the broader target rather than a claim of implementation. The mock `checkout.payment-outcome` operation is intentionally absent from production. POS, physical stock handover/depletion, physical Returns, manual/cash refunds, staff fulfilment/dispatch and public frontend cutover remain closed.

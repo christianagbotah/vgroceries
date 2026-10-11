@@ -6,6 +6,7 @@ import { readConfig } from "../src/config";
 import { Database } from "../src/database/database";
 import { commerceTestPassword, seedCommerceFixtures } from "./commerce-fixtures";
 import { FakePaymentProvider } from "./fake-payment-provider";
+import { FakeRefundProvider } from "./fake-refund-provider";
 
 let app: INestApplication;
 let base = "";
@@ -28,7 +29,7 @@ beforeEach(async () => {
     throw Error("Payment event hardening tests require an isolated *variety_foundation_test database");
   if (app) await app.close();
   fake = new FakePaymentProvider();
-  app = await createApplication(config(), [fake]);
+  app = await createApplication(config(), [fake], [new FakeRefundProvider()]);
   await app.listen(0, "127.0.0.1");
   base = await app.getUrl();
   db = app.get(Database);

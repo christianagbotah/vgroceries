@@ -258,7 +258,7 @@ export const dispatchAssignRequestSchema = z
       "Exactly one dispatch target is required (riderId, providerId or manual)",
   });
 
-export const refundActionRequestSchema = z.object({
+export const legacyRefundActionRequestSchema = z.object({
   refundId: idSchema,
   action: z.enum(["approve", "execute", "retry"]),
   actor: z.string().optional(),
@@ -490,7 +490,7 @@ export const requestSchemas: Record<string, z.ZodTypeAny> = {
   "admin.inventory.adjustments.create": adjustmentCreateRequestSchema,
   "admin.inventory.stocktakes.count": stocktakeCountRequestSchema,
   "admin.dispatch.assign": dispatchAssignRequestSchema,
-  "admin.refund.action": refundActionRequestSchema,
+  "admin.refund.action": legacyRefundActionRequestSchema,
   "rider.action": riderActionRequestSchema,
 };
 

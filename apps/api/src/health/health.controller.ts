@@ -4,7 +4,7 @@ import { Database } from "../database/database";
 import { ApiProblem } from "../http/errors";
 import { API_CONFIG, ApiConfig } from "../config";
 import { PaymentsModule } from "../payments/payments.module";
-import { PaymentProviderRegistry } from "../payments/payment-provider.registry";
+import { PaymentPolicyService } from "../payments/payment-policy.service";
 
 @ApiTags("health")
 @Controller("health")
@@ -12,7 +12,7 @@ export class HealthController {
   constructor(
     private readonly db: Database,
     @Inject(API_CONFIG) private readonly config: ApiConfig,
-    private readonly paymentProviders: PaymentProviderRegistry,
+    private readonly paymentPolicy: PaymentPolicyService,
   ) {}
   @Get("live") live() {
     return { ok: true, data: { status: "ok" } };
@@ -26,7 +26,7 @@ export class HealthController {
       const location = await this.db.location.findUnique({ where: { id: commerce.locationId } });
       if (!location?.active)
         throw new ApiProblem(503, "UNAVAILABLE", "Commerce stock location is unavailable.");
-      this.paymentProviders.assertReadyIfConfigured();
+      this.paymentPolicy.assertReadyIfConfigured();
       return { ok: true, data: { status: "ok", database: "up" } };
     } catch (error) {
       if (error instanceof ApiProblem) throw error;
