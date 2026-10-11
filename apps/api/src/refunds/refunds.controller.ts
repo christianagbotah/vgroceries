@@ -1,22 +1,36 @@
-import { Body, Controller, HttpCode, Param, Post, Req, UseGuards } from "@nestjs/common";
+import { Body, Controller, Get, HttpCode, Param, Post, Query, Req, UseGuards } from "@nestjs/common";
 import { ApiExcludeController } from "@nestjs/swagger";
 import { refundActionRequestSchema, replayKeySchema } from "@variety/contracts";
 import { ApiProblem } from "../http/errors";
 import { AccessGuard } from "../identity/access.guard";
 import type { AuthRequest } from "../identity/identity.service";
 import { RefundActionService } from "./refund-action.service";
+import { RefundQueryService } from "./refund-query.service";
 
 @ApiExcludeController()
 @Controller("refunds")
 @UseGuards(AccessGuard)
 export class RefundsController {
-  constructor(private readonly actions: RefundActionService) {}
+  constructor(
+    private readonly actions: RefundActionService,
+    private readonly queries: RefundQueryService,
+  ) {}
+
+  private requireAdmin(req: AuthRequest) {
+    if (req.actor.role !== "admin")
+      throw new ApiProblem(403, "FORBIDDEN", "Refund access requires administrator access.");
+  }
+
+  @Get()
+  async list(@Req() req: AuthRequest, @Query() query: Record<string, unknown>) {
+    this.requireAdmin(req);
+    return { ok: true, data: await this.queries.list(query) };
+  }
 
   @Post(":refundId/actions")
   @HttpCode(200)
   async apply(@Req() req: AuthRequest, @Param("refundId") refundId: string, @Body() body: unknown) {
-    if (req.actor.role !== "admin")
-      throw new ApiProblem(403, "FORBIDDEN", "Refund actions require administrator access.");
+    this.requireAdmin(req);
     const parsed = refundActionRequestSchema.safeParse(body);
     if (!parsed.success)
       throw new ApiProblem(400, "VALIDATION_FAILED", "Invalid refund action request.", {
