@@ -345,13 +345,18 @@ export class RefundOutcomeService {
       return this.conflict(tx, state, observation, context);
     }
     if (state.execution.status === "failed") {
-      if (observation.state === "failed")
+      if (observation.state === "failed") {
+        if (state.refund.status === "succeeded")
+          return this.conflict(tx, state, observation, context);
+        if (state.refund.status !== "failed")
+          return this.applyFailure(tx, state, observation, context);
         return {
           processingResult: "duplicate",
-          refundStatus: state.refund.status,
-          executionStatus: state.execution.status,
+          refundStatus: "failed",
+          executionStatus: "failed",
           orderPaymentStatus: state.order.paymentStatus,
         };
+      }
       if (observation.state === "succeeded")
         return this.conflict(tx, state, observation, context);
     }
