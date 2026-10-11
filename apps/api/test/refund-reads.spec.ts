@@ -48,6 +48,7 @@ async function fixture(reference: string, second = false) {
 
 test("refund ledger is admin-only, bounded, filterable and distinguishes succeeded from committed money", async () => {
   const first = await fixture("VG-REF-READ-001"); await fixture("VG-REF-READ-002", true);
+  if (!first.succeeded || !first.execution) throw Error("full refund read fixture required");
   const admin = await login("admin-commerce@example.test"), customer = await login("customer-a@example.test");
   assert.equal((await get("/refunds", customer)).response.status, 403);
   const page = await get("/refunds?page=1&perPage=1", admin); assert.equal(page.response.status, 200); assert.equal(page.body.data.total, 3); assert.equal(page.body.data.items.length, 1);
@@ -56,13 +57,17 @@ test("refund ledger is admin-only, bounded, filterable and distinguishes succeed
 });
 
 test("refund staff ledger excludes internal merchant, original capture and reconciliation identifiers", async () => {
-  const first = await fixture("VG-REF-READ-SAFE"); const admin = await login("admin-commerce@example.test");
+  const first = await fixture("VG-REF-READ-SAFE");
+  if (!first.succeeded || !first.execution) throw Error("full refund read fixture required");
+  const admin = await login("admin-commerce@example.test");
   const result = await get(`/refunds?orderReference=${first.order.reference}`, admin); assert.equal(result.response.status, 200); const text = JSON.stringify(result.body.data);
   for (const forbidden of [first.capture.merchantReference, first.capture.providerRef!, first.execution.merchantRefundReference, "VG-REF-READ-SAFE-REQUEST-INTERNAL", "rawBodyHash", "safeMetadata"]) assert.equal(text.includes(forbidden), false, forbidden);
 });
 
 test("owner status and public tracking expose identical customer-safe refund summaries only", async () => {
-  const first = await fixture("VG-REF-READ-CUSTOMER"); const customer = await login("customer-a@example.test");
+  const first = await fixture("VG-REF-READ-CUSTOMER");
+  if (!first.succeeded || !first.execution) throw Error("full refund read fixture required");
+  const customer = await login("customer-a@example.test");
   const owner = await get(`/orders/${first.order.id}`, customer); assert.equal(owner.response.status, 200);
   const tracked = await post("/orders/track", { reference: first.order.reference, code: first.code }); assert.equal(tracked.response.status, 200);
   assert.deepEqual(owner.body.data.refunds, tracked.body.data.refunds); assert.equal(owner.body.data.refunds.length, 2);
