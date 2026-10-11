@@ -43,7 +43,7 @@ test("retry lookup obeys provider capability before any resend for failed, no-re
    const unsafe=await makeUncertainExecution(`VG-REF-RETRY-UNSAFE-${state.toUpperCase()}`,state);
    fake.lookupHandler=async(input)=>({providerId:"fake",merchantRefundReference:input.merchantRefundReference,state, ...(state==="failed"?{failureCode:"DECLINED",customerSafeMessage:"Refund failed."}: {})});
    fake.capabilitiesValue={...fake.capabilitiesValue,safeRetryAfterDefinitiveFailure:false,safeRetryAfterNoRecord:false,safeRetryAfterUnknown:false};
-   const before=fake.initiateCalls.length;const blocked=await action(token,unsafe.refund.id,`refund-retry-unsafe-${state}-01`,"retry");assert.equal(blocked.response.status,200);assert.equal(blocked.body.data.refundStatus,"requires_review");assert.equal(fake.initiateCalls.length,before,state);
+   const before=fake.initiateCalls.length;const blocked=await action(token,unsafe.refund.id,`refund-retry-unsafe-${state}-01`,"retry");assert.equal(blocked.response.status,200);assert.equal(blocked.body.data.refundStatus,state==="failed"?"failed":"requires_review");assert.equal(fake.initiateCalls.length,before,state);
    const rec=await db.refundReconciliation.findFirstOrThrow({where:{refundId:unsafe.refund.id},orderBy:{createdAt:"desc"}});assert.equal(rec.trigger,"retry");assert.equal(rec.observedState,state);
 
    const safe=await makeUncertainExecution(`VG-REF-RETRY-SAFE-${state.toUpperCase()}`,state);
