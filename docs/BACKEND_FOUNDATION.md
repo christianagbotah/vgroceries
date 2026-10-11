@@ -36,6 +36,8 @@ is `docs/openapi-foundation.json`, also served at `/api/v1/openapi.json`.
 | `POST /orders/{orderId}/payment-attempts` | Owner/guest durable electronic payment initiation; server-derived money/provider authority |
 | `POST /payments/providers/{provider}/events` | Adapter-verified exact-raw-byte provider evidence; no customer auth |
 | `GET /payments`, `POST /payments/{attemptId}/reconcile` | Administrator-only safe ledger and authoritative reconciliation |
+| `GET /refunds`, `POST /refunds/{refundId}/actions` | Administrator-only refund ledger plus approve/execute/retry/reconcile authority |
+| `POST /admin/orders/{orderId}/actions` | Administrator-only paid-review cancel/refund and server-derived excess-capture correction |
 
 Catalogue list filters to available products at `API_STOCK_LOCATION_ID`. Product
 detail can display a published, out-of-stock product. Disabled categories and
@@ -137,7 +139,7 @@ the API suite and checks generated OpenAPI drift. The existing frontend workflow
 still checks its own build, regression suites, contracts and routes.
 
 Outbox records are durable, but there is no publisher/Redis/BullMQ worker in this
-milestone. Lot-specific reservation allocation and provider-neutral Payments Authority are now implemented and audited in their caller transactions. POS workflow, physical handover/depletion, worker publishing, refunds, staff fulfilment/dispatch, full admin CRUD, native screens and grounded AI remain subsequent work. No live payment-provider credentials or AI calls were introduced.
+milestone. Lot-specific reservation allocation, provider-neutral Payments Authority and provider-neutral Refunds Authority are now implemented and audited in their caller transactions. POS workflow, physical handover/depletion, physical Returns, worker publishing, staff fulfilment/dispatch, full admin CRUD, native screens and grounded AI remain subsequent work. No live payment/refund-provider credentials or AI calls were introduced.
 Identity and resource guards are reusable by those modules; AI tools will invoke
 the same authorised domain commands and cannot directly alter stock or money.
 
@@ -151,4 +153,8 @@ The production API includes durable quote/checkout/order-read/tracking/cancellat
 
 ## Payments authority
 
-The production API now also includes the provider-neutral payment primitives in `docs/PAYMENTS_AUTHORITY.md`: durable owner-scoped initiation, authenticated raw-byte provider events, an administrator payments ledger and administrator reconciliation. Provider network I/O occurs outside database row locks; verified money observations are applied through one central outcome service; late success must preserve money truth and reacquire Inventory coverage or move the order to `requires_review`. Payment-aware cancellation refuses live/paid/review states that need reconciliation or the future refund workflow. The live Hubtel adapter remains disabled until its merchant-specific contract is supplied and verified. Physical stock handover/depletion, refunds, POS, staff fulfilment/dispatch and public web cutover remain closed.
+The production API now also includes the provider-neutral payment primitives in `docs/PAYMENTS_AUTHORITY.md`: durable owner-scoped initiation, authenticated raw-byte provider events, an administrator payments ledger and administrator reconciliation. Provider network I/O occurs outside database row locks; verified money observations are applied through one central outcome service; late success must preserve money truth and reacquire Inventory coverage or move the order to `requires_review`. Payment-aware cancellation refuses live/uncertain attempts that need reconciliation; eligible successful captures now flow to the Refunds Authority below. The live Hubtel adapter remains disabled until its merchant-specific contract is supplied and verified. Physical stock handover/depletion, POS, staff fulfilment/dispatch and public web cutover remain closed.
+
+## Refunds authority
+
+The production API now includes the provider-neutral refund primitives in `docs/REFUNDS_AUTHORITY.md`: per-successful-capture durable obligations, approval, execute/retry/reconcile orchestration with provider I/O outside transactions, a central verified Refund outcome state machine, administrator ledger/financial order actions, and customer-safe Refund projections. Paid pre-handover cancellation creates missing Refund obligations atomically before stock/slot release. Live Hubtel refund execution, physical Returns and manual cash/POS refunds remain disabled.

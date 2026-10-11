@@ -1,12 +1,10 @@
 import { Body, Controller, HttpCode, Param, Post, Req, UseGuards } from "@nestjs/common";
-import { ApiExcludeController } from "@nestjs/swagger";
 import { adminOrderFinancialActionRequestSchema, replayKeySchema } from "@variety/contracts";
 import { ApiProblem } from "../http/errors";
 import { AccessGuard } from "../identity/access.guard";
 import type { AuthRequest } from "../identity/identity.service";
 import { OrderFinancialActionService } from "./order-financial-action.service";
 
-@ApiExcludeController()
 @Controller("admin/orders")
 @UseGuards(AccessGuard)
 export class AdminOrderActionsController {

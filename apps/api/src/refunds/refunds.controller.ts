@@ -1,5 +1,4 @@
 import { Body, Controller, Get, HttpCode, Param, Post, Query, Req, UseGuards } from "@nestjs/common";
-import { ApiExcludeController } from "@nestjs/swagger";
 import { refundActionRequestSchema, replayKeySchema } from "@variety/contracts";
 import { ApiProblem } from "../http/errors";
 import { AccessGuard } from "../identity/access.guard";
@@ -7,7 +6,6 @@ import type { AuthRequest } from "../identity/identity.service";
 import { RefundActionService } from "./refund-action.service";
 import { RefundQueryService } from "./refund-query.service";
 
-@ApiExcludeController()
 @Controller("refunds")
 @UseGuards(AccessGuard)
 export class RefundsController {
