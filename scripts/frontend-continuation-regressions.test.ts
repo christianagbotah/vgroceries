@@ -24,7 +24,7 @@ async function req(path: string, body?: Record<string, unknown>) {
   return r.json as { ok: true; data: unknown } | { ok: false; error: { code: string; message: string } };
 }
 
-const okData = <T,>(r: ReturnType<typeof req>): T => (r as { ok: true; data: T }).data;
+const okData = <T,>(r: Awaited<ReturnType<typeof req>>): T => (r as { ok: true; data: T }).data;
 
 describe("fulfilment queues (admin.fulfilment)", () => {
   test("queues split confirm / pick / picking; pack stays empty until a backend picked-state exists", async () => {
