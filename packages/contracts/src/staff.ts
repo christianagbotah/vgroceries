@@ -13,11 +13,12 @@ import type { AddressView } from "./account";
 
 export interface DashboardActionable {
   awaitingConfirmation: number;
-  toPick: number;
-  toPack: number;
+  readyToPick: number;
+  picking: number;
   readyToDispatch: number;
   pendingPayments: number;
   returnsPending: number;
+  refundsAttention: number;
   lowStock: number;
   expiringSoon: number;
   unassignedJobs: number;

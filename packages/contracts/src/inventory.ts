@@ -26,6 +26,15 @@ export interface InventoryOverviewRow {
 export interface InventoryOverviewResponse {
   rows: InventoryOverviewRow[];
   total: number;
+  /** Fleet-level stock state totals (across all variants, pre-filter). */
+  summary?: {
+    sellablePhysical: string;
+    reserved: string;
+    safetyStock: string;
+    availableToSell: string;
+    quarantined: string;
+    damagedExpired: string;
+  };
 }
 
 export interface LotRow {

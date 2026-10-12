@@ -80,7 +80,26 @@ export default function AdminPaymentsPage() {
       {!rows.length ? (
         <EmptyState icon={CreditCard} title="No payment attempts match" />
       ) : (
-        <div className="overflow-hidden rounded-xl border bg-card">
+        <>
+          {/* mobile: card list */}
+          <ul className="space-y-2 md:hidden" aria-label="Payments">
+            {rows.map((p: PaymentRow) => (
+              <li key={p.id} className="rounded-xl border bg-card p-3 text-sm">
+                <div className="flex items-center justify-between gap-2">
+                  <Link href={`/admin/orders/${p.orderId}`} className="font-semibold hover:underline focus-visible:underline">{p.orderReference}</Link>
+                  <span className="font-semibold tabular-nums">{p.amountLabel}</span>
+                </div>
+                <p className="mt-0.5 text-xs capitalize text-muted-foreground">{p.channel} · {p.method.replace(/_/g, " ")} · {p.callbackCount} callback{p.callbackCount === 1 ? "" : "s"}</p>
+                <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                  <StatusBadge kind="generic" status={p.status} label={p.status} />
+                  <StatusBadge kind="generic" status={p.settlementState === "exception" ? "failed" : p.settlementState === "reconciled" ? "approved" : p.settlementState === "settled" ? "sent" : "pending"} label={p.settlementState.replace(/_/g, " ")} />
+                </div>
+                {p.failureReason ? <p className="mt-1 text-xs text-destructive">{p.failureReason}</p> : null}
+              </li>
+            ))}
+          </ul>
+          {/* md+: table */}
+          <div className="hidden overflow-hidden rounded-xl border bg-card md:block">
           <div className="table-scroll">
             <table className="w-full text-sm">
               <thead className="bg-muted/60 text-left">
@@ -120,6 +139,7 @@ export default function AdminPaymentsPage() {
             </table>
           </div>
         </div>
+        </>
       )}
 
       <p className="rounded-xl border border-dashed p-3 text-sm text-muted-foreground">

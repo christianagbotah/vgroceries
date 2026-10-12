@@ -199,7 +199,7 @@ export const apiOps = {
 
   /* inventory */
   inventory: (f: { q?: string; filter?: string }) =>
-    api<{ rows: import("./contracts").InventoryOverviewRow[]; total: number }>("admin.inventory.overview", {
+    api<import("./contracts").InventoryOverviewResponse>("admin.inventory.overview", {
       query: f as Record<string, QueryValue>,
     }),
   lots: (variantId?: string) => api<import("./contracts").LotRow[]>("admin.inventory.lots", { query: { variantId } }),

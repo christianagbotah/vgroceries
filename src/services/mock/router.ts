@@ -836,7 +836,23 @@ export async function handleApi(req: ApiRequest): Promise<ApiResult> {
         if (filter === "low") filtered = filtered.filter((r) => Number(r.availableToSell) > 0 && Number(r.availableToSell) <= 3);
         if (filter === "zero") filtered = filtered.filter((r) => Number(r.availableToSell) === 0);
         if (filter === "reserved") filtered = filtered.filter((r) => Number(r.reserved) > 0);
-        return ok({ rows: filtered, total: rows.length });
+        // stock state totals across ALL variants (pre-filter) for the summary strip
+        const sum = (fn: (r: (typeof rows)[number]) => string) => rows.reduce((acc, r) => acc + Number(fn(r)), 0);
+        const quarantinedLots = store.lots.filter((l) => l.isQuarantined && l.kind !== "regular");
+        const unusableLots = store.lots.filter((l) => l.kind === "damaged" || (l.expiryDate && new Date(l.expiryDate).getTime() < Date.now()));
+        const sumQty = (ls: typeof store.lots) => ls.reduce((acc, l) => acc + Number(l.quantity), 0);
+        return ok({
+          rows: filtered,
+          total: rows.length,
+          summary: {
+            sellablePhysical: String(sum((r) => r.sellablePhysical)),
+            reserved: String(sum((r) => r.reserved)),
+            safetyStock: String(sum((r) => r.safetyStock)),
+            availableToSell: String(sum((r) => r.availableToSell)),
+            quarantined: String(sumQty(quarantinedLots)),
+            damagedExpired: String(sumQty(unusableLots)),
+          },
+        });
       }
       case "admin.inventory.receipts": {
         return ok(store.goodsReceipts.map((g) => ({

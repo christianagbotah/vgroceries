@@ -111,7 +111,6 @@ export default function AdminDispatchPage() {
       const row = data.ready.find((o) => o.id === target);
       if (row) setAssignTarget(row);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data]);
 
   if (loading) return <LoadingState rows={6} label="Loading dispatch" />;
