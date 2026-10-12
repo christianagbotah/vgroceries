@@ -113,6 +113,7 @@ interface SeedLine {
   unitPriceMinor: number;
   allocations?: { lotId: string; quantity: string }[];
   substitutionOfLineId?: string;
+  note?: string;
 }
 
 interface SeedOrderSpec {
@@ -158,6 +159,7 @@ function buildOrder(spec: SeedOrderSpec): { order: Order; lines: OrderLine[] } {
     lineTotalMinor: l.unitPriceMinor * Number(l.quantity),
     allocations: l.allocations ?? [],
     substitutionOfLineId: l.substitutionOfLineId,
+    note: l.note,
   }));
   const subtotalMinor = lines.reduce((a, l) => a + l.lineTotalMinor, 0);
   const discountMinor = spec.discountMinor ?? 0;
@@ -488,6 +490,30 @@ export function buildOrders(now: Date): { orders: Order[]; orderLines: OrderLine
     ],
   });
 
+  /* ord_1016 — picking with a genuine FEFO shortfall (exceptions queue demo):
+     the customer ordered two chickens, but by pick time only one sellable unit
+     remained in the bin (one pack was damaged and quarantined). The picker
+     records the shortage; staff substitute or note the partial line. */
+  push({
+    id: "ord_1016", reference: "VG-9F4T8B", channel: "online", customerId: "cus_003",
+    customerName: "Esi Baidoo (demo)", customerPhone: "+233275550103", customerEmail: "esi.demo@example.com",
+    addressId: "addr_004", fulfilment: "delivery", zoneId: "zone_w", slotLabel: "15:00–17:00 (today)",
+    deliveryFeeMinor: 2500, paymentMethod: "card_hosted", paymentStatus: "succeeded",
+    fulfilmentStatus: "picking", deliveryStatus: "unassigned", createdAt: isoMinusMinutes(120),
+    verificationCode: "T8R3M6",
+    lines: [
+      { variantId: "var_chk_pc", productId: "prd_chk", productName: "Frozen Whole Chicken", variantName: "Per chicken (~1.1 kg)", unit: "piece", quantity: "2", unitPriceMinor: 5500, allocations: [{ lotId: "lot_l_chk_a", quantity: "1" }], note: "1 of 2 picked — only one sellable unit in the bin" },
+      { variantId: "var_til_pc", productId: "prd_til", productName: "Frozen Tilapia", variantName: "Per fish", unit: "piece", quantity: "1", unitPriceMinor: 1800, allocations: [{ lotId: "lot_l_til_001", quantity: "1" }] },
+    ],
+    events: [
+      { at: isoMinusMinutes(120), actor: "customer", action: "Order placed; stock reserved" },
+      { at: isoMinusMinutes(118), actor: "stf_kojo", action: "Payment confirmed (Card)", toStatus: "confirmed" },
+      { at: isoMinusMinutes(30), actor: "stf_kweku", action: "Picking started", fromStatus: "confirmed", toStatus: "picking" },
+      { at: isoMinusMinutes(12), actor: "stf_kweku", action: "Shortage recorded on Frozen Whole Chicken — 1 of 2 available", note: "Second pack damaged and quarantined" },
+    ],
+    notes: [{ at: isoMinusMinutes(12), by: "stf_kweku", text: "Only one sellable chicken left (final unit); the other in-bin pack was damaged and moved to quarantine. Decide: substitute, refund the line, or part-ship.", internalOnly: true }],
+  });
+
   return { orders, orderLines };
 }
 
@@ -520,6 +546,10 @@ export function buildReservations(now: Date): Reservation[] {
     mk("res_1015a", "var_ric1_5", "ord_1015", "1", new Date(t - 150 * 60_000), new Date(t + 20 * 3600_000)),
     mk("res_1015b", "var_sun_1l", "ord_1015", "1", new Date(t - 150 * 60_000), new Date(t + 20 * 3600_000)),
     mk("res_1015c", "var_tpa_pk", "ord_1015", "1", new Date(t - 150 * 60_000), new Date(t + 20 * 3600_000)),
+    // ord_1016: the hold was adjusted to what could actually be kept after the
+    // in-bin damage — one chicken of the two ordered (shortage demo).
+    mk("res_1016a", "var_chk_pc", "ord_1016", "1", new Date(t - 120 * 60_000), new Date(t + 20 * 3600_000)),
+    mk("res_1016b", "var_til_pc", "ord_1016", "1", new Date(t - 120 * 60_000), new Date(t + 20 * 3600_000)),
     // consumed at dispatch / counter handover (single depletion event)
     mk("res_1001a", "var_ric1_5", "ord_1001", "1", new Date(t - 2 * dayMs), new Date(t - 2 * dayMs + ttl * 60_000), { consumedAt: isoMinusDays(2) }),
     mk("res_1001b", "var_tom_kg", "ord_1001", "2", new Date(t - 2 * dayMs), new Date(t - 2 * dayMs + ttl * 60_000), { consumedAt: isoMinusDays(2) }),

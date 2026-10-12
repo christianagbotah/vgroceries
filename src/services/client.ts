@@ -40,6 +40,7 @@ import type {
   DispatchAssignResponse,
   ExpiryResponse,
   FulfilmentQueues,
+  FulfilmentOrderCard,
   AiGenerateResponse,
   AiReviewResponse,
   PaymentOutcomeResponse,
@@ -283,6 +284,7 @@ export const apiOps = {
 export type {
   AiGenerateResponse,
   AiReviewResponse,
+  FulfilmentOrderCard,
   CompleteOrderRequest,
   PaymentOutcomeRequest,
   PosCompleteRequest,

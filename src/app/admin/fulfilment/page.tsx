@@ -10,22 +10,34 @@ import { StatusBadge } from "@/components/shared/status-badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
-import { formatDate } from "@/lib/format";
-import { Check, ClipboardCheck, Package, Truck, Store, RotateCw } from "lucide-react";
+import {
+  allows,
+  EventTrail,
+  HandoverNotice,
+  NoteDialog,
+  PackingChecklist,
+  PickingMeta,
+  PickerLineTable,
+  QueueCardHeader,
+  WorkflowStrip,
+} from "@/features/staff/fulfilment-views";
+import { Check, ClipboardCheck, Package, Truck, Store, RotateCw, TriangleAlert, StickyNote } from "lucide-react";
 
 type Fulfilment = Awaited<ReturnType<typeof apiOps.fulfilment>>;
-type QueueLine = Fulfilment["pick"][number]["lines"][number];
+type OrderCard = Fulfilment["pick"][number];
+type NoteTarget = { order: OrderCard; kind: "pick" | "pack" } | null;
 
 export default function AdminFulfilmentPage() {
   const { user, can } = useStaff();
   const { toast } = useToast();
   const { data, loading, error, reload } = useApiData(() => apiOps.fulfilment(), []);
   const [busy, setBusy] = useState<string | null>(null);
+  const [noteTarget, setNoteTarget] = useState<NoteTarget>(null);
 
-  const act = async (orderId: string, action: string, note?: string) => {
+  const act = async (orderId: string, action: string, note?: string, lineId?: string) => {
     setBusy(orderId + action);
     try {
-      await apiOps.orderAction({ orderId, action, actor: user.id, ...(note ? { note } : {}) });
+      await apiOps.orderAction({ orderId, action, actor: user.id, ...(note ? { note } : {}), ...(lineId ? { lineId } : {}) });
       toast({ title: "Order updated" });
       await reload();
     } catch (e) {
@@ -39,17 +51,21 @@ export default function AdminFulfilmentPage() {
   if (error) return <ErrorState message={error} onRetry={reload} />;
   if (!data) return null;
 
-  const total =
-    data.confirm.length + data.pick.length + data.pack.length + data.dispatch.length + data.collection.length;
+  const queueTotal =
+    data.confirm.length + data.pick.length + data.picking.length + data.exceptions.length + data.dispatch.length + data.collection.length;
+
+  const startPicking = (o: OrderCard) => act(o.id, "picking");
+  const markPacked = (o: OrderCard) => act(o.id, "packed");
 
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-end justify-between gap-2">
         <div>
           <h1 className="font-serif text-2xl font-bold">Fulfilment</h1>
-          <p className="text-sm text-muted-foreground">
-            Picking and packing queues — {total} orders in flow. Picking never deducts stock; the
-            single depletion event happens at dispatch handover or collection.
+          <p className="max-w-2xl text-sm text-muted-foreground">
+            Picking, packing and handover workspace — {queueTotal} orders in flow. Picking and packing
+            never deduct stock; the single depletion event happens at dispatch handover or collection,
+            owned by the backend.
           </p>
         </div>
         <Button variant="outline" className="h-10" onClick={reload}>
@@ -57,90 +73,41 @@ export default function AdminFulfilmentPage() {
         </Button>
       </div>
 
-      <Tabs defaultValue="pick">
+      <WorkflowStrip
+        counts={{ confirm: data.confirm.length, pick: data.pick.length, picking: data.picking.length, packed: data.dispatch.length + data.collection.length }}
+      />
+
+      <Tabs defaultValue={data.pick.length ? "pick" : data.picking.length ? "picking" : "confirm"}>
         <TabsList className="h-12 w-full justify-start overflow-x-auto sm:w-auto">
-          <TabsTrigger value="pick" className="gap-1.5 px-4">
-            <ClipboardCheck className="size-4" aria-hidden /> To pick ({data.pick.length})
-          </TabsTrigger>
-          <TabsTrigger value="pack" className="gap-1.5 px-4">
-            <Package className="size-4" aria-hidden /> To pack ({data.pack.length})
-          </TabsTrigger>
           <TabsTrigger value="confirm" className="gap-1.5 px-4">
             <Check className="size-4" aria-hidden /> Awaiting confirmation ({data.confirm.length})
           </TabsTrigger>
-          <TabsTrigger value="dispatch" className="gap-1.5 px-4">
-            <Truck className="size-4" aria-hidden /> Dispatch ({data.dispatch.length})
+          <TabsTrigger value="pick" className="gap-1.5 px-4">
+            <ClipboardCheck className="size-4" aria-hidden /> Ready to pick ({data.pick.length})
+          </TabsTrigger>
+          <TabsTrigger value="picking" className="gap-1.5 px-4">
+            <Package className="size-4" aria-hidden /> Picking ({data.picking.length})
+          </TabsTrigger>
+          <TabsTrigger value="exceptions" className="gap-1.5 px-4">
+            <TriangleAlert className="size-4" aria-hidden /> Exceptions ({data.exceptions.length})
+          </TabsTrigger>
+          {data.pack.length ? (
+            <TabsTrigger value="pack" className="gap-1.5 px-4">
+              <Package className="size-4" aria-hidden /> Ready to pack ({data.pack.length})
+            </TabsTrigger>
+          ) : null}
+          <TabsTrigger value="handover" className="gap-1.5 px-4">
+            <Truck className="size-4" aria-hidden /> Packed — handover ({data.dispatch.length})
           </TabsTrigger>
           <TabsTrigger value="collection" className="gap-1.5 px-4">
             <Store className="size-4" aria-hidden /> Collection ({data.collection.length})
           </TabsTrigger>
         </TabsList>
 
-        {/* PICK — the picker sees variants, units, quantities and eligible lots */}
-        <TabsContent value="pick" className="mt-4 space-y-3">
-          {data.pick.length === 0 ? (
-            <EmptyState icon={ClipboardCheck} title="Nothing to pick" description="Confirmed orders appear here with FEFO lot suggestions." />
-          ) : (
-            data.pick.map((o) => (
-              <article key={o.id} className="overflow-hidden rounded-xl border bg-card">
-                <div className="flex flex-wrap items-center justify-between gap-2 border-b p-4">
-                  <div>
-                    <Link href={`/admin/orders/${o.id}`} className="font-semibold hover:underline focus-visible:underline">
-                      {o.reference}
-                    </Link>
-                    <p className="text-sm text-muted-foreground">
-                      {o.customerName} · {o.fulfilment === "delivery" ? o.slotLabel ?? "Delivery" : "Collection"} · {o.totalLabel}
-                    </p>
-                  </div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <StatusBadge kind="payment" status={o.paymentStatus} />
-                    <StatusBadge kind="fulfilment" status={o.fulfilmentStatus} />
-                    {o.fulfilmentStatus === "confirmed" && can("orders.fulfil") ? (
-                      <Button className="h-10" disabled={busy !== null} onClick={() => act(o.id, "picking")}>
-                        <ClipboardCheck className="size-4" aria-hidden /> Start picking
-                      </Button>
-                    ) : null}
-                  </div>
-                </div>
-                <LineTable lines={o.lines} />
-              </article>
-            ))
-          )}
-        </TabsContent>
-
-        {/* PACK */}
-        <TabsContent value="pack" className="mt-4 space-y-3">
-          {data.pack.length === 0 ? (
-            <EmptyState icon={Package} title="Nothing to pack" description="Picked orders wait here for packing." />
-          ) : (
-            data.pack.map((o) => (
-              <article key={o.id} className="overflow-hidden rounded-xl border bg-card">
-                <div className="flex flex-wrap items-center justify-between gap-2 border-b p-4">
-                  <div>
-                    <Link href={`/admin/orders/${o.id}`} className="font-semibold hover:underline focus-visible:underline">
-                      {o.reference}
-                    </Link>
-                    <p className="text-sm text-muted-foreground">{o.customerName} · {o.fulfilment === "delivery" ? "Delivery" : "Collection"} · {o.totalLabel}</p>
-                  </div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <StatusBadge kind="payment" status={o.paymentStatus} />
-                    {can("orders.fulfil") ? (
-                      <Button className="h-10" disabled={busy !== null} onClick={() => act(o.id, "packed")}>
-                        <Package className="size-4" aria-hidden /> Mark packed
-                      </Button>
-                    ) : null}
-                  </div>
-                </div>
-                <LineTable lines={o.lines} />
-              </article>
-            ))
-          )}
-        </TabsContent>
-
-        {/* CONFIRM */}
+        {/* AWAITING CONFIRMATION */}
         <TabsContent value="confirm" className="mt-4">
           {data.confirm.length === 0 ? (
-            <EmptyState icon={Check} title="Nothing awaiting confirmation" description="Newly placed orders that need staff confirmation appear here." />
+            <EmptyState icon={Check} title="Nothing awaiting confirmation" description="Newly placed online orders that need staff confirmation appear here." />
           ) : (
             <div className="overflow-hidden rounded-xl border bg-card">
               <div className="table-scroll">
@@ -170,16 +137,11 @@ export default function AdminFulfilmentPage() {
                         <td className="p-3 text-muted-foreground">{o.createdAtLabel}</td>
                         <td className="p-3 text-right">
                           {can("orders.confirm") ? (
-                            <Button
-                              size="sm"
-                              className="h-10"
-                              disabled={busy !== null}
-                              onClick={() => act(o.id, "confirm")}
-                            >
+                            <Button size="sm" className="h-10" disabled={busy !== null} onClick={() => act(o.id, "confirm")}>
                               Confirm
                             </Button>
                           ) : (
-                            <span className="text-xs text-muted-foreground">Needs {`manager`}</span>
+                            <span className="text-xs text-muted-foreground">Needs manager</span>
                           )}
                         </td>
                       </tr>
@@ -191,10 +153,149 @@ export default function AdminFulfilmentPage() {
           )}
         </TabsContent>
 
-        {/* DISPATCH */}
-        <TabsContent value="dispatch" className="mt-4">
+        {/* READY TO PICK */}
+        <TabsContent value="pick" className="mt-4 space-y-3">
+          {data.pick.length === 0 ? (
+            <EmptyState icon={ClipboardCheck} title="Nothing to pick" description="Confirmed orders appear here with FEFO lot suggestions the moment picking starts." />
+          ) : (
+            data.pick.map((o) => (
+              <article key={o.id} className="overflow-hidden rounded-xl border bg-card">
+                <QueueCardHeader
+                  order={o}
+                  right={
+                    <>
+                      <StatusBadge kind="payment" status={o.paymentStatus} />
+                      <StatusBadge kind="fulfilment" status={o.fulfilmentStatus} />
+                      {can("orders.fulfil") && allows(o, "picking") ? (
+                        <Button className="h-10" disabled={busy !== null} onClick={() => startPicking(o)}>
+                          <ClipboardCheck className="size-4" aria-hidden /> Start picking
+                        </Button>
+                      ) : null}
+                    </>
+                  }
+                />
+                <PickerLineTable lines={o.lines} />
+                <EventTrail events={o.events ?? []} />
+              </article>
+            ))
+          )}
+        </TabsContent>
+
+        {/* PICKING IN PROGRESS — the picker/packer workspace */}
+        <TabsContent value="picking" className="mt-4 space-y-3">
+          {data.picking.length === 0 ? (
+            <EmptyState icon={Package} title="No picking in progress" description="Orders with picking started appear here — lines, lots, shortages and the packing checklist." />
+          ) : (
+            data.picking.map((o) => (
+              <article key={o.id} className="overflow-hidden rounded-xl border bg-card">
+                <QueueCardHeader
+                  order={o}
+                  right={
+                    <>
+                      <StatusBadge kind="payment" status={o.paymentStatus} />
+                      <StatusBadge kind="fulfilment" status={o.fulfilmentStatus} />
+                      {can("orders.fulfil") && allows(o, "note") ? (
+                        <Button variant="outline" className="h-10" disabled={busy !== null} onClick={() => setNoteTarget({ order: o, kind: "pick" })}>
+                          <StickyNote className="size-4" aria-hidden /> Record note
+                        </Button>
+                      ) : null}
+                      {can("orders.fulfil") && allows(o, "packed") ? (
+                        <Button className="h-10" disabled={busy !== null} onClick={() => markPacked(o)}>
+                          <Check className="size-4" aria-hidden /> Complete &amp; mark packed
+                        </Button>
+                      ) : null}
+                    </>
+                  }
+                />
+                <div className="space-y-3 p-4">
+                  <PickingMeta order={o} />
+                  <PickerLineTable lines={o.lines} />
+                  <PackingChecklist lines={o.lines} />
+                </div>
+                <EventTrail events={o.events ?? []} />
+              </article>
+            ))
+          )}
+        </TabsContent>
+
+        {/* EXCEPTIONS — shortages and substitutions needing a decision */}
+        <TabsContent value="exceptions" className="mt-4 space-y-3">
+          {data.exceptions.length === 0 ? (
+            <EmptyState icon={TriangleAlert} title="No exceptions" description="Shortages and substitutions detected during picking appear here for a decision." />
+          ) : (
+            <>
+              <div className="flex items-start gap-2 rounded-xl border border-warning/40 bg-warning/10 p-3 text-sm">
+                <TriangleAlert className="mt-0.5 size-4 shrink-0" aria-hidden />
+                <p>
+                  These orders have lines the picker could not fully allocate, or substitutions that
+                  changed what ships. Resolve each line — substitute the item, note the shortage for
+                  the customer, or ask the order owner to cancel/refund the line.
+                </p>
+              </div>
+              {data.exceptions.map((o) => (
+                <article key={o.id} className="overflow-hidden rounded-xl border border-warning/40 bg-card">
+                  <QueueCardHeader
+                    order={o}
+                    badge={<span className="rounded-full border border-warning/40 bg-warning/10 px-2 py-0.5 text-xs font-semibold text-[color:var(--warning-foreground)]">exception</span>}
+                    right={
+                      <>
+                        <StatusBadge kind="payment" status={o.paymentStatus} />
+                        <StatusBadge kind="fulfilment" status={o.fulfilmentStatus} />
+                        {can("orders.fulfil") && allows(o, "note") ? (
+                          <Button variant="outline" className="h-10" disabled={busy !== null} onClick={() => setNoteTarget({ order: o, kind: "pick" })}>
+                            <StickyNote className="size-4" aria-hidden /> Record note
+                          </Button>
+                        ) : null}
+                        {can("orders.fulfil") && allows(o, "substitute") ? (
+                          <Button asChild variant="outline" className="h-10">
+                            <Link href={`/admin/orders/${o.id}`}>Open order to substitute</Link>
+                          </Button>
+                        ) : null}
+                      </>
+                    }
+                  />
+                  <div className="space-y-3 p-4">
+                    <PickingMeta order={o} />
+                    <PickerLineTable lines={o.lines} />
+                  </div>
+                  <EventTrail events={o.events ?? []} />
+                </article>
+              ))}
+            </>
+          )}
+        </TabsContent>
+
+        {/* READY TO PACK — populated only when the backend exposes a picked state */}
+        <TabsContent value="pack" className="mt-4 space-y-3">
+          {data.pack.length === 0 ? (
+            <EmptyState icon={Package} title="Nothing waiting for packing" description="This queue fills when the backend fulfilment authority reports a separate picked state." />
+          ) : (
+            data.pack.map((o) => (
+              <article key={o.id} className="overflow-hidden rounded-xl border bg-card">
+                <QueueCardHeader
+                  order={o}
+                  right={
+                    <>
+                      <StatusBadge kind="payment" status={o.paymentStatus} />
+                      {can("orders.fulfil") && allows(o, "packed") ? (
+                        <Button className="h-10" disabled={busy !== null} onClick={() => markPacked(o)}>
+                          <Check className="size-4" aria-hidden /> Mark packed
+                        </Button>
+                      ) : null}
+                    </>
+                  }
+                />
+                <PickerLineTable lines={o.lines} />
+              </article>
+            ))
+          )}
+        </TabsContent>
+
+        {/* PACKED — HANDOVER */}
+        <TabsContent value="handover" className="mt-4 space-y-3">
+          <HandoverNotice />
           {data.dispatch.length === 0 ? (
-            <EmptyState icon={Truck} title="Nothing ready for dispatch" description="Packed delivery orders appear here for rider assignment." />
+            <EmptyState icon={Truck} title="Nothing awaiting handover" description="Packed delivery orders appear here until a rider or provider takes them." />
           ) : (
             <div className="overflow-hidden rounded-xl border bg-card">
               <div className="table-scroll">
@@ -202,9 +303,11 @@ export default function AdminFulfilmentPage() {
                   <thead className="bg-muted/60 text-left">
                     <tr>
                       <th className="p-3 font-semibold">Reference</th>
+                      <th className="p-3 font-semibold">Customer</th>
                       <th className="p-3 font-semibold">Zone</th>
+                      <th className="p-3 font-semibold">Slot</th>
                       <th className="p-3 font-semibold">Payment</th>
-                      <th className="p-3 text-right font-semibold">COD amount</th>
+                      <th className="p-3 font-semibold">Packed</th>
                       <th className="p-3 text-right font-semibold">Action</th>
                     </tr>
                   </thead>
@@ -213,20 +316,24 @@ export default function AdminFulfilmentPage() {
                       <tr key={o.id} className="border-t">
                         <td className="p-3 font-medium">
                           <Link href={`/admin/orders/${o.id}`} className="hover:underline focus-visible:underline">{o.reference}</Link>
+                          <p className="text-xs text-muted-foreground">{o.lineCount} lines · {o.totalLabel}</p>
                         </td>
-                        <td className="p-3 text-muted-foreground">{o.zone}</td>
+                        <td className="p-3 text-muted-foreground">{o.customerName ?? "—"}</td>
+                        <td className="p-3 text-muted-foreground">{o.zone ?? "—"}</td>
+                        <td className="p-3 text-muted-foreground">{o.slotLabel ?? "—"}</td>
                         <td className="p-3">
                           <StatusBadge kind="payment" status={o.paymentStatus} />
-                          <span className="ml-1.5 text-xs text-muted-foreground">{o.paymentMethod.replace(/_/g, " ")}</span>
-                        </td>
-                        <td className="p-3 text-right tabular-nums">
                           {o.paymentMethod === "cash_on_delivery" ? (
-                            <Link href={`/admin/orders/${o.id}`} className="font-medium text-primary hover:underline">see order</Link>
-                          ) : "—"}
+                            <span className="ml-1.5 rounded-full border border-warning/40 bg-warning/10 px-2 py-0.5 text-xs font-semibold">COD</span>
+                          ) : null}
+                        </td>
+                        <td className="p-3 text-xs text-muted-foreground">
+                          {o.packedByName ? `${o.packedByName} · ` : ""}
+                          {o.packedAtLabel ?? "—"}
                         </td>
                         <td className="p-3 text-right">
-                          <Button asChild size="sm" variant="outline" className="h-10">
-                            <Link href={`/admin/dispatch?order=${o.id}`}>Assign rider</Link>
+                          <Button asChild size="sm" className="h-10">
+                            <Link href={`/admin/dispatch?order=${o.id}`}>Hand over to dispatch</Link>
                           </Button>
                         </td>
                       </tr>
@@ -238,7 +345,7 @@ export default function AdminFulfilmentPage() {
           )}
         </TabsContent>
 
-        {/* COLLECTION */}
+        {/* READY FOR COLLECTION */}
         <TabsContent value="collection" className="mt-4">
           {data.collection.length === 0 ? (
             <EmptyState icon={Store} title="No collection orders" description="Collection orders appear here until they are collected." />
@@ -252,6 +359,7 @@ export default function AdminFulfilmentPage() {
                       <th className="p-3 font-semibold">Customer</th>
                       <th className="p-3 font-semibold">Status</th>
                       <th className="p-3 font-semibold">Payment</th>
+                      <th className="p-3 font-semibold">Packed</th>
                       <th className="p-3 text-right font-semibold">Action</th>
                     </tr>
                   </thead>
@@ -260,12 +368,17 @@ export default function AdminFulfilmentPage() {
                       <tr key={o.id} className="border-t">
                         <td className="p-3 font-medium">
                           <Link href={`/admin/orders/${o.id}`} className="hover:underline focus-visible:underline">{o.reference}</Link>
+                          <p className="text-xs text-muted-foreground">{o.lineCount} lines · {o.totalLabel}</p>
                         </td>
                         <td className="p-3 text-muted-foreground">{o.customerName}</td>
                         <td className="p-3"><StatusBadge kind="fulfilment" status={o.fulfilmentStatus} /></td>
                         <td className="p-3">
                           <StatusBadge kind="payment" status={o.paymentStatus} />
                           <span className="ml-1.5 text-xs text-muted-foreground">{o.paymentMethod.replace(/_/g, " ")}</span>
+                        </td>
+                        <td className="p-3 text-xs text-muted-foreground">
+                          {o.packedByName ? `${o.packedByName} · ` : ""}
+                          {o.packedAtLabel ?? "—"}
                         </td>
                         <td className="p-3 text-right">
                           {o.fulfilmentStatus === "ready_for_collection" && can("orders.fulfil") ? (
@@ -285,52 +398,22 @@ export default function AdminFulfilmentPage() {
           )}
         </TabsContent>
       </Tabs>
-    </div>
-  );
-}
 
-/** The picker's line view: variant, unit, quantity and FEFO lot suggestions. */
-function LineTable({ lines }: { lines: QueueLine[] }) {
-  return (
-    <div className="table-scroll">
-      <table className="w-full text-sm">
-        <thead className="bg-muted/40 text-left">
-          <tr>
-            <th className="p-3 font-semibold">Item & variant</th>
-            <th className="p-3 font-semibold">Unit</th>
-            <th className="p-3 font-semibold">Qty</th>
-            <th className="p-3 font-semibold">Eligible lots (FEFO — pick first-expiring first)</th>
-            <th className="hidden p-3 font-semibold md:table-cell">Available to sell</th>
-          </tr>
-        </thead>
-        <tbody>
-          {lines.map((l) => (
-            <tr key={l.id} className="border-t align-top">
-              <td className="p-3">
-                <p className="font-medium">{l.productName}</p>
-                <p className="text-xs text-muted-foreground">{l.variantName}{l.note ? ` · ${l.note}` : ""}</p>
-              </td>
-              <td className="p-3 capitalize text-muted-foreground">{l.unit}</td>
-              <td className="p-3 font-medium tabular-nums">{l.quantity}</td>
-              <td className="p-3">
-                {l.allocations.length ? (
-                  <ul className="space-y-0.5 text-xs">
-                    {l.allocations.map((a) => (
-                      <li key={a.lotId} className="rounded bg-muted/60 px-2 py-1">
-                        <span className="font-mono">{a.lotNumber}</span> · take {a.quantity}
-                        {a.expiry ? ` · exp ${formatDate(a.expiry)}` : " · no expiry"}
-                      </li>
-                    ))}
-                  </ul>
-                ) : (
-                  <span className="text-xs text-muted-foreground">Recorded when picking starts</span>
-                )}
-              </td>
-              <td className="hidden p-3 tabular-nums text-muted-foreground md:table-cell">{l.availableToSell}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      <NoteDialog
+        open={!!noteTarget}
+        onOpenChange={(o) => !o && setNoteTarget(null)}
+        title={`Record a note on ${noteTarget?.order.reference ?? ""}`}
+        description="Notes are visible to staff; the customer sees notes when the order is marked for them."
+        placeholder="e.g. shelf gap on L-TOM-231, picked 1 of 2, customer accepted the shortage"
+        submitLabel="Save note"
+        busy={busy !== null}
+        withLineChoice
+        lines={noteTarget?.order.lines}
+        onSubmit={(note, lineId) => {
+          if (noteTarget) void act(noteTarget.order.id, "note", note, lineId);
+          setNoteTarget(null);
+        }}
+      />
     </div>
   );
 }
