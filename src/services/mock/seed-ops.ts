@@ -831,30 +831,35 @@ export function buildAiSuggestions(now: Date): AISuggestion[] {
       detail: "2 packs remain on hand with no safety buffer and 4 packs sold in the last 7 days. A purchase-order draft for 12 packs from Ghana Home Stores Distributors is suggested for review. No order will be placed automatically.",
       evidence: ["Stock on hand: 2 packs (lot L-DIA-M36)", "Sold in last 7 days: 4 packs across 2 orders", "Purchase unit: 1 carton = 12 packs"],
       dataPeriod: "Last 7 days of orders (demo fixtures)",
+      proposedAction: "Open Purchasing and review the suggested purchase-order draft for 12 packs (a human confirms before anything is ordered).",
     }),
     mk({
       id: "ai_002", kind: "expiry_promotion", title: "Milo 400 g lot L-MIL-A expires in 5 days — 18 tins",
       detail: "18 tins in an eligible lot expire in 5 days, with 22 tins in a later lot behind them. A reviewable promotion is suggested; nothing is published automatically.",
       evidence: ["Lot L-MIL-A: 18 tins, expiry in 5 days", "Lot L-MIL-B: 22 tins, expiry in 120 days", "Current price: ₵52.00 (compare-at ₵58.00)"],
       dataPeriod: "Current lot data (demo fixtures)",
+      proposedAction: "Open the product page and review a markdown price change for the expiring lot (pricing stays a human decision).",
     }),
     mk({
       id: "ai_003", kind: "dispatch_grouping", title: "Two packed orders fit one Accra Central run",
       detail: "Orders VG-1K6V4L and VG-5H7C3V are both packed for Accra Central with the 12:00–15:00 window. Assigning one available rider to both reduces trips. In-house riders Kwabena/Abena are options; the dispatcher decides.",
       evidence: ["VG-1K6V4L: picking, zone Accra Central, 3 lines", "VG-5H7C3V: packed, zone Accra Central, 3 lines", "Available in-house riders: 1 (others on jobs)"],
       dataPeriod: "Today's fulfilment queue (demo fixtures)",
+      proposedAction: "Open Dispatch and assign one rider to the grouped Accra Central run (the dispatcher confirms the handover).",
     }),
     mk({
       id: "ai_004", kind: "operations_explanation", title: "Payment pending on VG-3P7K2D after duplicate callbacks",
       detail: "Two provider callbacks were received for payment attempt pay_1002 with no confirmed outcome. The order stays pending; customers are not asked to pay twice. Staff should wait for the provider's verified status or contact the payment provider.",
       evidence: ["Attempt pay_1002: 2 callbacks, no resolved outcome", "Order created 9 minutes ago", "Reservation holds 2 egg packs and 3 kg tomatoes for 30 minutes"],
       dataPeriod: "Live mock events (demo fixtures)",
+      proposedAction: "Open Payments and verify the provider outcome before taking any action (no re-charge).",
     }),
     mk({
       id: "ai_005", kind: "exception_flag", title: "Second return in 8 days from the same customer",
       detail: "Akosua Danso (demo) has returned items on two orders within 8 days (2 yoghurt tubs, then a pending sardine return from a different account at the same phone domain). Unusual pattern — review refund policy application. Flagged for human review only.",
       evidence: ["RTN-2001 resolved 1 day ago", "Customer support note already flags a pattern", "No refunds were auto-issued"],
       dataPeriod: "Last 8 days of returns (demo fixtures)",
+      proposedAction: "Open Returns and inspect the customer's recent return history (no account action is taken automatically).",
     }),
   ];
 }
