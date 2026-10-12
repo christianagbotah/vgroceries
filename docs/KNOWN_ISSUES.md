@@ -87,6 +87,33 @@ Both backend URLs are required together; mock routes return 404 when either sele
 24. **Return provenance/reconciliation**: all credited lots are tracked and reversals preserve history. Moved/reserved stock or incomplete legacy metadata blocks reclassification. Unknown perishable provenance must remain quarantined in production.
 25. **Browser refresh**: the shared hook listens for mutation invalidation and ignores older completions. Custom loaders still require their own refresh handling; cross-session realtime updates are not implemented.
 
+## Frontend continuation wave (2026-10-12) — remaining gaps
+
+26. **Fulfilment “Ready to pack” queue is empty by design**: the demo/mock state machine has one
+    `picking → packed` transition, so there is no separate “picked” state to feed a pack queue.
+    The contract exposes `pack: FulfilmentOrderCard[]` and the tab renders only when non-empty;
+    when the backend fulfilment authority introduces an explicit picked state, the queue will
+    populate with no frontend change. `allowedActions` already renders only actions the service
+    permits.
+27. **Per-line picked quantity is not tracked in the mock**: picking progress is reported as
+    lines-with-complete-allocations vs total lines, and shortages are the FEFO shortfall recorded
+    at pick time. A backend lot-level pick confirmation (scan-by-scan) will replace progress
+    semantics without contract breakage (`allocatedQty`/`shortageQty` stay optional).
+28. **Contract extensions proposed by this wave are frontend-authored**: optional fields on
+    `FulfilmentLineCard`/`FulfilmentOrderCard`/`DashboardActionable`/`AISuggestion`
+    (`allocatedQty`, `shortageQty`, `pickerName`, `allowedActions`, `refundsAttention`,
+    `proposedAction`, inventory `summary`, …). The mock adapter already serves them; the backend
+    team should adopt or negotiate them when the fulfilment/refund authorities land (see
+    docs/ZAI_FRONTEND_HANDOFF.md §10).
+29. **Mobile card alternates** were added for the three densest staff tables (orders, inventory,
+    payments); remaining tables rely on responsive column hiding + in-table horizontal scroll,
+    which remains acceptable for their column counts.
+30. **Rider status badge contrast** (light-green on light background) is at the edge of WCAG AA
+    in direct sunlight; flagged for the design pass when the real rider app theme lands.
+31. **Shortage seed fixture `ord_1016`** is demo data demonstrating the exceptions queue; its
+    hold quantity (1) intentionally differs from the ordered quantity (2) to reflect the
+    damage-after-ordering story. It is seeded, not user-generated.
+
 ## Execution note
 
 All planned routes and the full vertical workflow were completed within this session; no work was
