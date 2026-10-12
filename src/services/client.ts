@@ -284,6 +284,8 @@ export const apiOps = {
 export type {
   AiGenerateResponse,
   AiReviewResponse,
+  AssistantResponse,
+  BudgetBasketResponse,
   FulfilmentOrderCard,
   CompleteOrderRequest,
   PaymentOutcomeRequest,

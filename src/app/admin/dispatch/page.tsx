@@ -8,7 +8,7 @@
  */
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { apiOps, ApiError } from "@/services/client";
 import { useApiData } from "@/features/staff/admin-data";
 import { useStaff } from "@/features/staff/role-context";
@@ -101,6 +101,18 @@ export default function AdminDispatchPage() {
       setBusy(false);
     }
   };
+
+  // Deep link: /admin/dispatch?order=<id> pre-opens the assignment dialog
+  // (used by the fulfilment handover queue). Runs once when data lands.
+  useEffect(() => {
+    if (!data) return;
+    const target = new URLSearchParams(window.location.search).get("order");
+    if (target) {
+      const row = data.ready.find((o) => o.id === target);
+      if (row) setAssignTarget(row);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data]);
 
   if (loading) return <LoadingState rows={6} label="Loading dispatch" />;
   if (error) return <ErrorState message={error} onRetry={reload} />;
