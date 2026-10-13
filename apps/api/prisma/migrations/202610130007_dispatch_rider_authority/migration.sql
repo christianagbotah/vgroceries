@@ -62,6 +62,7 @@ CREATE TABLE "DeliveryJob" (
   CONSTRAINT "DeliveryJob_custody_check" CHECK ("custodyState" IN ('dispatch','rider','provider','customer','return_pending','store_returned')),
   CONSTRAINT "DeliveryJob_failure_reason_check" CHECK ("failureReasonCode" IS NULL OR "failureReasonCode" IN ('customer_unavailable','customer_refused','address_problem','unable_to_contact','access_or_safety_issue','vehicle_or_operational_issue','other')),
   CONSTRAINT "DeliveryJob_failure_note_check" CHECK ("failureNote" IS NULL OR length(btrim("failureNote")) BETWEEN 1 AND 500),
+  CONSTRAINT "DeliveryJob_other_failure_note_required" CHECK ("failureReasonCode" IS DISTINCT FROM 'other' OR "failureNote" IS NOT NULL),
   CONSTRAINT "DeliveryJob_provider_key_check" CHECK ("providerKey" IS NULL OR length(btrim("providerKey")) BETWEEN 1 AND 120),
   CONSTRAINT "DeliveryJob_provider_name_check" CHECK ("providerNameSnapshot" IS NULL OR length(btrim("providerNameSnapshot")) BETWEEN 1 AND 120),
   CONSTRAINT "DeliveryJob_provider_ref_check" CHECK ("manualProviderReference" IS NULL OR length(btrim("manualProviderReference")) BETWEEN 1 AND 256),

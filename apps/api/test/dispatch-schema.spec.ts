@@ -61,6 +61,14 @@ test("dispatch schema rejects invalid assignment custody status and concurrent a
   await assert.rejects(() => c.deliveryJob.create({ data: { orderId: three.id, assignmentKind: "manual_provider", status: "assigned", custodyState: "dispatch", assignedBy: "admin-commerce", assignedAt: new Date() } }));
 });
 
+test("dispatch schema requires detail when failure reason is other", async () => {
+  const c = models();
+  const order = await db.order.create({ data: { reference: "VG-DISPATCH-OTHER-REASON", customerUserId: "customer-a", customerName: "Ama Customer", customerPhone: "+233241111111", fulfilment: "delivery", zoneId: "zone-required", paymentMethod: "cash_on_delivery", paymentStatus: "unpaid", fulfilmentStatus: "dispatched", deliveryStatus: "failed", subtotalMinor: 1990, deliveryFeeMinor: 1200, totalMinor: 3190, verificationKeyVersion: 1, verificationCodeHash: "c".repeat(64), stockConsumedAt: new Date() } });
+  await assert.rejects(() => c.deliveryJob.create({ data: { orderId: order.id, assignmentKind: "manual_provider", providerKey: "manual", status: "failed", custodyState: "dispatch", assignedBy: "admin-commerce", assignedAt: new Date(), failedAt: new Date(), failureReasonCode: "other" } }));
+  const accepted = await c.deliveryJob.create({ data: { orderId: order.id, assignmentKind: "manual_provider", providerKey: "manual", status: "failed", custodyState: "dispatch", assignedBy: "admin-commerce", assignedAt: new Date(), failedAt: new Date(), failureReasonCode: "other", failureNote: "Courier encountered an unclassified security closure" } });
+  assert.equal(accepted.failureReasonCode, "other");
+});
+
 test("delivery event and proof history are append-only", async () => {
   const c = models();
   const rows = await db.$queryRaw<Array<{ trigger_name: string }>>`SELECT tgname AS trigger_name FROM pg_trigger WHERE NOT tgisinternal AND tgname IN ('DeliveryEvent_append_only','DeliveryProof_append_only') ORDER BY tgname`;
