@@ -10,6 +10,7 @@ import {
   Req,
   UseGuards,
 } from "@nestjs/common";
+import { ApiExcludeController } from "@nestjs/swagger";
 import {
   fulfilmentConfirmRequestSchema,
   fulfilmentHandoverRequestSchema,
@@ -37,6 +38,7 @@ type Parser<T> = {
     | { success: false; error: { issues: ParseIssue[] } };
 };
 
+@ApiExcludeController()
 @Controller("admin/fulfilment")
 @UseGuards(AccessGuard)
 export class FulfilmentController {
