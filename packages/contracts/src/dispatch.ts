@@ -346,7 +346,7 @@ export const dispatchJobDetailResponseSchema = z.object({
   paymentMethod: z.string().min(1),
   paymentStatus: z.string().min(1),
   codDueMinor: z.number().int().nonnegative().optional(),
-  assignment: dispatchAssignmentViewSchema,
+  assignment: dispatchAssignmentViewSchema.optional(),
   failureReason: dispatchFailureReasonSchema.optional(),
   failureNote: z.string().min(1).max(500).optional(),
   rescheduledFor: isoTimestampSchema.optional(),

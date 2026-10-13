@@ -57,6 +57,16 @@ export class DispatchPolicyService {
     return { allowedActions: [], blockers: ["custody_not_safe_for_reassignment"] };
   }
 
+  riderJobDecision(status: string, custodyState: string): { allowedActions: ("set_availability" | "accept" | "pickup" | "out_for_delivery" | "deliver" | "fail" | "note")[]; blockers: string[] } {
+    if (status === "assigned") return { allowedActions: ["accept", "note"], blockers: [] };
+    if (status === "accepted") return { allowedActions: ["pickup", "fail", "note"], blockers: [] };
+    if (status === "picked_up") return { allowedActions: ["out_for_delivery", "fail", "note"], blockers: [] };
+    if (status === "out_for_delivery") return { allowedActions: ["deliver", "fail", "note"], blockers: [] };
+    if (["failed", "rescheduled"].includes(status)) return { allowedActions: ["note"], blockers: [] };
+    if (status === "return_to_store" && custodyState === "return_pending") return { allowedActions: ["note"], blockers: [] };
+    return { allowedActions: [], blockers: ["invalid_state"] };
+  }
+
   assertRiderAssignable(input: { availabilityState: RiderDeclaredAvailability; userActive: boolean; hasActiveJob: boolean }) {
     const state = this.effectiveRiderState(input);
     if (state === "offline") rule("Rider is offline.");
