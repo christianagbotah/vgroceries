@@ -221,6 +221,8 @@ export type DispatchCustodyState = z.infer<typeof dispatchCustodyStateSchema>;
 
 export const riderDeclaredAvailabilitySchema = z.enum(["available", "offline"]);
 export const riderEffectiveAvailabilitySchema = z.enum(["available", "offline", "busy"]);
+export type RiderDeclaredAvailability = z.infer<typeof riderDeclaredAvailabilitySchema>;
+export type RiderEffectiveAvailability = z.infer<typeof riderEffectiveAvailabilitySchema>;
 
 export const dispatchManualProviderSchema = z.object({
   providerKey: shortTextSchema,
