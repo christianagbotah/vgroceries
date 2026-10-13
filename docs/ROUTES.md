@@ -51,8 +51,8 @@ are client components over the same mock API.
 | `/admin/inventory/expiry` | Expired / expiring / quarantined / damaged lots with quarantine & disposal actions |
 | `/admin/suppliers` | Supplier records (demo) |
 | `/admin/purchases` | Purchase orders (drafts incl. AI-suggested, sent, received) |
-| `/admin/dispatch` | Ready-to-dispatch assignment (rider or manual provider booking), active jobs, riders, history; failed-delivery management |
-| `/admin/riders` | Rider availability, zones, pending remittance |
+| `/admin/dispatch` | Dispatch control centre: awaiting-assignment queue (handed-over orders with blockers/allowedActions), active deliveries, exceptions (failed/rescheduled), completed; assignment modal (eligible riders + reasons, manual provider booking), unassign/reassign/reschedule/return-to-store; honest COD context |
+| `/admin/riders` | Rider roster: busy vs available vs off duty, active-job reference, zones, completed counts, consent-based demo location, confirm-before-off-duty availability control; mobile card view |
 | `/admin/providers` | Provider adapters: in-house (configured) + external candidates (not connected) |
 | `/admin/returns` | Requests, decisions, receipt, inspection, dispositions, refund requests |
 | `/admin/returns/[id]` | Return detail with lines, disposition, refunds |
@@ -71,9 +71,9 @@ are client components over the same mock API.
 | Route | Purpose |
 |---|---|
 | `/rider/login` | Rider demo access and future authentication |
-| `/rider` | Assigned jobs and today's work (auto-refresh), pending remittance |
-| `/rider/jobs/[id]` | Pickup checklist, delivery instructions, customer contact, proof-of-delivery dialog, fail reporting, pending notes |
-| `/rider/history` | Completed jobs and collection history |
+| `/rider` | Today's assigned jobs (auto-refresh), next-action hints, read-only COD context (collection authority pending) |
+| `/rider/jobs/[id]` | Pickup checklist, address/contact with external Maps link, sticky lifecycle actions (accept → pickup → out → deliver-with-proof or structured fail), rescheduled/return-to-store states, notes with offline pending state |
+| `/rider/history` | Completed jobs with POD and honest COD-due context (no collection state) |
 
 ## API (development-only)
 

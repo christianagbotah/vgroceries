@@ -52,3 +52,12 @@ Picking and packing do **not** reduce physical stock. Stock leaves inventory onl
 Latest reviewed code checkpoint before these documentation-only commits is `ef6762423ded43bc3fe6f3083ce7e94941566d89` on `feat/fulfilment-handover-20261012`. PostgreSQL 17 applied migrations 001–006; the API suite passed **268/268**, including the pre-merge variant-provenance regression; production OpenAPI generated twice at **35 paths** with zero drift; API foundation run `38396198571` succeeded; and root CI run `38396198558` passed lint, typecheck, production build, **48/48** static generation, **50/50** Bun regressions with **460** expectations, **24/24** handoff assertions, **32/32** contract checks, **24/24** acceptance checks and a **58/58** route sweep.
 
 See `docs/HANDOFF.md` for the next implementation sequence and `docs/VERIFICATION.md` for the evidence record.
+
+## 6. Dispatch + Rider readiness wave additions (13 October 2026)
+
+24. **`riderId` in rider endpoints is demo parity, not authorization.** The mock scopes job reads/actions to the requesting rider, but production MUST derive rider identity from the session. Tracked in `docs/ZAI_DISPATCH_RIDER_CONTRACT_GAPS.md` §4.
+25. **No REST mapping exists yet for dispatch/rider operations.** `endpoints.ts` intentionally maps none; the HTTP adapter rejects them as unknown operations until the Dispatch/Rider authority defines real paths (gaps doc §9).
+26. **Rider unassign/reassign/reschedule/return actions are mock-engine semantics.** They mirror the intended authority but are not backend-derived yet; the UI prefers server `allowedActions` when supplied.
+27. **Structured failure reasons are UI affordances over a free-string contract.** The backend vocabulary stays authoritative; the friendly choices map onto it (gaps doc §4).
+28. **External Maps link is an address lookup, not geocoding.** GhanaPostGPS codes are shown exactly as recorded; no geocode claim is made.
+29. **COD cash handling is intentionally absent everywhere.** Collection, remittance and any financial state for cash-on-delivery await the future COD Authority; all surfaces show read-only "collection authority pending" context.

@@ -101,3 +101,29 @@ Recorded frontend evidence from that wave includes:
 The successful gates above do **not** claim that these future authorities/integrations are live: courier/dispatch/rider backend, COD cash collection and remittance, physical Returns/restocking, POS cashier authority, production Hubtel credentials/webhooks, SMS/email/push, live AI execution, or complete public-storefront backend cutover.
 
 Those boundaries are tracked in `docs/KNOWN_ISSUES.md`; the implementation order is in `docs/HANDOFF.md`.
+
+## Dispatch + Rider frontend readiness wave — 13 October 2026
+
+Branch `feat/zai-dispatch-rider-readiness-20261013` (base: main @ `7be1b0f`,
+Fulfilment + Stock Handover Authority #12). The domain corrections, contract
+cleanup, control-centre/rider UX and regression coverage are documented in
+`docs/ZAI_DISPATCH_RIDER_HANDOFF.md`; stale-contract findings and their
+classifications are in `docs/ZAI_DISPATCH_RIDER_CONTRACT_GAPS.md`.
+
+Verified in this wave (exact numbers in the handoff):
+
+- strict TypeScript (`bunx tsc --noEmit`) — 0 diagnostics;
+- ESLint — 0 errors / 0 warnings;
+- production build — pass;
+- Bun regression suite — 71 tests / 690 expectations, 0 fail
+  (50 prior + 21 new dispatch/rider domain regressions);
+- business acceptance script — 24/24 (rider COD section updated to assert the
+  absence of collection/remittance state);
+- route sweep and responsive sweep results — recorded in the handoff evidence
+  section (`docs/qa/evidence/zai-dispatch-rider-readiness-20261013/`).
+
+Honest boundaries reaffirmed by tests: rider pickup / assignment / delivery /
+failure / return-to-store never mutate sellable stock; the fulfilment handover
+is the single depletion event; COD delivery never marks payment succeeded; no
+remittance projection exists; no ETA/GPS fields exist in any projection;
+providers render as not connected; rider reads/actions are ownership-scoped.
