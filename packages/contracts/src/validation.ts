@@ -251,7 +251,7 @@ export const stocktakeCountRequestSchema = z.object({
   counts: z.record(z.string(), z.string()),
 });
 
-export const dispatchAssignRequestSchema = z
+export const legacyDispatchAssignRequestSchema = z
   .object({
     orderId: idSchema,
     riderId: idSchema.optional(),
@@ -545,7 +545,7 @@ export const requestSchemas: Record<string, z.ZodTypeAny> = {
   "admin.inventory.receive": receiveRequestSchema,
   "admin.inventory.adjustments.create": adjustmentCreateRequestSchema,
   "admin.inventory.stocktakes.count": stocktakeCountRequestSchema,
-  "admin.dispatch.assign": dispatchAssignRequestSchema,
+  "admin.dispatch.assign": legacyDispatchAssignRequestSchema,
   "admin.refund.action": legacyRefundActionRequestSchema,
   "rider.action": riderActionRequestSchema,
   "admin.product.create": createProductDraftRequestSchema,
