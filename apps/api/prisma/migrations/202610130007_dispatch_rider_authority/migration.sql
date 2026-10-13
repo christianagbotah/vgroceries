@@ -1,4 +1,9 @@
 -- Dispatch + Rider Authority. Fulfilment handover already consumed delivery stock.
+-- Rider lifecycle events are first-class order provenance in this authority.
+ALTER TABLE "OrderEvent" DROP CONSTRAINT "OrderEvent_actorKind_check";
+ALTER TABLE "OrderEvent" ADD CONSTRAINT "OrderEvent_actorKind_check"
+  CHECK ("actorKind" IN ('customer','guest','system','staff','rider'));
+
 CREATE TABLE "RiderProfile" (
   "id" TEXT NOT NULL,
   "userId" TEXT NOT NULL,
