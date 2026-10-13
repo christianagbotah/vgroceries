@@ -52,6 +52,7 @@ export const fulfilmentBlockingReasonSchema = z.enum([
   "collection_cash_unverified",
   "already_handed_over",
 ]);
+export type FulfilmentBlockingReason = z.infer<typeof fulfilmentBlockingReasonSchema>;
 
 export const fulfilmentQueueRowSchema = z.object({
   orderId: z.string().min(1),
