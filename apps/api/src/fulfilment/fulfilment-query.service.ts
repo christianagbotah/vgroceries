@@ -16,7 +16,7 @@ import { PaymentCaptureService } from "../payments/payment-capture.service";
 import { FulfilmentPolicyService } from "./fulfilment-policy.service";
 
 type ReservationProjection = Reservation & {
-  position: Pick<StockPosition, "locationId">;
+  position: Pick<StockPosition, "locationId" | "variantId">;
   lot: Pick<StockLot, "id" | "lotNumber" | "expiryDate">;
   fulfilmentPick: FulfilmentPick | null;
 };
@@ -96,11 +96,7 @@ export class FulfilmentQueryService {
     for (const row of rows) {
       generations.add(row.generation);
       const line = expected.get(row.claimLineId);
-      if (!line || line.variantId !== row.positionId && false) {
-        // Variant identity is checked below through the stock position lookup in
-        // the database query; this branch only guards unexpected claim lines.
-      }
-      if (!line) {
+      if (!line || line.variantId !== row.position.variantId) {
         reservationLost = true;
         continue;
       }
