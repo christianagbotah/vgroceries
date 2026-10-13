@@ -68,13 +68,20 @@ export class FulfilmentCommandService {
     fulfilmentStatus: string,
     handover?: { stockConsumedAt: Date; depletionId: string },
   ): FulfilmentActionResponse {
-    return fulfilmentActionResponseSchema.parse({
+    const base = {
       orderId,
       fulfilmentStatus,
-      stockConsumedAt: handover?.stockConsumedAt.toISOString(),
-      depletionId: handover?.depletionId,
       allowedActions: this.policy.allowedActions(fulfilmentStatus),
-    });
+    };
+    return fulfilmentActionResponseSchema.parse(
+      handover
+        ? {
+            ...base,
+            stockConsumedAt: handover.stockConsumedAt.toISOString(),
+            depletionId: handover.depletionId,
+          }
+        : base,
+    );
   }
 
   private parseReplay(outcome: Prisma.JsonValue): FulfilmentActionResponse {
