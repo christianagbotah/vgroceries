@@ -13,6 +13,11 @@ permissions:
 jobs:
   refresh:
     runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: postgresql://localhost/variety_openapi
+      WEB_ORIGINS: http://localhost:3000
+      API_STOCK_LOCATION_ID: loc_accra
+      API_INSECURE_COOKIES: "true"
     steps:
       - uses: actions/checkout@v4
         with:
