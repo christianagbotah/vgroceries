@@ -1,5 +1,14 @@
 "use client";
 
+/**
+ * Rider dashboard (mobile-first) — today's assigned jobs.
+ *
+ * - The rider only ever sees their own jobs (scoped by the session rider).
+ * - COD amounts are read-only context: collection authority pending. Cash is
+ *   handed to the dispatcher; no financial event is recorded here.
+ * - No live GPS, no ETA. Location is an optional consent-based label.
+ */
+
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { apiOps, ApiError, type RiderJobView } from "@/services/client";
@@ -7,13 +16,27 @@ import { useRiderSession } from "@/components/layout/rider-shell";
 import { ErrorState, LoadingState, EmptyState } from "@/components/shared/states";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { Button } from "@/components/ui/button";
-import { formatMoney } from "@/lib/money";
 import { relativeTime } from "@/lib/format";
 import { Banknote, Check, MapPin, Package, Phone } from "lucide-react";
 
+type RiderJobsData = {
+  jobs: RiderJobView[];
+  rider: { name: string; isAvailable: boolean; lastLocationAt?: string; lastLocationLabel?: string } | null;
+  codCash: { jobsWithCash: number; totalDueLabel: string; note: string };
+};
+
+const NEXT_ACTION_LABELS: Record<string, string> = {
+  assigned: "Accept job",
+  accepted: "Confirm pickup from store",
+  picked_up: "Start delivery",
+  out_for_delivery: "Mark delivered (proof required)",
+  rescheduled: "Awaiting new window — dispatch decides",
+  failed: "Reported — dispatch decides next step",
+};
+
 export default function RiderHomePage() {
   const { riderId, ready } = useRiderSession();
-  const [data, setData] = useState<{ jobs: RiderJobView[]; rider: { name: string; isAvailable: boolean; lastLocationAt?: string; lastLocationLabel?: string } | null; remittance: { totalMinor: number; totalLabel: string } } | null>(null);
+  const [data, setData] = useState<RiderJobsData | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -26,7 +49,10 @@ export default function RiderHomePage() {
     const load = async () => {
       try {
         const d = await apiOps.riderJobs(riderId);
-        if (!cancelled) setData(d);
+        if (!cancelled) {
+          setData(d);
+          setError(null);
+        }
       } catch (e) {
         if (!cancelled) setError(e instanceof ApiError ? e.message : "Could not load your jobs.");
       }
@@ -54,19 +80,19 @@ export default function RiderHomePage() {
         </p>
         {data.rider?.lastLocationLabel ? (
           <p className="mt-1 text-xs text-muted-foreground">
-            Location shared: {data.rider.lastLocationLabel} ({data.rider.lastLocationAt ? relativeTime(data.rider.lastLocationAt) : ""}) — demo
+            Location shared: {data.rider.lastLocationLabel} ({data.rider.lastLocationAt ? relativeTime(data.rider.lastLocationAt) : ""}) — demo label, not GPS
           </p>
         ) : (
-          <p className="mt-1 text-xs text-muted-foreground">Location not shared (optional)</p>
+          <p className="mt-1 text-xs text-muted-foreground">Location not shared (optional, consent-based)</p>
         )}
       </div>
 
-      {data.remittance.totalMinor > 0 ? (
-        <div role="status" className="flex items-center gap-2 rounded-xl border border-warning/40 bg-warning/10 p-3 text-sm">
-          <Banknote className="size-4" aria-hidden />
+      {data.codCash.jobsWithCash > 0 ? (
+        <div role="status" className="flex items-start gap-2 rounded-xl border border-warning/40 bg-warning/10 p-3 text-sm">
+          <Banknote className="mt-0.5 size-4 shrink-0" aria-hidden />
           <p>
-            <strong>{data.remittance.totalLabel}</strong> collected cash awaiting remittance. Hand it
-            to the dispatcher or cash office.
+            <strong>{data.codCash.totalDueLabel} in cash due across {data.codCash.jobsWithCash} job{data.codCash.jobsWithCash === 1 ? "" : "s"}.</strong>{" "}
+            {data.codCash.note}
           </p>
         </div>
       ) : null}
@@ -91,13 +117,13 @@ export default function RiderHomePage() {
                     <p className="truncate text-sm text-muted-foreground">
                       {job.address ? job.address.line1 : "Address in job"}
                     </p>
-                    <p className="text-sm">{job.items.length} item{job.items.length === 1 ? "" : "s"}</p>
+                    <p className="text-sm">{job.items.length} item{job.items.length === 1 ? "" : "s"}{job.zone ? ` · ${job.zone}` : ""}</p>
                   </div>
                   <div className="flex flex-col items-end gap-1.5">
                     <StatusBadge kind="delivery" status={job.status} />
                     {job.cashToCollectLabel ? (
-                      <span className="rounded-full border border-warning/40 bg-warning/10 px-2 py-0.5 text-xs font-semibold">
-                        collect {job.cashToCollectLabel}
+                      <span className="rounded-full border border-warning/40 bg-warning/10 px-2 py-0.5 text-xs font-semibold" title="COD — collection authority pending">
+                        {job.cashToCollectLabel} due on delivery
                       </span>
                     ) : null}
                   </div>
@@ -108,6 +134,9 @@ export default function RiderHomePage() {
                     <span className="flex items-center gap-1"><Phone className="size-4" aria-hidden /> Call customer</span>
                   ) : null}
                 </div>
+                <p className="mt-2 text-xs font-medium text-muted-foreground">
+                  Next: {NEXT_ACTION_LABELS[job.status] ?? "See job detail"}
+                </p>
               </Link>
             </li>
           ))}
@@ -120,7 +149,7 @@ export default function RiderHomePage() {
         </Link>
       </Button>
       <p className="text-center text-xs text-muted-foreground">
-        {formatMoney(0) && "Cash you collect is recorded separately from delivery — remit it at the store."}
+        Goods are handed over from the store before each job — your actions never change stock.
       </p>
     </div>
   );

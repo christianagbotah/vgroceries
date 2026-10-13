@@ -22,10 +22,15 @@ import {
   WorkflowStrip,
 } from "@/features/staff/fulfilment-views";
 import { Check, ClipboardCheck, Package, Truck, Store, RotateCw, TriangleAlert, StickyNote } from "lucide-react";
+import {
+  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
+} from "@/components/ui/dialog";
 
 type Fulfilment = Awaited<ReturnType<typeof apiOps.fulfilment>>;
 type OrderCard = Fulfilment["pick"][number];
 type NoteTarget = { order: OrderCard; kind: "pick" | "pack" } | null;
+type DispatchRow = Fulfilment["dispatch"][number];
+type HandoverTarget = DispatchRow | null;
 
 export default function AdminFulfilmentPage() {
   const { user, can } = useStaff();
@@ -33,6 +38,7 @@ export default function AdminFulfilmentPage() {
   const { data, loading, error, reload } = useApiData(() => apiOps.fulfilment(), []);
   const [busy, setBusy] = useState<string | null>(null);
   const [noteTarget, setNoteTarget] = useState<NoteTarget>(null);
+  const [handoverTarget, setHandoverTarget] = useState<HandoverTarget>(null);
 
   const act = async (orderId: string, action: string, note?: string, lineId?: string) => {
     setBusy(orderId + action);
@@ -42,6 +48,24 @@ export default function AdminFulfilmentPage() {
       await reload();
     } catch (e) {
       toast({ title: "Action failed", description: e instanceof ApiError ? e.message : undefined, variant: "destructive" });
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  /** Authoritative handover: the single stock-consumption event for delivery orders. */
+  const handOver = async (o: DispatchRow) => {
+    setBusy(o.id + "dispatch");
+    try {
+      await apiOps.orderAction({ orderId: o.id, action: "dispatch", actor: user.id });
+      toast({
+        title: `${o.reference} handed over to dispatch`,
+        description: "Physical stock consumed exactly once. Assign a rider in Dispatch → Awaiting assignment.",
+      });
+      setHandoverTarget(null);
+      await reload();
+    } catch (e) {
+      toast({ title: "Handover failed", description: e instanceof ApiError ? e.message : undefined, variant: "destructive" });
     } finally {
       setBusy(null);
     }
@@ -294,8 +318,12 @@ export default function AdminFulfilmentPage() {
         {/* PACKED — HANDOVER */}
         <TabsContent value="handover" className="mt-4 space-y-3">
           <HandoverNotice />
+          <p className="text-sm text-muted-foreground">
+            Handing over records the authoritative stock consumption for these orders and moves them to
+            the <Link href="/admin/dispatch" className="font-medium text-primary hover:underline focus-visible:underline">Dispatch awaiting-assignment queue</Link>.
+          </p>
           {data.dispatch.length === 0 ? (
-            <EmptyState icon={Truck} title="Nothing awaiting handover" description="Packed delivery orders appear here until a rider or provider takes them." />
+            <EmptyState icon={Truck} title="Nothing awaiting handover" description="Packed delivery orders appear here for the stock-consuming handover to dispatch." />
           ) : (
             <div className="overflow-hidden rounded-xl border bg-card">
               <div className="table-scroll">
@@ -332,8 +360,8 @@ export default function AdminFulfilmentPage() {
                           {o.packedAtLabel ?? "—"}
                         </td>
                         <td className="p-3 text-right">
-                          <Button asChild size="sm" className="h-10">
-                            <Link href={`/admin/dispatch?order=${o.id}`}>Hand over to dispatch</Link>
+                          <Button size="sm" className="h-10" onClick={() => setHandoverTarget(o)}>
+                            <Truck className="size-3.5" aria-hidden /> Hand over to dispatch
                           </Button>
                         </td>
                       </tr>
@@ -414,6 +442,32 @@ export default function AdminFulfilmentPage() {
           setNoteTarget(null);
         }}
       />
+
+      {/* authoritative handover confirmation — this is the stock-consumption event */}
+      <Dialog open={!!handoverTarget} onOpenChange={(o) => !o && setHandoverTarget(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Hand over {handoverTarget?.reference} to dispatch?</DialogTitle>
+            <DialogDescription>
+              This is the authoritative fulfilment handover: physical stock for this order is consumed
+              exactly once, and the order moves to Dispatch awaiting assignment. Rider and dispatch
+              actions after this point never change sellable stock.
+            </DialogDescription>
+          </DialogHeader>
+          <p className="rounded-lg bg-muted/60 p-2.5 text-xs text-muted-foreground">
+            {handoverTarget ? `${handoverTarget.customerName ?? "Customer"} · ${handoverTarget.lineCount} lines · ${handoverTarget.totalLabel}` : ""}
+            {handoverTarget?.slotLabel ? ` · ${handoverTarget.slotLabel}` : ""}
+          </p>
+          <DialogFooter className="gap-2 sm:justify-end">
+            <Button variant="outline" className="h-11" onClick={() => setHandoverTarget(null)} disabled={busy !== null}>
+              Cancel
+            </Button>
+            <Button className="h-11" onClick={() => handoverTarget && void handOver(handoverTarget)} disabled={busy !== null}>
+              {busy ? "Handing over…" : "Hand over — consume stock once"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

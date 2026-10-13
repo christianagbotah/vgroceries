@@ -119,6 +119,18 @@ export function dashboardSummary(store: VgStore) {
     readyToPick: store.orders.filter((o) => o.fulfilmentStatus === "confirmed").length,
     picking: store.orders.filter((o) => o.fulfilmentStatus === "picking").length,
     readyToDispatch: store.orders.filter((o) => o.fulfilmentStatus === "packed" && o.fulfilment === "delivery").length,
+    // Handed-over (dispatched + stock consumed) delivery orders with no active job:
+    // exactly the Dispatch "awaiting assignment" queue.
+    awaitingAssignment: store.orders.filter(
+      (o) =>
+        o.channel === "online" &&
+        o.fulfilment === "delivery" &&
+        o.fulfilmentStatus === "dispatched" &&
+        !!o.stockConsumedAt &&
+        (!store.deliveryJobs.some((j) => j.orderId === o.id) ||
+          store.deliveryJobs.some((j) => j.orderId === o.id && ["unassigned", "rescheduled", "failed"].includes(j.status)))
+    ).length,
+    deliveryExceptions: store.deliveryJobs.filter((j) => ["failed", "rescheduled"].includes(j.status)).length,
     pendingPayments: store.orders.filter((o) => o.paymentStatus === "pending" || o.paymentStatus === "requires_review").length,
     returnsPending: store.returnRequests.filter((r) => ["requested", "approved", "received", "inspected"].includes(r.status)).length,
     refundsAttention: store.refunds.filter((r) => ["awaiting_approval", "requires_review"].includes(r.status)).length,

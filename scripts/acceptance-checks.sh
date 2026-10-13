@@ -148,11 +148,12 @@ ok_req checkout/payment-outcome '{"orderId":"ord_1002","outcome":"failed"}'
 DUP2="$LAST_BODY"
 echo "$DUP2" | grep -q '"duplicate":true'; check "second callback after resolution is a no-op (duplicate)" $?
 
-echo "== J. Rider COD: delivery, cash collection and remittance are separate =="
+echo "== J. Rider COD: delivery completion never records collection/remittance =="
 req GET "rider/job?jobId=job_5001"
 J="$LAST_BODY"
-echo "$J" | grep -q '"cashToCollectLabel"'; check "COD job carries a separate cash-to-collect amount" $?
-if echo "$J" | grep -q '"cashCollectedAt"'; then check "cash not yet collected while delivery is in progress" 1; else check "cash not yet collected while delivery is in progress" 0; fi
+echo "$J" | grep -q '"cashToCollectLabel"'; check "COD job carries a cash-due-on-delivery amount" $?
+if echo "$J" | grep -q '"cashCollectedAt"'; then check "cash collection state absent while delivery is in progress" 1; else check "cash collection state absent while delivery is in progress" 0; fi
+if echo "$J" | grep -q '"remittedAt"'; then check "remittance state absent from rider job" 1; else check "remittance state absent from rider job" 0; fi
 
 echo "== K. Staff returns list endpoint serves its contract =="
 req GET "admin/returns"

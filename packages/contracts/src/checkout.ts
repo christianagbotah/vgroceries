@@ -220,10 +220,10 @@ export interface OrderJobView {
   proof?: { method: string; detail: string; at: string };
   failureReason?: string;
   rescheduledFor?: string;
+  /** COD due on delivery — read-only context; collection state intentionally
+   *  absent (future COD cash authority owns the financial record). */
   cashToCollectMinor?: number;
   cashToCollectLabel?: string;
-  cashCollectedAt?: string;
-  remittedAt?: string;
 }
 
 /** The customer-safe order projection shared by status + tracking screens. */

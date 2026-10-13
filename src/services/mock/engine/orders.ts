@@ -618,13 +618,25 @@ export function markCollected(store: VgStore, orderId: string, actor: string): O
   return order;
 }
 
+/**
+ * Authoritative fulfilment handover: packed goods leave store custody into
+ * dispatch custody. This — not rider pickup, not assignment — is the single
+ * stock depletion event for delivery orders: physical stock is consumed
+ * exactly once here, Order.stockConsumedAt is set and fulfilmentStatus
+ * becomes "dispatched". Dispatch/rider actions after this point never touch
+ * sellable stock.
+ */
 export function markDispatched(store: VgStore, orderId: string, actor: string): Order {
   const order = mustOrder(store, orderId);
-  requireTransition(order, "dispatched");
-  order.fulfilmentStatus = "dispatched";
-  order.deliveryStatus = "assigned";
-  orderEvent(order, actor, "Dispatched", { fromStatus: "packed", toStatus: "dispatched" });
-  audit(store, actor, "order.dispatched", "Order", order.id);
+  requireTransition(order, "dispatched"); // idempotent: repeat handovers are recorded as ignored no-ops
+  const { consumed } = consumeOrderStock(store, order, actor);
+  if (order.fulfilmentStatus !== "dispatched") {
+    order.fulfilmentStatus = "dispatched";
+    orderEvent(order, actor, "Handed over to dispatch — physical stock consumed exactly once", { fromStatus: "packed", toStatus: "dispatched" });
+  } else {
+    orderEvent(order, actor, "Repeat handover ignored; stock was already consumed once");
+  }
+  audit(store, actor, "order.dispatched", "Order", order.id, { after: consumed ? "stock_consumed" : "already_consumed" });
   return order;
 }
 

@@ -447,10 +447,10 @@ export interface DeliveryJob {
   assignedAt?: string;
   addressId?: string;
   instructions?: string;
-  /** cash to collect for COD orders (independent of delivery completion) */
+  /** COD amount due on delivery — read-only operational context. Collection
+   *  and remittance belong to a future COD cash authority; no rider or
+   *  dispatch action records a financial event on this job. */
   cashToCollectMinor?: number;
-  cashCollectedAt?: string;
-  remittedAt?: string;
   proof?: { method: "pin" | "signature" | "photo_note"; detail: string; at: string };
   events: { at: string; actor: string; action: string; note?: string }[];
   failureReason?: string;

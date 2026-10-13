@@ -432,6 +432,8 @@ export const dashboardViewSchema = z.object({
     readyToPick: z.number(),
     picking: z.number(),
     readyToDispatch: z.number(),
+    awaitingAssignment: z.number(),
+    deliveryExceptions: z.number(),
     pendingPayments: z.number(),
     returnsPending: z.number(),
     refundsAttention: z.number(),

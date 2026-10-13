@@ -48,9 +48,8 @@ export default async function DeliveryPage() {
       </InfoSection>
       <InfoSection title="Cash on delivery">
         <p>
-          Available in active zones. Delivery completion and cash collection are recorded as
-          separate events, and riders remit collected cash to the store for reconciliation — you
-          will never be asked to pay twice for the same order.
+          Available in active zones. Pay the rider in cash on arrival — your payment is reconciled
+          by the store afterwards, so you will never be asked to pay twice for the same order.
         </p>
       </InfoSection>
       <InfoSection title="Collection">

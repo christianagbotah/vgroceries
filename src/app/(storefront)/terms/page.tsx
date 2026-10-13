@@ -26,8 +26,8 @@ export default function TermsPage() {
       <InfoSection title="Payment">
         <p>
           Electronic payments are confirmed only via verified provider outcomes; pending states are
-          reconciled rather than double-charged. Cash on delivery is collected by the rider and
-          remitted to the store.
+          reconciled rather than double-charged. Cash on delivery is paid to the rider and reconciled
+          by the store.
         </p>
       </InfoSection>
       <InfoSection title="Delivery">
