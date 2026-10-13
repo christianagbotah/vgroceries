@@ -16,3 +16,26 @@ async function rider(id:string,availabilityState:"available"|"offline"="availabl
 test("dispatch queue projects handed-over orders without jobs as unassigned and excludes packed orders",async()=>{const ready=await order("VG-QUERY-READY");await order("VG-QUERY-PACKED","packed",false);const result=await queries.listDispatch({page:1,perPage:25});const row=result.items.find(x=>x.orderId===ready.id);assert.ok(row);assert.equal(row.deliveryStatus,"unassigned");assert.equal(row.jobId,undefined);assert.deepEqual(row.allowedActions,["assign"]);assert.equal(result.items.some(x=>x.reference==="VG-QUERY-PACKED"),false);});
 
 test("dispatch projections derive assignment actions and rider busy state on the server",async()=>{const r=await rider("busy"),offline=await rider("offline","offline"),o=await order("VG-QUERY-ASSIGNED");const j=await db.deliveryJob.create({data:{orderId:o.id,assignmentKind:"rider",riderProfileId:r.id,status:"assigned",custodyState:"dispatch",assignedBy:"admin-commerce",assignedAt:new Date()}});await db.order.update({where:{id:o.id},data:{deliveryStatus:"assigned"}});const detail=await queries.dispatchDetail(j.id);assert.equal(detail.assignment?.riderProfileId,r.id);assert.equal(detail.allowedActions.includes("reassign"),true);const fleet=await queries.listRiders();assert.equal(fleet.riders.find(x=>x.riderProfileId===r.id)?.effectiveAvailability,"busy");assert.equal(fleet.riders.find(x=>x.riderProfileId===offline.id)?.effectiveAvailability,"offline");});
+
+
+test("returned-to-store projection explicitly awaits Returns inspection",async()=>{
+  const r=await rider("returned-inspection"),o=await order("VG-QUERY-RETURNED-INSPECTION");
+  const returnedAt=new Date();
+  const j=await db.deliveryJob.create({data:{orderId:o.id,assignmentKind:"rider",riderProfileId:r.id,status:"return_to_store",custodyState:"store_returned",assignedBy:"admin-commerce",assignedAt:new Date(),returnedToStoreAt:returnedAt}});
+  await db.order.update({where:{id:o.id},data:{deliveryStatus:"return_to_store"}});
+  const detail=await queries.dispatchDetail(j.id);
+  assert.equal((detail as any).returnsInspectionMessage,"Returned to store — awaiting Returns inspection.");
+  const queue=await queries.listDispatch({page:1,perPage:25,status:"return_to_store"});
+  assert.equal((queue.items.find(x=>x.jobId===j.id) as any)?.returnsInspectionMessage,"Returned to store — awaiting Returns inspection.");
+});
+
+
+test("dispatch queue excludes cancelled or non-dispatched handed-over anomalies",async()=>{
+  const cancelled=await order("VG-QUERY-CANCELLED-HANDOVER");
+  await db.order.update({where:{id:cancelled.id},data:{fulfilmentStatus:"cancelled",cancelledAt:new Date()}});
+  const completed=await order("VG-QUERY-NONDISPATCH-HANDOVER");
+  await db.order.update({where:{id:completed.id},data:{fulfilmentStatus:"delivered"}});
+  const result=await queries.listDispatch({page:1,perPage:100});
+  assert.equal(result.items.some(x=>x.orderId===cancelled.id),false);
+  assert.equal(result.items.some(x=>x.orderId===completed.id),false);
+});

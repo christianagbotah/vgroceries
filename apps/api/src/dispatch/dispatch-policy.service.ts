@@ -11,7 +11,7 @@ interface DispatchEligibleOrder {
 }
 interface HandoverEvidence { handedOverAt: Date | null; handoverKind: string | null; }
 interface RiderStateInput { availabilityState: string; userActive: boolean; hasActiveJob: boolean; }
-interface ReassignableJob { status: string; custodyState: string; returnedToStoreAt: Date | null; }
+interface ReassignableJob { status: string; custodyState: string; returnedToStoreAt: Date | null; assignmentKind?: string; rescheduledFor?: Date | null; }
 
 function rule(message: string): never {
   throw new ApiProblem(422, "RULE_VIOLATION", message);
@@ -28,8 +28,9 @@ export class DispatchPolicyService {
   }
 
   effectiveRiderState(input: RiderStateInput): RiderEffectiveAvailability {
-    if (!input.userActive || input.availabilityState !== "available") return "offline";
-    return input.hasActiveJob ? "busy" : "available";
+    if (!input.userActive) return "offline";
+    if (input.hasActiveJob) return "busy";
+    return input.availabilityState === "available" ? "available" : "offline";
   }
 
   allowedProofMethods(): DispatchProofMethod[] {
@@ -53,16 +54,39 @@ export class DispatchPolicyService {
       if (["rider", "provider"].includes(job.custodyState)) actions.push("return_to_store");
       return { allowedActions: actions, blockers: safe ? [] : ["custody_not_safe_for_reassignment"] };
     }
-    if (this.canReassign(job)) return { allowedActions: ["unassign", "reassign"], blockers: [] };
+    if (job.status === "rescheduled") {
+      const safe = this.canReassign(job);
+      const actions: ("unassign" | "reassign" | "return_to_store" | "provider_transition")[] = [];
+      if (safe) actions.push("unassign", "reassign");
+      if (["rider", "provider"].includes(job.custodyState)) actions.push("return_to_store");
+      const due = Boolean(job.rescheduledFor) && job.rescheduledFor!.getTime() <= Date.now();
+      if (job.assignmentKind === "manual_provider" && due && ["dispatch", "provider"].includes(job.custodyState)) actions.push("provider_transition");
+      const blockers: string[] = [];
+      if (!safe) blockers.push("custody_not_safe_for_reassignment");
+      if (!due) blockers.push("reschedule_not_due");
+      return { allowedActions: actions, blockers };
+    }
+    const safe = this.canReassign(job);
+    const actions: ("unassign" | "reassign" | "provider_transition")[] = [];
+    if (safe) actions.push("unassign", "reassign");
+    if (job.assignmentKind === "manual_provider" && ["assigned", "picked_up", "out_for_delivery"].includes(job.status)) actions.push("provider_transition");
+    if (actions.length) return { allowedActions: actions, blockers: safe ? [] : ["custody_not_safe_for_reassignment"] };
     return { allowedActions: [], blockers: ["custody_not_safe_for_reassignment"] };
   }
 
-  riderJobDecision(status: string, custodyState: string): { allowedActions: ("set_availability" | "accept" | "pickup" | "out_for_delivery" | "deliver" | "fail" | "note")[]; blockers: string[] } {
+  riderJobDecision(status: string, custodyState: string, rescheduledFor?: Date | null): { allowedActions: ("set_availability" | "accept" | "pickup" | "out_for_delivery" | "deliver" | "fail" | "note")[]; blockers: string[] } {
     if (status === "assigned") return { allowedActions: ["accept", "note"], blockers: [] };
     if (status === "accepted") return { allowedActions: ["pickup", "fail", "note"], blockers: [] };
     if (status === "picked_up") return { allowedActions: ["out_for_delivery", "fail", "note"], blockers: [] };
     if (status === "out_for_delivery") return { allowedActions: ["deliver", "fail", "note"], blockers: [] };
-    if (["failed", "rescheduled"].includes(status)) return { allowedActions: ["note"], blockers: [] };
+    if (status === "rescheduled") {
+      const due = Boolean(rescheduledFor) && rescheduledFor!.getTime() <= Date.now();
+      if (!due) return { allowedActions: ["note"], blockers: ["reschedule_not_due"] };
+      if (custodyState === "dispatch") return { allowedActions: ["accept", "note"], blockers: [] };
+      if (custodyState === "rider") return { allowedActions: ["out_for_delivery", "note"], blockers: [] };
+      return { allowedActions: ["note"], blockers: ["invalid_state"] };
+    }
+    if (status === "failed") return { allowedActions: ["note"], blockers: [] };
     if (status === "return_to_store" && custodyState === "return_pending") return { allowedActions: ["note"], blockers: [] };
     return { allowedActions: [], blockers: ["invalid_state"] };
   }

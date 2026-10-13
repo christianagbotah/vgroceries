@@ -54,3 +54,32 @@ test("failed custody permits recovery actions without pretending reassignment is
   const returning = policy.adminJobDecision({ status: "return_to_store", custodyState: "return_pending", returnedToStoreAt: null });
   assert.deepEqual(returning.allowedActions, ["receive_returned_goods"]);
 });
+
+
+test("effective busy state outranks declared offline while a rider owns active work",()=>{
+  assert.equal(policy.effectiveRiderState({availabilityState:"offline",userActive:true,hasActiveJob:true}),"busy");
+});
+
+test("admin actions expose manual provider transitions and rescheduled recovery truth",()=>{
+  const assignedProvider=policy.adminJobDecision({status:"assigned",custodyState:"dispatch",returnedToStoreAt:null,assignmentKind:"manual_provider",rescheduledFor:null} as any);
+  assert.equal(assignedProvider.allowedActions.includes("provider_transition"),true);
+  const future=new Date(Date.now()+60_000);
+  const pendingRetry=policy.adminJobDecision({status:"rescheduled",custodyState:"provider",returnedToStoreAt:null,assignmentKind:"manual_provider",rescheduledFor:future} as any);
+  assert.equal(pendingRetry.allowedActions.includes("return_to_store"),true);
+  assert.equal(pendingRetry.allowedActions.includes("provider_transition"),false);
+  assert.equal(pendingRetry.blockers.includes("reschedule_not_due"),true);
+  const dueRetry=policy.adminJobDecision({status:"rescheduled",custodyState:"provider",returnedToStoreAt:null,assignmentKind:"manual_provider",rescheduledFor:new Date(Date.now()-1000)} as any);
+  assert.equal(dueRetry.allowedActions.includes("provider_transition"),true);
+  assert.equal(dueRetry.allowedActions.includes("return_to_store"),true);
+});
+
+test("rider actions expose custody-preserving rescheduled retry only when due",()=>{
+  const future=new Date(Date.now()+60_000);
+  const pending=policy.riderJobDecision("rescheduled","rider",future);
+  assert.deepEqual(pending.allowedActions,["note"]);
+  assert.equal(pending.blockers.includes("reschedule_not_due"),true);
+  const dueRider=policy.riderJobDecision("rescheduled","rider",new Date(Date.now()-1000));
+  assert.equal(dueRider.allowedActions.includes("out_for_delivery"),true);
+  const dueDispatch=policy.riderJobDecision("rescheduled","dispatch",new Date(Date.now()-1000));
+  assert.equal(dueDispatch.allowedActions.includes("accept"),true);
+});

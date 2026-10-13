@@ -29,3 +29,24 @@ test("delivery transition writes delivery order audit and outbox history atomica
   assert.equal(await db.auditEvent.count({ where: { entityId: jobId, action: "delivery.assigned" } }), 1);
   assert.equal(await db.outboxEvent.count({ where: { aggregateId: orderId, type: "delivery.assigned" } }), 1);
 });
+
+test("operational delivery notes are customer-unsafe unless explicitly opted in", async () => {
+  const service = new DispatchEventService();
+  await db.$transaction((tx) => service.recordTransition(tx, {
+    deliveryJobId: jobId,
+    orderId,
+    actorKind: "rider",
+    actorId: "event-rider",
+    action: "note",
+    fromStatus: "assigned",
+    toStatus: "assigned",
+    note: "Gate security asked me to call dispatch",
+    safeMetadata: {},
+    requestId: "req-event-private-note",
+  }));
+  const event = await db.orderEvent.findFirstOrThrow({
+    where: { orderId, action: "delivery.note" },
+    orderBy: { createdAt: "desc" },
+  });
+  assert.equal(event.customerSafe, false);
+});

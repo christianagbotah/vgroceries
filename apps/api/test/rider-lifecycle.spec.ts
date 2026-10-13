@@ -25,3 +25,22 @@ test("rider failure requires approved reason and does not touch inventory",async
 test("rider notes are bounded and idempotent",async()=>{const x=await setup("VG-RIDER-NOTE");const first=await service.note(x.user.id,x.job.id,{note:"Gate security requested a call"},ctx("note-one"));const second=await service.note(x.user.id,x.job.id,{note:"Gate security requested a call"},ctx("note-one"));assert.deepEqual(second,first);assert.equal(await db.deliveryEvent.count({where:{deliveryJobId:x.job.id,action:"note"}}),1);await assert.rejects(()=>service.note(x.user.id,x.job.id,{note:"    "},ctx("note-empty")),(e)=>codeOf(e)==="VALIDATION_FAILED");});
 
 test("rider can change declared availability but active assignment remains a separate busy fact",async()=>{const x=await setup("VG-RIDER-AVAIL");const off=await service.setOwnAvailability(x.user.id,{availability:"offline"},ctx("self-offline"));assert.equal(off.availability,"offline");const on=await service.setOwnAvailability(x.user.id,{availability:"available"},ctx("self-online"));assert.equal(on.availability,"available");assert.equal((await db.riderProfile.findUniqueOrThrow({where:{id:x.profile.id}})).availabilityState,"available");assert.equal(await db.deliveryJob.count({where:{riderProfileId:x.profile.id,status:"assigned"}}),1);});
+
+
+test("rescheduled rider delivery resumes only when retry time is due",async()=>{
+  const x=await setup("VG-RIDER-RESCHEDULE-RETRY");
+  await db.deliveryJob.update({where:{id:x.job.id},data:{status:"rescheduled",custodyState:"rider",pickedUpAt:new Date(),rescheduledFor:new Date(Date.now()+60_000)}});
+  await db.order.update({where:{id:x.order.id},data:{deliveryStatus:"rescheduled"}});
+  await assert.rejects(()=>service.outForDelivery(x.user.id,x.job.id,{note:"not due"},ctx("retry-not-due")),(e)=>codeOf(e)==="RULE_VIOLATION");
+  await db.deliveryJob.update({where:{id:x.job.id},data:{rescheduledFor:new Date(Date.now()-1000)}});
+  const resumed=await service.outForDelivery(x.user.id,x.job.id,{note:"retry now"},ctx("retry-due"));
+  assert.equal(resumed.deliveryStatus,"out_for_delivery");
+});
+
+test("rescheduled pre-pickup rider job can be re-accepted when retry time is due",async()=>{
+  const x=await setup("VG-RIDER-RESCHEDULE-ACCEPT");
+  await db.deliveryJob.update({where:{id:x.job.id},data:{status:"rescheduled",custodyState:"dispatch",rescheduledFor:new Date(Date.now()-1000)}});
+  await db.order.update({where:{id:x.order.id},data:{deliveryStatus:"rescheduled"}});
+  const resumed=await service.accept(x.user.id,x.job.id,{},ctx("retry-accept-due"));
+  assert.equal(resumed.deliveryStatus,"accepted");
+});

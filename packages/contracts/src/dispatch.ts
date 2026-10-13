@@ -190,6 +190,7 @@ export const dispatchBlockerSchema = z.enum([
   "proof_method_unavailable",
   "failure_reason_required",
   "return_not_physically_received",
+  "reschedule_not_due",
   "invalid_state",
 ]);
 export type DispatchBlocker = z.infer<typeof dispatchBlockerSchema>;
@@ -327,6 +328,7 @@ export const dispatchQueueRowSchema = z.object({
   assignment: dispatchAssignmentViewSchema.optional(),
   failureReason: dispatchFailureReasonSchema.optional(),
   rescheduledFor: isoTimestampSchema.optional(),
+  returnsInspectionMessage: z.literal("Returned to store — awaiting Returns inspection.").optional(),
   allowedActions: z.array(dispatchActionSchema),
   blockers: z.array(dispatchBlockerSchema),
 }).strict();
@@ -354,6 +356,7 @@ export const dispatchJobDetailResponseSchema = z.object({
   failureNote: z.string().min(1).max(500).optional(),
   rescheduledFor: isoTimestampSchema.optional(),
   returnedToStoreAt: isoTimestampSchema.optional(),
+  returnsInspectionMessage: z.literal("Returned to store — awaiting Returns inspection.").optional(),
   proof: dispatchProofSchema.optional(),
   events: z.array(dispatchEventViewSchema),
   allowedActions: z.array(dispatchActionSchema),

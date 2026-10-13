@@ -62,8 +62,12 @@ export class RiderCommandService {
     return parsed.data;
   }
 
+  private retryDue(job: DeliveryJob, custodyState: string): boolean {
+    return job.status === "rescheduled" && job.custodyState === custodyState && Boolean(job.rescheduledFor) && job.rescheduledFor!.getTime() <= Date.now();
+  }
+
   private actionResponse(job: DeliveryJob): RiderActionResponse {
-    const decision = this.policy.riderJobDecision(job.status, job.custodyState);
+    const decision = this.policy.riderJobDecision(job.status, job.custodyState, job.rescheduledFor);
     return riderActionResponseSchema.parse({
       jobId: job.id,
       orderId: job.orderId,
@@ -80,12 +84,12 @@ export class RiderCommandService {
       WHERE j.id=${jobId} FOR UPDATE OF o
     `;
     if (!orderRows[0]) notFound("Delivery job not found.");
-    await tx.$queryRaw`SELECT id FROM "DeliveryJob" WHERE id=${jobId} FOR UPDATE`;
-    const job = await tx.deliveryJob.findUnique({ where: { id: jobId } });
-    if (!job) notFound("Delivery job not found.");
     await tx.$queryRaw`SELECT rp.id FROM "RiderProfile" rp JOIN "User" u ON u.id=rp."userId" WHERE rp."userId"=${userId} FOR UPDATE OF rp`;
     const profile = await tx.riderProfile.findUnique({ where: { userId }, include: { user: true } });
     if (!profile || profile.user.role !== "rider" || !profile.user.active) notFound("Delivery job not found.");
+    await tx.$queryRaw`SELECT id FROM "DeliveryJob" WHERE id=${jobId} FOR UPDATE`;
+    const job = await tx.deliveryJob.findUnique({ where: { id: jobId } });
+    if (!job) notFound("Delivery job not found.");
     if (job.assignmentKind !== "rider" || job.riderProfileId !== profile.id) notFound("Delivery job not found.");
     return { job, orderId: orderRows[0].orderId, profile };
   }
@@ -117,9 +121,10 @@ export class RiderCommandService {
   async accept(userId: string, jobId: string, raw: RiderAcceptRequest, context: RiderCommandContext) {
     const input = this.parseInput(riderAcceptRequestSchema, raw);
     return this.executeJob(userId, jobId, "accept", input, context, async (tx, job, orderId) => {
-      if (job.status !== "assigned" || job.custodyState !== "dispatch") rule("Delivery is not ready for rider acceptance.");
+      const retry = this.retryDue(job, "dispatch");
+      if (!((job.status === "assigned" && job.custodyState === "dispatch") || retry)) rule("Delivery is not ready for rider acceptance.");
       const now = new Date();
-      const updated = await tx.deliveryJob.update({ where: { id: job.id }, data: { status: "accepted", acceptedAt: now, version: { increment: 1 } } });
+      const updated = await tx.deliveryJob.update({ where: { id: job.id }, data: { status: "accepted", acceptedAt: now, ...(retry ? { failedAt: null, failureReasonCode: null, failureNote: null, rescheduledFor: null } : {}), version: { increment: 1 } } });
       await tx.order.update({ where: { id: orderId }, data: { deliveryStatus: "accepted", version: { increment: 1 } } });
       await this.events.recordTransition(tx, { deliveryJobId: job.id, orderId, actorKind: "rider", actorId: userId, action: "accepted", fromStatus: job.status, toStatus: "accepted", requestId: context.requestId, safeMetadata: {} });
       return this.actionResponse(updated);
@@ -143,9 +148,10 @@ export class RiderCommandService {
     const input = this.parseInput(riderOutRequestSchema, raw);
     const note = normalizeDispatchNote(input.note);
     return this.executeJob(userId, jobId, "out_for_delivery", { ...input, note }, context, async (tx, job, orderId) => {
-      if (job.status !== "picked_up" || job.custodyState !== "rider") rule("Delivery is not ready to leave for the customer.");
+      const retry = this.retryDue(job, "rider");
+      if (!((job.status === "picked_up" && job.custodyState === "rider") || retry)) rule("Delivery is not ready to leave for the customer.");
       const now = new Date();
-      const updated = await tx.deliveryJob.update({ where: { id: job.id }, data: { status: "out_for_delivery", outForDeliveryAt: now, version: { increment: 1 } } });
+      const updated = await tx.deliveryJob.update({ where: { id: job.id }, data: { status: "out_for_delivery", outForDeliveryAt: now, ...(retry ? { failedAt: null, failureReasonCode: null, failureNote: null, rescheduledFor: null } : {}), version: { increment: 1 } } });
       await tx.order.update({ where: { id: orderId }, data: { deliveryStatus: "out_for_delivery", version: { increment: 1 } } });
       await this.events.recordTransition(tx, { deliveryJobId: job.id, orderId, actorKind: "rider", actorId: userId, action: "out_for_delivery", fromStatus: job.status, toStatus: "out_for_delivery", note, requestId: context.requestId, safeMetadata: {} });
       return this.actionResponse(updated);
@@ -184,7 +190,7 @@ export class RiderCommandService {
     const input = this.parseInput(riderNoteRequestSchema, raw);
     const note = normalizeDispatchNote(input.note)!;
     return this.executeJob(userId, jobId, "note", { note }, context, async (tx, job, orderId) => {
-      const decision = this.policy.riderJobDecision(job.status, job.custodyState);
+      const decision = this.policy.riderJobDecision(job.status, job.custodyState, job.rescheduledFor);
       if (!decision.allowedActions.includes("note")) rule("Notes are not accepted for this delivery state.");
       await this.events.recordTransition(tx, { deliveryJobId: job.id, orderId, actorKind: "rider", actorId: userId, action: "note", fromStatus: job.status, toStatus: job.status, note, requestId: context.requestId, safeMetadata: {} });
       return this.actionResponse(job);

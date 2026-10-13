@@ -190,9 +190,11 @@ export class DispatchCommandService {
   async reschedule(jobId: string, input: ProductionDispatchRescheduleRequest, context: DispatchCommandContext) {
     const note = normalizeDispatchNote(input.note);
     const when = new Date(input.when);
-    if (!Number.isFinite(when.getTime()) || when.getTime() <= Date.now())
-      throw new ApiProblem(400, "VALIDATION_FAILED", "Reschedule time must be a future UTC timestamp.");
+    if (!Number.isFinite(when.getTime()))
+      throw new ApiProblem(400, "VALIDATION_FAILED", "Reschedule time must be a valid UTC timestamp.");
     return this.execute("reschedule", jobId, { when: when.toISOString(), note }, context, (v) => this.parseAction(v), async (tx) => {
+      if (when.getTime() <= Date.now())
+        throw new ApiProblem(400, "VALIDATION_FAILED", "Reschedule time must be a future UTC timestamp.");
       const orderId = await this.lockOrderForJob(tx, jobId);
       const job = await this.lockJob(tx, jobId);
       if (job.status !== "failed") rule("Only a failed delivery can be rescheduled.");
@@ -240,11 +242,13 @@ export class DispatchCommandService {
       const job = await this.lockJob(tx, jobId);
       this.manualProvider.assertTransition(job, input.action);
       const now = new Date();
+      const retry = job.status === "rescheduled";
+      const retryReset = retry ? { failedAt: null, failureReasonCode: null, failureNote: null, rescheduledFor: null } : {};
       let updated: DeliveryJob;
       if (input.action === "picked_up") {
-        updated = await tx.deliveryJob.update({ where: { id: job.id }, data: { status: "picked_up", custodyState: "provider", pickedUpAt: now, version: { increment: 1 } } });
+        updated = await tx.deliveryJob.update({ where: { id: job.id }, data: { status: "picked_up", custodyState: "provider", pickedUpAt: now, ...retryReset, version: { increment: 1 } } });
       } else if (input.action === "out_for_delivery") {
-        updated = await tx.deliveryJob.update({ where: { id: job.id }, data: { status: "out_for_delivery", custodyState: "provider", outForDeliveryAt: now, version: { increment: 1 } } });
+        updated = await tx.deliveryJob.update({ where: { id: job.id }, data: { status: "out_for_delivery", custodyState: "provider", outForDeliveryAt: now, ...retryReset, version: { increment: 1 } } });
       } else if (input.action === "failed") {
         if (!failureReason) rule("Failure reason is required.");
         updated = await tx.deliveryJob.update({ where: { id: job.id }, data: { status: "failed", failedAt: now, failureReasonCode: failureReason, failureNote: note, version: { increment: 1 } } });

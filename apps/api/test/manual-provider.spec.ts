@@ -16,3 +16,17 @@ before(async()=>{app=await createApplication(config());db=app.get(Database);serv
 async function order(){const o=await db.order.create({data:{reference:"VG-MANUAL-PROVIDER",customerUserId:"customer-a",customerName:"Ama",customerPhone:"+233241111111",fulfilment:"delivery",zoneId:"zone-required",paymentMethod:"cash_on_delivery",paymentStatus:"unpaid",fulfilmentStatus:"dispatched",deliveryStatus:"unassigned",subtotalMinor:1000,deliveryFeeMinor:100,totalMinor:1100,verificationKeyVersion:1,verificationCodeHash:"8".repeat(64),stockConsumedAt:new Date()}});await db.fulfilmentRun.create({data:{orderId:o.id,locationId:"loc_accra",handedOverBy:"admin-commerce",handedOverAt:new Date(),handoverKind:"dispatch"}});return o;}
 
 test("manual provider lifecycle is explicit staff evidence and performs zero network calls",async()=>{const o=await order();let calls=0;const original=globalThis.fetch;globalThis.fetch=(async()=>{calls++;throw new Error("network must not be called");}) as typeof fetch;try{const a=await service.assign(o.id,{manualProvider:{providerKey:"manual-courier",providerName:"Manual Courier",reference:"BOOK-1"}},ctx("manual-assign"));await service.manualProviderTransition(a.jobId,{action:"picked_up",note:"Courier collected"},ctx("manual-pickup"));await service.manualProviderTransition(a.jobId,{action:"out_for_delivery",note:"Staff confirmed departure"},ctx("manual-out"));await service.manualProviderTransition(a.jobId,{action:"delivered",proof:{method:"signature",reference:"SIG-1"}},ctx("manual-deliver"));const job=await db.deliveryJob.findUniqueOrThrow({where:{id:a.jobId}});const orderRow=await db.order.findUniqueOrThrow({where:{id:o.id}});assert.equal(job.status,"delivered");assert.equal(job.custodyState,"customer");assert.equal(orderRow.paymentStatus,"unpaid");assert.equal(orderRow.deliveryStatus,"delivered");assert.equal(orderRow.fulfilmentStatus,"delivered");assert.equal(calls,0);assert.equal(await db.deliveryProof.count({where:{deliveryJobId:a.jobId}}),1);}finally{globalThis.fetch=original;}});
+
+
+test("rescheduled manual provider job resumes through existing transition only when due",async()=>{
+  const o=await order();
+  const a=await service.assign(o.id,{manualProvider:{providerKey:"manual-retry",providerName:"Manual Retry"}},ctx("manual-retry-assign"));
+  await service.manualProviderTransition(a.jobId,{action:"picked_up"},ctx("manual-retry-pick"));
+  await service.manualProviderTransition(a.jobId,{action:"failed",failureReason:"customer_unavailable"},ctx("manual-retry-fail"));
+  const when=new Date(Date.now()+60_000).toISOString();
+  await service.reschedule(a.jobId,{when},ctx("manual-retry-schedule"));
+  await assert.rejects(()=>service.manualProviderTransition(a.jobId,{action:"out_for_delivery"},ctx("manual-retry-not-due")));
+  await db.deliveryJob.update({where:{id:a.jobId},data:{rescheduledFor:new Date(Date.now()-1000)}});
+  const resumed=await service.manualProviderTransition(a.jobId,{action:"out_for_delivery"},ctx("manual-retry-due"));
+  assert.equal(resumed.deliveryStatus,"out_for_delivery");
+});

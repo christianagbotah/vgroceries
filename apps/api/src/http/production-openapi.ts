@@ -166,6 +166,38 @@ function readOperation(
   };
 }
 
+function refinedAssignmentSchema(schema: z.ZodType): SchemaObject {
+  const generated = json(schema) as SchemaObject & { properties?: Record<string, SchemaObject> };
+  const properties = generated.properties ?? {};
+  return { oneOf: [
+    { type: "object", additionalProperties: false, required: ["riderProfileId"], properties: { riderProfileId: properties.riderProfileId, note: properties.note } },
+    { type: "object", additionalProperties: false, required: ["manualProvider"], properties: { manualProvider: properties.manualProvider, note: properties.note } },
+  ] };
+}
+
+const nonOtherFailureReasons = ["customer_unavailable", "customer_refused", "address_problem", "unable_to_contact", "access_or_safety_issue", "vehicle_or_operational_issue"];
+function providerTransitionOpenApiSchema(): SchemaObject {
+  const generated = json(dispatchProviderTransitionRequestSchema) as SchemaObject & { properties?: Record<string, SchemaObject> };
+  const properties = generated.properties ?? {};
+  const action = (value: string): SchemaObject => ({ type: "string", enum: [value] });
+  return { oneOf: [
+    { type: "object", additionalProperties: false, required: ["action"], properties: { action: action("picked_up"), note: properties.note } },
+    { type: "object", additionalProperties: false, required: ["action"], properties: { action: action("out_for_delivery"), note: properties.note } },
+    { type: "object", additionalProperties: false, required: ["action", "proof"], properties: { action: action("delivered"), proof: properties.proof, note: properties.note } },
+    { type: "object", additionalProperties: false, required: ["action", "failureReason"], properties: { action: action("failed"), failureReason: { type: "string", enum: nonOtherFailureReasons }, note: properties.note } },
+    { type: "object", additionalProperties: false, required: ["action", "failureReason", "note"], properties: { action: action("failed"), failureReason: { type: "string", enum: ["other"] }, note: properties.note } },
+  ] };
+}
+
+function riderFailOpenApiSchema(): SchemaObject {
+  const generated = json(riderFailRequestSchema) as SchemaObject & { properties?: Record<string, SchemaObject> };
+  const properties = generated.properties ?? {};
+  return { oneOf: [
+    { type: "object", additionalProperties: false, required: ["reason"], properties: { reason: { type: "string", enum: nonOtherFailureReasons }, note: properties.note } },
+    { type: "object", additionalProperties: false, required: ["reason", "note"], properties: { reason: { type: "string", enum: ["other"] }, note: properties.note } },
+  ] };
+}
+
 export function productionOpenApi(app: INestApplication): OpenAPIObject {
   const doc = foundationOpenApi(app);
   const schemas = doc.components!.schemas as Record<string, SchemaObject>;
@@ -179,13 +211,13 @@ export function productionOpenApi(app: INestApplication): OpenAPIObject {
     FulfilmentQueueResponse: json(fulfilmentQueueResponseSchema),
     FulfilmentDetailResponse: json(fulfilmentDetailResponseSchema),
     FulfilmentActionResponse: json(fulfilmentActionResponseSchema),
-    DispatchAssignRequest: json(dispatchAssignRequestSchema),
+    DispatchAssignRequest: refinedAssignmentSchema(dispatchAssignRequestSchema),
     DispatchUnassignRequest: json(dispatchUnassignRequestSchema),
-    DispatchReassignRequest: json(dispatchReassignRequestSchema),
+    DispatchReassignRequest: refinedAssignmentSchema(dispatchReassignRequestSchema),
     DispatchRescheduleRequest: json(dispatchRescheduleRequestSchema),
     DispatchReturnRequest: json(dispatchReturnRequestSchema),
     DispatchReturnedRequest: json(dispatchReturnedRequestSchema),
-    DispatchProviderTransitionRequest: json(dispatchProviderTransitionRequestSchema),
+    DispatchProviderTransitionRequest: providerTransitionOpenApiSchema(),
     DispatchQueueResponse: json(dispatchQueueResponseSchema),
     DispatchJobDetailResponse: json(dispatchJobDetailResponseSchema),
     DispatchRiderFleetResponse: json(dispatchRiderFleetResponseSchema),
@@ -197,7 +229,7 @@ export function productionOpenApi(app: INestApplication): OpenAPIObject {
     RiderPickupRequest: json(riderPickupRequestSchema),
     RiderOutRequest: json(riderOutRequestSchema),
     RiderDeliverRequest: json(riderDeliverRequestSchema),
-    RiderFailRequest: json(riderFailRequestSchema),
+    RiderFailRequest: riderFailOpenApiSchema(),
     RiderNoteRequest: json(riderNoteRequestSchema),
     RiderSelfResponse: json(riderSelfResponseSchema),
     RiderJobResponse: json(riderJobResponseSchema),

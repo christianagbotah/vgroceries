@@ -1,5 +1,6 @@
 import { after, before, beforeEach, test } from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import type { INestApplication } from "@nestjs/common";
 import { createApplication } from "../src/bootstrap";
 import { readConfig } from "../src/config";
@@ -25,3 +26,16 @@ test("concurrent rider deliver and fail serialize to one terminal outcome",async
 test("return-to-store wins safely against reassignment while rider has custody",async()=>{const r=await rider("return"),replacement=await rider("replacement"),o=await order("VG-RACE-RETURN");const assigned=await dispatch.assign(o.id,{riderProfileId:r.profile.id},ctx("ret-assign","admin-a"));await riderCommands.accept(r.user.id,assigned.jobId,{},rctx("ret-accept"));await riderCommands.pickup(r.user.id,assigned.jobId,{},rctx("ret-pick"));await riderCommands.fail(r.user.id,assigned.jobId,{reason:"vehicle_or_operational_issue"},rctx("ret-fail"));const results=await Promise.allSettled([dispatch.returnToStore(assigned.jobId,{},ctx("ret-return","admin-a")),dispatch.reassign(assigned.jobId,{riderProfileId:replacement.profile.id},ctx("ret-reassign","admin-b"))]);assert.equal(results.filter(x=>x.status==="fulfilled").length,1);const job=await db.deliveryJob.findUniqueOrThrow({where:{id:assigned.jobId}});assert.equal(job.status,"return_to_store");assert.equal(job.custodyState,"return_pending");});
 
 test("rider cannot act after a pre-pickup unassignment",async()=>{const r=await rider("unassigned"),o=await order("VG-RACE-UNASSIGN");const assigned=await dispatch.assign(o.id,{riderProfileId:r.profile.id},ctx("un-assign","admin-a"));await dispatch.unassign(assigned.jobId,{},ctx("un-admin","admin-a"));await assert.rejects(()=>riderCommands.accept(r.user.id,assigned.jobId,{},rctx("un-rider")));assert.equal((await db.deliveryJob.findUniqueOrThrow({where:{id:assigned.jobId}})).status,"unassigned");});
+
+
+test("rider command lock protocol cannot invert profile and job locks",()=>{
+  const source=readFileSync("src/dispatch/rider-command.service.ts","utf8");
+  const start=source.indexOf("private async lockOwnedJob");
+  const end=source.indexOf("private async executeJob",start);
+  const block=source.slice(start,end);
+  const orderLock=block.indexOf("FOR UPDATE OF o");
+  const profileLock=block.indexOf("FOR UPDATE OF rp");
+  const jobLock=block.indexOf('SELECT id FROM "DeliveryJob"');
+  assert.ok(orderLock>=0&&profileLock>=0&&jobLock>=0);
+  assert.ok(orderLock<profileLock&&profileLock<jobLock,"lock order must be Order -> RiderProfile -> DeliveryJob");
+});

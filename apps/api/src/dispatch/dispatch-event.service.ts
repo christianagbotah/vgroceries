@@ -40,7 +40,7 @@ export class DispatchEventService {
       fromStatus: input.fromStatus ?? null,
       toStatus: input.toStatus ?? null,
       note: input.note ?? null,
-      customerSafe: input.customerSafe ?? true,
+      customerSafe: input.customerSafe ?? false,
     } });
     await tx.auditEvent.create({ data: {
       actorId: input.actorId ?? input.actorKind,

@@ -18,6 +18,12 @@ export class ManualProviderService {
 
   assertTransition(job: DeliveryJob, action: DispatchProviderTransitionRequest["action"]) {
     this.assertManual(job);
+    if (job.status === "rescheduled") {
+      if (!job.rescheduledFor || job.rescheduledFor.getTime() > Date.now()) rule("Rescheduled delivery is not due yet.");
+      const retryAction = job.custodyState === "dispatch" ? "picked_up" : job.custodyState === "provider" ? "out_for_delivery" : null;
+      if (!retryAction || action !== retryAction) rule(`Manual provider cannot ${action} from rescheduled ${job.custodyState} custody.`);
+      return;
+    }
     const allowed: Record<DispatchProviderTransitionRequest["action"], string[]> = {
       picked_up: ["assigned"],
       out_for_delivery: ["picked_up"],

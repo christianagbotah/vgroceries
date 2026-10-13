@@ -54,6 +54,12 @@ export class DispatchQueryService {
     ] };
   }
 
+  private returnsInspectionMessage(job: { status: string; custodyState: string; returnedToStoreAt: Date | null } | null | undefined) {
+    return job?.status === "return_to_store" && job.custodyState === "store_returned" && job.returnedToStoreAt
+      ? "Returned to store — awaiting Returns inspection." as const
+      : undefined;
+  }
+
   private codDue(order: { paymentMethod: string; paymentStatus: string; totalMinor: number }) {
     return order.paymentMethod === "cash_on_delivery" && order.paymentStatus !== "succeeded" ? order.totalMinor : undefined;
   }
@@ -85,6 +91,8 @@ export class DispatchQueryService {
   async listDispatch(query: DispatchListQuery): Promise<ProductionDispatchQueueResponse> {
     const where: Prisma.OrderWhereInput = {
       fulfilment: "delivery",
+      fulfilmentStatus: "dispatched",
+      cancelledAt: null,
       stockConsumedAt: { not: null },
       fulfilmentRun: { is: { handedOverAt: { not: null }, handoverKind: "dispatch" } },
       ...(query.status ? { deliveryStatus: query.status } : {}),
@@ -104,7 +112,8 @@ export class DispatchQueryService {
         paymentMethod: order.paymentMethod, paymentStatus: order.paymentStatus, codDueMinor: this.codDue(order),
         deliveryStatus: order.deliveryStatus, custodyState: job?.custodyState,
         assignment: this.assignment(job), failureReason: job?.failureReasonCode ?? undefined,
-        rescheduledFor: job?.rescheduledFor?.toISOString(), allowedActions: [...decision.allowedActions], blockers: decision.blockers,
+        rescheduledFor: job?.rescheduledFor?.toISOString(), returnsInspectionMessage: this.returnsInspectionMessage(job),
+        allowedActions: [...decision.allowedActions], blockers: decision.blockers,
       };
     });
     return dispatchQueueResponseSchema.parse({ page: query.page, perPage: query.perPage, total, items });
@@ -121,6 +130,7 @@ export class DispatchQueryService {
       paymentMethod: job.order.paymentMethod, paymentStatus: job.order.paymentStatus, codDueMinor: this.codDue(job.order),
       assignment: this.assignment(job), failureReason: job.failureReasonCode ?? undefined, failureNote: job.failureNote ?? undefined,
       rescheduledFor: job.rescheduledFor?.toISOString(), returnedToStoreAt: job.returnedToStoreAt?.toISOString(),
+      returnsInspectionMessage: this.returnsInspectionMessage(job),
       proof: this.proof(job.proof), events: job.events.map((event) => this.event(event)), allowedActions: decision.allowedActions, blockers: decision.blockers,
     });
   }
@@ -165,7 +175,7 @@ export class DispatchQueryService {
   }
 
   private riderJobView(job: JobProjection): ProductionRiderJobResponse {
-    const decision = this.policy.riderJobDecision(job.status, job.custodyState);
+    const decision = this.policy.riderJobDecision(job.status, job.custodyState, job.rescheduledFor);
     const address = job.order.deliveryAddress ? {
       recipientName: job.order.deliveryAddress.recipientName, phone: job.order.deliveryAddress.phone,
       locality: job.order.deliveryAddress.locality, street: job.order.deliveryAddress.street,
@@ -190,7 +200,7 @@ export class DispatchQueryService {
 
   async riderJob(userId: string, jobId: string): Promise<ProductionRiderJobResponse> {
     const profile = await this.riderProfile(userId);
-    const job = await this.db.deliveryJob.findFirst({ where: { id: jobId, riderProfileId: profile.id }, include: jobInclude });
+    const job = await this.db.deliveryJob.findFirst({ where: { id: jobId, riderProfileId: profile.id, status: { not: "unassigned" } }, include: jobInclude });
     if (!job) missing("Delivery job not found.");
     return this.riderJobView(job);
   }
