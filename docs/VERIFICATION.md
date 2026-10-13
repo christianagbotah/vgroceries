@@ -55,6 +55,12 @@ Observed results from CI run `38381491392`:
 
 The frontend build includes `/admin/fulfilment` and preserves the z.ai continuation-wave contract: backend-derived `allowedActions`, pick/progress/shortage presentation, packing without stock depletion and explicit packed/handover states. Root CI intentionally ran the Next.js application without a configured live API URL, so the frontend server logged prototype/mock mode; that verifies UI compatibility, not storefront production cutover.
 
+### Pre-merge query-authority regression
+
+The mandatory pre-merge review found a projection/command inconsistency: `FulfilmentQueryService` selected each reservation stock position's `variantId` but a dead condition did not compare it with the order-line variant. Command-side `ClaimCoverageService` already failed closed, but the queue/detail projection could advertise an action before the command rejected corrupted reservation provenance.
+
+A regression test was added at `apps/api/test/fulfilment-query-variant-authority.spec.ts`. Commit `0b470e5694832611db75166640f600c106fb3141` produced the required RED evidence in API-foundation run `38395350376`: **268 tests ran, 267 passed, 1 failed**, and the only failure was the new variant-mismatch projection test. The minimal source fix is commit `1097b4947f7631baf77ad6f8d2cdd20aeac31d82`, which makes the query authority compare `line.variantId` with `row.position.variantId` and fail closed with `reservation_lost`. Exact-head GREEN evidence for the post-fix branch is intentionally not claimed in this paragraph until the normal PR workflows execute successfully.
+
 ## Proven stock-handover invariants
 
 The current backend verification establishes these boundaries:
