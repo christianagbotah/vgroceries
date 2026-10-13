@@ -125,7 +125,7 @@ function TrackForm() {
               <span className="tabular-nums">{formatMoney(order.totalMinor)}</span>
             </div>
 
-            {order.job?.cashToCollectLabel && !order.job.cashCollectedAt ? (
+            {order.job?.cashToCollectLabel ? (
               <p className="mt-3 rounded-lg border border-warning/40 bg-warning/10 p-2.5 text-sm">
                 Cash on delivery: please have {order.job.cashToCollectLabel} ready for the rider.
               </p>

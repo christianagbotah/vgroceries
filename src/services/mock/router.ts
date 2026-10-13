@@ -55,9 +55,8 @@ import {
 } from "./engine/inventory";
 import {
   assignJob,
+  codCashContext,
   mustJob,
-  pendingRemittance,
-  remitCash,
   rescheduleJob,
   returnToStore,
   riderAccept,
@@ -67,6 +66,7 @@ import {
   riderJobs,
   riderOut,
   riderPickup,
+  unassignJob,
 } from "./engine/delivery";
 import {
   approveRefund,
@@ -93,7 +93,8 @@ import { formatMoney } from "@/lib/money";
 import { formatDateTime } from "@/lib/format";
 import { nextId, nowIso, orderReference } from "@/lib/id";
 import { addQty, cmpQty, subQty } from "@/lib/quantity";
-import type { Order, OrderLine } from "@/types/domain";
+import type { DeliveryJob, Order, OrderLine } from "@/types/domain";
+import type { DispatchJobAllowedAction } from "../contracts/dispatch";
 
 /**
  * Permitted fulfilment actions per order state, mirroring the mock state
@@ -188,7 +189,6 @@ export function publicOrder(store: VgStore, orderId: string) {
           id: job.id, status: job.status, riderName: store.riders.find((r) => r.id === job.riderId)?.name,
           proof: job.proof, failureReason: job.failureReason, rescheduledFor: job.rescheduledFor,
           cashToCollectMinor: job.cashToCollectMinor, cashToCollectLabel: job.cashToCollectMinor ? formatMoney(job.cashToCollectMinor) : undefined,
-          cashCollectedAt: job.cashCollectedAt, remittedAt: job.remittedAt,
         }
       : undefined,
     returns: returns.map((r) => ({ id: r.id, reference: r.reference, status: r.status, createdAt: r.createdAt })),
@@ -1114,35 +1114,75 @@ export async function handleApi(req: ApiRequest): Promise<ApiResult> {
       /* ---------------- Staff: dispatch & riders ---------------- */
       case "admin.dispatch.queue": {
         sweepExpiredReservations(store);
+        // Deterministic server-derived action/blocker projections for demo
+        // parity. The production dispatch authority will own these; the UI
+        // must render them rather than reconstruct state machines.
+        const jobAllowed = (j: DeliveryJob): DispatchJobAllowedAction[] => {
+          const out: DispatchJobAllowedAction[] = [];
+          if (["assigned", "accepted"].includes(j.status)) out.push("unassign", "reassign");
+          if (["failed", "rescheduled"].includes(j.status)) out.push("reassign", "reschedule", "return_to_store");
+          if (["picked_up", "out_for_delivery"].includes(j.status)) out.push("return_to_store");
+          return out;
+        };
+        const jobBlockers = (j: DeliveryJob): string[] => {
+          const out: string[] = [];
+          if (["delivered", "return_to_store"].includes(j.status)) out.push("terminal_status");
+          return out;
+        };
         const ready = store.orders
-          .filter((o) => o.fulfilmentStatus === "packed" && o.fulfilment === "delivery")
-          .map((o) => ({
-            id: o.id, reference: o.reference, customerName: o.customerName, customerPhone: o.customerPhone,
-            zone: store.zones.find((z) => z.id === o.zoneId)?.name, zoneId: o.zoneId,
-            slotLabel: o.slotLabel, totalLabel: formatMoney(o.totalMinor),
-            paymentMethod: o.paymentMethod, paymentStatus: o.paymentStatus,
-            codAmountMinor: o.paymentMethod === "cash_on_delivery" ? o.totalMinor : 0,
-            lineCount: o.lines.length,
-          }));
+          .filter(
+            (o) =>
+              o.channel === "online" &&
+              o.fulfilment === "delivery" &&
+              // Ready = ALREADY handed over: fulfilmentStatus "dispatched" and
+              // stock consumed exactly once at the fulfilment handover. The
+              // queue is NOT "packed orders waiting for handover".
+              o.fulfilmentStatus === "dispatched" &&
+              !!o.stockConsumedAt
+          )
+          .map((o) => {
+            const job = store.deliveryJobs.find((j) => j.orderId === o.id);
+            const jobIdle = !job || ["unassigned", "rescheduled", "failed"].includes(job.status);
+            const blockers: string[] = [];
+            if (o.paymentStatus === "pending" || o.paymentStatus === "requires_review") {
+              blockers.push(`payment_${o.paymentStatus}`);
+            }
+            return {
+              id: o.id, reference: o.reference, customerName: o.customerName, customerPhone: o.customerPhone,
+              zone: store.zones.find((z) => z.id === o.zoneId)?.name, zoneId: o.zoneId,
+              slotLabel: o.slotLabel, totalLabel: formatMoney(o.totalMinor),
+              paymentMethod: o.paymentMethod, paymentStatus: o.paymentStatus,
+              codAmountMinor: o.paymentMethod === "cash_on_delivery" ? o.totalMinor : 0,
+              lineCount: o.lines.length,
+              handedOverAt: o.stockConsumedAt,
+              stockConsumedAt: o.stockConsumedAt,
+              blockers,
+              allowedActions: jobIdle && blockers.length === 0 ? ["assign"] : [],
+              _jobStatus: job?.status,
+            };
+          })
+          .filter((o) => !o._jobStatus || ["unassigned", "rescheduled", "failed"].includes(o._jobStatus as string))
+          .map(({ _jobStatus, ...rest }) => rest);
         const jobs = store.deliveryJobs.map((j) => {
           const o = store.orders.find((x) => x.id === j.orderId);
           return {
             id: j.id, orderId: j.orderId, orderReference: o?.reference, customerName: o?.customerName,
-            status: j.status, riderName: store.riders.find((r) => r.id === j.riderId)?.name,
+            status: j.status, riderId: j.riderId,
+            riderName: store.riders.find((r) => r.id === j.riderId)?.name,
             providerName: store.providers.find((p) => p.id === j.providerId)?.name,
             zone: store.zones.find((z) => z.id === j.zoneId)?.name,
             failureReason: j.failureReason, rescheduledFor: j.rescheduledFor,
             cashToCollectMinor: j.cashToCollectMinor, cashToCollectLabel: j.cashToCollectMinor ? formatMoney(j.cashToCollectMinor) : undefined,
-            cashCollectedAt: j.cashCollectedAt, remittedAt: j.remittedAt,
             proof: j.proof, instructions: j.instructions,
+            blockers: jobBlockers(j), allowedActions: jobAllowed(j),
             events: j.events.map((e) => ({ ...e, atLabel: formatDateTime(e.at) })),
           };
         });
         const riders = store.riders.map((r) => ({
           id: r.id, name: r.name, phone: r.phone, kind: r.kind, vehicle: r.vehicle,
           isAvailable: r.isAvailable, activeJobId: r.activeJobId, zones: r.zoneIds.map((z) => store.zones.find((x) => x.id === z)?.name),
-          pendingRemittanceMinor: pendingRemittance(store, r.id).totalMinor,
-          pendingRemittanceLabel: formatMoney(pendingRemittance(store, r.id).totalMinor),
+          unavailableReason: r.activeJobId ? "On an active delivery" : r.isAvailable ? undefined : "Off duty / unavailable",
+          completedJobs: riderHistory(store, r.id).length,
         }));
         const providers = store.providers;
         return ok({ ready, jobs, riders, providers });
@@ -1158,22 +1198,29 @@ export async function handleApi(req: ApiRequest): Promise<ApiResult> {
       case "admin.dispatch.job.action": {
         const action = b("action");
         const actor = b("actor") || "stf_dela";
-        if (action === "reschedule") rescheduleJob(store, b("jobId"), b("when") || "next window", actor);
+        if (action === "unassign") unassignJob(store, b("jobId"), actor, b("note"));
+        else if (action === "reschedule") rescheduleJob(store, b("jobId"), b("when") || "next window", actor);
         else if (action === "return_to_store") returnToStore(store, b("jobId"), actor, b("note"));
-        else if (action === "remit") remitCash(store, b("riderId"), n("amountMinor", 0), actor);
-        else throw new OpError("VALIDATION_FAILED", `Unknown dispatch action ${action}`);
+        else if (action === "reassign") {
+          // reassign = release the current rider, then assign the new one.
+          const jobId = b("jobId");
+          const job = mustJob(store, jobId);
+          if (job.status !== "failed" && job.status !== "rescheduled") unassignJob(store, jobId, actor, "Reassigned to another rider");
+          assignJob(store, job.orderId, { riderId: b("riderId") || undefined }, actor);
+        } else throw new OpError("VALIDATION_FAILED", `Unknown dispatch action ${action}`);
         return ok({ done: true });
       }
       case "admin.riders": {
         return ok(store.riders.map((r) => {
-          const rem = pendingRemittance(store, r.id);
+          const activeJob = store.deliveryJobs.find((j) => j.id === r.activeJobId);
+          const activeOrder = activeJob ? store.orders.find((o) => o.id === activeJob.orderId) : undefined;
           return {
             id: r.id, name: r.name, phone: r.phone, kind: r.kind, vehicle: r.vehicle,
             zoneIds: r.zoneIds, zoneNames: r.zoneIds.map((z) => store.zones.find((x) => x.id === z)?.name).join(", "),
             isAvailable: r.isAvailable, activeJobId: r.activeJobId,
-            activeJob: store.deliveryJobs.find((j) => j.id === r.activeJobId)?.id,
+            activeJobReference: activeOrder?.reference,
+            unavailableReason: r.activeJobId ? "On an active delivery" : r.isAvailable ? undefined : "Off duty / unavailable",
             lastLocationAt: r.lastLocationAt, lastLocationLabel: r.lastLocationLabel, isDemo: r.isDemo,
-            pendingRemittanceMinor: rem.totalMinor, pendingRemittanceLabel: formatMoney(rem.totalMinor),
             completedJobs: riderHistory(store, r.id).length,
           };
         }));
@@ -1181,7 +1228,7 @@ export async function handleApi(req: ApiRequest): Promise<ApiResult> {
       case "admin.riders.toggle": {
         const r = store.riders.find((x) => x.id === b("riderId"));
         if (!r) throw new OpError("VALIDATION_FAILED", "Rider not found.");
-        if (r.activeJobId) throw new OpError("VALIDATION_FAILED", "Rider has an active job and cannot be marked available.");
+        if (r.activeJobId) throw new OpError("VALIDATION_FAILED", "Rider has an active job and cannot change availability. Reassign or complete the job first.");
         r.isAvailable = body.available === true;
         audit(store, b("actor") || "stf_dela", "riders.availability_changed", "Rider", r.id, { after: `${r.isAvailable}` });
         return ok({ isAvailable: r.isAvailable });
@@ -1352,16 +1399,29 @@ export async function handleApi(req: ApiRequest): Promise<ApiResult> {
       case "rider.jobs": {
         const riderId = q("riderId");
         const jobs = riderJobs(store, riderId).map((j) => riderJobView(store, j));
-        const remittance = pendingRemittance(store, riderId);
+        const cod = codCashContext(store, riderId);
         const rider = store.riders.find((r) => r.id === riderId);
         return ok({
           jobs,
           rider: rider ? { id: rider.id, name: rider.name, phone: rider.phone, isAvailable: rider.isAvailable, lastLocationAt: rider.lastLocationAt, lastLocationLabel: rider.lastLocationLabel } : null,
-          remittance: { ...remittance, totalLabel: formatMoney(remittance.totalMinor) },
+          // Read-only COD context: amounts due on delivery. Collection and
+          // remittance belong to a future COD cash authority — never faked here.
+          codCash: {
+            jobsWithCash: cod.jobsWithCash,
+            totalDueLabel: formatMoney(cod.totalDueMinor),
+            note: "Cash ledger not yet connected — collection authority pending. Hand cash to the dispatcher and record it there.",
+          },
         });
       }
       case "rider.job": {
         const job = mustJob(store, q("jobId"));
+        // Ownership boundary: the rider may only ever see their own jobs.
+        // In production the backend derives rider identity from the session;
+        // the explicit riderId query is demo parity for this same rule.
+        const riderId = q("riderId");
+        if (riderId && job.riderId && job.riderId !== riderId) {
+          throw new OpError("FORBIDDEN", "This job is not assigned to you.");
+        }
         return ok(riderJobView(store, job));
       }
       case "rider.action": {
@@ -1376,17 +1436,19 @@ export async function handleApi(req: ApiRequest): Promise<ApiResult> {
             riderDeliver(store, {
               jobId, riderId,
               proof: { method: b("proofMethod") as never, detail: b("proofDetail") },
-              cashCollected: body.cashCollected === true,
             });
             break;
           }
           case "fail": riderFail(store, jobId, riderId, b("reason")); break;
           case "note": {
             const job = mustJob(store, jobId);
+            if (job.riderId && job.riderId !== riderId) throw new OpError("FORBIDDEN", "This job is not assigned to you.");
             job.events.push({ at: nowIso(), actor: riderId, action: "Rider note", note: b("note") });
             break;
           }
           case "location": {
+            // Optional, consent-based demo label share. No live GPS, no
+            // coordinates, no tracking claim — just the rider's typed label.
             const rider = store.riders.find((r) => r.id === riderId);
             if (rider) {
               rider.lastLocationAt = nowIso();
@@ -1407,7 +1469,9 @@ export async function handleApi(req: ApiRequest): Promise<ApiResult> {
             jobId: j.id, orderReference: o?.reference, status: j.status,
             deliveredAt: j.proof?.at ?? j.events[j.events.length - 1]?.at,
             deliveredAtLabel: j.proof ? formatDateTime(j.proof.at) : formatDateTime(j.events[j.events.length - 1]?.at ?? j.assignedAt ?? j.events[0]?.at ?? nowIso()),
-            cashToCollectMinor: j.cashToCollectMinor, cashCollected: !!j.cashCollectedAt, remitted: !!j.remittedAt,
+            // COD due on delivery, read-only: no collected/remitted state —
+            // the future COD cash authority owns the financial record.
+            cashToCollectMinor: j.cashToCollectMinor,
             proof: j.proof,
           };
         });
@@ -1501,9 +1565,10 @@ function riderJobView(store: VgStore, job: ReturnType<typeof mustJob>) {
           return l ? `${l.quantity} × ${l.productName} (${l.variantName})` : "";
         }).filter(Boolean)
       : [],
+    // COD due on delivery — read-only context; collection/remittance state
+    // intentionally absent (future COD cash authority).
     cashToCollectMinor: job.cashToCollectMinor,
     cashToCollectLabel: job.cashToCollectMinor ? formatMoney(job.cashToCollectMinor) : undefined,
-    cashCollectedAt: job.cashCollectedAt, remittedAt: job.remittedAt,
     proof: job.proof, failureReason: job.failureReason, rescheduledFor: job.rescheduledFor,
     events: job.events.map((e) => ({ ...e, atLabel: formatDateTime(e.at) })),
   };

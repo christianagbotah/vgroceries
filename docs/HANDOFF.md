@@ -75,3 +75,24 @@ Latest reviewed code checkpoint before these documentation-only commits:
 The 268-test API checkpoint includes the pre-merge regression proving fulfilment query projections fail closed when reservation stock-position variant provenance does not match the order line.
 
 See `docs/VERIFICATION.md` for the evidence record and `docs/ZAI_FRONTEND_HANDOFF.md` for the frontend continuation wave.
+
+## 7. Dispatch + Rider frontend readiness wave (13 October 2026)
+
+Frontend branch `feat/zai-dispatch-rider-readiness-20261013` (base: main @
+`7be1b0f`) prepared the Dispatch/Rider surfaces for the next backend
+milestone:
+
+- **Domain corrections** — stock is consumed exactly once at the fulfilment
+  handover; assignment/pickup/delivery/failure/return never touch stock; COD
+  delivery never marks payment succeeded; remittance projections removed.
+- **Dispatch control centre** — awaiting-assignment (handed-over only),
+  active, exceptions, completed; server-derived `allowedActions`/`blockers`
+  drive every action; unassign/reassign/reschedule/return-to-store are
+  distinct; assignment explains unavailable riders.
+- **Rider mobile workspace** — ownership-scoped jobs, sticky primary action,
+  structured failure reasons, rescheduled/return-to-store states, honest
+  COD context and external Maps link.
+- **Contract cleanup** — see `docs/ZAI_DISPATCH_RIDER_CONTRACT_GAPS.md` for
+  every removal/addition and the recommended backend shapes (including the
+  suggested REST paths for the Dispatch/Rider authority).
+- Full wave record: `docs/ZAI_DISPATCH_RIDER_HANDOFF.md`.

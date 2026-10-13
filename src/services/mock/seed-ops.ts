@@ -224,8 +224,9 @@ export function buildOrders(now: Date): { orders: Order[]; orderLines: OrderLine
       { at: isoMinusDays(2), actor: "stf_kojo", action: "Payment confirmed", fromStatus: "awaiting_confirmation", toStatus: "confirmed" },
       { at: isoMinusDays(2), actor: "stf_kweku", action: "Picking started", fromStatus: "confirmed", toStatus: "picking" },
       { at: isoMinusDays(2), actor: "stf_kweku", action: "Packed", fromStatus: "picking", toStatus: "packed" },
+      { at: isoMinusDays(2), actor: "stf_dela", action: "Handed over to dispatch — physical stock consumed exactly once", fromStatus: "packed", toStatus: "dispatched" },
       { at: isoMinusDays(2), actor: "stf_dela", action: "Assigned to rider Yaw Owusu", toStatus: "assigned" },
-      { at: isoMinusDays(2), actor: "rdr_yaw", action: "Picked up from store; stock consumed", toStatus: "picked_up" },
+      { at: isoMinusDays(2), actor: "rdr_yaw", action: "Picked up from store — custody acknowledged (stock unchanged)", toStatus: "picked_up" },
       { at: isoMinusDays(1), actor: "rdr_yaw", action: "Delivered (PIN proof)", fromStatus: "out_for_delivery", toStatus: "delivered" },
       { at: isoMinusDays(1), actor: "customer", action: "Return requested for 2 yoghurt tubs" },
       { at: isoMinusDays(1), actor: "stf_serwaa", action: "Partial refund of ₵40.00 approved and completed" },
@@ -253,13 +254,13 @@ export function buildOrders(now: Date): { orders: Order[]; orderLines: OrderLine
     ],
   });
 
-  /* ord_1003 — cash on delivery, out for delivery, stock consumed at pickup */
+  /* ord_1003 — cash on delivery, out for delivery; stock consumed exactly once at the fulfilment handover (NOT at rider pickup) */
   push({
     id: "ord_1003", reference: "VG-9W4N8B", channel: "online", customerId: "cus_003",
     customerName: "Esi Baidoo (demo)", customerPhone: "+233275550103", customerEmail: "esi.demo@example.com",
     addressId: "addr_004", fulfilment: "delivery", zoneId: "zone_w", slotLabel: "16:00–18:00 (today)",
     deliveryFeeMinor: 2500, paymentMethod: "cash_on_delivery", paymentStatus: "unpaid",
-    fulfilmentStatus: "dispatched", deliveryStatus: "out_for_delivery", createdAt: isoMinusDays(1), stockConsumedAt: isoMinusMinutes(115),
+    fulfilmentStatus: "dispatched", deliveryStatus: "out_for_delivery", createdAt: isoMinusDays(1), stockConsumedAt: isoMinusMinutes(160),
     verificationCode: "B8J3M6",
     lines: [
       { variantId: "var_flr_5", productId: "prd_flr", productName: "Wheat Flour", variantName: "5 kg pack", unit: "pack", quantity: "1", unitPriceMinor: 7500, allocations: [{ lotId: "lot_l_flr5_013", quantity: "1" }] },
@@ -271,8 +272,9 @@ export function buildOrders(now: Date): { orders: Order[]; orderLines: OrderLine
       { at: isoMinusDays(1), actor: "stf_kojo", action: "Order confirmed", fromStatus: "awaiting_confirmation", toStatus: "confirmed" },
       { at: isoMinusMinutes(300), actor: "stf_kweku", action: "Picking started", fromStatus: "confirmed", toStatus: "picking" },
       { at: isoMinusMinutes(200), actor: "stf_kweku", action: "Packed", fromStatus: "picking", toStatus: "packed" },
+      { at: isoMinusMinutes(160), actor: "stf_dela", action: "Handed over to dispatch — physical stock consumed exactly once", fromStatus: "packed", toStatus: "dispatched" },
       { at: isoMinusMinutes(150), actor: "stf_dela", action: "Assigned to rider Yaw Owusu", toStatus: "assigned" },
-      { at: isoMinusMinutes(115), actor: "rdr_yaw", action: "Picked up from store; stock consumed", toStatus: "picked_up" },
+      { at: isoMinusMinutes(115), actor: "rdr_yaw", action: "Picked up from store — custody acknowledged (stock unchanged)", toStatus: "picked_up" },
       { at: isoMinusMinutes(30), actor: "rdr_yaw", action: "Out for delivery", toStatus: "out_for_delivery" },
     ],
   });
@@ -349,7 +351,7 @@ export function buildOrders(now: Date): { orders: Order[]; orderLines: OrderLine
     ],
   });
 
-  /* ord_1008 — failed delivery then rescheduled (stock consumed at pickup, no phantom restock) */
+  /* ord_1008 — failed delivery then rescheduled (stock consumed exactly once at handover; failure/restock never silently restores it) */
   push({
     id: "ord_1008", reference: "VG-7G3K9J", channel: "online", customerId: "cus_003",
     customerName: "Esi Baidoo (demo)", customerPhone: "+233275550103", customerEmail: "esi.demo@example.com",
@@ -366,11 +368,12 @@ export function buildOrders(now: Date): { orders: Order[]; orderLines: OrderLine
       { at: isoMinusDays(2), actor: "customer", action: "Order placed (cash on delivery); stock reserved" },
       { at: isoMinusDays(1), actor: "stf_kojo", action: "Order confirmed", toStatus: "confirmed" },
       { at: isoMinusDays(1), actor: "stf_kweku", action: "Packed", toStatus: "packed" },
-      { at: isoMinusDays(1), actor: "rdr_kwabena", action: "Picked up from store; stock consumed", toStatus: "picked_up" },
+      { at: isoMinusDays(1), actor: "stf_dela", action: "Handed over to dispatch — physical stock consumed exactly once", fromStatus: "packed", toStatus: "dispatched" },
+      { at: isoMinusDays(1), actor: "rdr_kwabena", action: "Picked up from store — custody acknowledged (stock unchanged)", toStatus: "picked_up" },
       { at: isoMinusDays(1), actor: "rdr_kwabena", action: "Delivery failed — customer absent", toStatus: "failed" },
       { at: isoMinusDays(1), actor: "stf_dela", action: "Rescheduled for the next delivery window", toStatus: "rescheduled" },
     ],
-    notes: [{ at: isoMinusDays(1), by: "stf_dela", text: "Customer called back after failed attempt; goods are back in store awaiting re-dispatch. Stock is NOT re-added — goods remain allocated to this order.", internalOnly: true }],
+    notes: [{ at: isoMinusDays(1), by: "stf_dela", text: "Customer called back after failed attempt; goods are back in store awaiting re-dispatch. Sellable stock is NOT re-added — the goods are held against this order until Returns inspection or successful re-delivery.", internalOnly: true }],
   });
 
   /* ord_1009 — picking now (FEFO allocations visible to the picker) */
@@ -464,29 +467,55 @@ export function buildOrders(now: Date): { orders: Order[]; orderLines: OrderLine
       { at: isoMinusDays(3), actor: "customer", action: "Order placed; stock reserved" },
       { at: isoMinusDays(3), actor: "stf_kojo", action: "Payment confirmed (card)", toStatus: "confirmed" },
       { at: isoMinusDays(3), actor: "stf_kweku", action: "Packed", toStatus: "packed" },
-      { at: isoMinusDays(3), actor: "rdr_abena", action: "Picked up; stock consumed", toStatus: "picked_up" },
+      { at: isoMinusDays(3), actor: "stf_dela", action: "Handed over to dispatch — physical stock consumed exactly once", fromStatus: "packed", toStatus: "dispatched" },
+      { at: isoMinusDays(3), actor: "rdr_abena", action: "Picked up from store — custody acknowledged (stock unchanged)", toStatus: "picked_up" },
       { at: isoMinusDays(2), actor: "rdr_abena", action: "Delivered (PIN proof)", toStatus: "delivered" },
       { at: isoMinusMinutes(300), actor: "customer", action: "Return requested for 3 sardine tins" },
     ],
   });
 
-  /* ord_1015 — packed and paid, awaiting dispatch assignment */
+  /* ord_1015 — handed over to dispatch (stock consumed exactly once at the
+     fulfilment handover) and waiting for rider assignment: the canonical
+     "awaiting assignment" row. Assignment is a pure dispatch-custody action
+     that comes AFTER the handover and never touches stock. */
   push({
     id: "ord_1015", reference: "VG-5H7C3V", channel: "online", customerId: "cus_001",
     customerName: "Akosua Danso (demo)", customerPhone: "+233245550101", customerEmail: "akosua.demo@example.com",
     addressId: "addr_002", fulfilment: "delivery", zoneId: "zone_c", slotLabel: "16:00–18:00 (today)",
     deliveryFeeMinor: 1500, paymentMethod: "mobile_money", paymentStatus: "succeeded",
-    fulfilmentStatus: "packed", deliveryStatus: "unassigned", createdAt: isoMinusMinutes(150),
+    fulfilmentStatus: "dispatched", deliveryStatus: "unassigned", createdAt: isoMinusMinutes(150), stockConsumedAt: isoMinusMinutes(30),
     verificationCode: "V6N9J2",
     lines: [
-      { variantId: "var_ric1_5", productId: "prd_ric1", productName: "Perfumed Local Rice", variantName: "5 kg bag", unit: "bag", quantity: "1", unitPriceMinor: 12000 },
-      { variantId: "var_sun_1l", productId: "prd_sun", productName: "Sunflower Cooking Oil", variantName: "1 litre", unit: "litre", quantity: "1", unitPriceMinor: 4200 },
-      { variantId: "var_tpa_pk", productId: "prd_tpa", productName: "Tomato Paste", variantName: "Pack of 12 tins", unit: "pack", quantity: "1", unitPriceMinor: 9000 },
+      { variantId: "var_ric1_5", productId: "prd_ric1", productName: "Perfumed Local Rice", variantName: "5 kg bag", unit: "bag", quantity: "1", unitPriceMinor: 12000, allocations: [{ lotId: "lot_l_ric1_012", quantity: "1" }] },
+      { variantId: "var_sun_1l", productId: "prd_sun", productName: "Sunflower Cooking Oil", variantName: "1 litre", unit: "litre", quantity: "1", unitPriceMinor: 4200, allocations: [{ lotId: "lot_l_sun1_018", quantity: "1" }] },
+      { variantId: "var_tpa_pk", productId: "prd_tpa", productName: "Tomato Paste", variantName: "Pack of 12 tins", unit: "pack", quantity: "1", unitPriceMinor: 9000, allocations: [{ lotId: "lot_l_tpa_pk", quantity: "1" }] },
     ],
     events: [
       { at: isoMinusMinutes(150), actor: "customer", action: "Order placed; stock reserved" },
       { at: isoMinusMinutes(148), actor: "stf_kojo", action: "Payment confirmed (Mobile Money)", toStatus: "confirmed" },
       { at: isoMinusMinutes(100), actor: "stf_kweku", action: "Packed", fromStatus: "picking", toStatus: "packed" },
+      { at: isoMinusMinutes(30), actor: "stf_dela", action: "Handed over to dispatch — physical stock consumed exactly once", fromStatus: "packed", toStatus: "dispatched" },
+    ],
+  });
+
+  /* ord_1017 — packed, paid, waiting for the authoritative fulfilment
+     handover (the stock-consuming event). This is the canonical row for the
+     fulfilment "Packed — handover" tab. */
+  push({
+    id: "ord_1017", reference: "VG-4T7R2K", channel: "online", customerId: "cus_002",
+    customerName: "Michael Osei (demo)", customerPhone: "+233205550102", customerEmail: "michael.demo@example.com",
+    addressId: "addr_003", fulfilment: "delivery", zoneId: "zone_e", slotLabel: "17:00–19:00 (today)",
+    deliveryFeeMinor: 2000, paymentMethod: "mobile_money", paymentStatus: "succeeded",
+    fulfilmentStatus: "packed", deliveryStatus: "unassigned", createdAt: isoMinusMinutes(80),
+    verificationCode: "K3N8P6",
+    lines: [
+      { variantId: "var_wat_750", productId: "prd_wat", productName: "Bottled Water", variantName: "750 ml bottle", unit: "piece", quantity: "12", unitPriceMinor: 300 },
+      { variantId: "var_tis_10", productId: "prd_tis", productName: "Toilet Tissue", variantName: "Pack of 10 rolls", unit: "pack", quantity: "1", unitPriceMinor: 4200 },
+    ],
+    events: [
+      { at: isoMinusMinutes(80), actor: "customer", action: "Order placed; stock reserved" },
+      { at: isoMinusMinutes(78), actor: "stf_kojo", action: "Payment confirmed (Mobile Money)", toStatus: "confirmed" },
+      { at: isoMinusMinutes(40), actor: "stf_kweku", action: "Packed", fromStatus: "picking", toStatus: "packed" },
     ],
   });
 
@@ -543,9 +572,12 @@ export function buildReservations(now: Date): Reservation[] {
     mk("res_1010b", "var_tpa_400", "ord_1010", "12", new Date(t - 35 * 60_000), new Date(t + 20 * 3600_000)),
     mk("res_1011a", "var_org_kg", "ord_1011", "3", new Date(t - 60 * 60_000), new Date(t + 20 * 3600_000)),
     mk("res_1011b", "var_okr_kg", "ord_1011", "1", new Date(t - 60 * 60_000), new Date(t + 20 * 3600_000)),
-    mk("res_1015a", "var_ric1_5", "ord_1015", "1", new Date(t - 150 * 60_000), new Date(t + 20 * 3600_000)),
-    mk("res_1015b", "var_sun_1l", "ord_1015", "1", new Date(t - 150 * 60_000), new Date(t + 20 * 3600_000)),
-    mk("res_1015c", "var_tpa_pk", "ord_1015", "1", new Date(t - 150 * 60_000), new Date(t + 20 * 3600_000)),
+    mk("res_1015a", "var_ric1_5", "ord_1015", "1", new Date(t - 150 * 60_000), new Date(t + 20 * 3600_000), { consumedAt: isoMinusMinutes(30) }),
+    mk("res_1015b", "var_sun_1l", "ord_1015", "1", new Date(t - 150 * 60_000), new Date(t + 20 * 3600_000), { consumedAt: isoMinusMinutes(30) }),
+    mk("res_1015c", "var_tpa_pk", "ord_1015", "1", new Date(t - 150 * 60_000), new Date(t + 20 * 3600_000), { consumedAt: isoMinusMinutes(30) }),
+    // ord_1017: still merely reserved — packing never consumes; the handover will.
+    mk("res_1017a", "var_wat_750", "ord_1017", "12", new Date(t - 80 * 60_000), new Date(t + 20 * 3600_000)),
+    mk("res_1017b", "var_tis_10", "ord_1017", "1", new Date(t - 80 * 60_000), new Date(t + 20 * 3600_000)),
     // ord_1016: the hold was adjusted to what could actually be kept after the
     // in-bin damage — one chicken of the two ordered (shortage demo).
     mk("res_1016a", "var_chk_pc", "ord_1016", "1", new Date(t - 120 * 60_000), new Date(t + 20 * 3600_000)),
@@ -555,9 +587,9 @@ export function buildReservations(now: Date): Reservation[] {
     mk("res_1001b", "var_tom_kg", "ord_1001", "2", new Date(t - 2 * dayMs), new Date(t - 2 * dayMs + ttl * 60_000), { consumedAt: isoMinusDays(2) }),
     mk("res_1001c", "var_egg_30", "ord_1001", "1", new Date(t - 2 * dayMs), new Date(t - 2 * dayMs + ttl * 60_000), { consumedAt: isoMinusDays(2) }),
     mk("res_1001d", "var_yog_500", "ord_1001", "4", new Date(t - 2 * dayMs), new Date(t - 2 * dayMs + ttl * 60_000), { consumedAt: isoMinusDays(2) }),
-    mk("res_1003a", "var_flr_5", "ord_1003", "1", new Date(t - dayMs), new Date(t - dayMs + ttl * 60_000), { consumedAt: isoMinusMinutes(115) }),
-    mk("res_1003b", "var_gar_kg", "ord_1003", "3", new Date(t - dayMs), new Date(t - dayMs + ttl * 60_000), { consumedAt: isoMinusMinutes(115) }),
-    mk("res_1003c", "var_sar_125", "ord_1003", "6", new Date(t - dayMs), new Date(t - dayMs + ttl * 60_000), { consumedAt: isoMinusMinutes(115) }),
+    mk("res_1003a", "var_flr_5", "ord_1003", "1", new Date(t - dayMs), new Date(t - dayMs + ttl * 60_000), { consumedAt: isoMinusMinutes(160) }),
+    mk("res_1003b", "var_gar_kg", "ord_1003", "3", new Date(t - dayMs), new Date(t - dayMs + ttl * 60_000), { consumedAt: isoMinusMinutes(160) }),
+    mk("res_1003c", "var_sar_125", "ord_1003", "6", new Date(t - dayMs), new Date(t - dayMs + ttl * 60_000), { consumedAt: isoMinusMinutes(160) }),
     mk("res_1005a", "var_wat_750", "ord_1005", "4", new Date(t - dayMs), new Date(t - dayMs + ttl * 60_000), { consumedAt: isoMinusDays(1) }),
     mk("res_1005b", "var_tof_1", "ord_1005", "10", new Date(t - dayMs), new Date(t - dayMs + ttl * 60_000), { consumedAt: isoMinusDays(1) }),
     mk("res_1005c", "var_plc_100", "ord_1005", "2", new Date(t - dayMs), new Date(t - dayMs + ttl * 60_000), { consumedAt: isoMinusDays(1) }),
@@ -629,8 +661,9 @@ export function buildDeliveryJobs(now: Date): DeliveryJob[] {
       instructions: "Call on arrival; gate is on the reservoir road side. Collect ₵196.00 cash.",
       cashToCollectMinor: 19600,
       events: [
+        { at: new Date(t - 150 * 60_000).toISOString(), actor: "stf_dela", action: "Handed over to dispatch — stock consumed exactly once" },
         { at: new Date(t - 150 * 60_000).toISOString(), actor: "stf_dela", action: "Assigned to Yaw Owusu" },
-        { at: new Date(t - 115 * 60_000).toISOString(), actor: "rdr_yaw", action: "Accepted and picked up from store" },
+        { at: new Date(t - 115 * 60_000).toISOString(), actor: "rdr_yaw", action: "Accepted; picked up from store — custody acknowledged (stock unchanged)" },
         { at: new Date(t - 30 * 60_000).toISOString(), actor: "rdr_yaw", action: "Out for delivery" },
       ],
     },
@@ -642,7 +675,7 @@ export function buildDeliveryJobs(now: Date): DeliveryJob[] {
       rescheduledFor: isoPlusDays(1),
       events: [
         { at: isoMinusDays(1), actor: "stf_dela", action: "Assigned to Kwabena Mensah" },
-        { at: isoMinusDays(1), actor: "rdr_kwabena", action: "Picked up; stock consumed" },
+        { at: isoMinusDays(1), actor: "rdr_kwabena", action: "Picked up — custody acknowledged (stock consumed at handover)" },
         { at: isoMinusDays(1), actor: "rdr_kwabena", action: "Delivery failed — customer absent" },
         { at: isoMinusDays(1), actor: "stf_dela", action: "Rescheduled to next window; goods held for re-dispatch (no stock re-add)" },
       ],
@@ -653,7 +686,7 @@ export function buildDeliveryJobs(now: Date): DeliveryJob[] {
       proof: { method: "pin", detail: "PIN verified by customer", at: isoMinusDays(1) },
       events: [
         { at: isoMinusDays(2), actor: "stf_dela", action: "Assigned to Yaw Owusu" },
-        { at: isoMinusDays(2), actor: "rdr_yaw", action: "Picked up; stock consumed" },
+        { at: isoMinusDays(2), actor: "rdr_yaw", action: "Picked up — custody acknowledged (stock consumed at handover)" },
         { at: isoMinusDays(1), actor: "rdr_yaw", action: "Delivered with PIN proof" },
       ],
     },
@@ -663,7 +696,7 @@ export function buildDeliveryJobs(now: Date): DeliveryJob[] {
       proof: { method: "signature", detail: "Signature captured on rider device (demo)", at: isoMinusDays(2) },
       events: [
         { at: isoMinusDays(3), actor: "stf_dela", action: "Assigned to Abena Dufie" },
-        { at: isoMinusDays(3), actor: "rdr_abena", action: "Picked up; stock consumed" },
+        { at: isoMinusDays(3), actor: "rdr_abena", action: "Picked up — custody acknowledged (stock consumed at handover)" },
         { at: isoMinusDays(2), actor: "rdr_abena", action: "Delivered with signature proof" },
       ],
     },

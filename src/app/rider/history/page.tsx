@@ -1,11 +1,19 @@
 "use client";
 
+/**
+ * Rider history — completed (delivered / returned-to-store) jobs.
+ *
+ * COD amounts are shown as "was due on delivery" context only: collection and
+ * remittance state is intentionally absent — the cash ledger is not connected
+ * and no financial record exists in this system.
+ */
+
 import { useEffect, useState } from "react";
 import { apiOps, ApiError } from "@/services/client";
 import { useRiderSession } from "@/components/layout/rider-shell";
 import { ErrorState, LoadingState, EmptyState } from "@/components/shared/states";
 import { StatusBadge } from "@/components/shared/status-badge";
-import { Check, Clock } from "lucide-react";
+import { Check, Clock, Undo2 } from "lucide-react";
 
 type HistoryRow = Awaited<ReturnType<typeof apiOps.riderHistory>>[number];
 
@@ -38,7 +46,11 @@ export default function RiderHistoryPage() {
       <div className="rounded-xl border bg-card p-4">
         <h1 className="text-lg font-bold">Completed jobs</h1>
         <p className="text-sm text-muted-foreground">
-          Delivery history and cash collection status. Remitted cash is reconciled at the store.
+          Delivered jobs with proof of delivery, and returned-to-store outcomes.
+        </p>
+        <p className="mt-1 text-xs text-muted-foreground">
+          Cash amounts show what was due on delivery. The cash ledger is not connected — hand cash to the
+          dispatcher, who records it separately.
         </p>
       </div>
 
@@ -59,13 +71,18 @@ export default function RiderHistoryPage() {
               </div>
               <div className="mt-2 space-y-0.5 text-sm text-muted-foreground">
                 {r.cashToCollectMinor ? (
-                  <p className={r.remitted ? "text-success" : "text-[color:var(--warning-foreground)]"}>
-                    Cash: {r.remitted ? "collected and remitted" : r.cashCollected ? "collected — remit at the store" : "not collected"}
+                  <p title="COD — collection authority pending; no collection record exists here">
+                    Cash due on delivery — collection authority pending
                   </p>
                 ) : (
                   <p>No cash on this job</p>
                 )}
                 {r.proof ? <p>Proof: {r.proof.method}</p> : null}
+                {r.status === "return_to_store" ? (
+                  <p className="flex items-center gap-1.5 font-medium text-[color:var(--warning-foreground)]">
+                    <Undo2 className="size-4" aria-hidden /> Returned to store — awaiting Returns inspection
+                  </p>
+                ) : null}
               </div>
             </li>
           ))}

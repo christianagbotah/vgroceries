@@ -269,7 +269,8 @@ export const apiOps = {
   /* rider */
   riderLogin: () => api<RiderLoginRow[]>("rider.login"),
   riderJobs: (riderId: string) => api<RiderJobsResponse>("rider.jobs", { query: { riderId } }),
-  riderJob: (jobId: string) => api<RiderJobView>("rider.job", { query: { jobId } }),
+  /** riderId is demo-parity ownership scoping; production derives it from the session. */
+  riderJob: (jobId: string, riderId?: string) => api<RiderJobView>("rider.job", { query: { jobId, riderId } }),
   riderAction: (body: Record<string, unknown>) => api<RiderJobView>("rider.action", { body }),
   riderHistory: (riderId: string) => api<RiderHistoryRow[]>("rider.history", { query: { riderId } }),
 

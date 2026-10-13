@@ -96,7 +96,9 @@ describe("fulfilment queues (admin.fulfilment)", () => {
 
   test("the packed handover queue exposes packedBy/packedAt and slot context", async () => {
     const q = okData<{ dispatch: { reference: string; slotLabel?: string; packedAtLabel?: string; packedByName?: string; customerName?: string }[] }>(await req("admin.fulfilment"));
-    const packed = q.dispatch.find((d) => d.reference === "VG-5H7C3V");
+    // VG-4T7R2K (ord_1017) is the canonical packed-awaiting-handover row; the
+    // handover itself — not rider pickup — is the stock depletion event.
+    const packed = q.dispatch.find((d) => d.reference === "VG-4T7R2K");
     expect(packed).toBeDefined();
     expect(packed!.packedByName).toBe("Kweku Fosu");
     expect(packed!.packedAtLabel).toBeTruthy();

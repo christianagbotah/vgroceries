@@ -1,8 +1,29 @@
 /**
  * Shared API contracts — dispatch, delivery providers, rider fleet (staff).
  * Proposed REST rendering: /api/v1/dispatch/* (see docs/openapi.yaml).
+ *
+ * Domain alignment (Fulfilment + Stock Handover Authority #12):
+ * - Dispatch begins AFTER the authoritative fulfilment handover: every order
+ *   in the ready queue has fulfilmentStatus = "dispatched", physical stock
+ *   already consumed exactly once (Order.stockConsumedAt set).
+ * - Assignment / reassignment / unassign / rider lifecycle actions never
+ *   mutate stock. Delivery completion never mutates payment status.
+ * - COD amounts are read-only operational context ("collection authority
+ *   pending"); cash collection and rider remittance belong to a future COD
+ *   cash authority and are intentionally NOT modelled here.
+ * - `allowedActions` / `blockers` are server-derived when the production
+ *   dispatch authority lands; the mock adapter mirrors them deterministically
+ *   for demo/test parity only.
  */
 
+export type DispatchJobAllowedAction =
+  | "assign"
+  | "unassign"
+  | "reassign"
+  | "reschedule"
+  | "return_to_store";
+
+/** Order handed over to dispatch custody, waiting for assignment. */
 export interface DispatchReadyRow {
   id: string;
   reference: string;
@@ -14,8 +35,17 @@ export interface DispatchReadyRow {
   totalLabel: string;
   paymentMethod: string;
   paymentStatus: string;
+  /** COD due on delivery — read-only context; collection authority pending. */
   codAmountMinor: number;
   lineCount: number;
+  /** When the fulfilment authority handed stock over to dispatch custody. */
+  handedOverAt?: string;
+  /** When physical stock was consumed (exactly once, at handover). */
+  stockConsumedAt?: string;
+  /** Backend-derived blockers; when present the order is not assignable. */
+  blockers?: string[];
+  /** Backend-derived actions permitted on this row. */
+  allowedActions?: DispatchJobAllowedAction[];
 }
 
 export interface DispatchJobRow {
@@ -24,16 +54,20 @@ export interface DispatchJobRow {
   orderReference?: string;
   customerName?: string;
   status: string;
+  riderId?: string;
   riderName?: string;
   providerName?: string;
   zone?: string;
   failureReason?: string;
   rescheduledFor?: string;
+  /** COD due on delivery — read-only context; collection authority pending. */
   cashToCollectLabel?: string;
-  cashCollectedAt?: string;
-  remittedAt?: string;
   proof?: { method: string; detail: string; at: string };
   instructions?: string;
+  /** Backend-derived blockers for the next action. */
+  blockers?: string[];
+  /** Backend-derived actions permitted on this job. */
+  allowedActions?: DispatchJobAllowedAction[];
   events: { atLabel: string; actor: string; action: string; note?: string }[];
 }
 
@@ -46,8 +80,10 @@ export interface DispatchRiderRow {
   isAvailable: boolean;
   activeJobId?: string;
   zones: string[];
-  pendingRemittanceMinor: number;
-  pendingRemittanceLabel: string;
+  /** Why an unavailable rider cannot take a job (busy on delivery / off duty). */
+  unavailableReason?: string;
+  /** Completed delivery count (real data only). */
+  completedJobs?: number;
 }
 
 export interface DispatchProviderRow {
@@ -81,11 +117,10 @@ export interface DispatchAssignResponse {
 
 export interface DispatchJobActionRequest {
   jobId: string;
-  action: "reschedule" | "return_to_store" | "remit";
+  action: "unassign" | "reschedule" | "return_to_store" | "reassign";
   when?: string;
   note?: string;
   riderId?: string;
-  amountMinor?: number;
   actor?: string;
 }
 
@@ -102,10 +137,11 @@ export interface AdminRiderRow {
   zoneNames: string;
   isAvailable: boolean;
   activeJobId?: string;
+  /** Reference of the active job (real data only, for a deep link). */
+  activeJobReference?: string;
   lastLocationAt?: string;
   lastLocationLabel?: string;
   isDemo: boolean;
-  pendingRemittanceLabel: string;
   completedJobs: number;
 }
 

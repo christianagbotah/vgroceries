@@ -16,6 +16,10 @@ export interface DashboardActionable {
   readyToPick: number;
   picking: number;
   readyToDispatch: number;
+  /** Handed-over delivery orders (dispatched + stock consumed) with no active job. */
+  awaitingAssignment: number;
+  /** Failed + rescheduled delivery jobs needing a dispatch decision. */
+  deliveryExceptions: number;
   pendingPayments: number;
   returnsPending: number;
   refundsAttention: number;

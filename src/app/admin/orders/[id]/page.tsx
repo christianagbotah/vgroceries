@@ -268,7 +268,7 @@ export default function AdminOrderDetailPage() {
                 <p className="font-semibold text-foreground">Delivery job</p>
                 <p>Status: {DELIVERY_LABELS[order.job.status as keyof typeof DELIVERY_LABELS] ?? order.job.status}</p>
                 {order.job.riderName ? <p>Rider: {order.job.riderName}</p> : null}
-                {order.job.cashToCollectLabel ? <p>Cash to collect: {order.job.cashToCollectLabel}{order.job.cashCollectedAt ? " (collected)" : ""}</p> : null}
+                {order.job.cashToCollectLabel ? <p>Cash due on delivery: {order.job.cashToCollectLabel} (collection authority pending — cash ledger not connected)</p> : null}
                 {order.job.failureReason ? <p className="text-destructive">Failed: {order.job.failureReason}</p> : null}
               </div>
             ) : null}

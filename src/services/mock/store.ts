@@ -158,8 +158,10 @@ function seedStore(): VgStore {
     ],
     zones: seedZones,
     slots: buildSlots(now),
-    riders: seedRiders,
-    providers: seedProviders,
+    // Deep-enough copies: engine mutations (availability, active jobs) must
+    // never poison the seed fixtures — demo.reset() has to fully restore them.
+    riders: seedRiders.map((r) => ({ ...r, zoneIds: [...r.zoneIds] })),
+    providers: seedProviders.map((p) => ({ ...p, capabilities: [...p.capabilities] })),
     deliveryJobs: buildDeliveryJobs(now),
     returnRequests,
     returnLines,
