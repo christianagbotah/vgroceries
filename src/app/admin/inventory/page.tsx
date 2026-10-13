@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { Info, Search } from "lucide-react";
 import { formatDateTime } from "@/lib/format";
+import { cn } from "@/lib/utils";
 
 type Row = Awaited<ReturnType<typeof apiOps.inventory>>["rows"][number];
 
@@ -24,6 +25,7 @@ export default function AdminInventoryPage() {
   );
 
   const rows = useMemo(() => data?.rows ?? [], [data]);
+  const summary = data?.summary;
   const filtering = filter !== "all" || !!q;
 
   return (
@@ -78,6 +80,27 @@ export default function AdminInventoryPage() {
         ) : null}
       </div>
 
+      {summary ? (
+        <dl className="grid grid-cols-2 gap-2 rounded-xl border bg-card p-3 text-sm sm:grid-cols-3 lg:grid-cols-6" aria-label="Stock state summary">
+          {[
+            { label: "Sellable physical", value: summary.sellablePhysical, hint: "unexpired, undamaged" },
+            { label: "Reserved", value: summary.reserved, hint: "active holds" },
+            { label: "Safety floor", value: summary.safetyStock, hint: "never sold" },
+            { label: "Available to sell", value: summary.availableToSell, hint: "what the shop shows", strong: true },
+            { label: "Quarantined", value: summary.quarantined, hint: "awaiting inspection", warn: true },
+            { label: "Damaged / expired", value: summary.damagedExpired, hint: "written off / unusable", warn: true },
+          ].map((s) => (
+            <div key={s.label} className="rounded-lg bg-muted/50 p-2.5">
+              <dt className="text-xs text-muted-foreground">{s.label}</dt>
+              <dd className={cn("text-lg font-bold tabular-nums", s.strong && "text-primary", s.warn && "text-[color:var(--warning-foreground)]")}>
+                {s.value}
+              </dd>
+              <p className="text-[11px] text-muted-foreground">{s.hint}</p>
+            </div>
+          ))}
+        </dl>
+      ) : null}
+
       {loading ? (
         <LoadingState rows={8} label="Loading stock" />
       ) : error ? (
@@ -85,7 +108,43 @@ export default function AdminInventoryPage() {
       ) : rows.length === 0 ? (
         q ? <NoResults query={q} /> : <EmptyState title="No stock rows" />
       ) : (
-        <div className="overflow-hidden rounded-xl border bg-card">
+        <>
+          {/* mobile: card list */}
+          <ul className="space-y-2 md:hidden" aria-label="Stock">
+            {rows.map((r: Row) => (
+              <li key={r.variantId} className="rounded-xl border bg-card p-3 text-sm">
+                <div className="flex items-start justify-between gap-2">
+                  <Link href={`/admin/products/${r.productId}`} className="min-w-0 font-medium hover:underline focus-visible:underline">
+                    <span className="block truncate">{r.productName}</span>
+                    <span className="block truncate text-xs text-muted-foreground">{r.variantName}</span>
+                  </Link>
+                  <span className={cn("shrink-0 text-lg font-bold tabular-nums", Number(r.availableToSell) === 0 ? "text-destructive" : Number(r.availableToSell) <= 3 ? "text-[color:var(--warning-foreground)]" : "")}>
+                    {r.availableToSell}
+                  </span>
+                </div>
+                <dl className="mt-2 grid grid-cols-3 gap-1.5 text-xs">
+                  <div className="rounded bg-muted/60 p-1.5">
+                    <dt className="text-muted-foreground">Physical</dt>
+                    <dd className="font-semibold tabular-nums">{r.sellablePhysical}</dd>
+                  </div>
+                  <div className="rounded bg-muted/60 p-1.5">
+                    <dt className="text-muted-foreground">Reserved</dt>
+                    <dd className="font-semibold tabular-nums">{r.reserved}</dd>
+                  </div>
+                  <div className="rounded bg-muted/60 p-1.5">
+                    <dt className="text-muted-foreground">Safety</dt>
+                    <dd className="font-semibold tabular-nums">{r.safetyStock}</dd>
+                  </div>
+                </dl>
+                <p className="mt-1.5 text-xs text-muted-foreground">
+                  {r.lotCount} lot{r.lotCount === 1 ? "" : "s"}
+                  {r.nextExpiry ? ` · next expiry ${formatDateTime(r.nextExpiry).split(",")[0]}` : ""}
+                </p>
+              </li>
+            ))}
+          </ul>
+          {/* md+: table */}
+          <div className="hidden overflow-hidden rounded-xl border bg-card md:block">
           <div className="table-scroll">
             <table className="w-full text-sm">
               <thead className="bg-muted/60 text-left">
@@ -140,6 +199,7 @@ export default function AdminInventoryPage() {
             </table>
           </div>
         </div>
+        </>
       )}
     </div>
   );

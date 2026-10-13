@@ -2,6 +2,12 @@
 
 For the Variety Groceries engineering team taking over from this frontend prototype.
 
+> **Frontend continuation wave (12–13 Oct 2026)**: the UX/UI, workflow-completeness and
+> API-readiness wave is documented separately in
+> [ZAI_FRONTEND_HANDOFF.md](ZAI_FRONTEND_HANDOFF.md) (branch, SHA, routes changed, tests,
+> evidence, remaining gaps, and the optional contract extensions it proposes for the fulfilment
+> authority). The backend connect order below is unchanged.
+
 ## 1. Read order
 
 1. `README.md` — run the prototype, feel the workflows.

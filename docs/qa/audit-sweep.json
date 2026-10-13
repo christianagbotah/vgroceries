@@ -1,0 +1,762 @@
+[
+  {
+    "path": "/",
+    "name": "home",
+    "viewport": "desktop",
+    "status": 200,
+    "issues": []
+  },
+  {
+    "path": "/shop",
+    "name": "shop",
+    "viewport": "desktop",
+    "status": 200,
+    "issues": []
+  },
+  {
+    "path": "/categories",
+    "name": "categories",
+    "viewport": "desktop",
+    "status": 404,
+    "issues": [
+      "HTTP 404"
+    ]
+  },
+  {
+    "path": "/categories/beverages",
+    "name": "category",
+    "viewport": "desktop",
+    "status": 200,
+    "issues": []
+  },
+  {
+    "path": "/products/farm-eggs",
+    "name": "product",
+    "viewport": "desktop",
+    "status": 200,
+    "issues": []
+  },
+  {
+    "path": "/cart",
+    "name": "cart",
+    "viewport": "desktop",
+    "status": 200,
+    "issues": []
+  },
+  {
+    "path": "/checkout",
+    "name": "checkout",
+    "viewport": "desktop",
+    "status": 200,
+    "issues": []
+  },
+  {
+    "path": "/checkout/status/ord_1011",
+    "name": "checkout-status",
+    "viewport": "desktop",
+    "status": 200,
+    "issues": []
+  },
+  {
+    "path": "/track",
+    "name": "track",
+    "viewport": "desktop",
+    "status": 200,
+    "issues": []
+  },
+  {
+    "path": "/account",
+    "name": "account",
+    "viewport": "desktop",
+    "status": 200,
+    "issues": []
+  },
+  {
+    "path": "/account/orders",
+    "name": "account-orders",
+    "viewport": "desktop",
+    "status": 200,
+    "issues": []
+  },
+  {
+    "path": "/account/orders/ord_1011",
+    "name": "account-order-detail",
+    "viewport": "desktop",
+    "status": 200,
+    "issues": []
+  },
+  {
+    "path": "/account/addresses",
+    "name": "account-addresses",
+    "viewport": "desktop",
+    "status": 200,
+    "issues": []
+  },
+  {
+    "path": "/account/lists",
+    "name": "account-lists",
+    "viewport": "desktop",
+    "status": 200,
+    "issues": []
+  },
+  {
+    "path": "/account/returns",
+    "name": "account-returns",
+    "viewport": "desktop",
+    "status": 200,
+    "issues": []
+  },
+  {
+    "path": "/account/returns/ret_2001",
+    "name": "account-return-detail",
+    "viewport": "desktop",
+    "status": 200,
+    "issues": []
+  },
+  {
+    "path": "/help",
+    "name": "help",
+    "viewport": "desktop",
+    "status": 200,
+    "issues": []
+  },
+  {
+    "path": "/delivery",
+    "name": "delivery",
+    "viewport": "desktop",
+    "status": 200,
+    "issues": []
+  },
+  {
+    "path": "/returns-policy",
+    "name": "returns-policy",
+    "viewport": "desktop",
+    "status": 200,
+    "issues": []
+  },
+  {
+    "path": "/privacy",
+    "name": "privacy",
+    "viewport": "desktop",
+    "status": 200,
+    "issues": []
+  },
+  {
+    "path": "/terms",
+    "name": "terms",
+    "viewport": "desktop",
+    "status": 200,
+    "issues": []
+  },
+  {
+    "path": "/admin",
+    "name": "admin-dashboard",
+    "viewport": "desktop",
+    "status": 200,
+    "issues": []
+  },
+  {
+    "path": "/admin/orders",
+    "name": "admin-orders",
+    "viewport": "desktop",
+    "status": 200,
+    "issues": []
+  },
+  {
+    "path": "/admin/orders/ord_1011",
+    "name": "admin-order-detail",
+    "viewport": "desktop",
+    "status": 200,
+    "issues": []
+  },
+  {
+    "path": "/admin/fulfilment",
+    "name": "admin-fulfilment",
+    "viewport": "desktop",
+    "status": 200,
+    "issues": []
+  },
+  {
+    "path": "/admin/pos",
+    "name": "admin-pos",
+    "viewport": "desktop",
+    "status": 200,
+    "issues": []
+  },
+  {
+    "path": "/admin/cashier-sessions",
+    "name": "admin-cashier-sessions",
+    "viewport": "desktop",
+    "status": 200,
+    "issues": []
+  },
+  {
+    "path": "/admin/products",
+    "name": "admin-products",
+    "viewport": "desktop",
+    "status": 200,
+    "issues": []
+  },
+  {
+    "path": "/admin/products/prd_egg",
+    "name": "admin-product-detail",
+    "viewport": "desktop",
+    "status": 200,
+    "issues": []
+  },
+  {
+    "path": "/admin/categories",
+    "name": "admin-categories",
+    "viewport": "desktop",
+    "status": 200,
+    "issues": []
+  },
+  {
+    "path": "/admin/inventory",
+    "name": "admin-inventory",
+    "viewport": "desktop",
+    "status": 200,
+    "issues": []
+  },
+  {
+    "path": "/admin/inventory/receiving",
+    "name": "admin-receiving",
+    "viewport": "desktop",
+    "status": 200,
+    "issues": []
+  },
+  {
+    "path": "/admin/inventory/adjustments",
+    "name": "admin-adjustments",
+    "viewport": "desktop",
+    "status": 200,
+    "issues": []
+  },
+  {
+    "path": "/admin/inventory/stocktakes",
+    "name": "admin-stocktakes",
+    "viewport": "desktop",
+    "status": 200,
+    "issues": []
+  },
+  {
+    "path": "/admin/inventory/expiry",
+    "name": "admin-expiry",
+    "viewport": "desktop",
+    "status": 200,
+    "issues": []
+  },
+  {
+    "path": "/admin/suppliers",
+    "name": "admin-suppliers",
+    "viewport": "desktop",
+    "status": 200,
+    "issues": []
+  },
+  {
+    "path": "/admin/purchases",
+    "name": "admin-purchases",
+    "viewport": "desktop",
+    "status": 200,
+    "issues": []
+  },
+  {
+    "path": "/admin/dispatch",
+    "name": "admin-dispatch",
+    "viewport": "desktop",
+    "status": 200,
+    "issues": []
+  },
+  {
+    "path": "/admin/riders",
+    "name": "admin-riders",
+    "viewport": "desktop",
+    "status": 200,
+    "issues": []
+  },
+  {
+    "path": "/admin/providers",
+    "name": "admin-providers",
+    "viewport": "desktop",
+    "status": 200,
+    "issues": []
+  },
+  {
+    "path": "/admin/returns",
+    "name": "admin-returns",
+    "viewport": "desktop",
+    "status": 200,
+    "issues": []
+  },
+  {
+    "path": "/admin/returns/ret_2001",
+    "name": "admin-return-detail",
+    "viewport": "desktop",
+    "status": 200,
+    "issues": []
+  },
+  {
+    "path": "/admin/refunds",
+    "name": "admin-refunds",
+    "viewport": "desktop",
+    "status": 200,
+    "issues": []
+  },
+  {
+    "path": "/admin/customers",
+    "name": "admin-customers",
+    "viewport": "desktop",
+    "status": 200,
+    "issues": []
+  },
+  {
+    "path": "/admin/payments",
+    "name": "admin-payments",
+    "viewport": "desktop",
+    "status": 200,
+    "issues": []
+  },
+  {
+    "path": "/admin/reports",
+    "name": "admin-reports",
+    "viewport": "desktop",
+    "status": 200,
+    "issues": []
+  },
+  {
+    "path": "/admin/ai",
+    "name": "admin-ai",
+    "viewport": "desktop",
+    "status": 200,
+    "issues": []
+  },
+  {
+    "path": "/admin/team",
+    "name": "admin-team",
+    "viewport": "desktop",
+    "status": 200,
+    "issues": []
+  },
+  {
+    "path": "/admin/audit",
+    "name": "admin-audit",
+    "viewport": "desktop",
+    "status": 200,
+    "issues": []
+  },
+  {
+    "path": "/admin/settings",
+    "name": "admin-settings",
+    "viewport": "desktop",
+    "status": 200,
+    "issues": []
+  },
+  {
+    "path": "/rider/login",
+    "name": "rider-login",
+    "viewport": "desktop",
+    "status": 200,
+    "issues": []
+  },
+  {
+    "path": "/rider",
+    "name": "rider-dashboard",
+    "viewport": "desktop",
+    "status": 200,
+    "issues": []
+  },
+  {
+    "path": "/rider/jobs/job_5001",
+    "name": "rider-job",
+    "viewport": "desktop",
+    "status": 200,
+    "issues": []
+  },
+  {
+    "path": "/rider/history",
+    "name": "rider-history",
+    "viewport": "desktop",
+    "status": 200,
+    "issues": []
+  },
+  {
+    "path": "/",
+    "name": "home",
+    "viewport": "mobile",
+    "status": 200,
+    "issues": []
+  },
+  {
+    "path": "/shop",
+    "name": "shop",
+    "viewport": "mobile",
+    "status": 200,
+    "issues": []
+  },
+  {
+    "path": "/categories",
+    "name": "categories",
+    "viewport": "mobile",
+    "status": 404,
+    "issues": [
+      "HTTP 404"
+    ]
+  },
+  {
+    "path": "/categories/beverages",
+    "name": "category",
+    "viewport": "mobile",
+    "status": 200,
+    "issues": []
+  },
+  {
+    "path": "/products/farm-eggs",
+    "name": "product",
+    "viewport": "mobile",
+    "status": 200,
+    "issues": []
+  },
+  {
+    "path": "/cart",
+    "name": "cart",
+    "viewport": "mobile",
+    "status": 200,
+    "issues": []
+  },
+  {
+    "path": "/checkout",
+    "name": "checkout",
+    "viewport": "mobile",
+    "status": 200,
+    "issues": []
+  },
+  {
+    "path": "/checkout/status/ord_1011",
+    "name": "checkout-status",
+    "viewport": "mobile",
+    "status": 200,
+    "issues": []
+  },
+  {
+    "path": "/track",
+    "name": "track",
+    "viewport": "mobile",
+    "status": 200,
+    "issues": []
+  },
+  {
+    "path": "/account",
+    "name": "account",
+    "viewport": "mobile",
+    "status": 200,
+    "issues": []
+  },
+  {
+    "path": "/account/orders",
+    "name": "account-orders",
+    "viewport": "mobile",
+    "status": 200,
+    "issues": []
+  },
+  {
+    "path": "/account/orders/ord_1011",
+    "name": "account-order-detail",
+    "viewport": "mobile",
+    "status": 200,
+    "issues": []
+  },
+  {
+    "path": "/account/addresses",
+    "name": "account-addresses",
+    "viewport": "mobile",
+    "status": 200,
+    "issues": []
+  },
+  {
+    "path": "/account/lists",
+    "name": "account-lists",
+    "viewport": "mobile",
+    "status": 200,
+    "issues": []
+  },
+  {
+    "path": "/account/returns",
+    "name": "account-returns",
+    "viewport": "mobile",
+    "status": 200,
+    "issues": []
+  },
+  {
+    "path": "/account/returns/ret_2001",
+    "name": "account-return-detail",
+    "viewport": "mobile",
+    "status": 200,
+    "issues": []
+  },
+  {
+    "path": "/help",
+    "name": "help",
+    "viewport": "mobile",
+    "status": 200,
+    "issues": []
+  },
+  {
+    "path": "/delivery",
+    "name": "delivery",
+    "viewport": "mobile",
+    "status": 200,
+    "issues": []
+  },
+  {
+    "path": "/returns-policy",
+    "name": "returns-policy",
+    "viewport": "mobile",
+    "status": 200,
+    "issues": []
+  },
+  {
+    "path": "/privacy",
+    "name": "privacy",
+    "viewport": "mobile",
+    "status": 200,
+    "issues": []
+  },
+  {
+    "path": "/terms",
+    "name": "terms",
+    "viewport": "mobile",
+    "status": 200,
+    "issues": []
+  },
+  {
+    "path": "/admin",
+    "name": "admin-dashboard",
+    "viewport": "mobile",
+    "status": 200,
+    "issues": []
+  },
+  {
+    "path": "/admin/orders",
+    "name": "admin-orders",
+    "viewport": "mobile",
+    "status": 200,
+    "issues": []
+  },
+  {
+    "path": "/admin/orders/ord_1011",
+    "name": "admin-order-detail",
+    "viewport": "mobile",
+    "status": 200,
+    "issues": []
+  },
+  {
+    "path": "/admin/fulfilment",
+    "name": "admin-fulfilment",
+    "viewport": "mobile",
+    "status": 200,
+    "issues": []
+  },
+  {
+    "path": "/admin/pos",
+    "name": "admin-pos",
+    "viewport": "mobile",
+    "status": 200,
+    "issues": []
+  },
+  {
+    "path": "/admin/cashier-sessions",
+    "name": "admin-cashier-sessions",
+    "viewport": "mobile",
+    "status": 200,
+    "issues": []
+  },
+  {
+    "path": "/admin/products",
+    "name": "admin-products",
+    "viewport": "mobile",
+    "status": 200,
+    "issues": []
+  },
+  {
+    "path": "/admin/products/prd_egg",
+    "name": "admin-product-detail",
+    "viewport": "mobile",
+    "status": 200,
+    "issues": []
+  },
+  {
+    "path": "/admin/categories",
+    "name": "admin-categories",
+    "viewport": "mobile",
+    "status": 200,
+    "issues": []
+  },
+  {
+    "path": "/admin/inventory",
+    "name": "admin-inventory",
+    "viewport": "mobile",
+    "status": 200,
+    "issues": []
+  },
+  {
+    "path": "/admin/inventory/receiving",
+    "name": "admin-receiving",
+    "viewport": "mobile",
+    "status": 200,
+    "issues": []
+  },
+  {
+    "path": "/admin/inventory/adjustments",
+    "name": "admin-adjustments",
+    "viewport": "mobile",
+    "status": 200,
+    "issues": []
+  },
+  {
+    "path": "/admin/inventory/stocktakes",
+    "name": "admin-stocktakes",
+    "viewport": "mobile",
+    "status": 200,
+    "issues": []
+  },
+  {
+    "path": "/admin/inventory/expiry",
+    "name": "admin-expiry",
+    "viewport": "mobile",
+    "status": 200,
+    "issues": []
+  },
+  {
+    "path": "/admin/suppliers",
+    "name": "admin-suppliers",
+    "viewport": "mobile",
+    "status": 200,
+    "issues": []
+  },
+  {
+    "path": "/admin/purchases",
+    "name": "admin-purchases",
+    "viewport": "mobile",
+    "status": 200,
+    "issues": []
+  },
+  {
+    "path": "/admin/dispatch",
+    "name": "admin-dispatch",
+    "viewport": "mobile",
+    "status": 200,
+    "issues": []
+  },
+  {
+    "path": "/admin/riders",
+    "name": "admin-riders",
+    "viewport": "mobile",
+    "status": 200,
+    "issues": []
+  },
+  {
+    "path": "/admin/providers",
+    "name": "admin-providers",
+    "viewport": "mobile",
+    "status": 200,
+    "issues": []
+  },
+  {
+    "path": "/admin/returns",
+    "name": "admin-returns",
+    "viewport": "mobile",
+    "status": 200,
+    "issues": []
+  },
+  {
+    "path": "/admin/returns/ret_2001",
+    "name": "admin-return-detail",
+    "viewport": "mobile",
+    "status": 200,
+    "issues": []
+  },
+  {
+    "path": "/admin/refunds",
+    "name": "admin-refunds",
+    "viewport": "mobile",
+    "status": 200,
+    "issues": []
+  },
+  {
+    "path": "/admin/customers",
+    "name": "admin-customers",
+    "viewport": "mobile",
+    "status": 200,
+    "issues": []
+  },
+  {
+    "path": "/admin/payments",
+    "name": "admin-payments",
+    "viewport": "mobile",
+    "status": 200,
+    "issues": []
+  },
+  {
+    "path": "/admin/reports",
+    "name": "admin-reports",
+    "viewport": "mobile",
+    "status": 200,
+    "issues": []
+  },
+  {
+    "path": "/admin/ai",
+    "name": "admin-ai",
+    "viewport": "mobile",
+    "status": 200,
+    "issues": []
+  },
+  {
+    "path": "/admin/team",
+    "name": "admin-team",
+    "viewport": "mobile",
+    "status": 200,
+    "issues": []
+  },
+  {
+    "path": "/admin/audit",
+    "name": "admin-audit",
+    "viewport": "mobile",
+    "status": 200,
+    "issues": []
+  },
+  {
+    "path": "/admin/settings",
+    "name": "admin-settings",
+    "viewport": "mobile",
+    "status": 200,
+    "issues": []
+  },
+  {
+    "path": "/rider/login",
+    "name": "rider-login",
+    "viewport": "mobile",
+    "status": 200,
+    "issues": []
+  },
+  {
+    "path": "/rider",
+    "name": "rider-dashboard",
+    "viewport": "mobile",
+    "status": 200,
+    "issues": []
+  },
+  {
+    "path": "/rider/jobs/job_5001",
+    "name": "rider-job",
+    "viewport": "mobile",
+    "status": 200,
+    "issues": []
+  },
+  {
+    "path": "/rider/history",
+    "name": "rider-history",
+    "viewport": "mobile",
+    "status": 200,
+    "issues": []
+  }
+]

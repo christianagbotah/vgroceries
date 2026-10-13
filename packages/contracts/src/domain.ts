@@ -606,6 +606,8 @@ export interface AISuggestion {
   createdAt: string;
   /** always deterministic in the prototype */
   source: "deterministic_demo";
+  /** Explicit proposed next action, always requiring a human decision. Optional for backward compatibility. */
+  proposedAction?: string;
 }
 
 /* ------------------------------------------------------------------ */

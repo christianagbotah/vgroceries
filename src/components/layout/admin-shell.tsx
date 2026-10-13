@@ -98,10 +98,14 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
   const { role, setRole, user, can } = useStaff();
   const [open, setOpen] = useState(false);
 
-  const isActive = (href: string) => {
-    if (href === "/admin") return pathname === "/admin";
-    return pathname === href || pathname.startsWith(href + "/");
-  };
+  // The most specific matching nav item wins, so nested routes (e.g.
+  // /admin/inventory/receiving) highlight exactly one item — the parent
+  // "Stock overview" never lights up alongside its children.
+  const navItems = GROUPS.flatMap((g) => g.items);
+  const activeItem = navItems
+    .filter((i) => (i.href === "/admin" ? pathname === "/admin" : pathname === i.href || pathname.startsWith(i.href + "/")))
+    .sort((a, b) => b.href.length - a.href.length)[0];
+  const isActive = (href: string) => activeItem?.href === href;
 
   const sidebar = (
     <div className="flex h-full flex-col">
@@ -115,7 +119,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
         </div>
       </div>
 
-      <nav className="scroll-soft flex-1 overflow-y-auto p-2 pb-24" aria-label="Admin navigation">
+      <nav className="scroll-soft flex-1 overflow-y-auto p-2" aria-label="Admin navigation">
         {GROUPS.map((g) => {
           const items = g.items.filter((i) => can(i.permission));
           if (!items.length) return null;
@@ -175,9 +179,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
           </Sheet>
 
           <div className="min-w-0">
-            <p className="truncate text-sm font-semibold">
-              {GROUPS.flatMap((g) => g.items).find((i) => isActive(i.href))?.label ?? "Back office"}
-            </p>
+            <p className="truncate text-sm font-semibold">{activeItem?.label ?? "Back office"}</p>
             <p className="truncate text-xs text-muted-foreground">varietygrocery.com operations</p>
           </div>
 

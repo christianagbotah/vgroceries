@@ -139,6 +139,7 @@ export function refreshStaffSuggestions(store: VgStore): AISuggestion[] {
         detail: `${avail.availableToSell} sellable units remain with ${sold} sold in the last 7 days. A purchase-order draft is suggested for review — nothing is ordered automatically.`,
         evidence: [`Available to sell: ${avail.availableToSell}`, `Sold in last 7 days: ${sold}`, `Purchase unit: ${v.purchaseUnit ? `1 ${v.purchaseUnit.altUnit} = ${v.purchaseUnit.factor} ${v.unit}` : v.unit}`],
         dataPeriod: "Last 7 days of orders (demo fixtures + live demo actions)",
+        proposedAction: "Open Purchasing and review the suggested purchase-order draft (a human confirms before anything is ordered).",
       });
     }
   }
@@ -156,6 +157,7 @@ export function refreshStaffSuggestions(store: VgStore): AISuggestion[] {
         detail: `${lot.quantity} ${v.unit}s in this lot are eligible for sale until ${lot.expiryDate.slice(0, 10)}. A reviewable promotion is suggested; nothing is published automatically.`,
         evidence: [`Lot ${lot.lotNumber}: ${lot.quantity} ${v.unit}s`, `Expiry ${lot.expiryDate.slice(0, 10)}`, `Current price ${formatMoney(v.priceMinor)}`],
         dataPeriod: "Current lot data (demo fixtures + live demo actions)",
+        proposedAction: "Open the product page and review a markdown price change (pricing stays a human decision).",
       });
     }
   }
@@ -177,6 +179,7 @@ export function refreshStaffSuggestions(store: VgStore): AISuggestion[] {
         detail: `Orders ${orders.map((o) => o.reference).join(", ")} are packed for the same zone. ${freeRiders.length ? `Available riders: ${freeRiders.map((r) => r.name).join(", ")}.` : "No riders currently available — consider an external provider booking."} The dispatcher decides.`,
         evidence: orders.map((o) => `${o.reference}: ${o.lines.length} lines, ${formatMoney(o.totalMinor)}`),
         dataPeriod: "Today's fulfilment queue (live demo state)",
+        proposedAction: "Open Dispatch and assign one rider to the grouped run (the dispatcher confirms the handover).",
       });
     }
   }
@@ -192,6 +195,7 @@ export function refreshStaffSuggestions(store: VgStore): AISuggestion[] {
       detail: `Attempt ${a.id} for ${formatMoney(a.amountMinor)} has ${a.callbackCount} callback(s) with no confirmed outcome. The order stays pending and the customer is not asked to pay twice. Wait for the provider's verified status.`,
       evidence: [`Attempt ${a.id}: ${a.status}, ${a.callbackCount} callbacks`, `Order placed ${order.createdAt.slice(0, 16).replace("T", " ")} UTC`],
       dataPeriod: "Live mock payment events",
+      proposedAction: "Open Payments and verify the provider outcome before taking any action (no re-charge).",
     });
   }
   if (store.orders.some((o) => o.paymentStatus === "requires_review")) {
@@ -201,6 +205,7 @@ export function refreshStaffSuggestions(store: VgStore): AISuggestion[] {
       detail: "An order was paid after its reservation expired. Stock was rechecked automatically; if unavailable it needs a human decision: offer alternatives, or cancel and refund.",
       evidence: store.orders.filter((o) => o.paymentStatus === "requires_review").map((o) => `${o.reference} — payment ${o.paymentStatus}`),
       dataPeriod: "Live mock order events",
+      proposedAction: "Open the order and resolve the review: fulfil with alternatives, or cancel with refund (a human decides).",
     });
   }
 
@@ -230,6 +235,7 @@ export function refreshExceptionFlags(store: VgStore): AISuggestion[] {
         detail: "Unusual return frequency. Flagged for human review only; no refunds were issued automatically and no account is blocked.",
         evidence: store.returnRequests.filter((r) => r.customerId === customerId).map((r) => `${r.reference} — ${r.status}`),
         dataPeriod: "Last 8 days of returns (demo fixtures + live demo actions)",
+        proposedAction: "Open Returns and inspect the customer's recent return history (no account action is taken automatically).",
       });
     }
   }

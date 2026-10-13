@@ -13,11 +13,12 @@ import type { AddressView } from "./account";
 
 export interface DashboardActionable {
   awaitingConfirmation: number;
-  toPick: number;
-  toPack: number;
+  readyToPick: number;
+  picking: number;
   readyToDispatch: number;
   pendingPayments: number;
   returnsPending: number;
+  refundsAttention: number;
   lowStock: number;
   expiringSoon: number;
   unassignedJobs: number;
@@ -148,6 +149,12 @@ export interface FulfilmentLineCard {
   note?: string;
   allocations: { lotId: string; lotNumber: string; quantity: string; expiry?: string }[];
   availableToSell: string;
+  /** Total quantity allocated across lots (may be less than `quantity` on shortage). Optional: backend fulfilment authority may omit before picking starts. */
+  allocatedQty?: string;
+  /** `quantity − allocatedQty`, present only when a shortage exists. */
+  shortageQty?: string;
+  /** This line replaced an original ordered line (substitution outcome). */
+  isSubstitution?: boolean;
 }
 
 export interface FulfilmentOrderCard {
@@ -161,14 +168,41 @@ export interface FulfilmentOrderCard {
   paymentStatus: string;
   fulfilmentStatus: string;
   lines: FulfilmentLineCard[];
+  /** Staff member currently assigned to picking (latest "Picking started" actor). */
+  pickerName?: string;
+  /** When picking started (ISO + human label). */
+  pickingStartedAt?: string;
+  pickingStartedAtLabel?: string;
+  /** Lines with allocations vs total lines — picking progress. */
+  linesAllocated?: number;
+  linesTotal?: number;
+  /** True when any line has a shortage or pending substitution state. */
+  hasExceptions?: boolean;
+  /** Actor who packed the order (packed / handover queues). */
+  packedByName?: string;
+  packedAtLabel?: string;
+  /**
+   * Backend-provided permitted actions for this order in its current state.
+   * The frontend renders actions it recognises and never invents transitions;
+   * while the demo adapter drives this, the list mirrors the mock state machine.
+   */
+  allowedActions?: string[];
+  /** Recent order events (timestamps + actor) surfaced for the handover trail. */
+  events?: { atLabel: string; actor: string; action: string }[];
 }
 
 export interface FulfilmentQueues {
   confirm: { id: string; reference: string; customerName: string; paymentStatus: string; paymentMethod: string; fulfilment: string; totalLabel: string; createdAtLabel: string; lineCount: number }[];
+  /** Orders confirmed and ready to start picking. */
   pick: FulfilmentOrderCard[];
+  /** Orders with picking actively in progress. */
+  picking: FulfilmentOrderCard[];
+  /** Orders with line-level shortages or unresolved substitutions across active states. */
+  exceptions: FulfilmentOrderCard[];
+  /** Picking complete — waiting for packing confirmation. */
   pack: FulfilmentOrderCard[];
-  dispatch: { id: string; reference: string; zone?: string; totalLabel: string; paymentStatus: string; paymentMethod: string; lineCount: number }[];
-  collection: { id: string; reference: string; customerName: string; fulfilmentStatus: string; paymentStatus: string; paymentMethod: string; totalLabel: string; lineCount: number }[];
+  dispatch: { id: string; reference: string; zone?: string; totalLabel: string; paymentStatus: string; paymentMethod: string; lineCount: number; slotLabel?: string; customerName?: string; packedAtLabel?: string; packedByName?: string }[];
+  collection: { id: string; reference: string; customerName: string; fulfilmentStatus: string; paymentStatus: string; paymentMethod: string; totalLabel: string; lineCount: number; packedAtLabel?: string; packedByName?: string }[];
 }
 
 /* ---------------- cashier sessions ---------------- */

@@ -116,11 +116,12 @@ export function dashboardSummary(store: VgStore) {
   const todayRow = reports.salesByDay.find((d) => d.date === today);
   const actionable = {
     awaitingConfirmation: store.orders.filter((o) => o.fulfilmentStatus === "awaiting_confirmation" && o.channel === "online").length,
-    toPick: store.orders.filter((o) => o.fulfilmentStatus === "picking").length,
-    toPack: store.orders.filter((o) => o.fulfilmentStatus === "picking").length + store.orders.filter((o) => o.fulfilmentStatus === "confirmed").length,
+    readyToPick: store.orders.filter((o) => o.fulfilmentStatus === "confirmed").length,
+    picking: store.orders.filter((o) => o.fulfilmentStatus === "picking").length,
     readyToDispatch: store.orders.filter((o) => o.fulfilmentStatus === "packed" && o.fulfilment === "delivery").length,
     pendingPayments: store.orders.filter((o) => o.paymentStatus === "pending" || o.paymentStatus === "requires_review").length,
     returnsPending: store.returnRequests.filter((r) => ["requested", "approved", "received", "inspected"].includes(r.status)).length,
+    refundsAttention: store.refunds.filter((r) => ["awaiting_approval", "requires_review"].includes(r.status)).length,
     lowStock: reports.stockValue.lowVariants,
     expiringSoon: store.lots.filter((l) => {
       if (!l.expiryDate || l.isQuarantined || l.kind !== "regular") return false;

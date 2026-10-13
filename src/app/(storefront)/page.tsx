@@ -4,7 +4,7 @@ import { ProductTile } from "@/features/catalog/product-tile";
 import { formatMoney } from "@/lib/money";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ArrowRight, BadgePercent, Leaf, MapPin, Store, Truck } from "lucide-react";
+import { ArrowRight, BadgePercent, Leaf, MapPin, Sparkles, Store, Truck } from "lucide-react";
 import { formatDateTime } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
@@ -51,6 +51,24 @@ export default async function HomePage() {
             <span>Only available stock is shown</span>
           </li>
         </ul>
+      </section>
+
+      {/* shopping assistant entry */}
+      <section aria-labelledby="home-assistant" className="mt-6 flex flex-col items-start gap-3 rounded-2xl border border-primary/25 bg-primary/5 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
+        <div className="max-w-xl">
+          <h2 id="home-assistant" className="flex items-center gap-2 font-serif text-lg font-bold">
+            <Sparkles className="size-5 text-primary" aria-hidden /> Shopping assistant
+          </h2>
+          <p className="mt-0.5 text-sm text-muted-foreground">
+            Ask for a meal, an ingredient or a budget — get available items with live prices. Demo:
+            deterministic catalogue matching.
+          </p>
+        </div>
+        <Button asChild size="lg" className="h-11 shrink-0 px-5">
+          <Link href="/assistant">
+            Try the assistant <ArrowRight className="size-4" aria-hidden />
+          </Link>
+        </Button>
       </section>
 
       {/* categories */}

@@ -1,5 +1,31 @@
 # Verification record
 
+## Frontend continuation wave (12–13 October 2026)
+
+Branch `feat/zai-frontend-continuation-20261012`. All commands were actually executed; exact
+results below.
+
+| Check | Command | Result |
+|---|---|---|
+| ESLint | `bun run lint` | **PASS — 0 errors, 0 warnings** |
+| Type check | `bunx tsc --noEmit` | **PASS — 0 diagnostics** (strict; includes the extended `packages/contracts` fields) |
+| Production build | `bun run build` | **PASS — strict TypeScript, static prerender of all client-safe pages incl. `/checkout`, `/cart`, `/assistant`, `/account/returns`** |
+| Route sweep (production server) | `node scripts/route-sweep.mjs` | **PASS — 58/58 routes HTTP 200** (56 prior + new `/categories` index + `/assistant`) |
+| Business-rule acceptance suite | `bash scripts/acceptance-checks.sh` | **PASS — 24/24** |
+| Bun regression suites | `bun test scripts/` | **PASS — 50 tests / 460 assertions** (35 prior + 15 new frontend-continuation regressions) |
+| Responsive QA sweep | `node scripts/responsive-sweep.mjs` | **PASS — 19 key routes × 5 viewports (360/390/768/1024/1440), 0 horizontal overflow** — checkout 360px overflow found and fixed (grid `min-width:auto`) |
+| DOM interaction audit | agent-browser eval on key routes | **PASS — every interactive element pointer-cursor, body text 16px, exact active-nav matching on nested routes** |
+| Visual review | VLM review of fulfilment / POS / dispatch / rider / home screenshots | Picking workspace judged production-ready; POS two-area workspace professional; rider job page “highly functional, context-aware” |
+| Evidence | `docs/qa/evidence/zai-frontend-continuation-20261012/` | 21 desktop + 16 mobile + 9 tablet screenshots, captured against the production build (dev-tools badge verified absent) |
+
+New regression coverage in `scripts/frontend-continuation-regressions.test.ts`:
+fulfilment queue semantics (confirm/pick/picking split, pack empty until a backend picked-state,
+seeded shortage in exceptions with line-level shortage), allowedActions mirroring the state
+machine, packing-never-consumes-stock, dashboard queue-aligned tiles + refunds-attention,
+inventory summary consistency, AI proposedAction on every suggestion (generated + seeded),
+assistant evidence/purchasable-suggestions/budget-cap contract, dispatch queue shape, category
+index data.
+
 The current NestJS/PostgreSQL foundation verification is recorded in
 [BACKEND_FOUNDATION_CHECKPOINT.md](BACKEND_FOUNDATION_CHECKPOINT.md) (10 October
 2026): 40 real HTTP/database tests, isolated API-only setup/CLI checks and fresh

@@ -94,6 +94,15 @@ export default function AdminAiPage() {
         ) : null}
       </div>
 
+      <div className="flex items-start gap-2 rounded-xl border border-primary/30 bg-primary/5 p-3 text-sm">
+        <Sparkles className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden />
+        <p>
+          <strong>Human-in-the-loop:</strong> suggestions never issue refunds, modify stock, change
+          prices, publish promotions, substitute products or pay suppliers. Every proposal requires
+          an explicit staff action. Demo — deterministic rules, no live model connected.
+        </p>
+      </div>
+
       <Tabs value={tab} onValueChange={setTab}>
         <TabsList className="h-12 w-full justify-start overflow-x-auto sm:w-auto">
           <TabsTrigger value="suggestions" className="gap-1.5 px-4"><Sparkles className="size-4" aria-hidden /> Suggestions ({suggestions.length})</TabsTrigger>
@@ -178,6 +187,12 @@ function SuggestionCard({
         <StatusBadge kind="generic" status={s.status === "suggested" ? "pending" : s.status} label={s.status} />
       </div>
       <p className="text-sm text-muted-foreground">{s.detail}</p>
+      {s.proposedAction ? (
+        <p className="rounded-lg border border-primary/30 bg-primary/5 p-2.5 text-sm">
+          <span className="font-semibold">Proposed next action: </span>
+          {s.proposedAction}
+        </p>
+      ) : null}
       {s.evidence.length ? (
         <div>
           <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Evidence</p>

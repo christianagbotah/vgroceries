@@ -7,7 +7,7 @@ import { LoadingState, ErrorState } from "@/components/shared/states";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatMoney } from "@/lib/money";
-import { AlertTriangle, ArrowRight, ClipboardCheck, CreditCard, Package, RotateCcw, TriangleAlert, Truck } from "lucide-react";
+import { AlertTriangle, ArrowRight, Banknote, Boxes, ClipboardCheck, CreditCard, Package, RotateCcw, TriangleAlert, Truck } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export default function AdminDashboardPage() {
@@ -21,9 +21,11 @@ export default function AdminDashboardPage() {
 
   const tiles = [
     { href: "/admin/orders?status=awaiting_confirmation", label: "Awaiting confirmation", value: actionable.awaitingConfirmation, icon: ClipboardCheck, tone: "warning" as const },
-    { href: "/admin/fulfilment", label: "To pick & pack", value: actionable.toPick + actionable.toPack, icon: Package, tone: "info" as const },
+    { href: "/admin/fulfilment", label: "Ready to pick", value: actionable.readyToPick, icon: Package, tone: "info" as const },
+    { href: "/admin/fulfilment", label: "Picking in progress", value: actionable.picking, icon: Boxes, tone: "info" as const },
     { href: "/admin/dispatch", label: "Ready to dispatch", value: actionable.readyToDispatch + actionable.unassignedJobs, icon: Truck, tone: "info" as const },
     { href: "/admin/orders?payment=pending", label: "Pending payments", value: actionable.pendingPayments, icon: CreditCard, tone: "warning" as const },
+    { href: "/admin/refunds", label: "Refunds to approve", value: actionable.refundsAttention, icon: Banknote, tone: "warning" as const },
     { href: "/admin/returns", label: "Returns to handle", value: actionable.returnsPending, icon: RotateCcw, tone: "warning" as const },
     { href: "/admin/inventory?filter=low", label: "Low stock", value: actionable.lowStock, icon: AlertTriangle, tone: "danger" as const },
     { href: "/admin/inventory/expiry", label: "Expiring ≤ 7 days", value: actionable.expiringSoon, icon: TriangleAlert, tone: "warning" as const },

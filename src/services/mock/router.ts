@@ -92,6 +92,25 @@ import { buildReports, dashboardSummary } from "./engine/reports";
 import { formatMoney } from "@/lib/money";
 import { formatDateTime } from "@/lib/format";
 import { nextId, nowIso, orderReference } from "@/lib/id";
+import { addQty, cmpQty, subQty } from "@/lib/quantity";
+import type { Order, OrderLine } from "@/types/domain";
+
+/**
+ * Permitted fulfilment actions per order state, mirroring the mock state
+ * machine. Surfaced as `allowedActions` so the UI can render exactly what
+ * the (future) backend authority allows instead of hardcoding transitions.
+ */
+const FULFILMENT_ACTIONS: Record<string, string[]> = {
+  awaiting_confirmation: ["confirm", "cancel", "note"],
+  confirmed: ["picking", "cancel", "note", "substitute"],
+  picking: ["packed", "note", "substitute"],
+  packed: ["dispatch", "note", "substitute"],
+  ready_for_collection: ["collect", "note"],
+  dispatched: ["note"],
+  delivered: ["note"],
+  collected: ["note"],
+  cancelled: ["note"],
+};
 
 export interface ApiRequest {
   path: string; // e.g. "catalog/product"
@@ -566,30 +585,113 @@ export async function handleApi(req: ApiRequest): Promise<ApiResult> {
       /* ---------------- Staff: fulfilment ---------------- */
       case "admin.fulfilment": {
         sweepExpiredReservations(store);
+        const staffName = (id: string) => store.staff.find((s) => s.id === id)?.name ?? id;
+        const lastEvent = (o: Order, actionPrefix: string) =>
+          [...o.events].reverse().find((e) => e.action.startsWith(actionPrefix));
+        const lineCard = (l: OrderLine) => {
+          // Allocations are recorded when picking starts; before that there is no
+          // shortage to report — an unallocated line is simply "not picked yet".
+          const allocatedQty = l.allocations.length ? l.allocations.reduce((a, x) => addQty(a, x.quantity), "0") : undefined;
+          const shortageQty = allocatedQty !== undefined && cmpQty(l.quantity, allocatedQty) > 0 ? subQty(l.quantity, allocatedQty) : undefined;
+          return {
+            id: l.id, productName: l.productName, variantName: l.variantName, unit: l.unit,
+            quantity: l.quantity, note: l.note,
+            allocations: l.allocations.map((a) => {
+              const lot = store.lots.find((x) => x.id === a.lotId);
+              return { lotId: a.lotId, lotNumber: lot?.lotNumber ?? "?", quantity: a.quantity, expiry: lot?.expiryDate };
+            }),
+            availableToSell: availability(store, l.variantId).availableToSell,
+            allocatedQty,
+            shortageQty,
+            isSubstitution: l.substitutionOfLineId !== undefined,
+          };
+        };
         const buildQueue = (statuses: string[]) =>
           store.orders
             .filter((o) => statuses.includes(o.fulfilmentStatus))
             .sort((a, b2) => (a.createdAt < b2.createdAt ? -1 : 1))
-            .map((o) => ({
+            .map((o) => {
+              const lines = orderLinesOf(store, o).map(lineCard);
+              const pickStart = lastEvent(o, "Picking started");
+              const packEvt = lastEvent(o, "Packed");
+              return {
+                id: o.id, reference: o.reference, customerName: o.customerName, channel: o.channel,
+                fulfilment: o.fulfilment, slotLabel: o.slotLabel, totalLabel: formatMoney(o.totalMinor),
+                paymentStatus: o.paymentStatus, fulfilmentStatus: o.fulfilmentStatus,
+                lines,
+                pickerName: pickStart ? staffName(pickStart.actor) : undefined,
+                pickingStartedAt: pickStart?.at,
+                pickingStartedAtLabel: pickStart ? formatDateTime(pickStart.at) : undefined,
+                linesAllocated: lines.filter((l) => l.shortageQty === undefined).length,
+                linesTotal: lines.length,
+                hasExceptions: lines.some((l) => l.shortageQty !== undefined || l.isSubstitution),
+                packedByName: packEvt ? staffName(packEvt.actor) : undefined,
+                packedAtLabel: packEvt ? formatDateTime(packEvt.at) : undefined,
+                allowedActions: FULFILMENT_ACTIONS[o.fulfilmentStatus as keyof typeof FULFILMENT_ACTIONS] ?? [],
+                events: [...o.events].slice(-6).map((e) => ({ atLabel: formatDateTime(e.at), actor: staffName(e.actor), action: e.action })),
+              };
+            });
+        // Exceptions: active orders with shortage lines (once picking started) or recorded substitutions
+        const exceptions = store.orders
+          .filter((o) => ["confirmed", "picking", "packed", "ready_for_collection"].includes(o.fulfilmentStatus))
+          .map((o) => {
+            const lines = orderLinesOf(store, o).map(lineCard);
+            return { order: o, lines };
+          })
+          .filter(({ order: o, lines }) => {
+            const inProgress = o.fulfilmentStatus === "picking";
+            return lines.some((l) => (inProgress && l.shortageQty !== undefined) || l.isSubstitution);
+          })
+          .sort((a, b2) => (a.order.createdAt < b2.order.createdAt ? -1 : 1))
+          .map(({ order: o, lines }) => {
+            const pickStart = lastEvent(o, "Picking started");
+            return {
               id: o.id, reference: o.reference, customerName: o.customerName, channel: o.channel,
               fulfilment: o.fulfilment, slotLabel: o.slotLabel, totalLabel: formatMoney(o.totalMinor),
               paymentStatus: o.paymentStatus, fulfilmentStatus: o.fulfilmentStatus,
-              lines: orderLinesOf(store, o).map((l) => ({
-                id: l.id, productName: l.productName, variantName: l.variantName, unit: l.unit,
-                quantity: l.quantity, note: l.note,
-                allocations: l.allocations.map((a) => {
-                  const lot = store.lots.find((x) => x.id === a.lotId);
-                  return { lotId: a.lotId, lotNumber: lot?.lotNumber ?? "?", quantity: a.quantity, expiry: lot?.expiryDate };
-                }),
-                availableToSell: availability(store, l.variantId).availableToSell,
-              })),
-            }));
+              lines,
+              pickerName: pickStart ? staffName(pickStart.actor) : undefined,
+              pickingStartedAt: pickStart?.at,
+              pickingStartedAtLabel: pickStart ? formatDateTime(pickStart.at) : undefined,
+              linesAllocated: lines.filter((l) => l.shortageQty === undefined).length,
+              linesTotal: lines.length,
+              hasExceptions: true,
+              allowedActions: FULFILMENT_ACTIONS[o.fulfilmentStatus as keyof typeof FULFILMENT_ACTIONS] ?? [],
+              events: [...o.events].slice(-6).map((e) => ({ atLabel: formatDateTime(e.at), actor: staffName(e.actor), action: e.action })),
+            };
+          });
         return ok({
           confirm: store.orders.filter((o) => o.fulfilmentStatus === "awaiting_confirmation" && o.channel === "online").map((o) => ({ id: o.id, reference: o.reference, customerName: o.customerName, paymentStatus: o.paymentStatus, paymentMethod: o.paymentMethod, fulfilment: o.fulfilment, totalLabel: formatMoney(o.totalMinor), createdAt: o.createdAt, createdAtLabel: formatDateTime(o.createdAt), lineCount: o.lines.length })),
-          pick: buildQueue(["confirmed", "picking"]),
-          pack: buildQueue(["picking"]),
-          dispatch: store.orders.filter((o) => o.fulfilmentStatus === "packed" && o.fulfilment === "delivery").map((o) => ({ id: o.id, reference: o.reference, zone: store.zones.find((z) => z.id === o.zoneId)?.name, totalLabel: formatMoney(o.totalMinor), paymentStatus: o.paymentStatus, paymentMethod: o.paymentMethod, lineCount: o.lines.length })),
-          collection: store.orders.filter((o) => o.fulfilmentStatus === "ready_for_collection" || (o.fulfilment === "collection" && ["awaiting_confirmation", "confirmed", "picking", "packed"].includes(o.fulfilmentStatus))).map((o) => ({ id: o.id, reference: o.reference, customerName: o.customerName, fulfilmentStatus: o.fulfilmentStatus, paymentStatus: o.paymentStatus, paymentMethod: o.paymentMethod, totalLabel: formatMoney(o.totalMinor), lineCount: o.lines.length })),
+          pick: buildQueue(["confirmed"]),
+          picking: buildQueue(["picking"]),
+          exceptions,
+          // The demo state machine has one picking→packed transition, so there is no
+          // separate "picked" state yet; the queue stays empty until the backend
+          // fulfilment authority introduces one.
+          pack: [] as ReturnType<typeof buildQueue>,
+          dispatch: store.orders.filter((o) => o.fulfilmentStatus === "packed" && o.fulfilment === "delivery").map((o) => {
+            const packEvt = lastEvent(o, "Packed");
+            return {
+              id: o.id, reference: o.reference,
+              customerName: o.customerName,
+              zone: store.zones.find((z) => z.id === o.zoneId)?.name,
+              slotLabel: o.slotLabel,
+              totalLabel: formatMoney(o.totalMinor), paymentStatus: o.paymentStatus, paymentMethod: o.paymentMethod,
+              lineCount: o.lines.length,
+              packedAtLabel: packEvt ? formatDateTime(packEvt.at) : undefined,
+              packedByName: packEvt ? staffName(packEvt.actor) : undefined,
+            };
+          }),
+          collection: store.orders.filter((o) => o.fulfilmentStatus === "ready_for_collection" || (o.fulfilment === "collection" && ["awaiting_confirmation", "confirmed", "picking", "packed"].includes(o.fulfilmentStatus))).map((o) => {
+            const packEvt = lastEvent(o, "Packed");
+            return {
+              id: o.id, reference: o.reference, customerName: o.customerName, fulfilmentStatus: o.fulfilmentStatus,
+              paymentStatus: o.paymentStatus, paymentMethod: o.paymentMethod, totalLabel: formatMoney(o.totalMinor),
+              lineCount: o.lines.length,
+              packedAtLabel: packEvt ? formatDateTime(packEvt.at) : undefined,
+              packedByName: packEvt ? staffName(packEvt.actor) : undefined,
+            };
+          }),
         });
       }
 
@@ -734,7 +836,23 @@ export async function handleApi(req: ApiRequest): Promise<ApiResult> {
         if (filter === "low") filtered = filtered.filter((r) => Number(r.availableToSell) > 0 && Number(r.availableToSell) <= 3);
         if (filter === "zero") filtered = filtered.filter((r) => Number(r.availableToSell) === 0);
         if (filter === "reserved") filtered = filtered.filter((r) => Number(r.reserved) > 0);
-        return ok({ rows: filtered, total: rows.length });
+        // stock state totals across ALL variants (pre-filter) for the summary strip
+        const sum = (fn: (r: (typeof rows)[number]) => string) => rows.reduce((acc, r) => acc + Number(fn(r)), 0);
+        const quarantinedLots = store.lots.filter((l) => l.isQuarantined && l.kind !== "regular");
+        const unusableLots = store.lots.filter((l) => l.kind === "damaged" || (l.expiryDate && new Date(l.expiryDate).getTime() < Date.now()));
+        const sumQty = (ls: typeof store.lots) => ls.reduce((acc, l) => acc + Number(l.quantity), 0);
+        return ok({
+          rows: filtered,
+          total: rows.length,
+          summary: {
+            sellablePhysical: String(sum((r) => r.sellablePhysical)),
+            reserved: String(sum((r) => r.reserved)),
+            safetyStock: String(sum((r) => r.safetyStock)),
+            availableToSell: String(sum((r) => r.availableToSell)),
+            quarantined: String(sumQty(quarantinedLots)),
+            damagedExpired: String(sumQty(unusableLots)),
+          },
+        });
       }
       case "admin.inventory.receipts": {
         return ok(store.goodsReceipts.map((g) => ({

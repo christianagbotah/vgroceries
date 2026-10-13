@@ -255,7 +255,7 @@ export default function CheckoutPage() {
       </p>
 
       <div className="mt-6 grid gap-8 lg:grid-cols-[minmax(0,1fr)_340px]">
-        <div className="space-y-6">
+        <div className="min-w-0 space-y-6">
           {/* 1 — contact */}
           <section aria-labelledby="co-contact" className="space-y-4 rounded-xl border bg-card p-4 sm:p-5">
             <h2 id="co-contact" className="text-lg font-semibold">
@@ -500,7 +500,7 @@ export default function CheckoutPage() {
         </div>
 
         {/* summary */}
-        <aside className="h-fit space-y-3 rounded-xl border bg-card p-4 lg:sticky lg:top-32" aria-label="Order summary">
+        <aside className="h-fit min-w-0 space-y-3 rounded-xl border bg-card p-4 lg:sticky lg:top-32" aria-label="Order summary">
           <h2 className="font-semibold">Order summary</h2>
           <ul className="space-y-2 text-sm">
             {lines.map((l) => (

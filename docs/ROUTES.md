@@ -8,9 +8,11 @@ are client components over the same mock API.
 
 | Route | Purpose | Notes |
 |---|---|---|
-| `/` | Shop-focused homepage: categories, offers, popular picks, compact intro | No oversized hero; shopping starts on the first screen |
+| `/` | Shop-focused homepage: compact intro, shopping-assistant entry, categories, offers, popular picks | No oversized hero; shopping starts on the first screen |
 | `/shop` | Product grid with search, category filter, sorting, pagination | Only available goods; sticky filter row; state preserved in URL |
+| `/categories` | Browse-all categories index with live availability counts | Fixes the previous 404; each card links into the aisle |
 | `/categories/[slug]` | Category-specific shopping | Cross-links to sibling categories |
+| `/assistant` | Customer shopping assistant: catalogue-grounded Q&A (evidence + suggestions), budget basket | Deterministic demo matching, honestly labelled; suggestions checked against live availability before add-to-cart |
 | `/products/[slug]` | Variant selection, price, quantity, current availability | Saved link to sold-out item shows clear unavailable state, purchasing disabled |
 | `/cart` | Cart editing, availability warnings, estimated totals | Client-side cart is convenience only; availability revalidated at checkout |
 | `/checkout` | Guided checkout: contact, delivery/collection, zone+slot, Ghana address (locality, street, landmark, optional GhanaPostGPS, recipient, +233 phone), payment choice, review | Inline validation; minimum-order and slot-capacity rules |
@@ -36,7 +38,7 @@ are client components over the same mock API.
 | `/admin` | Actionable operational dashboard (queues, today's sales, reconciliation, recent orders) |
 | `/admin/orders` | Orders with channel/status/payment filters and search |
 | `/admin/orders/[id]` | Full order detail: customer, lines, allocations (FEFO), payment attempts, holds, history, notes; actions: confirm, pick, pack, ready/collect, dispatch, substitute (with permission + recalculation), cancel (guarded), review resolution |
-| `/admin/fulfilment` | Picking and packing queues with variant/unit/quantity/lot detail; confirm, dispatch and collection queues |
+| `/admin/fulfilment` | First-class fulfilment workspace: awaiting-confirmation / ready-to-pick / picking / exceptions / packed-handover / collection queues, picker + progress + allocated-vs-ordered + shortage + substitution on lines, packing checklist, handover boundary notice, event trails, backend-driven `allowedActions` | Picking and packing never deduct stock; the single depletion event happens at handover/collection |
 | `/admin/pos` | Counter sales: barcode/search, tiles, cart, discounts (permission-gated), cash/MoMo/card, change, held drafts (with expiry), receipt print, transaction lookup, return entry |
 | `/admin/cashier-sessions` | Opening float, movements, expected vs counted, close & reconcile |
 | `/admin/products` | Products, variants, prices, availability, publication |

@@ -50,6 +50,8 @@ export default function AdminPosPage() {
   const [lookupOpen, setLookupOpen] = useState(false);
   const [receiptNo, setReceiptNo] = useState("");
   const [idempotencyKey, setIdempotencyKey] = useState("");
+  // quick-add tiles shown while the search box is empty — one catalogue call
+  const [quickItems, setQuickItems] = useState<SearchResult[]>([]);
 
   // boot: find/open cashier session for this user
   const boot = useCallback(async () => {
@@ -58,8 +60,12 @@ export default function AdminPosPage() {
       const mine = sessions.find((s) => s.status === "open" && s.cashierName === user.name);
       setSession(mine ?? null);
       if (mine) {
-        const d = await apiOps.posDrafts(mine.id);
+        const [d, quick] = await Promise.all([
+          apiOps.posDrafts(mine.id),
+          apiOps.posSearch("").catch(() => [] as SearchResult[]),
+        ]);
         setDrafts(d);
+        setQuickItems(quick.slice(0, 8));
       }
     } catch (e) {
       setBootError(e instanceof ApiError ? e.message : "Could not load cashier sessions.");
@@ -347,6 +353,40 @@ export default function AdminPosPage() {
               ))}
             </div>
           )}
+
+          {!query.trim() && quickItems.length ? (
+            <div>
+              <h2 className="mb-2 text-sm font-semibold text-muted-foreground">Quick add — frequent items</h2>
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-4">
+                {quickItems.map((r) => (
+                  <button
+                    key={r.variantId}
+                    type="button"
+                    onClick={() => addLine(r)}
+                    disabled={!r.isAvailable}
+                    className={cn(
+                      "flex flex-col gap-2 rounded-xl border bg-card p-2.5 text-left transition-colors hover:border-primary/60 hover:bg-accent/50",
+                      !r.isAvailable && "cursor-not-allowed opacity-60 hover:border-border hover:bg-card"
+                    )}
+                  >
+                    <span className="relative aspect-[5/4] overflow-hidden rounded-lg bg-muted" aria-hidden>
+                      <Image src={r.image} alt="" fill sizes="180px" className="object-cover" />
+                      {!r.isAvailable ? (
+                        <span className="absolute inset-0 flex items-center justify-center bg-background/70 text-xs font-bold text-destructive">
+                          OUT OF STOCK
+                        </span>
+                      ) : null}
+                    </span>
+                    <span className="min-w-0">
+                      <span className="block truncate text-sm font-medium">{r.productName}</span>
+                      <span className="block truncate text-xs text-muted-foreground">{r.variantName} · {r.availableToSell} avail</span>
+                    </span>
+                    <span className="font-bold text-primary">{r.priceLabel}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : null}
 
           {!query.trim() ? (
             <p className="rounded-xl border border-dashed p-4 text-sm text-muted-foreground">

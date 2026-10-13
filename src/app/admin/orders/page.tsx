@@ -102,8 +102,30 @@ export default function AdminOrdersPage() {
       ) : rows.length === 0 ? (
         <EmptyState icon={ShoppingCart} title="No orders match" description={filtering ? "Adjust or clear the filters." : "Orders will appear as customers check out."} />
       ) : (
-        <div className="overflow-hidden rounded-xl border bg-card">
-          <div className="table-scroll">
+        <>
+          {/* mobile: card list */}
+          <ul className="space-y-2 md:hidden" aria-label="Orders">
+            {rows.map((o: OrderRow) => (
+              <li key={o.id} className="rounded-xl border bg-card p-3 text-sm">
+                <div className="flex items-center justify-between gap-2">
+                  <Link href={`/admin/orders/${o.id}`} className="font-semibold hover:underline focus-visible:underline">
+                    {o.reference}
+                  </Link>
+                  <span className="font-semibold tabular-nums">{o.totalLabel}</span>
+                </div>
+                <p className="mt-0.5 truncate text-muted-foreground">{o.customerName} · {o.customerPhone}</p>
+                <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                  <StatusBadge kind="payment" status={o.paymentStatus} />
+                  <StatusBadge kind="fulfilment" status={o.fulfilmentStatus} />
+                  <span className="rounded-full bg-muted px-2 py-0.5 text-xs capitalize text-muted-foreground">{o.channel}</span>
+                </div>
+                <p className="mt-1.5 text-xs text-muted-foreground">{o.createdAtLabel}</p>
+              </li>
+            ))}
+          </ul>
+          {/* md+: table */}
+          <div className="hidden overflow-hidden rounded-xl border bg-card md:block">
+            <div className="table-scroll">
             <table className="w-full text-sm">
               <thead className="bg-muted/60 text-left">
                 <tr>
@@ -141,8 +163,9 @@ export default function AdminOrdersPage() {
                 ))}
               </tbody>
             </table>
+            </div>
           </div>
-        </div>
+        </>
       )}
     </div>
   );
