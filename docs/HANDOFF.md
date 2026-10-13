@@ -53,14 +53,16 @@ Do not infer stock, payment or custody authority from visual state. In particula
 
 ## 5. Next implementation sequence
 
-The next backend sequence is:
+The owner-approved production sequence after this milestone is:
 
-1. **COD cash collection + rider remittance authority** — customer cash collection, rider liability and remittance as separate durable, auditable events/ledgers.
-2. **Physical Returns Authority** — full/partial return, actual received quantity, condition/disposition, saleable restock vs quarantine/damaged/unsafe, lot provenance and no phantom stock.
-3. **POS Authority** — counter-sale workflow reusing the same inventory-depletion primitive, cashier/session controls and cash/MoMo/card settlement boundaries.
-4. **Storefront production cutover** — replace remaining mock-backed public/account operations once every required production journey has a real API contract.
-5. **Live provider integrations** — courier, Hubtel and notifications only behind the already-defined authority boundaries, with verified credentials/webhooks and manual fallback.
-6. **Reports/AI** — derivative reads/actions only after the transactional ledgers they depend on are authoritative.
+1. **Wave A — production order tracking UX/API integration** — every customer order detail gets one-click tracking backed by authenticated ownership; guest tracking keeps reference + verification-code protection; admin detail links to operational fulfilment/dispatch truth. Remove production-facing payment simulators/demo tracking copy.
+2. **Wave B — production catalogue media + grocery specifications** — durable ordered product galleries, primary/variant media, alt text/storage metadata and typed category-driven grocery attributes. Ingredients, allergens, nutrition and health claims are never invented; lot-specific expiry remains Inventory/StockLot truth.
+3. **Wave C — external delivery-provider registry/adapters** — keep in-house riders first-class while adding configured external providers behind honest `manual`/`api` capability modes, quote/booking/tracking references and normalized provider events. No provider is labelled API-live until credentials/onboarding and real calls are verified.
+4. **Wave D — COD cash collection + rider remittance authority** — customer cash collection, rider liability and remittance as separate durable, auditable events/ledgers.
+5. **Physical Returns Authority** — full/partial actual receipts, inspection/disposition, saleable restock vs quarantine/damaged/unsafe and lot provenance.
+6. **POS Authority and remaining storefront cutover** — counter-sale workflow reusing the same depletion primitive, followed by replacement of remaining mock-backed production journeys.
+
+The approved Waves A–C design is tracked separately at commit `5918c7788ddfec733c9b5e28f5ce787ac9dac752`; the Wave A native TDD plan is commit `6834b8ee65b32f198ca2fcb4417e2c5b8461fc49`. They remain outside this focused Dispatch/Rider branch and will be rebased onto its reviewed PR head before Wave A execution.
 
 ## 6. Deliberately closed scope
 
@@ -70,14 +72,15 @@ Do not create placeholder endpoints that pretend these are implemented. Keep pro
 
 ## 7. Verification checkpoint
 
-Latest reviewed implementation checkpoint before this documentation commit:
+Latest reviewed code checkpoint before this documentation commit:
 
 - branch: `feat/dispatch-rider-authority-20261013`
-- reviewed implementation SHA: `40ff740ea5a01ef4b3792f49955362884e57d966`
-- local clean-room PostgreSQL: **18.1**, migrations **001–007** applied successfully
-- local API integration/security/concurrency tests: **318/318 pass**
+- reviewed code SHA: `9515745da95dfaf2c59bee2d7019b18de3c24f3b`
+- local clean-room PostgreSQL: **18.1**, migrations **001–007** applied successfully on a brand-new database
+- complete API integration/security/concurrency tests: **333/333 pass**
+- focused Dispatch/Rider review suite: **65/65 pass**
 - production OpenAPI: **57 paths**, two consecutive byte-identical generations, zero committed drift
-- Dispatch source authority scan: **PASS** across 11 source files; no second stock/payment/cash/GPS/provider-network authority found
+- Dispatch source authority scan: **PASS**; no second stock/payment/COD-remittance/GPS/ETA/provider-network authority found
 - root ESLint: **PASS**
 - root TypeScript `tsc --noEmit --incremental false`: **PASS**
 - Next.js production build: **PASS**, static generation **48/48**
@@ -85,8 +88,10 @@ Latest reviewed implementation checkpoint before this documentation commit:
 - Bun regression tests: **50/50** with **460** expectations
 - shared contract checks: **32/32**
 - business acceptance checks: **24/24**
-- route sweep: **58/58 HTTP 200** on an isolated local production server
+- route sweep: **58/58 HTTP 200** on isolated port **33013**
 
-The repository's API GitHub workflow uses PostgreSQL 17. Its fresh PR run is the required final PostgreSQL-17 evidence before this milestone is merge-ready; local PostgreSQL 18.1 evidence is not being presented as a substitute for that CI gate.
+The independent review defects were reproduced RED and fixed before this checkpoint, including customer-note privacy, reschedule retry/idempotency, former-rider access revocation, lock ordering, manual-provider/action projection truth, busy-state derivation, OpenAPI refinement parity, Returns-inspection messaging, a real PostgreSQL `40P01` admin assignment deadlock, and physically-returned unassigned recovery.
+
+The repository's API GitHub workflow uses PostgreSQL 17. Its fresh PR run remains the required final PostgreSQL-17 evidence before merge readiness; local PostgreSQL 18.1 evidence is intentionally not presented as a substitute.
 
 See `docs/VERIFICATION.md` for the evidence record and `docs/KNOWN_ISSUES.md` for deliberately closed production scope.
