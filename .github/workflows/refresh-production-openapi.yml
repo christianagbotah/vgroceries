@@ -1,0 +1,45 @@
+name: Refresh production OpenAPI snapshot
+
+on:
+  push:
+    branches:
+      - feat/fulfilment-handover-20261012
+    paths:
+      - .github/workflows/refresh-production-openapi.yml
+
+permissions:
+  contents: write
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/fulfilment-handover-20261012
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - name: Build shared contracts
+        run: |
+          npm ci --prefix packages/contracts
+          npm run --prefix packages/contracts build
+      - name: Install and generate API client
+        run: |
+          npm ci --prefix apps/api
+          npm run --prefix apps/api generate
+      - name: Generate deterministic production OpenAPI
+        working-directory: apps/api
+        run: |
+          npm run openapi
+          cp ../../docs/openapi-foundation.json /tmp/openapi-first.json
+          npm run openapi
+          cmp /tmp/openapi-first.json ../../docs/openapi-foundation.json
+      - name: Commit generated snapshot
+        run: |
+          git config user.name "CHRISTIAN AGBOTAH"
+          git config user.email "148919415+christianagbotah@users.noreply.github.com"
+          git add docs/openapi-foundation.json
+          git diff --cached --check
+          git commit -m "docs(api): refresh 35-path production OpenAPI"
+          git push origin HEAD:feat/fulfilment-handover-20261012
