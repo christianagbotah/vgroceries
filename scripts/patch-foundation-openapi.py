@@ -1,0 +1,31 @@
+from pathlib import Path
+
+path = Path("apps/api/test/foundation.spec.ts")
+text = path.read_text()
+
+old_paths = '''    "/api/v1/admin/orders/{orderId}/actions", "/api/v1/refunds", "/api/v1/refunds/{refundId}/actions", "/api/v1/account/orders", "/api/v1/account/orders/{orderId}/cancel", "/api/v1/auth/logout", "/api/v1/auth/me", "/api/v1/auth/refresh", "/api/v1/auth/sessions", "/api/v1/catalog/categories", "/api/v1/catalog/home", "/api/v1/catalog/products", "/api/v1/catalog/products/{slug}", "/api/v1/catalog/products:by-variants", "/api/v1/checkout/complete", "/api/v1/checkout/quote", "/api/v1/checkout/zones", "/api/v1/checkout/zones/{zoneId}/slots", "/api/v1/health/live", "/api/v1/health/ready", "/api/v1/inventory/overview", "/api/v1/inventory/receive", "/api/v1/orders/{orderId}", "/api/v1/orders/{orderId}/payment-attempts", "/api/v1/orders/track", "/api/v1/payments", "/api/v1/payments/providers/{provider}/events", "/api/v1/payments/{attemptId}/reconcile",'''
+new_paths = '''    "/api/v1/admin/fulfilment", "/api/v1/admin/fulfilment/orders/{orderId}", "/api/v1/admin/fulfilment/orders/{orderId}/confirm", "/api/v1/admin/fulfilment/orders/{orderId}/handover", "/api/v1/admin/fulfilment/orders/{orderId}/pack", "/api/v1/admin/fulfilment/orders/{orderId}/picks/{reservationId}", "/api/v1/admin/fulfilment/orders/{orderId}/start-picking", "/api/v1/admin/orders/{orderId}/actions", "/api/v1/refunds", "/api/v1/refunds/{refundId}/actions", "/api/v1/account/orders", "/api/v1/account/orders/{orderId}/cancel", "/api/v1/auth/logout", "/api/v1/auth/me", "/api/v1/auth/refresh", "/api/v1/auth/sessions", "/api/v1/catalog/categories", "/api/v1/catalog/home", "/api/v1/catalog/products", "/api/v1/catalog/products/{slug}", "/api/v1/catalog/products:by-variants", "/api/v1/checkout/complete", "/api/v1/checkout/quote", "/api/v1/checkout/zones", "/api/v1/checkout/zones/{zoneId}/slots", "/api/v1/health/live", "/api/v1/health/ready", "/api/v1/inventory/overview", "/api/v1/inventory/receive", "/api/v1/orders/{orderId}", "/api/v1/orders/{orderId}/payment-attempts", "/api/v1/orders/track", "/api/v1/payments", "/api/v1/payments/providers/{provider}/events", "/api/v1/payments/{attemptId}/reconcile",'''
+if text.count(old_paths) != 1:
+    raise SystemExit("expected old 28-path assertion exactly once")
+text = text.replace(old_paths, new_paths)
+
+old_loop = '''    for (const method of ["get", "post"]) {
+      const op = item[method];
+      if (!op) continue;
+      const response = resolve(
+        op.responses[method === "post" && !["/api/v1/checkout/quote","/api/v1/orders/track","/api/v1/account/orders/{orderId}/cancel","/api/v1/payments/providers/{provider}/events","/api/v1/payments/{attemptId}/reconcile","/api/v1/refunds/{refundId}/actions","/api/v1/admin/orders/{orderId}/actions"].includes(path) ? "201" : "200"].content[
+          "application/json"
+        ].schema,
+      );'''
+new_loop = '''    for (const method of ["get", "post", "put"]) {
+      const op = item[method];
+      if (!op) continue;
+      const responseCode = op.responses["200"] ? "200" : "201";
+      const response = resolve(
+        op.responses[responseCode].content["application/json"].schema,
+      );'''
+if text.count(old_loop) != 1:
+    raise SystemExit("expected old response assertion loop exactly once")
+text = text.replace(old_loop, new_loop)
+
+path.write_text(text)
