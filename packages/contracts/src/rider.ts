@@ -115,6 +115,11 @@ export const riderActionSchema = z.enum([
 ]);
 export type RiderAllowedAction = z.infer<typeof riderActionSchema>;
 
+export const riderJobsQuerySchema = z.object({
+  scope: z.enum(["active", "history"]).default("active"),
+}).strict();
+export type RiderJobsQuery = z.infer<typeof riderJobsQuerySchema>;
+
 export const riderAvailabilityRequestSchema = z.object({
   availability: riderDeclaredAvailabilitySchema,
 }).strict();
