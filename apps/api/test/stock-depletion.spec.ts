@@ -131,11 +131,17 @@ test("same claim replays the immutable depletion without a second stock mutation
 });
 
 test("multiple reservations sharing one lot are aggregated before one safe lot decrement", async () => {
-  await reserve({ id: "dep-shared-a", claimId: "dep-shared", claimLineId: "line-rice", quantity: "1.25" });
-  await reserve({ id: "dep-shared-b", claimId: "dep-shared", claimLineId: "line-rice", quantity: "0.75" });
+  await reserve({ id: "dep-shared-a", claimId: "dep-shared", claimLineId: "line-rice-a", quantity: "1.25" });
+  await reserve({ id: "dep-shared-b", claimId: "dep-shared", claimLineId: "line-rice-b", quantity: "0.75" });
   const before = (await db.stockLot.findUniqueOrThrow({ where: { id: "lot-rice" } })).quantity;
 
-  const result = await db.$transaction((tx) => depletion.consumeClaim(tx, input("dep-shared")));
+  const result = await db.$transaction((tx) => depletion.consumeClaim(tx, {
+    ...input("dep-shared"),
+    lines: [
+      { claimLineId: "line-rice-a", variantId: "var-rice", quantity: "1.25" },
+      { claimLineId: "line-rice-b", variantId: "var-rice", quantity: "0.75" },
+    ],
+  }));
 
   assert.equal(result.lines.length, 2);
   assert.deepEqual(result.lines.map((line) => line.reservationId), ["dep-shared-a", "dep-shared-b"]);
