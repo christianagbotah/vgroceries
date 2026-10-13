@@ -1,5 +1,12 @@
 import type { INestApplication } from "@nestjs/common";
-import type { OpenAPIObject, SchemaObject } from "@nestjs/swagger/dist/interfaces/open-api-spec.interface";
+import type {
+  OpenAPIObject,
+  OperationObject,
+  ParameterObject,
+  ResponseObject,
+  SchemaObject,
+  SecurityRequirementObject,
+} from "@nestjs/swagger/dist/interfaces/open-api-spec.interface";
 import {
   fulfilmentActionResponseSchema,
   fulfilmentConfirmRequestSchema,
@@ -16,25 +23,25 @@ import { foundationOpenApi } from "./openapi";
 const ref = (name: string) => ({ $ref: `#/components/schemas/${name}` });
 const json = (schema: z.ZodType): SchemaObject =>
   z.toJSONSchema(schema, { target: "openapi-3.0" }) as SchemaObject;
-const security = [{ cookieAuth: [] }, { bearerAuth: [] }];
-const errorResponse = {
+const security: SecurityRequirementObject[] = [{ cookieAuth: [] }, { bearerAuth: [] }];
+const errorResponse: ResponseObject = {
   description: "Safe error envelope",
   content: { "application/json": { schema: ref("ApiError") } },
 };
-const orderId = {
+const orderId: ParameterObject = {
   name: "orderId",
   in: "path",
   required: true,
   schema: { type: "string", minLength: 1 },
 };
-const replay = {
+const replay: ParameterObject = {
   name: "Idempotency-Key",
   in: "header",
   required: true,
   description: "Durable administrator-scoped replay key for this fulfilment command.",
   schema: { type: "string", minLength: 8, maxLength: 128 },
 };
-const csrf = {
+const csrf: ParameterObject = {
   name: "X-CSRF-Token",
   in: "header",
   required: false,
@@ -42,14 +49,18 @@ const csrf = {
   schema: { type: "string", minLength: 1 },
 };
 
-function response(schemaName: string) {
+function response(schemaName: string): ResponseObject {
   return {
     description: "Successful response",
     content: { "application/json": { schema: ref(schemaName) } },
   };
 }
 
-function mutation(description: string, requestSchema: string, extraParameters: object[] = []) {
+function mutation(
+  description: string,
+  requestSchema: string,
+  extraParameters: ParameterObject[] = [],
+): OperationObject {
   return {
     security,
     description,
