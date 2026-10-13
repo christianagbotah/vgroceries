@@ -1,0 +1,45 @@
+name: Fix fulfilment query variant authority
+
+on:
+  push:
+    branches:
+      - feat/fulfilment-handover-20261012
+    paths:
+      - .github/workflows/fix-fulfilment-query-variant.yml
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/fulfilment-handover-20261012
+      - name: Apply exact source fix and remove one-shot workflow
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          path = Path('apps/api/src/fulfilment/fulfilment-query.service.ts')
+          text = path.read_text()
+          old_type = 'position: Pick<StockPosition, "locationId">;'
+          new_type = 'position: Pick<StockPosition, "locationId" | "variantId">;'
+          old_block = '''      const line = expected.get(row.claimLineId);\n      if (!line || line.variantId !== row.positionId && false) {\n        // Variant identity is checked below through the stock position lookup in\n        // the database query; this branch only guards unexpected claim lines.\n      }\n      if (!line) {\n        reservationLost = true;\n        continue;\n      }'''
+          new_block = '''      const line = expected.get(row.claimLineId);\n      if (!line || line.variantId !== row.position.variantId) {\n        reservationLost = true;\n        continue;\n      }'''
+          assert text.count(old_type) == 1, text.count(old_type)
+          assert text.count(old_block) == 1, text.count(old_block)
+          text = text.replace(old_type, new_type).replace(old_block, new_block)
+          path.write_text(text)
+          PY
+          git rm .github/workflows/fix-fulfilment-query-variant.yml
+          git diff --check
+          git diff -- apps/api/src/fulfilment/fulfilment-query.service.ts
+      - name: Commit source fix
+        run: |
+          git config user.name "CHRISTIAN AGBOTAH"
+          git config user.email "148919415+christianagbotah@users.noreply.github.com"
+          git add apps/api/src/fulfilment/fulfilment-query.service.ts
+          git commit -m "fix(fulfilment): align query reservation variant authority"
+          git push origin HEAD:feat/fulfilment-handover-20261012
