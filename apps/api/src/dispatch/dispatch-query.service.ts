@@ -91,7 +91,7 @@ export class DispatchQueryService {
   async listDispatch(query: DispatchListQuery): Promise<ProductionDispatchQueueResponse> {
     const where: Prisma.OrderWhereInput = {
       fulfilment: "delivery",
-      fulfilmentStatus: "dispatched",
+      fulfilmentStatus: query.status === "delivered" ? "delivered" : "dispatched",
       cancelledAt: null,
       stockConsumedAt: { not: null },
       fulfilmentRun: { is: { handedOverAt: { not: null }, handoverKind: "dispatch" } },

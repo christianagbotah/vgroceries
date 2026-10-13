@@ -44,3 +44,17 @@ test("dispatch queue excludes cancelled or non-dispatched handed-over anomalies"
   assert.equal(result.items.some(x=>x.orderId===cancelled.id),false);
   assert.equal(result.items.some(x=>x.orderId===completed.id),false);
 });
+
+test("delivered dispatch filter includes rider and manual-provider completions",async()=>{
+  const r=await rider("completed-rider");
+  const riderOrder=await order("VG-QUERY-DELIVERED-RIDER");
+  const providerOrder=await order("VG-QUERY-DELIVERED-PROVIDER");
+  const deliveredAt=new Date();
+  const riderJob=await db.deliveryJob.create({data:{orderId:riderOrder.id,assignmentKind:"rider",riderProfileId:r.id,status:"delivered",custodyState:"customer",assignedBy:"admin-commerce",assignedAt:new Date(),deliveredAt}});
+  const providerJob=await db.deliveryJob.create({data:{orderId:providerOrder.id,assignmentKind:"manual_provider",providerKey:"manual-test",providerNameSnapshot:"Manual Test",status:"delivered",custodyState:"customer",assignedBy:"admin-commerce",assignedAt:new Date(),deliveredAt}});
+  await db.order.update({where:{id:riderOrder.id},data:{deliveryStatus:"delivered",fulfilmentStatus:"delivered"}});
+  await db.order.update({where:{id:providerOrder.id},data:{deliveryStatus:"delivered",fulfilmentStatus:"delivered"}});
+  const completed=await queries.listDispatch({page:1,perPage:100,status:"delivered"});
+  assert.equal(completed.items.some(x=>x.jobId===riderJob.id),true);
+  assert.equal(completed.items.some(x=>x.jobId===providerJob.id),true);
+});

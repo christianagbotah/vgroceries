@@ -68,4 +68,6 @@ test("unassign and reassign are custody-safe and availability is declared separa
   await assert.rejects(()=>service.reassign(assigned.jobId,{riderProfileId:one.id},ctx("reassign-unsafe-1")));
   await service.setRiderAvailability(one.id,{availability:"offline"},ctx("availability-1"));
   assert.equal((await db.riderProfile.findUniqueOrThrow({where:{id:one.id}})).availabilityState,"offline");
+  const availabilityEvent=await db.outboxEvent.findFirstOrThrow({where:{aggregateId:one.id,type:"rider.availability"},orderBy:{createdAt:"desc"}});
+  assert.equal((availabilityEvent.payload as Record<string,unknown>).requestId,"req-availability-1");
 });

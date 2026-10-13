@@ -287,7 +287,7 @@ export class DispatchCommandService {
       if (input.availability === "available" && !profile.user.active) rule("Inactive rider cannot be made available.");
       await tx.riderProfile.update({ where: { id: riderProfileId }, data: { availabilityState: input.availability, lastAvailabilityChangedAt: new Date(), version: { increment: 1 } } });
       await tx.auditEvent.create({ data: { actorId: context.actorId, action: "rider.availability", entityId: riderProfileId, requestId: context.requestId, details: { availability: input.availability } } });
-      await tx.outboxEvent.create({ data: { type: "rider.availability", aggregateId: riderProfileId, payload: { availability: input.availability } } });
+      await tx.outboxEvent.create({ data: { type: "rider.availability", aggregateId: riderProfileId, payload: { availability: input.availability, requestId: context.requestId } } });
       return { riderProfileId, availability: input.availability };
     });
   }

@@ -52,7 +52,7 @@ export class DispatchEventService {
     await tx.outboxEvent.create({ data: {
       type: action,
       aggregateId: input.orderId,
-      payload: { deliveryJobId: input.deliveryJobId, fromStatus: input.fromStatus ?? null, toStatus: input.toStatus ?? null, metadata } as Prisma.InputJsonValue,
+      payload: { deliveryJobId: input.deliveryJobId, fromStatus: input.fromStatus ?? null, toStatus: input.toStatus ?? null, metadata, requestId: input.requestId } as Prisma.InputJsonValue,
     } });
   }
 }

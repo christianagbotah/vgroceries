@@ -28,6 +28,8 @@ test("delivery transition writes delivery order audit and outbox history atomica
   assert.equal(await db.orderEvent.count({ where: { orderId, action: "delivery.assigned" } }), 1);
   assert.equal(await db.auditEvent.count({ where: { entityId: jobId, action: "delivery.assigned" } }), 1);
   assert.equal(await db.outboxEvent.count({ where: { aggregateId: orderId, type: "delivery.assigned" } }), 1);
+  const outbox = await db.outboxEvent.findFirstOrThrow({ where: { aggregateId: orderId, type: "delivery.assigned" } });
+  assert.equal((outbox.payload as Record<string, unknown>).requestId, "req-event-1");
 });
 
 test("operational delivery notes are customer-unsafe unless explicitly opted in", async () => {

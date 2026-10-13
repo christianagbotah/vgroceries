@@ -215,7 +215,7 @@ export class RiderCommandService {
       await tx.riderProfile.update({ where: { id: profile.id }, data: { availabilityState: input.availability, lastAvailabilityChangedAt: new Date(), version: { increment: 1 } } });
       const outcome = { riderProfileId: profile.id, availability: input.availability };
       await tx.auditEvent.create({ data: { actorId: userId, action: "rider.availability", entityId: profile.id, requestId: context.requestId, details: { availability: input.availability } } });
-      await tx.outboxEvent.create({ data: { type: "rider.availability", aggregateId: profile.id, payload: outcome } });
+      await tx.outboxEvent.create({ data: { type: "rider.availability", aggregateId: profile.id, payload: { ...outcome, requestId: context.requestId } } });
       await tx.idempotency.create({ data: { actorId: userId, operation: RIDER_OPERATION, key: context.idempotencyKey, requestHash: hash, outcome } });
       return outcome;
     }, { timeout: 15_000 });
