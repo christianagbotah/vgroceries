@@ -49,13 +49,19 @@ function paymentBlocked(code: string, message: string): never {
 
 @Injectable()
 export class FulfilmentCommandService {
+  private readonly paymentCapture: PaymentCaptureService;
+  private readonly stockDepletion: StockDepletionService;
+
   constructor(
     private readonly db: Database,
     private readonly coverage: ClaimCoverageService,
     private readonly policy: FulfilmentPolicyService,
-    private readonly paymentCapture: PaymentCaptureService,
-    private readonly stockDepletion: StockDepletionService,
-  ) {}
+    paymentCapture?: PaymentCaptureService,
+    stockDepletion?: StockDepletionService,
+  ) {
+    this.paymentCapture = paymentCapture ?? new PaymentCaptureService();
+    this.stockDepletion = stockDepletion ?? new StockDepletionService(coverage);
+  }
 
   private response(
     orderId: string,
