@@ -49,6 +49,6 @@ Picking and packing do **not** reduce physical stock. Stock leaves inventory onl
 
 ## 5. Current verified checkpoint
 
-Before this documentation refresh, implementation SHA `f07f86c098460285e9b73a8963d3fad5204b99c6` on `feat/fulfilment-handover-20261012` passed both GitHub Actions workflows associated with PR #12. PostgreSQL 17 applied migrations 001–006; the API suite passed 267/267; production OpenAPI generated twice at 35 paths with zero drift; and root CI passed lint, typecheck, production build, 50 Bun regressions, 24 handoff assertions, 32 contract checks, 24 acceptance checks and a 58/58 route sweep.
+Latest reviewed code checkpoint before these documentation-only commits is `ef6762423ded43bc3fe6f3083ce7e94941566d89` on `feat/fulfilment-handover-20261012`. PostgreSQL 17 applied migrations 001–006; the API suite passed **268/268**, including the pre-merge variant-provenance regression; production OpenAPI generated twice at **35 paths** with zero drift; API foundation run `38396198571` succeeded; and root CI run `38396198558` passed lint, typecheck, production build, **48/48** static generation, **50/50** Bun regressions with **460** expectations, **24/24** handoff assertions, **32/32** contract checks, **24/24** acceptance checks and a **58/58** route sweep.
 
 See `docs/HANDOFF.md` for the next implementation sequence and `docs/VERIFICATION.md` for the evidence record.
