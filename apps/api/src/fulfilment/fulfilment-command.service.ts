@@ -16,6 +16,7 @@ import {
   normalizeNote,
   normalizePickedQuantity,
   type FulfilmentCommandContext,
+  type PackCommandInput,
   type PickCommandInput,
   validateContext,
 } from "./fulfilment.values";
@@ -376,5 +377,76 @@ export class FulfilmentCommandService {
         return this.response(orderId, "picking");
       },
     );
+  }
+
+  async pack(
+    orderId: string,
+    input: PackCommandInput,
+    context: FulfilmentCommandContext,
+  ): Promise<FulfilmentActionResponse> {
+    const note = normalizeNote(input.note);
+    return this.execute("pack", orderId, context, { note }, async (tx, order) => {
+      if (order.fulfilmentStatus !== "picking")
+        conflict("Order must be actively picking before it can be packed.");
+      const run = await tx.fulfilmentRun.findUnique({ where: { orderId } });
+      if (!run || !run.pickingStartedAt)
+        conflict("Fulfilment run is missing picking provenance.");
+      if (run.packedAt || run.packedBy)
+        conflict("Fulfilment run is already packed.");
+
+      const locked = await this.lockCoverage(tx, order, run.locationId);
+      const reservationIds = locked.coverage.reservations.map((row) => row.id);
+      const picks = await tx.fulfilmentPick.findMany({
+        where: { reservationId: { in: reservationIds } },
+        orderBy: { reservationId: "asc" },
+      });
+      if (picks.length !== reservationIds.length)
+        ruleViolation("Every active reservation must be picked before packing.");
+
+      const pickByReservation = new Map(picks.map((pick) => [pick.reservationId, pick]));
+      for (const reservation of locked.coverage.reservations) {
+        const pick = pickByReservation.get(reservation.id);
+        if (!pick)
+          ruleViolation("Every active reservation must be picked before packing.");
+        if (
+          pick.orderId !== order.id ||
+          pick.fulfilmentRunId !== run.id ||
+          pick.orderLineId !== reservation.claimLineId ||
+          pick.variantId !== reservation.variantId ||
+          pick.lotId !== reservation.lotId ||
+          !pick.quantity.eq(reservation.quantity)
+        ) {
+          reservationLost("Recorded pick provenance no longer matches the active reservation.");
+        }
+        if (pick.state !== "picked" || !pick.pickedQuantity.eq(reservation.quantity))
+          ruleViolation("All shortages must be resolved before packing.");
+      }
+
+      const targetStatus = order.fulfilment === "delivery" ? "packed" : "ready_for_collection";
+      const now = new Date();
+      await tx.fulfilmentRun.update({
+        where: { orderId },
+        data: {
+          packedBy: context.actorId,
+          packedAt: now,
+          packNote: note,
+          version: { increment: 1 },
+        },
+      });
+      await tx.order.update({
+        where: { id: orderId },
+        data: { fulfilmentStatus: targetStatus, version: { increment: 1 } },
+      });
+      await this.recordTransition(
+        tx,
+        context,
+        order,
+        "fulfilment.packed",
+        targetStatus,
+        note,
+        { locationId: run.locationId },
+      );
+      return this.response(orderId, targetStatus);
+    });
   }
 }
