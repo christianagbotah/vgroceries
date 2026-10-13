@@ -281,6 +281,9 @@ export const dispatchProviderTransitionRequestSchema = z.object({
   if (value.action !== "failed" && value.failureReason) {
     ctx.addIssue({ code: "custom", path: ["failureReason"], message: "Failure reason is only accepted for failure." });
   }
+  if (value.action === "failed" && value.failureReason === "other" && !value.note) {
+    ctx.addIssue({ code: "custom", path: ["note"], message: "A note is required when failure reason is other." });
+  }
 });
 
 export const dispatchListQuerySchema = z.object({

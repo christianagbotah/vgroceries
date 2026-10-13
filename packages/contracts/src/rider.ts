@@ -136,7 +136,11 @@ export const riderDeliverRequestSchema = z.object({
 export const riderFailRequestSchema = z.object({
   reason: dispatchFailureReasonSchema,
   note: noteSchema.optional(),
-}).strict();
+}).strict().superRefine((value, ctx) => {
+  if (value.reason === "other" && !value.note) {
+    ctx.addIssue({ code: "custom", path: ["note"], message: "A note is required when failure reason is other." });
+  }
+});
 export const riderNoteRequestSchema = z.object({ note: noteSchema }).strict();
 
 export const riderSelfResponseSchema = z.object({

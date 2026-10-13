@@ -123,3 +123,10 @@ test("dispatch contracts require truthful proof and bounded failure reason", () 
   assert.equal(riderFailRequestSchema.safeParse({ reason: "customer_refused" }).success, true);
   assert.equal(riderFailRequestSchema.safeParse({ reason: "made_up_reason" }).success, false);
 });
+
+test("other failure reason requires an explanatory note", () => {
+  assert.equal(riderFailRequestSchema.safeParse({ reason: "other" }).success, false);
+  assert.equal(riderFailRequestSchema.safeParse({ reason: "other", note: "Road was unexpectedly blocked" }).success, true);
+  assert.equal(dispatchProviderTransitionRequestSchema.safeParse({ action: "failed", failureReason: "other" }).success, false);
+  assert.equal(dispatchProviderTransitionRequestSchema.safeParse({ action: "failed", failureReason: "other", note: "Courier reported a security closure" }).success, true);
+});
