@@ -1,6 +1,85 @@
 # Verification record
 
-This file records the current authoritative verification checkpoints for Variety Groceries. Detailed older prototype/browser history remains available in git history; the records below describe the production backend and the frontend continuation wave that the current branch actually depends on.
+This file records the current authoritative verification checkpoints for Variety Groceries. Detailed older prototype/browser history remains available in git history; the records below describe the production backend and the frontend compatibility evidence the current branch actually depends on.
+
+## Dispatch + Rider Authority — 13 October 2026
+
+**Branch:** `feat/dispatch-rider-authority-20261013`
+**Reviewed implementation checkpoint before this documentation commit:** `40ff740ea5a01ef4b3792f49955362884e57d966`
+**Base:** Fulfilment + Stock Handover Authority merged on `main` as `7be1b0fdfc457763704512bae5a2bba685369279`
+
+### Local clean-room PostgreSQL / API gate
+
+A brand-new isolated database on the authorized VPS PostgreSQL **18.1** cluster was used for the final local run. Migrations applied in order:
+
+1. `202610100001_foundation`
+2. `202610100002_commerce_reservation_core`
+3. `202610100003_checkout_orders_authority`
+4. `202610100004_payments_authority`
+5. `202610100005_refunds_authority`
+6. `202610120006_fulfilment_stock_handover`
+7. `202610130007_dispatch_rider_authority`
+
+Observed local results:
+
+| Check | Result |
+|---|---:|
+| PostgreSQL migrations | **7/7 applied** |
+| API integration/security/concurrency suite | **318 passed, 0 failed** |
+| Production OpenAPI | **57 paths** |
+| Dispatch/Rider additive surface | **22 paths** |
+| OpenAPI deterministic regeneration | **PASS — two byte-identical generations** |
+| Committed OpenAPI drift check | **PASS** |
+| Dispatch source authority scan | **PASS — 11 source files** |
+
+The source scan found no Dispatch/Rider import or call to `StockDepletionService`, `consumeClaim`, payment capture, COD cash/remittance fields, GPS/ETA or provider-network code. The API suite separately proves that pickup/failure/reschedule/return do not mutate inventory, delivery does not settle COD payment, ownership is session-derived, races serialize safely and audit/outbox failures roll back atomically.
+
+The repository's GitHub API workflow runs PostgreSQL **17**. The draft PR's fresh successful API workflow is the required PostgreSQL-17 evidence before merge readiness; the local PostgreSQL 18.1 run is intentionally recorded as local evidence only, not as a substitute.
+
+### Root CI / frontend compatibility gate
+
+Fresh local results from the same reviewed branch:
+
+| Check | Result |
+|---|---:|
+| ESLint | **PASS** |
+| TypeScript `tsc --noEmit --incremental false` | **PASS** |
+| Next.js production build | **PASS** |
+| Static page generation | **48/48** |
+| Handoff regression assertions | **24/24** |
+| Bun regression tests | **50/50** — 460 expectations across 5 files |
+| Shared contract checks | **32/32** |
+| Business-rule acceptance checks | **24/24** |
+| Production-server route sweep | **58/58 HTTP 200** |
+
+Because port 3000 was already occupied by an unrelated running Next.js service on the shared VPS, the branch's local production server was isolated on port 33013 for contract/acceptance/route-sweep checks rather than disturbing the existing process. GitHub CI will execute the repository's exact clean-runner port-3000 workflow.
+
+### Review findings — RED to GREEN
+
+Two mandatory-review defects were fixed with explicit regression evidence before readiness:
+
+1. **Failure reason `other` required no explanation.** The request contract was tightened in `a1eea7b`, then the invariant was enforced at the PostgreSQL layer in `6e31ad1`. Contract and schema tests prove that `other` without a bounded explanatory note fails closed.
+2. **Two exact OpenAPI authority tests still pinned the pre-Dispatch 35-path surface.** The first complete post-Dispatch suite provided RED evidence: **318 tests ran, 316 passed, 2 failed**, and both failures were the stale exact-path assertions in `commerce-authority.spec.ts` and `foundation.spec.ts`. No business-logic/concurrency/stock/payment/rider test failed. Commit `40ff740` updated only those authority expectations. A focused rerun passed **46/46**, followed by the clean full run passing **318/318**.
+
+### Proven Dispatch + Rider invariants
+
+The current backend verification establishes these boundaries:
+
+- Dispatch eligibility begins only after authoritative delivery handover and existing `stockConsumedAt`;
+- rider pickup changes custody but never performs another stock depletion;
+- one order cannot acquire two delivery jobs and one rider cannot own conflicting active jobs;
+- rider identity comes from the authenticated session, never a trusted request-body rider ID;
+- reassignment/unassignment is blocked after physical custody leaves dispatch;
+- delivery requires supported proof metadata and advances delivery/fulfilment without marking COD paid;
+- failed/rescheduled/return-to-store paths do not restore inventory;
+- physical return receipt to store custody still awaits future Returns inspection/disposition before any restock;
+- manual provider transitions are explicit staff-recorded evidence and make zero provider network calls;
+- delivery/failure races have one winner, retries do not duplicate events/proof and audit/outbox faults roll the transaction back;
+- production OpenAPI exposes exactly 9 admin-dispatch + 3 admin-rider + 10 rider-self-service paths, with COD remittance/Returns/POS/live-provider webhooks still absent.
+
+### Deliberately not verified as production-live
+
+The successful gates above do **not** claim that COD cash collection/remittance, physical Returns/restocking, POS cashier authority, live courier network integrations, GPS/ETA, proof-media storage, production Hubtel credentials/webhooks, SMS/email/push, live AI execution or complete public-storefront backend cutover are live.
 
 ## Fulfilment + Stock Handover Authority — 13 October 2026
 
