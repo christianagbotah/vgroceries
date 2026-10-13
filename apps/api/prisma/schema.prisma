@@ -26,6 +26,7 @@ model User {
   locations UserLocation[]
   customerAddresses CustomerAddress[]
   orders Order[]
+  riderProfile RiderProfile?
 }
 
 model Session {
@@ -391,6 +392,8 @@ model Order {
   paymentAttempts PaymentAttempt[]
   refunds Refund[]
   fulfilmentRun FulfilmentRun?
+  deliveryJob DeliveryJob?
+  deliveryEvents DeliveryEvent[]
   @@index([customerUserId, createdAt])
   @@index([guestSessionId, createdAt])
   @@index([zoneId, createdAt])
@@ -681,4 +684,84 @@ model StockDepletionLine {
   createdAt DateTime @default(now()) @db.Timestamptz(3)
   @@index([depletionId, id])
   @@index([lotId, createdAt])
+}
+
+
+model RiderProfile {
+  id String @id @default(uuid())
+  userId String @unique
+  user User @relation(fields: [userId], references: [id])
+  phone String
+  kind String
+  vehicle String
+  availabilityState String @default("offline")
+  lastAvailabilityChangedAt DateTime @db.Timestamptz(3)
+  version Int @default(1)
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+  jobs DeliveryJob[]
+  @@index([availabilityState, updatedAt])
+}
+
+model DeliveryJob {
+  id String @id @default(uuid())
+  orderId String @unique
+  order Order @relation(fields: [orderId], references: [id])
+  assignmentKind String
+  riderProfileId String?
+  riderProfile RiderProfile? @relation(fields: [riderProfileId], references: [id])
+  providerKey String?
+  providerNameSnapshot String?
+  manualProviderReference String?
+  status String
+  custodyState String
+  assignedBy String
+  assignedAt DateTime @db.Timestamptz(3)
+  acceptedAt DateTime? @db.Timestamptz(3)
+  pickedUpAt DateTime? @db.Timestamptz(3)
+  outForDeliveryAt DateTime? @db.Timestamptz(3)
+  deliveredAt DateTime? @db.Timestamptz(3)
+  failedAt DateTime? @db.Timestamptz(3)
+  failureReasonCode String?
+  failureNote String?
+  rescheduledFor DateTime? @db.Timestamptz(3)
+  returnedToStoreAt DateTime? @db.Timestamptz(3)
+  version Int @default(1)
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+  events DeliveryEvent[]
+  proof DeliveryProof?
+  @@index([status, updatedAt])
+  @@index([riderProfileId, status, updatedAt])
+}
+
+model DeliveryEvent {
+  id String @id @default(uuid())
+  deliveryJobId String
+  deliveryJob DeliveryJob @relation(fields: [deliveryJobId], references: [id])
+  orderId String
+  order Order @relation(fields: [orderId], references: [id])
+  actorKind String
+  actorId String?
+  action String
+  fromStatus String?
+  toStatus String?
+  note String?
+  safeMetadata Json
+  requestId String
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  @@index([deliveryJobId, createdAt])
+  @@index([orderId, createdAt])
+}
+
+model DeliveryProof {
+  id String @id @default(uuid())
+  deliveryJobId String @unique
+  deliveryJob DeliveryJob @relation(fields: [deliveryJobId], references: [id])
+  method String
+  reference String?
+  note String?
+  recordedByKind String
+  recordedById String?
+  recordedAt DateTime @db.Timestamptz(3)
 }
