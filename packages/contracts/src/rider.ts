@@ -123,6 +123,10 @@ export type RiderJobsQuery = z.infer<typeof riderJobsQuerySchema>;
 export const riderAvailabilityRequestSchema = z.object({
   availability: riderDeclaredAvailabilitySchema,
 }).strict();
+export const riderAvailabilityResponseSchema = z.object({
+  riderProfileId: z.string().min(1),
+  availability: riderDeclaredAvailabilitySchema,
+}).strict();
 export const riderAcceptRequestSchema = z.object({}).strict();
 export const riderPickupRequestSchema = z.object({ note: noteSchema.optional() }).strict();
 export const riderOutRequestSchema = z.object({ note: noteSchema.optional() }).strict();
@@ -205,6 +209,7 @@ export const riderActionResponseSchema = z.object({
 }).strict();
 
 export type RiderAvailabilityRequest = z.infer<typeof riderAvailabilityRequestSchema>;
+export type RiderAvailabilityResponse = z.infer<typeof riderAvailabilityResponseSchema>;
 export type RiderAcceptRequest = z.infer<typeof riderAcceptRequestSchema>;
 export type RiderPickupRequest = z.infer<typeof riderPickupRequestSchema>;
 export type RiderOutRequest = z.infer<typeof riderOutRequestSchema>;

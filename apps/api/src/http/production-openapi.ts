@@ -8,6 +8,18 @@ import type {
   SecurityRequirementObject,
 } from "@nestjs/swagger/dist/interfaces/open-api-spec.interface";
 import {
+  dispatchActionResponseSchema,
+  dispatchAssignRequestSchema,
+  dispatchJobDetailResponseSchema,
+  dispatchProviderTransitionRequestSchema,
+  dispatchQueueResponseSchema,
+  dispatchReassignRequestSchema,
+  dispatchRescheduleRequestSchema,
+  dispatchReturnRequestSchema,
+  dispatchReturnedRequestSchema,
+  dispatchRiderDetailResponseSchema,
+  dispatchRiderFleetResponseSchema,
+  dispatchUnassignRequestSchema,
   fulfilmentActionResponseSchema,
   fulfilmentConfirmRequestSchema,
   fulfilmentDetailResponseSchema,
@@ -16,6 +28,18 @@ import {
   fulfilmentPickRequestSchema,
   fulfilmentQueueResponseSchema,
   fulfilmentStartPickingRequestSchema,
+  riderAcceptRequestSchema,
+  riderActionResponseSchema,
+  riderAvailabilityRequestSchema,
+  riderAvailabilityResponseSchema,
+  riderDeliverRequestSchema,
+  riderFailRequestSchema,
+  riderJobResponseSchema,
+  riderJobsResponseSchema,
+  riderNoteRequestSchema,
+  riderOutRequestSchema,
+  riderPickupRequestSchema,
+  riderSelfResponseSchema,
   createGenerationRequestSchema,
   createProductDraftRequestSchema,
   reorderGalleryRequestSchema,
@@ -43,14 +67,14 @@ const replay: ParameterObject = {
   name: "Idempotency-Key",
   in: "header",
   required: true,
-  description: "Durable administrator-scoped replay key for this fulfilment command.",
+  description: "Durable actor-scoped replay key for this mutation.",
   schema: { type: "string", minLength: 8, maxLength: 128 },
 };
 const csrf: ParameterObject = {
   name: "X-CSRF-Token",
   in: "header",
   required: false,
-  description: "Required for administrator web-cookie mutation flows alongside a trusted Origin.",
+  description: "Required for web-cookie mutation flows alongside a trusted Origin.",
   schema: { type: "string", minLength: 1 },
 };
 
@@ -90,6 +114,58 @@ function mutation(
   };
 }
 
+function authorityResponses(schemaName: string) {
+  return {
+    "200": response(schemaName),
+    "400": errorResponse,
+    "401": errorResponse,
+    "403": errorResponse,
+    "404": errorResponse,
+    "409": errorResponse,
+    "413": errorResponse,
+    "422": errorResponse,
+    "429": errorResponse,
+    "500": errorResponse,
+    "503": errorResponse,
+  };
+}
+
+function authorityMutation(
+  description: string,
+  requestSchema: string,
+  responseSchema: string,
+  pathParameters: ParameterObject[] = [],
+): OperationObject {
+  return {
+    security,
+    description,
+    parameters: [...pathParameters, replay, csrf],
+    requestBody: { required: true, content: { "application/json": { schema: ref(requestSchema) } } },
+    responses: authorityResponses(responseSchema),
+  };
+}
+
+function readOperation(
+  description: string,
+  responseSchema: string,
+  parameters: ParameterObject[] = [],
+): OperationObject {
+  return {
+    security,
+    description,
+    parameters,
+    responses: {
+      "200": response(responseSchema),
+      "400": errorResponse,
+      "401": errorResponse,
+      "403": errorResponse,
+      "404": errorResponse,
+      "500": errorResponse,
+      "503": errorResponse,
+    },
+  };
+}
+
 export function productionOpenApi(app: INestApplication): OpenAPIObject {
   const doc = foundationOpenApi(app);
   const schemas = doc.components!.schemas as Record<string, SchemaObject>;
@@ -103,6 +179,30 @@ export function productionOpenApi(app: INestApplication): OpenAPIObject {
     FulfilmentQueueResponse: json(fulfilmentQueueResponseSchema),
     FulfilmentDetailResponse: json(fulfilmentDetailResponseSchema),
     FulfilmentActionResponse: json(fulfilmentActionResponseSchema),
+    DispatchAssignRequest: json(dispatchAssignRequestSchema),
+    DispatchUnassignRequest: json(dispatchUnassignRequestSchema),
+    DispatchReassignRequest: json(dispatchReassignRequestSchema),
+    DispatchRescheduleRequest: json(dispatchRescheduleRequestSchema),
+    DispatchReturnRequest: json(dispatchReturnRequestSchema),
+    DispatchReturnedRequest: json(dispatchReturnedRequestSchema),
+    DispatchProviderTransitionRequest: json(dispatchProviderTransitionRequestSchema),
+    DispatchQueueResponse: json(dispatchQueueResponseSchema),
+    DispatchJobDetailResponse: json(dispatchJobDetailResponseSchema),
+    DispatchRiderFleetResponse: json(dispatchRiderFleetResponseSchema),
+    DispatchRiderDetailResponse: json(dispatchRiderDetailResponseSchema),
+    DispatchActionResponse: json(dispatchActionResponseSchema),
+    RiderAvailabilityRequest: json(riderAvailabilityRequestSchema),
+    RiderAvailabilityResponse: json(riderAvailabilityResponseSchema),
+    RiderAcceptRequest: json(riderAcceptRequestSchema),
+    RiderPickupRequest: json(riderPickupRequestSchema),
+    RiderOutRequest: json(riderOutRequestSchema),
+    RiderDeliverRequest: json(riderDeliverRequestSchema),
+    RiderFailRequest: json(riderFailRequestSchema),
+    RiderNoteRequest: json(riderNoteRequestSchema),
+    RiderSelfResponse: json(riderSelfResponseSchema),
+    RiderJobResponse: json(riderJobResponseSchema),
+    RiderJobsResponse: json(riderJobsResponseSchema),
+    RiderActionResponse: json(riderActionResponseSchema),
     CreateGenerationRequest: json(createGenerationRequestSchema),
     CreateProductDraftRequest: json(createProductDraftRequestSchema),
     SetFeaturedMediaRequest: json(setFeaturedMediaRequestSchema),
@@ -153,6 +253,8 @@ export function productionOpenApi(app: INestApplication): OpenAPIObject {
   });
   for (const name of [
     "FulfilmentQueueResponse", "FulfilmentDetailResponse", "FulfilmentActionResponse",
+    "DispatchQueueResponse", "DispatchJobDetailResponse", "DispatchRiderFleetResponse", "DispatchRiderDetailResponse", "DispatchActionResponse",
+    "RiderAvailabilityResponse", "RiderSelfResponse", "RiderJobResponse", "RiderJobsResponse", "RiderActionResponse",
     "ProductDraftResponse", "ProductMediaView", "ImageGenerationJobView", "AdminProductMediaView",
   ])
     schemas[name + "Envelope"] = {
@@ -163,7 +265,7 @@ export function productionOpenApi(app: INestApplication): OpenAPIObject {
     };
 
   doc.info.description =
-    "Implemented production subset: identity, catalogue, Product Media upload/review plus queued image-generation authority, inventory receiving, delivery configuration, authoritative checkout/orders, provider-neutral Payments Authority, provider-neutral Refunds Authority, and administrator Fulfilment + Stock Handover Authority. Image-generation worker execution, courier dispatch, COD collection/remittance, physical returns, POS cash authority and public storefront cutover remain closed.";
+    "Implemented production subset: identity, catalogue, Product Media upload/review plus queued image-generation authority, inventory receiving, delivery configuration, authoritative checkout/orders, provider-neutral Payments Authority, provider-neutral Refunds Authority, Fulfilment + Stock Handover Authority, and Dispatch + Rider Authority. COD cash collection/remittance, physical returns/restocking, POS cash authority, live courier providers, GPS/ETA/route optimization, notifications and complete public storefront cutover remain closed.";
 
   const productId: ParameterObject = { name: "productId", in: "path", required: true, schema: { type: "string", minLength: 1 } };
   const mediaId: ParameterObject = { name: "mediaId", in: "path", required: true, schema: { type: "string", minLength: 1 } };
@@ -206,6 +308,7 @@ export function productionOpenApi(app: INestApplication): OpenAPIObject {
     schema: { type: "string", minLength: 8, maxLength: 128, pattern: "^[A-Za-z0-9:_-]{8,128}$" },
   };
   const jobId: ParameterObject = { name: "jobId", in: "path", required: true, schema: { type: "string", minLength: 1 } };
+  const riderProfileId: ParameterObject = { name: "riderProfileId", in: "path", required: true, schema: { type: "string", minLength: 1 } };
   doc.paths["/api/v1/admin/catalog/products/{productId}/media/generations"] = {
     post: {
       security,
@@ -354,6 +457,37 @@ export function productionOpenApi(app: INestApplication): OpenAPIObject {
       "FulfilmentHandoverRequest",
     ),
   };
+
+  doc.paths["/api/v1/admin/dispatch"] = { get: readOperation("Administrator-only bounded dispatch queue after authoritative fulfilment handover. Assignment and delivery operations never deplete stock again.", "DispatchQueueResponseEnvelope", [
+    { name: "page", in: "query", schema: { type: "integer", minimum: 1, maximum: 1000000, default: 1 } },
+    { name: "perPage", in: "query", schema: { type: "integer", minimum: 1, maximum: 100, default: 25 } },
+    { name: "status", in: "query", schema: { type: "string", enum: ["unassigned", "assigned", "accepted", "picked_up", "out_for_delivery", "delivered", "failed", "rescheduled", "return_to_store"] } },
+  ]) };
+  doc.paths["/api/v1/admin/dispatch/jobs/{jobId}"] = { get: readOperation("Administrator-only delivery job detail with custody, proof metadata, timeline, blockers and server-derived actions.", "DispatchJobDetailResponseEnvelope", [jobId]) };
+  doc.paths["/api/v1/admin/dispatch/orders/{orderId}/assign"] = { post: authorityMutation("Administrator-only assignment after fulfilment handover. This operation does not change inventory or payment state.", "DispatchAssignRequest", "DispatchActionResponseEnvelope", [orderId]) };
+  doc.paths["/api/v1/admin/dispatch/jobs/{jobId}/unassign"] = { post: authorityMutation("Administrator-only custody-safe pre-pickup unassignment.", "DispatchUnassignRequest", "DispatchActionResponseEnvelope", [jobId]) };
+  doc.paths["/api/v1/admin/dispatch/jobs/{jobId}/reassign"] = { post: authorityMutation("Administrator-only custody-safe rider or manual-provider reassignment.", "DispatchReassignRequest", "DispatchActionResponseEnvelope", [jobId]) };
+  doc.paths["/api/v1/admin/dispatch/jobs/{jobId}/reschedule"] = { post: authorityMutation("Administrator-only reschedule of a failed delivery without inventory reversal.", "DispatchRescheduleRequest", "DispatchActionResponseEnvelope", [jobId]) };
+  doc.paths["/api/v1/admin/dispatch/jobs/{jobId}/return-to-store"] = { post: authorityMutation("Administrator-only return-to-store instruction. Goods remain outside sellable inventory pending future Returns inspection.", "DispatchReturnRequest", "DispatchActionResponseEnvelope", [jobId]) };
+  doc.paths["/api/v1/admin/dispatch/jobs/{jobId}/returned-to-store"] = { post: authorityMutation("Administrator-only acknowledgement that goods physically returned to store. This does not restock inventory.", "DispatchReturnedRequest", "DispatchActionResponseEnvelope", [jobId]) };
+  doc.paths["/api/v1/admin/dispatch/jobs/{jobId}/provider-transition"] = { post: authorityMutation("Administrator-only manually evidenced courier-provider milestone. No live provider network call is made.", "DispatchProviderTransitionRequest", "DispatchActionResponseEnvelope", [jobId]) };
+
+  doc.paths["/api/v1/admin/riders"] = { get: readOperation("Administrator-only rider fleet with declared availability and server-derived busy state.", "DispatchRiderFleetResponseEnvelope") };
+  doc.paths["/api/v1/admin/riders/{riderProfileId}"] = { get: readOperation("Administrator-only rider operational profile detail.", "DispatchRiderDetailResponseEnvelope", [riderProfileId]) };
+  doc.paths["/api/v1/admin/riders/{riderProfileId}/availability"] = { put: authorityMutation("Administrator-only rider declared availability change. Busy remains derived from active delivery ownership.", "RiderAvailabilityRequest", "RiderAvailabilityResponseEnvelope", [riderProfileId]) };
+
+  doc.paths["/api/v1/rider/me"] = { get: readOperation("Rider-only authenticated self profile. Identity comes from the session, never a browser-supplied rider id.", "RiderSelfResponseEnvelope") };
+  doc.paths["/api/v1/rider/me/availability"] = { put: authorityMutation("Rider-only declared availability change for the authenticated rider.", "RiderAvailabilityRequest", "RiderAvailabilityResponseEnvelope") };
+  doc.paths["/api/v1/rider/jobs"] = { get: readOperation("Rider-only jobs for the authenticated rider. Use scope=history for completed/returned history without a separate identity-bearing route.", "RiderJobsResponseEnvelope", [
+    { name: "scope", in: "query", schema: { type: "string", enum: ["active", "history"], default: "active" } },
+  ]) };
+  doc.paths["/api/v1/rider/jobs/{jobId}"] = { get: readOperation("Rider-only owned job detail; guessed foreign job identifiers are not disclosed.", "RiderJobResponseEnvelope", [jobId]) };
+  doc.paths["/api/v1/rider/jobs/{jobId}/accept"] = { post: authorityMutation("Rider-only acceptance of the authenticated rider's assigned job.", "RiderAcceptRequest", "RiderActionResponseEnvelope", [jobId]) };
+  doc.paths["/api/v1/rider/jobs/{jobId}/pickup"] = { post: authorityMutation("Rider-only physical pickup acknowledgement. Stock was already consumed at fulfilment handover and is not deducted here.", "RiderPickupRequest", "RiderActionResponseEnvelope", [jobId]) };
+  doc.paths["/api/v1/rider/jobs/{jobId}/out-for-delivery"] = { post: authorityMutation("Rider-only transition to out for delivery for the authenticated rider's job.", "RiderOutRequest", "RiderActionResponseEnvelope", [jobId]) };
+  doc.paths["/api/v1/rider/jobs/{jobId}/deliver"] = { post: authorityMutation("Rider-only delivery completion with server-allowed proof. COD payment state is not settled by this delivery action.", "RiderDeliverRequest", "RiderActionResponseEnvelope", [jobId]) };
+  doc.paths["/api/v1/rider/jobs/{jobId}/fail"] = { post: authorityMutation("Rider-only delivery failure with a bounded reason. Failure neither restores stock nor changes payment truth.", "RiderFailRequest", "RiderActionResponseEnvelope", [jobId]) };
+  doc.paths["/api/v1/rider/jobs/{jobId}/notes"] = { post: authorityMutation("Rider-only idempotent operational note for the authenticated rider's job.", "RiderNoteRequest", "RiderActionResponseEnvelope", [jobId]) };
 
   return doc;
 }
