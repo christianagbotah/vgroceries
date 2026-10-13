@@ -190,7 +190,7 @@ export class FulfilmentCommandService {
     await tx.orderEvent.create({
       data: {
         orderId: order.id,
-        actorKind: "admin",
+        actorKind: "staff",
         actorId: context.actorId,
         action,
         fromStatus: order.fulfilmentStatus,
