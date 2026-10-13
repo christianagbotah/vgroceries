@@ -41,6 +41,18 @@ export class DispatchPolicyService {
     return job.status === "return_to_store" && job.custodyState === "store_returned" && Boolean(job.returnedToStoreAt);
   }
 
+  adminJobDecision(job: ReassignableJob): { allowedActions: ("assign" | "unassign" | "reassign" | "reschedule" | "return_to_store" | "receive_returned_goods" | "provider_transition")[]; blockers: string[] } {
+    if (job.status === "unassigned" && job.custodyState === "dispatch") return { allowedActions: ["assign"], blockers: [] };
+    if (job.status === "return_to_store" && job.custodyState === "return_pending")
+      return { allowedActions: ["receive_returned_goods"], blockers: ["return_not_physically_received"] };
+    if (this.canReassign(job)) {
+      const actions: ("unassign" | "reassign" | "reschedule" | "return_to_store" | "provider_transition")[] = ["unassign", "reassign"];
+      if (job.status === "failed") actions.push("reschedule", "return_to_store");
+      return { allowedActions: actions, blockers: [] };
+    }
+    return { allowedActions: [], blockers: ["custody_not_safe_for_reassignment"] };
+  }
+
   assertRiderAssignable(input: { availabilityState: RiderDeclaredAvailability; userActive: boolean; hasActiveJob: boolean }) {
     const state = this.effectiveRiderState(input);
     if (state === "offline") rule("Rider is offline.");
