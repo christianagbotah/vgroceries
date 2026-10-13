@@ -9,8 +9,8 @@ Repository: https://github.com/christianagbotah/vgroceries
 |---|---|
 | Branch | `feat/zai-dispatch-rider-readiness-20261013` |
 | Base | `main` @ `7be1b0f` (Fulfilment + Stock Handover Authority #12) |
-| Pull request | *(opened at wave completion — see PR reference in the final report; NOT merged by design)* |
-| Final SHA | *(recorded in the PR description at push time)* |
+| Pull request | **#13** — https://github.com/christianagbotah/vgroceries/pull/13 (open, NOT merged by design) |
+| Final SHA | `564046050ff0120fbd1e1a65c65bca4c2fafc41e` (2 commits, 62 changed files; +1 docs commit recording this PR) |
 
 The PR is intentionally left open for the backend architect's review. Nothing
 was merged into `main` by this wave.
