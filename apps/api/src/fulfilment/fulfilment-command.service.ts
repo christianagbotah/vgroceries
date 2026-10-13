@@ -9,6 +9,8 @@ import { Database } from "../database/database";
 import { ApiProblem } from "../http/errors";
 import { ClaimCoverageService } from "../inventory/claim-coverage.service";
 import type { LockedClaimCoverage } from "../inventory/depletion.types";
+import { StockDepletionService } from "../inventory/stock-depletion.service";
+import { PaymentCaptureService } from "../payments/payment-capture.service";
 import { FulfilmentPolicyService } from "./fulfilment-policy.service";
 import {
   commandHash,
@@ -16,6 +18,7 @@ import {
   normalizeNote,
   normalizePickedQuantity,
   type FulfilmentCommandContext,
+  type HandoverCommandInput,
   type PackCommandInput,
   type PickCommandInput,
   validateContext,
@@ -40,18 +43,30 @@ function ruleViolation(message: string): never {
   throw new ApiProblem(422, "RULE_VIOLATION", message);
 }
 
+function paymentBlocked(code: string, message: string): never {
+  throw new ApiProblem(422, code, message);
+}
+
 @Injectable()
 export class FulfilmentCommandService {
   constructor(
     private readonly db: Database,
     private readonly coverage: ClaimCoverageService,
     private readonly policy: FulfilmentPolicyService,
+    private readonly paymentCapture: PaymentCaptureService,
+    private readonly stockDepletion: StockDepletionService,
   ) {}
 
-  private response(orderId: string, fulfilmentStatus: string): FulfilmentActionResponse {
+  private response(
+    orderId: string,
+    fulfilmentStatus: string,
+    handover?: { stockConsumedAt: Date; depletionId: string },
+  ): FulfilmentActionResponse {
     return fulfilmentActionResponseSchema.parse({
       orderId,
       fulfilmentStatus,
+      stockConsumedAt: handover?.stockConsumedAt.toISOString(),
+      depletionId: handover?.depletionId,
       allowedActions: this.policy.allowedActions(fulfilmentStatus),
     });
   }
@@ -111,9 +126,8 @@ export class FulfilmentCommandService {
         return this.parseReplay(replay.outcome);
       }
 
-      // Global order lifecycle lock order begins with Order. Cancellation and
-      // handover use the same row first, so no fulfilment side effect can race
-      // a competing terminal transition.
+      // Global order lifecycle lock order begins with Order. Cancellation,
+      // payments and fulfilment use this same authority row first.
       await tx.$queryRaw`SELECT id FROM "Order" WHERE id=${orderId} FOR UPDATE`;
       const order = await tx.order.findUnique({
         where: { id: orderId },
@@ -176,6 +190,78 @@ export class FulfilmentCommandService {
       lines: this.expectedLines(order),
     });
     return { locationId: resolvedLocation, coverage };
+  }
+
+  private async lockRun(tx: Prisma.TransactionClient, orderId: string) {
+    await tx.$queryRaw<Array<{ id: string }>>`
+      SELECT id FROM "FulfilmentRun" WHERE "orderId"=${orderId} FOR UPDATE
+    `;
+    return tx.fulfilmentRun.findUnique({ where: { orderId } });
+  }
+
+  private async requireCompletePicks(
+    tx: Prisma.TransactionClient,
+    order: LockedOrder,
+    runId: string,
+    coverage: LockedClaimCoverage,
+  ) {
+    const reservationIds = coverage.reservations.map((row) => row.id);
+    const picks = await tx.fulfilmentPick.findMany({
+      where: { reservationId: { in: reservationIds } },
+      orderBy: { reservationId: "asc" },
+    });
+    if (picks.length !== reservationIds.length)
+      ruleViolation("Every active reservation must be picked before this action.");
+
+    const pickByReservation = new Map(picks.map((pick) => [pick.reservationId, pick]));
+    for (const reservation of coverage.reservations) {
+      const pick = pickByReservation.get(reservation.id);
+      if (!pick)
+        ruleViolation("Every active reservation must be picked before this action.");
+      if (
+        pick.orderId !== order.id ||
+        pick.fulfilmentRunId !== runId ||
+        pick.orderLineId !== reservation.claimLineId ||
+        pick.variantId !== reservation.variantId ||
+        pick.lotId !== reservation.lotId ||
+        !pick.quantity.eq(reservation.quantity)
+      ) {
+        reservationLost("Recorded pick provenance no longer matches the active reservation.");
+      }
+      if (pick.state !== "picked" || !pick.pickedQuantity.eq(reservation.quantity))
+        ruleViolation("All shortages must be resolved before this action.");
+    }
+  }
+
+  private async assertPaymentHandover(
+    tx: Prisma.TransactionClient,
+    order: LockedOrder,
+  ) {
+    if (order.fulfilment === "collection" && ["cash_counter", "cash_on_delivery"].includes(order.paymentMethod)) {
+      paymentBlocked(
+        "COLLECTION_CASH_UNVERIFIED",
+        "Collection cash settlement is not yet an authorized handover boundary.",
+      );
+    }
+
+    if (order.fulfilment === "delivery" && order.paymentMethod === "cash_on_delivery") {
+      if (!order.zoneId)
+        paymentBlocked("PAYMENT_REQUIRES_REVIEW", "COD delivery is missing delivery-zone authority.");
+      const zone = await tx.deliveryZone.findUnique({ where: { id: order.zoneId } });
+      if (!zone || !zone.active || !zone.codEnabled)
+        paymentBlocked("PAYMENT_REQUIRES_REVIEW", "COD is not enabled for this delivery zone.");
+      return;
+    }
+
+    const financial = await this.paymentCapture.getHandoverCoverage(tx, order.id);
+    if (["requires_review", "refund_pending", "failed", "expired", "refunded"].includes(order.paymentStatus))
+      paymentBlocked("PAYMENT_REQUIRES_REVIEW", "Order payment state requires financial review before handover.");
+    if (financial.liveOrUncertain)
+      paymentBlocked("PAYMENT_PENDING", "Payment or refund evidence is still live or uncertain.");
+    if (financial.retainedMinor < order.totalMinor)
+      paymentBlocked("PAYMENT_INSUFFICIENT", "Verified retained payment does not cover the order total.");
+    if (!["succeeded", "partially_refunded"].includes(order.paymentStatus))
+      paymentBlocked("PAYMENT_REQUIRES_REVIEW", "Order payment projection is inconsistent with verified capture coverage.");
   }
 
   private async recordTransition(
@@ -388,39 +474,14 @@ export class FulfilmentCommandService {
     return this.execute("pack", orderId, context, { note }, async (tx, order) => {
       if (order.fulfilmentStatus !== "picking")
         conflict("Order must be actively picking before it can be packed.");
-      const run = await tx.fulfilmentRun.findUnique({ where: { orderId } });
+      const run = await this.lockRun(tx, orderId);
       if (!run || !run.pickingStartedAt)
         conflict("Fulfilment run is missing picking provenance.");
       if (run.packedAt || run.packedBy)
         conflict("Fulfilment run is already packed.");
 
       const locked = await this.lockCoverage(tx, order, run.locationId);
-      const reservationIds = locked.coverage.reservations.map((row) => row.id);
-      const picks = await tx.fulfilmentPick.findMany({
-        where: { reservationId: { in: reservationIds } },
-        orderBy: { reservationId: "asc" },
-      });
-      if (picks.length !== reservationIds.length)
-        ruleViolation("Every active reservation must be picked before packing.");
-
-      const pickByReservation = new Map(picks.map((pick) => [pick.reservationId, pick]));
-      for (const reservation of locked.coverage.reservations) {
-        const pick = pickByReservation.get(reservation.id);
-        if (!pick)
-          ruleViolation("Every active reservation must be picked before packing.");
-        if (
-          pick.orderId !== order.id ||
-          pick.fulfilmentRunId !== run.id ||
-          pick.orderLineId !== reservation.claimLineId ||
-          pick.variantId !== reservation.variantId ||
-          pick.lotId !== reservation.lotId ||
-          !pick.quantity.eq(reservation.quantity)
-        ) {
-          reservationLost("Recorded pick provenance no longer matches the active reservation.");
-        }
-        if (pick.state !== "picked" || !pick.pickedQuantity.eq(reservation.quantity))
-          ruleViolation("All shortages must be resolved before packing.");
-      }
+      await this.requireCompletePicks(tx, order, run.id, locked.coverage);
 
       const targetStatus = order.fulfilment === "delivery" ? "packed" : "ready_for_collection";
       const now = new Date();
@@ -447,6 +508,80 @@ export class FulfilmentCommandService {
         { locationId: run.locationId },
       );
       return this.response(orderId, targetStatus);
+    });
+  }
+
+  async handover(
+    orderId: string,
+    input: HandoverCommandInput,
+    context: FulfilmentCommandContext,
+  ): Promise<FulfilmentActionResponse> {
+    const note = normalizeNote(input.note);
+    return this.execute("handover", orderId, context, { note }, async (tx, order) => {
+      const expectedStatus = order.fulfilment === "delivery" ? "packed" : "ready_for_collection";
+      if (order.fulfilmentStatus !== expectedStatus)
+        conflict("Order is not in the required packed state for handover.");
+
+      const run = await this.lockRun(tx, orderId);
+      if (!run || !run.packedAt || !run.packedBy)
+        conflict("Fulfilment run is missing packed provenance.");
+      if (run.handedOverAt || run.handedOverBy || run.handoverKind)
+        conflict("Fulfilment run was already handed over.");
+
+      // Financial authority locks PaymentAttempt/Refund evidence after Order
+      // and FulfilmentRun, matching the established Order-first payment order.
+      await this.assertPaymentHandover(tx, order);
+
+      const locked = await this.lockCoverage(tx, order, run.locationId);
+      await this.requireCompletePicks(tx, order, run.id, locked.coverage);
+
+      const depletion = await this.stockDepletion.consumeClaim(tx, {
+        claimType: "order",
+        claimId: order.id,
+        locationId: run.locationId,
+        lines: this.expectedLines(order),
+        kind: order.fulfilment === "delivery" ? "dispatch_handover" : "collection_handover",
+        actorId: context.actorId,
+        requestId: context.requestId,
+      });
+
+      const now = new Date();
+      const targetStatus = order.fulfilment === "delivery" ? "dispatched" : "collected";
+      const handoverKind = order.fulfilment === "delivery" ? "dispatch" : "collection";
+      await tx.fulfilmentRun.update({
+        where: { orderId },
+        data: {
+          handedOverBy: context.actorId,
+          handedOverAt: now,
+          handoverKind,
+          version: { increment: 1 },
+        },
+      });
+      await tx.order.update({
+        where: { id: orderId },
+        data: {
+          fulfilmentStatus: targetStatus,
+          stockConsumedAt: now,
+          version: { increment: 1 },
+        },
+      });
+      await this.recordTransition(
+        tx,
+        context,
+        order,
+        "fulfilment.handed_over",
+        targetStatus,
+        note,
+        {
+          locationId: run.locationId,
+          depletionId: depletion.depletionId,
+          handoverKind,
+        },
+      );
+      return this.response(orderId, targetStatus, {
+        stockConsumedAt: now,
+        depletionId: depletion.depletionId,
+      });
     });
   }
 }
