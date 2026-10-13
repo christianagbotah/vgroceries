@@ -276,7 +276,7 @@ test("detail exposes exact reservation lot pick and fulfilment timeline without 
     orderLineId: fixture.lineId,
     variantId: "var-rice",
     lotId: "lot-rice",
-    lotNumber: "rice",
+    lotNumber: "RICE",
     expectedQuantity: "2",
     pickedQuantity: "1.5",
     pickState: "shortage",
