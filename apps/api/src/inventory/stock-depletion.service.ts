@@ -104,7 +104,10 @@ export class StockDepletionService {
     validateInput(input);
 
     const lockKey = `stock-depletion:${input.claimType}:${input.claimId}`;
-    await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtextextended(${lockKey}, 0))`;
+    await tx.$queryRaw<Array<{ locked: number }>>`
+      SELECT 1::int AS locked
+      FROM pg_advisory_xact_lock(hashtextextended(${lockKey}, 0))
+    `;
 
     const existing = await tx.stockDepletion.findUnique({
       where: {
