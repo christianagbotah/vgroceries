@@ -59,7 +59,7 @@ CREATE TABLE "DeliveryJob" (
   CONSTRAINT "DeliveryJob_failure_note_check" CHECK ("failureNote" IS NULL OR length(btrim("failureNote")) BETWEEN 1 AND 500),
   CONSTRAINT "DeliveryJob_provider_key_check" CHECK ("providerKey" IS NULL OR length(btrim("providerKey")) BETWEEN 1 AND 120),
   CONSTRAINT "DeliveryJob_provider_name_check" CHECK ("providerNameSnapshot" IS NULL OR length(btrim("providerNameSnapshot")) BETWEEN 1 AND 120),
-  CONSTRAINT "DeliveryJob_provider_ref_check" CHECK ("manualProviderReference" IS NULL OR length(btrim("manualProviderReference")) BETWEEN 1 AND 200),
+  CONSTRAINT "DeliveryJob_provider_ref_check" CHECK ("manualProviderReference" IS NULL OR length(btrim("manualProviderReference")) BETWEEN 1 AND 256),
   CONSTRAINT "DeliveryJob_version_positive" CHECK ("version" > 0),
   CONSTRAINT "DeliveryJob_return_received_check" CHECK ("returnedToStoreAt" IS NULL OR "custodyState"='store_returned')
 );
@@ -106,7 +106,7 @@ CREATE TABLE "DeliveryProof" (
   CONSTRAINT "DeliveryProof_pkey" PRIMARY KEY ("id"),
   CONSTRAINT "DeliveryProof_deliveryJobId_fkey" FOREIGN KEY ("deliveryJobId") REFERENCES "DeliveryJob"("id") ON DELETE RESTRICT ON UPDATE CASCADE,
   CONSTRAINT "DeliveryProof_method_check" CHECK ("method" IN ('signature','photo_note')),
-  CONSTRAINT "DeliveryProof_reference_check" CHECK ("reference" IS NULL OR length(btrim("reference")) BETWEEN 1 AND 200),
+  CONSTRAINT "DeliveryProof_reference_check" CHECK ("reference" IS NULL OR length(btrim("reference")) BETWEEN 1 AND 256),
   CONSTRAINT "DeliveryProof_note_check" CHECK ("note" IS NULL OR length(btrim("note")) BETWEEN 1 AND 500),
   CONSTRAINT "DeliveryProof_actor_kind_check" CHECK ("recordedByKind" IN ('staff','rider','system'))
 );

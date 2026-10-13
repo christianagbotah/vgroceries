@@ -45,11 +45,15 @@ export class DispatchPolicyService {
     if (job.status === "unassigned" && job.custodyState === "dispatch") return { allowedActions: ["assign"], blockers: [] };
     if (job.status === "return_to_store" && job.custodyState === "return_pending")
       return { allowedActions: ["receive_returned_goods"], blockers: ["return_not_physically_received"] };
-    if (this.canReassign(job)) {
-      const actions: ("unassign" | "reassign" | "reschedule" | "return_to_store" | "provider_transition")[] = ["unassign", "reassign"];
-      if (job.status === "failed") actions.push("reschedule", "return_to_store");
-      return { allowedActions: actions, blockers: [] };
+    if (job.status === "failed") {
+      const safe = this.canReassign(job);
+      const actions: ("unassign" | "reassign" | "reschedule" | "return_to_store")[] = [];
+      if (safe) actions.push("unassign", "reassign");
+      actions.push("reschedule");
+      if (["rider", "provider"].includes(job.custodyState)) actions.push("return_to_store");
+      return { allowedActions: actions, blockers: safe ? [] : ["custody_not_safe_for_reassignment"] };
     }
+    if (this.canReassign(job)) return { allowedActions: ["unassign", "reassign"], blockers: [] };
     return { allowedActions: [], blockers: ["custody_not_safe_for_reassignment"] };
   }
 

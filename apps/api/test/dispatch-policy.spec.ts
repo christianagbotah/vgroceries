@@ -45,3 +45,12 @@ test("dispatch policy blocks reassignment after physical custody leaves dispatch
   assert.equal(policy.canReassign({ status: "assigned", custodyState: "dispatch", returnedToStoreAt: null }), true);
   assert.equal(policy.canReassign({ status: "return_to_store", custodyState: "store_returned", returnedToStoreAt: new Date() }), true);
 });
+
+test("failed custody permits recovery actions without pretending reassignment is safe", () => {
+  const failed = policy.adminJobDecision({ status: "failed", custodyState: "rider", returnedToStoreAt: null });
+  assert.equal(failed.allowedActions.includes("reschedule"), true);
+  assert.equal(failed.allowedActions.includes("return_to_store"), true);
+  assert.equal(failed.allowedActions.includes("reassign"), false);
+  const returning = policy.adminJobDecision({ status: "return_to_store", custodyState: "return_pending", returnedToStoreAt: null });
+  assert.deepEqual(returning.allowedActions, ["receive_returned_goods"]);
+});

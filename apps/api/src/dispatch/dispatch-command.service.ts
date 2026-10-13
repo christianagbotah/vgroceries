@@ -5,6 +5,10 @@ import {
   type ProductionDispatchAssignRequest,
   type ProductionDispatchReassignRequest,
   type ProductionDispatchUnassignRequest,
+  type ProductionDispatchRescheduleRequest,
+  type ProductionDispatchReturnRequest,
+  type ProductionDispatchReturnedRequest,
+  type DispatchProviderTransitionRequest,
   type RiderAvailabilityRequest,
 } from "@variety/contracts";
 import { Prisma, type DeliveryJob } from "@prisma/client";
@@ -12,10 +16,13 @@ import { Database } from "../database/database";
 import { ApiProblem } from "../http/errors";
 import { DispatchEventService } from "./dispatch-event.service";
 import { DispatchPolicyService } from "./dispatch-policy.service";
+import { ManualProviderService } from "./manual-provider.service";
 import {
   DISPATCH_OPERATION,
   dispatchCommandHash,
   normalizeDispatchNote,
+  normalizeFailureReason,
+  normalizeProof,
   type DispatchCommandContext,
   validateDispatchContext,
 } from "./dispatch.values";
@@ -34,6 +41,7 @@ export class DispatchCommandService {
     private readonly db: Database,
     private readonly policy: DispatchPolicyService,
     private readonly events: DispatchEventService,
+    private readonly manualProvider: ManualProviderService = new ManualProviderService(),
   ) {}
 
   private async advisory(tx: Tx, context: DispatchCommandContext) {
@@ -175,6 +183,81 @@ export class DispatchCommandService {
       } });
       await tx.order.update({ where: { id: orderId }, data: { deliveryStatus: "assigned", version: { increment: 1 } } });
       await this.events.recordTransition(tx, { deliveryJobId: job.id, orderId, actorKind: "staff", actorId: context.actorId, action: "reassigned", fromStatus: job.status, toStatus: "assigned", note, safeMetadata: { assignmentKind: target.assignmentKind, riderProfileId: target.riderProfileId, providerKey: target.providerKey }, requestId: context.requestId });
+      return this.actionResponse(updated);
+    });
+  }
+
+  async reschedule(jobId: string, input: ProductionDispatchRescheduleRequest, context: DispatchCommandContext) {
+    const note = normalizeDispatchNote(input.note);
+    const when = new Date(input.when);
+    if (!Number.isFinite(when.getTime()) || when.getTime() <= Date.now())
+      throw new ApiProblem(400, "VALIDATION_FAILED", "Reschedule time must be a future UTC timestamp.");
+    return this.execute("reschedule", jobId, { when: when.toISOString(), note }, context, (v) => this.parseAction(v), async (tx) => {
+      const orderId = await this.lockOrderForJob(tx, jobId);
+      const job = await this.lockJob(tx, jobId);
+      if (job.status !== "failed") rule("Only a failed delivery can be rescheduled.");
+      const updated = await tx.deliveryJob.update({ where: { id: job.id }, data: { status: "rescheduled", rescheduledFor: when, version: { increment: 1 } } });
+      await tx.order.update({ where: { id: orderId }, data: { deliveryStatus: "rescheduled", version: { increment: 1 } } });
+      await this.events.recordTransition(tx, { deliveryJobId: job.id, orderId, actorKind: "staff", actorId: context.actorId, action: "rescheduled", fromStatus: job.status, toStatus: "rescheduled", note, safeMetadata: { rescheduledFor: when.toISOString() }, requestId: context.requestId });
+      return this.actionResponse(updated);
+    });
+  }
+
+  async returnToStore(jobId: string, input: ProductionDispatchReturnRequest, context: DispatchCommandContext) {
+    const note = normalizeDispatchNote(input.note);
+    return this.execute("return_to_store", jobId, { note }, context, (v) => this.parseAction(v), async (tx) => {
+      const orderId = await this.lockOrderForJob(tx, jobId);
+      const job = await this.lockJob(tx, jobId);
+      if (!["failed", "rescheduled"].includes(job.status) || !["rider", "provider"].includes(job.custodyState))
+        rule("Only failed/rescheduled goods still in rider/provider custody can be instructed to return.");
+      const updated = await tx.deliveryJob.update({ where: { id: job.id }, data: { status: "return_to_store", custodyState: "return_pending", returnedToStoreAt: null, version: { increment: 1 } } });
+      await tx.order.update({ where: { id: orderId }, data: { deliveryStatus: "return_to_store", version: { increment: 1 } } });
+      await this.events.recordTransition(tx, { deliveryJobId: job.id, orderId, actorKind: "staff", actorId: context.actorId, action: "return_to_store", fromStatus: job.status, toStatus: "return_to_store", note, safeMetadata: { custodyState: "return_pending" }, requestId: context.requestId });
+      return this.actionResponse(updated);
+    });
+  }
+
+  async receiveReturnedGoods(jobId: string, input: ProductionDispatchReturnedRequest, context: DispatchCommandContext) {
+    const note = normalizeDispatchNote(input.note);
+    return this.execute("receive_returned_goods", jobId, { note }, context, (v) => this.parseAction(v), async (tx) => {
+      const orderId = await this.lockOrderForJob(tx, jobId);
+      const job = await this.lockJob(tx, jobId);
+      if (job.status !== "return_to_store" || job.custodyState !== "return_pending" || job.returnedToStoreAt)
+        rule("Delivery is not awaiting physical return receipt.");
+      const receivedAt = new Date();
+      const updated = await tx.deliveryJob.update({ where: { id: job.id }, data: { custodyState: "store_returned", returnedToStoreAt: receivedAt, version: { increment: 1 } } });
+      await this.events.recordTransition(tx, { deliveryJobId: job.id, orderId, actorKind: "staff", actorId: context.actorId, action: "returned_goods_received", fromStatus: job.status, toStatus: job.status, note, safeMetadata: { custodyState: "store_returned", returnedAt: receivedAt.toISOString() }, requestId: context.requestId });
+      return this.actionResponse(updated);
+    });
+  }
+
+  async manualProviderTransition(jobId: string, input: DispatchProviderTransitionRequest, context: DispatchCommandContext) {
+    const note = normalizeDispatchNote(input.note);
+    const failureReason = input.failureReason ? normalizeFailureReason(input.failureReason) : null;
+    const proof = input.proof ? normalizeProof(input.proof) : null;
+    return this.execute("manual_provider_transition", jobId, { ...input, note, failureReason, proof }, context, (v) => this.parseAction(v), async (tx) => {
+      const orderId = await this.lockOrderForJob(tx, jobId);
+      const job = await this.lockJob(tx, jobId);
+      this.manualProvider.assertTransition(job, input.action);
+      const now = new Date();
+      let updated: DeliveryJob;
+      if (input.action === "picked_up") {
+        updated = await tx.deliveryJob.update({ where: { id: job.id }, data: { status: "picked_up", custodyState: "provider", pickedUpAt: now, version: { increment: 1 } } });
+      } else if (input.action === "out_for_delivery") {
+        updated = await tx.deliveryJob.update({ where: { id: job.id }, data: { status: "out_for_delivery", custodyState: "provider", outForDeliveryAt: now, version: { increment: 1 } } });
+      } else if (input.action === "failed") {
+        if (!failureReason) rule("Failure reason is required.");
+        updated = await tx.deliveryJob.update({ where: { id: job.id }, data: { status: "failed", failedAt: now, failureReasonCode: failureReason, failureNote: note, version: { increment: 1 } } });
+      } else {
+        if (!proof) rule("Proof is required for delivery completion.");
+        await tx.deliveryProof.create({ data: { deliveryJobId: job.id, method: proof.method, reference: proof.reference, note: proof.note, recordedByKind: "staff", recordedById: context.actorId, recordedAt: now } });
+        updated = await tx.deliveryJob.update({ where: { id: job.id }, data: { status: "delivered", custodyState: "customer", deliveredAt: now, version: { increment: 1 } } });
+      }
+      const orderData = input.action === "delivered"
+        ? { deliveryStatus: "delivered", fulfilmentStatus: "delivered", version: { increment: 1 } }
+        : { deliveryStatus: updated.status, version: { increment: 1 } };
+      await tx.order.update({ where: { id: orderId }, data: orderData });
+      await this.events.recordTransition(tx, { deliveryJobId: job.id, orderId, actorKind: "staff", actorId: context.actorId, action: `provider_${input.action}`, fromStatus: job.status, toStatus: updated.status, note, safeMetadata: { providerKey: job.providerKey, proofMethod: proof?.method ?? null, failureReason }, requestId: context.requestId });
       return this.actionResponse(updated);
     });
   }
