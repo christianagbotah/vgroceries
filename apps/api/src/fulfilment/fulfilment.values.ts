@@ -20,6 +20,10 @@ export interface PackCommandInput {
   note?: string;
 }
 
+export interface HandoverCommandInput {
+  note?: string;
+}
+
 function validation(message: string): never {
   throw new ApiProblem(400, "VALIDATION_FAILED", message);
 }
