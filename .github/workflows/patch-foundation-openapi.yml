@@ -18,8 +18,8 @@ jobs:
         with:
           ref: feat/fulfilment-handover-20261012
       - name: Patch stale foundation OpenAPI assertions
-        shell: python
         run: |
+          python - <<'PY'
           from pathlib import Path
 
           path = Path("apps/api/test/foundation.spec.ts")
@@ -51,6 +51,7 @@ jobs:
           text = text.replace(old_loop, new_loop)
 
           path.write_text(text)
+          PY
       - name: Commit patch
         run: |
           git config user.name "CHRISTIAN AGBOTAH"
