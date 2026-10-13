@@ -1,148 +1,103 @@
 # Verification record
 
-## Frontend continuation wave (12–13 October 2026)
+This file records the current authoritative verification checkpoints for Variety Groceries. Detailed older prototype/browser history remains available in git history; the records below describe the production backend and the frontend continuation wave that the current branch actually depends on.
 
-Branch `feat/zai-frontend-continuation-20261012`. All commands were actually executed; exact
-results below.
+## Fulfilment + Stock Handover Authority — 13 October 2026
 
-| Check | Command | Result |
-|---|---|---|
-| ESLint | `bun run lint` | **PASS — 0 errors, 0 warnings** |
-| Type check | `bunx tsc --noEmit` | **PASS — 0 diagnostics** (strict; includes the extended `packages/contracts` fields) |
-| Production build | `bun run build` | **PASS — strict TypeScript, static prerender of all client-safe pages incl. `/checkout`, `/cart`, `/assistant`, `/account/returns`** |
-| Route sweep (production server) | `node scripts/route-sweep.mjs` | **PASS — 58/58 routes HTTP 200** (56 prior + new `/categories` index + `/assistant`) |
-| Business-rule acceptance suite | `bash scripts/acceptance-checks.sh` | **PASS — 24/24** |
-| Bun regression suites | `bun test scripts/` | **PASS — 50 tests / 460 assertions** (35 prior + 15 new frontend-continuation regressions) |
-| Responsive QA sweep | `node scripts/responsive-sweep.mjs` | **PASS — 19 key routes × 5 viewports (360/390/768/1024/1440), 0 horizontal overflow** — checkout 360px overflow found and fixed (grid `min-width:auto`) |
-| DOM interaction audit | agent-browser eval on key routes | **PASS — every interactive element pointer-cursor, body text 16px, exact active-nav matching on nested routes** |
-| Visual review | VLM review of fulfilment / POS / dispatch / rider / home screenshots | Picking workspace judged production-ready; POS two-area workspace professional; rider job page “highly functional, context-aware” |
-| Evidence | `docs/qa/evidence/zai-frontend-continuation-20261012/` | 21 desktop + 16 mobile + 9 tablet screenshots, captured against the production build (dev-tools badge verified absent) |
+**Branch:** `feat/fulfilment-handover-20261012`  
+**PR:** `#12`  
+**Latest reviewed code checkpoint before documentation-only commits:** `ef6762423ded43bc3fe6f3083ce7e94941566d89`  
+**PR base at verification:** `7723f457b87fa4722da317013d31f225506d166b`
 
-New regression coverage in `scripts/frontend-continuation-regressions.test.ts`:
-fulfilment queue semantics (confirm/pick/picking split, pack empty until a backend picked-state,
-seeded shortage in exceptions with line-level shortage), allowedActions mirroring the state
-machine, packing-never-consumes-stock, dashboard queue-aligned tiles + refunds-attention,
-inventory summary consistency, AI proposedAction on every suggestion (generated + seeded),
-assistant evidence/purchasable-suggestions/budget-cap contract, dispatch queue shape, category
-index data.
+GitHub's pull-request workflows tested synthetic merge commit `66c5626037875d670b146f314d448e328ac3968f`, merging that reviewed head into the PR base. Both workflows completed successfully:
 
-The current NestJS/PostgreSQL foundation verification is recorded in
-[BACKEND_FOUNDATION_CHECKPOINT.md](BACKEND_FOUNDATION_CHECKPOINT.md) (10 October
-2026): 40 real HTTP/database tests, isolated API-only setup/CLI checks and fresh
-web regressions. The earlier prototype records below remain historical.
+- **API foundation** — run `38396198571`: success
+- **CI** — run `38396198558`: success
 
-**Date**: 9 October 2026 (updated after the API-boundary + documentation handoff) · **Environment**:
-Next.js 16.1 (App Router, Turbopack dev), TypeScript 5, Tailwind 4, shadcn/ui, Bun. Checks were
-actually run — nothing below is claimed without a result.
+### PostgreSQL / API authority gate
 
-The independent follow-up to `4260a0d` is in [API_BOUNDARY_CHECKPOINT.md](API_BOUNDARY_CHECKPOINT.md). Historical browser results below were recorded by Z.ai; fresh scoped independent checks are listed in the follow-up.
+The API-foundation job used PostgreSQL 17 and applied all six migrations successfully:
 
-## Automated checks
+1. `202610100001_foundation`
+2. `202610100002_commerce_reservation_core`
+3. `202610100003_checkout_orders_authority`
+4. `202610100004_payments_authority`
+5. `202610100005_refunds_authority`
+6. `202610120006_fulfilment_stock_handover`
 
-| Check | Command | Result |
-|---|---|---|
-| ESLint | `bun run lint` | **PASS — 0 errors, 0 warnings** (after fixing 3 `set-state-in-effect` errors and 2 stale directives) |
-| Type check | `bunx tsc --noEmit --incremental false` | **PASS — 0 diagnostics** (was 40: engine/contract mismatches, missing `apiOps` imports, undefined types, duplicate client-adapter key, unused scaffold) |
-| Production build | `NEXT_TURBOPACK_EXPERIMENTAL_USE_SYSTEM_TLS_CERTS=1 NEXT_TELEMETRY_DISABLED=1 bun run build` | **PASS — compiled with strict TypeScript (no `ignoreBuildErrors` bypass), 47/47 pages prerendered** (was: prerender failure where `useSearchParams()` lacked a Suspense boundary — `/account/returns`, `/track` and `/admin/returns` all fixed) |
-| Route sweep | `node scripts/route-sweep.mjs` | **PASS — 56/56 routes HTTP 200** (storefront, admin, rider + staff login; dynamic detail routes curled with seeded instances) |
-| API smoke | curl operations across catalogue/checkout/orders/POS/inventory/dispatch/returns/refunds/AI/demo | **PASS** — envelopes `{ok,data|error}`, correct error codes |
-| Business-rule acceptance suite | `bash scripts/acceptance-checks.sh` | **PASS — 24/24** (original 21 + catalogue non-empty + admin.returns contract; the suite now aborts on any transport, HTTP-status, or JSON-envelope failure so no assertion can pass on an empty response) |
-| Handoff regression suite | `bun scripts/handoff-regressions.ts` | **PASS — 24/24** assertions covering the review's seven defect classes (unexecuted-refund claim, double restock, duplicate return lines, double refund, released-reservation handover, negative quantities, checkout idempotency) plus the staff returns-list endpoint |
-| Shared-contracts suite | `bun scripts/contracts-check.ts` | **PASS — 32/32** — request schemas reject malformed input (incl. the rider proof-method enum, aligned to the engine contract after the browser check caught a drift), live responses conform to the zod schemas, the operation registry covers all 92 router operations, and the HTTP + in-process adapters agree |
-| OpenAPI validation | YAML parse + ref/duplicate-operationId audit | **PASS — parses, 0 dangling refs, 0 duplicate operationIds (92 operations)** |
-| Bun regression tests | `bun test` | **PASS — 35 tests**: return stock, 92-operation REST mapping, transport errors/timeouts, cache races and backend-mode guards |
-| CI | `.github/workflows/ci.yml` | Lint + type check + production build + all five suites on every push/PR |
+Observed results:
 
-### Acceptance suite results (scripts/acceptance-checks.sh, last run)
+| Check | Result |
+|---|---:|
+| PostgreSQL migrations | **6/6 applied** |
+| API integration/security/concurrency suite | **268 passed, 0 failed** |
+| Production OpenAPI | **35 paths** |
+| OpenAPI deterministic regeneration | **PASS — two byte-identical generations** |
+| Committed OpenAPI drift check | **PASS** |
 
-```
-A. catalog list returns a non-empty total (50) ................................ PASS
-A. sachet-water (zero stock) hidden from catalog list .......................... PASS
-A. zero-stock item hidden from search results .................................. PASS
-A. saved link shows unavailable, purchasing disabled ........................... PASS
-B. chicken availability 0 after online reservation ............................. PASS
-B. POS completion of the reserved final unit rejected (OUT_OF_STOCK) .......... PASS
-C. eggs availability restored after expiry sweep ............................... PASS
-D. replayed completion returns the same receipt (R-00004) ...................... PASS
-D. toffee physical stock consumed exactly once (200−3=197) ..................... PASS
-E. pending payments remain pending (no duplicate charge) ....................... PASS
-E. late paid order routed to requires_review ................................... PASS
-F. ord_1014 partial return preserves the remaining 3 eligible (of 6) .......... PASS
-F. returning beyond eligible rejected (REFUND_LIMIT_EXCEEDED) ................. PASS
-F. duplicate refund request on the same return rejected ....................... PASS
-G. first refund execution records retryable failure ............................ PASS
-G. refund state failed (retryable), not lost ................................... PASS
-G. retry executes the refund successfully ...................................... PASS
-G. order payment status becomes partially_refunded ............................ PASS
-H. yoghurt saleable stock unchanged by damaged/quarantined lots ................ PASS
-I. second payment callback after resolution is a no-op ....................... PASS
-J. COD job carries a separate cash-to-collect amount ........................... PASS
-J. cash not yet collected while delivery in progress ........................... PASS
-K. admin.returns returns the full list without INTERNAL errors (3 rows) ....... PASS
-K. each returns row links to its order (orderId present) ...................... PASS
-RESULT: 24 passed, 0 failed
-```
+The passing API suite includes exact reservation coverage, variant provenance, immutable lot provenance, exactly-once depletion, multiple reservations sharing a lot, physical shortage atomicity, quarantine/expiry rejection, outbox rollback, paid delivery handover, collection handover, eligible delivery COD handover, unpaid/uncertain electronic-payment blocking, pack-without-depletion, shortage/lost-reservation pack blockers, admin-only seven-route workflow, handover-vs-handover race, pack-vs-cancellation race and handover-vs-cancellation race.
 
-## Browser checks of the five required flows (agent-browser, this handoff)
+### Root CI / frontend compatibility gate
 
-All five flows were walked in-browser over the live dev server after the adapter-boundary rewire
-(every screen now goes through the resolved service adapters):
+Observed results from CI run `38396198558`:
 
-| Flow | Walk | Result |
-|---|---|---|
-| **Checkout** | Product page (farm-eggs) → +1 quantity → add to cart → `/checkout` (zone/slot/address/MoMo prefilled demo identity) → place order → **VG-8HWKRB, ₵99.00** → payment prompt → approve → "Thank you — payment confirmed!" | PASS |
-| **POS** | `/admin/pos` → open cashier session (float ₵100) → search "milo" → add tin (₵52) → cash received ₵60 → complete → **receipt R-00004, change ₵8.00** | PASS |
-| **Fulfilment** | `/admin/fulfilment` confirm queue shows the new paid order (5 rows) → Confirm → picking → packed (status verified after each step); queues render FEFO allocations | PASS |
-| **Rider delivery** | `/admin/dispatch` ready queue → assign rider (Abena Dufie) → `/rider` login as Abena → job detail (checklist, address, contact) → accept → tick 3 pickup items → confirm pickup → start delivery → mark delivered with **customer PIN proof (order verification code)** → job `delivered` with proof recorded | PASS |
-| **Returns/refunds** | `/account/returns` list → `/admin/returns` (3 rows) → RTN-2003 detail → `/admin/refunds` → approve ref_3002 → execute (first attempt fails retryable, transfer: failed) → retry → execute → **succeeded, providerRef HT-DEMO-RF-9558**; return detail shows the succeeded refund | PASS |
+| Check | Result |
+|---|---:|
+| ESLint | **PASS** |
+| TypeScript `tsc --noEmit` | **PASS** |
+| Next.js production build | **PASS** |
+| Static page generation | **48/48** |
+| Handoff regression assertions | **24/24** |
+| Bun regression tests | **50/50** — 460 expectations across 5 files |
+| Shared contract checks | **32/32** |
+| Business-rule acceptance checks | **24/24** |
+| Production-server route sweep | **58/58 HTTP 200** |
 
-**Two real defects found by these browser checks and fixed in this handoff:**
+The frontend build includes `/admin/fulfilment` and preserves the z.ai continuation-wave contract: backend-derived `allowedActions`, pick/progress/shortage presentation, packing without stock depletion and explicit packed/handover states. Root CI intentionally ran the Next.js application without a configured live API URL, so the frontend server logged prototype/mock mode; that verifies UI compatibility, not storefront production cutover.
 
-1. **Rider proof-method schema drift** — the new shared zod enum for `rider.action` used
-   `photo|signature|otp|note` while the engine contract (and rider UI) uses
-   `pin|signature|photo_note`; the adapter-level request validation correctly rejected the
-   browser's `proofMethod: "pin"` and the deliver step failed. Fixed by aligning the contracts
-   (zod schema, `RiderActionRequest`, OpenAPI enum, MOBILE_READINESS wording) to the engine
-   contract, plus two new contracts-suite assertions (accepts `pin`, rejects `otp`) so the drift
-   cannot recur. The adapter boundary caught a genuine contract mismatch on its first live run —
-   exactly what it is for.
-2. **Refunds screen client crash (pre-existing, latent)** — seeded refunds `ref_3002`/`ref_3003`
-   have no `providerTransferState` until provider execution starts, and the refunds table called
-   `.replace()` on it, crashing the page after hydration (HTTP 200, so route sweeps had passed).
-   Fixed with a null-safe render (`transfer: not started`), and the `RefundRow` contract now
-   honestly declares the field optional. Screenshot: `docs/screenshots/verify-refunds-fixed.png`.
+### Pre-merge query-authority regression — RED to GREEN
 
-Rider workspace re-verified at 375px after the boundary rewire
-(`docs/screenshots/verify-rider-boundary.png`); no horizontal overflow.
+The mandatory pre-merge review found a projection/command inconsistency: `FulfilmentQueryService` selected each reservation stock position's `variantId` but a dead condition did not compare it with the order-line variant. Command-side `ClaimCoverageService` already failed closed, but the queue/detail projection could advertise an action before the command rejected corrupted reservation provenance.
 
-## Manual browser checks (earlier rounds, agent-browser, Chromium)
+A regression test was added at `apps/api/test/fulfilment-query-variant-authority.spec.ts`. Commit `0b470e5694832611db75166640f600c106fb3141` produced the required RED evidence in API-foundation run `38395350376`: **268 tests ran, 267 passed, 1 failed**, and the only failure was the new variant-mismatch projection test.
 
-| Area | Checks | Result |
-|---|---|---|
-| Storefront | Home renders (categories/offers/popular, 14 product tiles), shop search+sort+pagination, product variant+add-to-cart (cart persisted), cart quantity edit, checkout validation & minimum-order gating | PASS |
-| Golden path | Shop → cart → checkout (MoMo, zone+slot+saved address) → **order VG-ZZ9P3T placed (₵153.00)** → payment prompt approved → “Thank you — payment confirmed!” → staff confirm/pick/pack → dispatch assign (rider Kofi) → rider login → accept → pickup (stock consumed) → out for delivery → **delivered with PIN proof** → customer track shows Delivered + timeline | PASS (walked end-to-end in-browser) |
-| POS | Session opened (float ₵100), Milo search+tile add, cash ₵60 → change ₵8, complete → **receipt R-00004** printed dialog; storefront/inventory availability dropped 40 → 39 | PASS |
-| Rider workspace | Login as rider, job detail with checklist, address + tel: link, proof dialog (PIN), fail dialog | PASS |
-| Layout widths | 360px (home, shop, cart, admin, rider, track — 2-column grid, wrapped filters, no page-wide overflow), 768px (admin orders), 1440px (admin) — `scrollWidth === clientWidth` on all; tables scroll in their containers | PASS |
-| Honest failures | Offline mode ON → admin data region shows “Something went wrong — demo offline mode is ON…” with retry; recovery after OFF | PASS |
-| Console/runtime errors | None during the final walks (dev.log clean) | PASS |
-| Handoff-review pages | After the review fixes, re-verified data + hydration on /admin/providers, /admin/suppliers, /admin/team (previously broken `apiOps` imports → error state), /admin/returns (endpoint 500 fixed, rows render with orderId links), /admin/cashier-sessions, /admin/reports, /admin/pos, storefront home/shop/category/product/delivery (now served through `src/services/server-data.ts`), /track, /account/returns and /admin/returns/ret_2001 | PASS |
+The minimal source fix is commit `1097b4947f7631baf77ad6f8d2cdd20aeac31d82`: query authority now compares `line.variantId` with `row.position.variantId` and fails closed with `reservation_lost`. The subsequent normal PR gate at reviewed checkpoint `ef6762423ded43bc3fe6f3083ce7e94941566d89` provided GREEN evidence: API-foundation run `38396198571` passed **268/268**, with the new test explicitly passing, followed by deterministic **35-path** OpenAPI generation with zero drift. Root CI run `38396198558` also succeeded.
 
-**Bug found and fixed by browser verification**: `rider.action` responses passed the job **ID string** into `riderJobView()` (which expects the job object), returning HTTP 500 with “Cannot read properties of undefined (reading 'map')” *after* the mutation had succeeded — mutations applied but rider screens went stale. Fixed in `src/services/mock/router.ts` (pass `mustJob(store, jobId)`); re-verified: rider job page now re-renders after every action, and the full 21-check acceptance suite plus lint pass again after the fix.
+## Proven stock-handover invariants
 
-Screenshots: `docs/screenshots/verify-home-final.png`, `docs/screenshots/verify-shop-360px.png`, `docs/screenshots/verify-dashboard.png`, `docs/screenshots/verify-admin-1440px.png`, `docs/screenshots/verify-rider-360px.png`.
+The current backend verification establishes these boundaries:
 
-## Not run / not possible in this environment
+- picking and packing never decrement physical stock;
+- delivery consumes stock at dispatch handover;
+- collection consumes stock at customer handover;
+- exact active reservation coverage and matching order-line variant provenance are required before safe progression/depletion;
+- lot quantities are locked/aggregated before decrement and cannot become negative;
+- one claim produces one immutable depletion identity;
+- same-key/repeated handover cannot decrement twice;
+- audit/outbox failure rolls stock, reservation and operational changes back together;
+- after stock handover, ordinary order cancellation cannot restore inventory;
+- Fulfilment cannot directly mutate Refund or PaymentAttempt financial truth;
+- physical Returns, Dispatch/COD-remittance and POS remain separate future authorities.
 
-- Real payments, courier APIs, SMS, email, push: intentionally not connected (prototype boundary).
-- The production `standalone` server was smoke-started in CI (workflow) rather than locally beyond
-  the build; the dev-server suites cover all business behaviour.
-- A formal unit-test runner (Jest/Vitest) was not added — the four executable suites above
-  (acceptance, handoff regressions, contracts, route sweep) cover the required behaviour over the
-  real transport; adding a runner is listed in docs/KNOWN_ISSUES.md as follow-up.
+## Production OpenAPI checkpoint
 
-## Reset behaviour
+The production OpenAPI has exactly **35 paths**. Seven are the administrator Fulfilment Authority paths. The authority tests verify administrator security, strict mutation schemas, idempotency requirements, PUT pick correction, response projections and the absence of unimplemented dispatch/rider/COD-remittance/physical-returns/POS authority routes.
 
-`POST /api/mock/v1/demo/reset` or the Demo controls page reseeds everything (verified — acceptance
-suite resets first and passes repeatedly). Dev-server restart also resets state (single process);
-browser cart persists in localStorage.
+## Frontend continuation wave — 12–13 October 2026
+
+The z.ai frontend continuation work is documented in `docs/ZAI_FRONTEND_HANDOFF.md`. Its verified branch was `feat/zai-frontend-continuation-20261012` and it was incorporated into the `main` base used by PR #12.
+
+Recorded frontend evidence from that wave includes:
+
+- ESLint and strict TypeScript pass;
+- production build pass;
+- route sweep **58/58**;
+- business acceptance **24/24**;
+- Bun regression suite **50 tests / 460 expectations** after integration;
+- responsive QA at 360/390/768/1024/1440 and screenshot evidence under `docs/qa/evidence/zai-frontend-continuation-20261012/`.
+
+## Deliberately not verified as production-live
+
+The successful gates above do **not** claim that these future authorities/integrations are live: courier/dispatch/rider backend, COD cash collection and remittance, physical Returns/restocking, POS cashier authority, production Hubtel credentials/webhooks, SMS/email/push, live AI execution, or complete public-storefront backend cutover.
+
+Those boundaries are tracked in `docs/KNOWN_ISSUES.md`; the implementation order is in `docs/HANDOFF.md`.

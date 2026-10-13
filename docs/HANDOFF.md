@@ -1,66 +1,77 @@
-# Handoff — what to connect and verify first
+# Handoff — current production authorities and next integration wave
 
-For the Variety Groceries engineering team taking over from this frontend prototype.
+This is the engineering handoff for Variety Groceries after the **Fulfilment + Stock Handover Authority** implementation. The repository now contains both the polished frontend/prototype surface and a real NestJS/PostgreSQL backend for the highest-risk commerce authorities.
 
-> **Frontend continuation wave (12–13 Oct 2026)**: the UX/UI, workflow-completeness and
-> API-readiness wave is documented separately in
-> [ZAI_FRONTEND_HANDOFF.md](ZAI_FRONTEND_HANDOFF.md) (branch, SHA, routes changed, tests,
-> evidence, remaining gaps, and the optional contract extensions it proposes for the fulfilment
-> authority). The backend connect order below is unchanged.
+## 1. Current backend authority boundary
 
-## 1. Read order
+The production API now owns these capabilities:
 
-1. `README.md` — run the prototype, feel the workflows.
-2. `docs/API_CONTRACTS.md` — the operation contracts your backend implements.
-3. `docs/PERMISSIONS.md` — roles and enforcement duties.
-4. `docs/DEMO_SCENARIOS.md` — every seeded business case you can replay.
-5. `docs/KNOWN_ISSUES.md` — the honest boundary list.
+1. **Identity, sessions and authorization** — web/native authentication, durable sessions, role/location grants and guarded staff routes.
+2. **Catalogue + inventory** — publication-aware catalogue reads, safety-stock-aware availability, receiving, lots/expiry, reservations and audit/outbox history.
+3. **Commerce reservations + checkout/orders** — atomic multi-line reservation, guest/customer ownership, delivery slots, order tracking, cancellation and idempotency.
+4. **Payments** — provider-neutral initiation, raw provider evidence, authoritative reconciliation, duplicate callback safety, late-payment recovery and admin ledger.
+5. **Refunds** — durable refund obligations, approval/execution/reconciliation, cumulative capture limits, retries and safe customer projections.
+6. **Fulfilment + stock handover** — administrator fulfilment queue/detail, confirmation, picking, pick correction, packing and exactly-once handover/collection stock depletion.
 
-## 2. The swap point
+The production OpenAPI surface is **35 paths**, including exactly seven administrator fulfilment paths.
 
-Every page talks to operations through **`src/services/client.ts`**. Replace the `api()`
-transport with real endpoints (same operation names, envelopes and error codes) and the UI works
-unchanged. Delete `src/services/mock/` and `src/app/api/mock/` once the real API is live, and
-remove `demo.*` operations plus the demo role selector from production builds.
+## 2. Stock authority invariant
 
-## 3. Connect in this order (risk-ranked)
+The backend now enforces the inventory invariant that matters most:
 
-| # | Capability | Why first | Notes |
-|---|---|---|---|
-| 1 | **Catalogue + inventory read API** | Every screen depends on it; lets you validate the availability formula end-to-end | Implement `availableToSell = sellable lots − active reservations − safety stock` in SQL with row locking |
-| 2 | **Reservation + depletion transactions** | The core invariant (atomic multi-line holds, single depletion event, idempotency keys) | Wrap in DB transactions; keep `stockConsumedAt` as the once-only marker |
-| 3 | **Orders + status machines** | Order detail, fulfilment, tracking | Enforce the five status dimensions server-side exactly as the mock models them |
-| 4 | **Authentication + roles** | Staff/rider logins replace the demo pickers | Enforce the PERMISSIONS matrix on every operation |
-| 5 | **Payments (Hubtel candidate)** | Real money | Server-side outcome verification only; keep idempotency keys, duplicate-callback handling and the late-payment review flow |
-| 6 | **Dispatch + riders** | Operations | Provider adapter (quote/book/cancel/status/webhook/POD) once the owner selects couriers; manual booking fallback stays |
-| 7 | **Returns/refunds ledger** | Financial correctness | Cumulative limits, dispositions, manual-recording controls; authoritative tax treatment (owner-configured) |
-| 8 | **Reports/AI** | Derivative | Reports read your ledger; AI adapters are provider-neutral with evidence and review-before-execute |
+`availableToSell = sellable physical stock - active reservations - safety stock`
 
-## 4. Verify first (fastest confidence)
+Picking and packing **do not** decrement physical stock. Physical stock is consumed at exactly one authoritative boundary:
 
-Run these in production-parity order — each maps to a seeded demo you can compare against:
+- delivery order: when the packed order is handed to dispatch;
+- collection order: when the packed order is handed to the customer.
 
-1. Zero-availability variant disappears from lists/search but resolves with an unavailable state
-   on a saved link (demo: *Sachet Water*).
-2. Atomic multi-line checkout: force a conflict (demo: last *Frozen Chicken*) and confirm
-   line-level errors with no stray holds.
-3. Reserve online → POS blocked on the same final unit.
-4. Dispatch pickup consumes stock exactly once; replay the action (no double deduction).
-5. Late payment after reservation expiry reaches staff review, then either re-reserves or
-   cancels+refunds.
-6. Partial return → refund preview consistent; second refund beyond the paid balance rejected.
-7. Damaged return disposition never restocks.
-8. COD: delivery, cash collection and rider remittance as three separate recorded events.
-9. Cashier close: expected vs counted difference recorded with a note.
+`StockDepletionService.consumeClaim(...)` validates exact active reservation coverage, locks reservation/lot provenance, aggregates quantities per lot, decrements physical stock once, marks reservations consumed, writes immutable depletion history and emits audit/outbox effects in the same transaction. Retries and concurrent handovers cannot double-deplete stock.
 
-## 5. Data model starter
+After stock handover, ordinary cancellation is no longer a reversal mechanism. A future physical Return must own any stock coming back into inventory.
 
-`src/types/domain.ts` is a complete, typed domain sketch (IDs, UTC stamps, minor units, decimal
-string quantities, the five status families). PostgreSQL is the proposed datastore; the mock
-seeds (`src/services/mock/seed-*.ts`) double as fixture specifications for your first migration
-and test data.
+## 3. Frontend swap point
 
-## 6. Environment
+Frontend operations still route through `src/services/client.ts` and the HTTP adapter. The z.ai continuation wave already made the `/admin/fulfilment` workspace compatible with server-derived `allowedActions`, picker/progress/shortage data, packed metadata and handover state.
 
-`.env.example` lists the variable names the future integrations expect — placeholders only. Do not
-deploy this prototype to varietygrocery.com and do not initiate real payments from it.
+Production cutover should replace remaining mock operations capability-by-capability rather than replacing the frontend architecture. Do not infer operational authority from visual state; render the backend response and its `allowedActions`.
+
+## 4. Next implementation sequence
+
+The next backend sequence is:
+
+1. **Dispatch + rider authority** — ready-to-dispatch queue, assignment, rider availability, provider/manual booking, pickup/POD, failed delivery and safe retry.
+2. **COD cash collection + rider remittance** — keep delivery completion, customer cash collection and rider remittance as three separate events/ledgers.
+3. **Physical Returns Authority** — full/partial return, actual received quantity, condition/disposition, saleable restock vs quarantine/damaged/unsafe, lot provenance and no phantom stock.
+4. **POS Authority** — counter-sale workflow reusing the same inventory depletion primitive, cashier/session controls and cash/MoMo/card settlement boundaries.
+5. **Storefront production cutover** — replace remaining mock-backed public/account operations once the required production API authorities exist.
+6. **Reports/AI/provider integrations** — derivative work only after the transactional ledgers above are authoritative.
+
+## 5. Deliberately closed scope
+
+The current backend does **not** yet claim production authority for live courier integrations, dispatch/rider workflows, COD cash/remittance, physical returns/restocking, POS cashier sales, live Hubtel activation, SMS/email/push, live AI execution or complete public-storefront cutover.
+
+Do not create placeholder endpoints that pretend these are implemented. Keep manual/provider adapter boundaries explicit until each authority is designed, tested and landed.
+
+## 6. Verification checkpoint
+
+Latest reviewed code checkpoint before these documentation-only commits:
+
+- branch: `feat/fulfilment-handover-20261012`
+- reviewed code/documentation SHA: `ef6762423ded43bc3fe6f3083ce7e94941566d89`
+- PR: `#12`
+- PostgreSQL 17: migrations **001–006** applied successfully
+- API integration/security/concurrency tests: **268/268 pass**
+- production OpenAPI: **35 paths**, two consecutive byte-identical generations, zero committed drift
+- root CI: ESLint, TypeScript and production build pass; static generation **48/48**
+- Bun regression tests: **50/50** with **460** expectations
+- handoff regression assertions: **24/24**
+- shared contract checks: **32/32**
+- business acceptance checks: **24/24**
+- route sweep: **58/58 HTTP 200**
+- API foundation run `38396198571`: **success**
+- CI run `38396198558`: **success**
+
+The 268-test API checkpoint includes the pre-merge regression proving fulfilment query projections fail closed when reservation stock-position variant provenance does not match the order line.
+
+See `docs/VERIFICATION.md` for the evidence record and `docs/ZAI_FRONTEND_HANDOFF.md` for the frontend continuation wave.

@@ -47,8 +47,11 @@ jobs:
         run: npm run --prefix apps/api migrate:deploy
       - name: API integration and security tests
         run: npm test --prefix apps/api
-      - name: Confirm foundation OpenAPI matches implementation
+      - name: Confirm production OpenAPI is deterministic and matches implementation
         working-directory: apps/api
         run: |
           npm run openapi
+          cp ../../docs/openapi-foundation.json /tmp/openapi-first.json
+          npm run openapi
+          cmp /tmp/openapi-first.json ../../docs/openapi-foundation.json
           git diff --exit-code -- ../../docs/openapi-foundation.json

@@ -144,6 +144,8 @@ model StockLot {
   createdAt DateTime @default(now()) @db.Timestamptz(3)
   movements StockMovement[]
   reservations Reservation[]
+  fulfilmentPicks FulfilmentPick[]
+  depletionLines StockDepletionLine[]
   @@unique([id, positionId])
   @@index([positionId, kind, quarantined, expiryDate])
 }
@@ -162,6 +164,8 @@ model Reservation {
   state String @default("active")
   expiresAt DateTime @db.Timestamptz(3)
   createdAt DateTime @default(now()) @db.Timestamptz(3)
+  fulfilmentPick FulfilmentPick?
+  depletionLine StockDepletionLine?
   @@unique([claimType, claimId, claimLineId, lotId, generation])
   @@index([positionId, state, expiresAt])
   @@index([lotId, state, expiresAt])
@@ -321,6 +325,7 @@ model Order {
   slotBooking DeliverySlotBooking?
   paymentAttempts PaymentAttempt[]
   refunds Refund[]
+  fulfilmentRun FulfilmentRun?
   @@index([customerUserId, createdAt])
   @@index([guestSessionId, createdAt])
   @@index([zoneId, createdAt])
@@ -535,4 +540,80 @@ model RefundReconciliation {
   @@index([refundExecutionId, createdAt])
   @@index([refundId, createdAt])
   @@index([provider, result, createdAt])
+}
+
+model FulfilmentRun {
+  id String @id @default(uuid())
+  orderId String @unique
+  order Order @relation(fields: [orderId], references: [id])
+  locationId String
+  confirmedBy String?
+  confirmedAt DateTime? @db.Timestamptz(3)
+  pickingStartedBy String?
+  pickingStartedAt DateTime? @db.Timestamptz(3)
+  packedBy String?
+  packedAt DateTime? @db.Timestamptz(3)
+  packNote String?
+  handedOverBy String?
+  handedOverAt DateTime? @db.Timestamptz(3)
+  handoverKind String?
+  version Int @default(1)
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+  picks FulfilmentPick[]
+  @@index([locationId, createdAt])
+}
+
+model FulfilmentPick {
+  id String @id @default(uuid())
+  fulfilmentRunId String
+  fulfilmentRun FulfilmentRun @relation(fields: [fulfilmentRunId], references: [id])
+  orderId String
+  orderLineId String
+  reservationId String @unique
+  reservation Reservation @relation(fields: [reservationId], references: [id])
+  lotId String
+  lot StockLot @relation(fields: [lotId], references: [id])
+  variantId String
+  quantity Decimal @db.Decimal(15, 3)
+  pickedQuantity Decimal @db.Decimal(15, 3)
+  state String
+  note String?
+  recordedBy String
+  recordedAt DateTime @db.Timestamptz(3)
+  version Int @default(1)
+  @@index([fulfilmentRunId, state])
+  @@index([orderId, recordedAt])
+}
+
+model StockDepletion {
+  id String @id @default(uuid())
+  claimType String
+  claimId String
+  locationId String
+  kind String
+  actorId String
+  requestId String
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  lines StockDepletionLine[]
+  @@unique([claimType, claimId])
+  @@index([locationId, createdAt])
+}
+
+model StockDepletionLine {
+  id String @id @default(uuid())
+  depletionId String
+  depletion StockDepletion @relation(fields: [depletionId], references: [id])
+  reservationId String @unique
+  reservation Reservation @relation(fields: [reservationId], references: [id])
+  claimLineId String
+  variantId String
+  lotId String
+  lot StockLot @relation(fields: [lotId], references: [id])
+  quantity Decimal @db.Decimal(15, 3)
+  lotQuantityBefore Decimal @db.Decimal(15, 3)
+  lotQuantityAfter Decimal @db.Decimal(15, 3)
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  @@index([depletionId, id])
+  @@index([lotId, createdAt])
 }

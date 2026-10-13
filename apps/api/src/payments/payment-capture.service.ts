@@ -7,6 +7,13 @@ export interface PaymentCaptureState {
   successfulCaptures: PaymentAttempt[];
 }
 
+export interface PaymentHandoverCoverage {
+  successfulCapturedMinor: number;
+  successfulRefundedMinor: number;
+  retainedMinor: number;
+  liveOrUncertain: boolean;
+}
+
 @Injectable()
 export class PaymentCaptureService {
   async lockForOrder(
@@ -24,6 +31,44 @@ export class PaymentCaptureService {
         (attempt) => attempt.status === "initiated" || attempt.status === "pending",
       ),
       successfulCaptures: attempts.filter((attempt) => attempt.status === "succeeded"),
+    };
+  }
+
+  async getHandoverCoverage(
+    tx: Prisma.TransactionClient,
+    orderId: string,
+  ): Promise<PaymentHandoverCoverage> {
+    const state = await this.lockForOrder(tx, orderId);
+
+    await tx.$queryRaw`SELECT id FROM "Refund" WHERE "orderId"=${orderId} ORDER BY id FOR UPDATE`;
+    const refunds = await tx.refund.findMany({
+      where: { orderId },
+      orderBy: { id: "asc" },
+      select: { amountMinor: true, status: true },
+    });
+
+    const successfulCapturedMinor = state.successfulCaptures.reduce(
+      (sum, attempt) => sum + attempt.amountMinor,
+      0,
+    );
+    const successfulRefundedMinor = refunds
+      .filter((refund) => refund.status === "succeeded")
+      .reduce((sum, refund) => sum + refund.amountMinor, 0);
+
+    const liveOrUncertain =
+      state.liveAttempts.length > 0 ||
+      state.attempts.some(
+        (attempt) =>
+          attempt.initiationState === "uncertain" ||
+          attempt.settlementState === "exception",
+      ) ||
+      refunds.some((refund) => refund.status !== "succeeded");
+
+    return {
+      successfulCapturedMinor,
+      successfulRefundedMinor,
+      retainedMinor: successfulCapturedMinor - successfulRefundedMinor,
+      liveOrUncertain,
     };
   }
 }

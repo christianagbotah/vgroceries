@@ -1,121 +1,54 @@
 # Known issues, incomplete work & integration limits
 
-Honest inventory of what is not finished, simplified, or impossible in this prototype. Nothing
-here is hidden; each item states the impact and the follow-up.
+This document separates **production backend gaps** from **frontend/demo limitations**. The current repository is no longer only a frontend prototype: the NestJS/PostgreSQL API now owns identity, catalogue/inventory, reservations, checkout/orders, payments, refunds and fulfilment/stock handover.
 
-## Private backend foundation
+## 1. Production backend authorities already implemented
 
-A separate NestJS/PostgreSQL foundation now implements durable identity,
-permission-scoped catalogue/inventory reads and atomic receiving; see
-[BACKEND_FOUNDATION.md](BACKEND_FOUNDATION.md). It is not connected to the public
-frontend. The limitations below describe the currently running prototype.
-Commerce, payments/delivery, publishing workers, frontend authentication UX,
-registration/recovery/MFA, native apps and live AI remain subsequent milestones.
+The backend currently has durable production authority for:
 
-## Prototype boundaries (by design)
+- web/native identity, sessions, authorization and location grants;
+- catalogue/inventory reads, receiving, lots/expiry, reservations and safety-stock-aware availability;
+- atomic checkout/orders, delivery slots, ownership, tracking, cancellation and idempotency;
+- electronic payment initiation/evidence/reconciliation and late-payment recovery;
+- refund obligation/approval/execution/reconciliation;
+- administrator fulfilment confirmation, picking, pick correction, packing, queue/detail projections and exactly-once stock handover/collection depletion.
 
-1. **No authentication.** `/staff/login` and `/rider/login` are demo role pickers persisted in
-   localStorage. Production needs real auth; role menus/permissions are UX only and the backend
-   must enforce every protected operation.
-2. **No persistence.** Mock state is an in-memory, single-process `globalThis` singleton. A dev
-   server restart or `/admin/demo → Reset` reseeds it. Multi-user concurrency cannot be safe in
-   this model — real multi-user needs backend transactions / atomic constraints (the atomic
-   reservation and single-depletion logic is implemented and demonstrable in the mock, but its
-   authority is the future backend).
-3. **No real payments.** Hubtel is a candidate adapter (developer portal consulted for planning
-   only). “Approve the payment prompt” is a customer-side roleplay that calls the mock provider
-   callback. The mock enforces duplicate-callback safety, pending states and the late-payment
-   review path; the real provider verification is backend work.
-4. **No live AI.** All suggestions are deterministic rules over fixture/live demo state, labelled
-   “deterministic demo”. Provider-neutral backend interfaces are outlined in API_CONTRACTS.md.
-5. **No courier integrations.** External providers are listed as “Not connected” with capability
-   claims only; manual booking is the fallback. No courier is named as integrated and no API is
-   invented.
-6. **No tax calculation.** No Ghana tax rate is assumed or hardcoded; tax treatment is owner
-   configuration for the backend.
-7. **Rider location is demo-labelled.** Optional, permission-based “share location” records a
-   label + timestamp only. No live GPS, no invented rider movement or ETAs.
+Picking and packing do **not** reduce physical stock. Stock leaves inventory only at the authoritative handover/collection boundary. The production OpenAPI currently contains 35 paths, including seven administrator fulfilment paths.
 
-## Simplifications & smaller gaps
+## 2. Backend authorities still deliberately closed
 
-8. **Account area is single-customer demo**: one fictional customer is “signed in”; address
-   editing is read-only with a note (backend accounts service boundary); support notes can be
-   typed but not saved (write API pending).
-9. **Customer return creation is API-verified but the staff-created return** (from an order) routes
-   through the same returns screen rather than a dedicated dialog.
-10. **Adjustment approval UI** allows any role with `inventory.receive` to approve pending
-    adjustments (documented in PERMISSIONS.md); production should scope approval strictly.
-11. **Substitution suggestions** on the order detail are other variants of the same product only
-    (no cross-product suggestions yet).
-12. **Stock value “cost basis”** in reports approximates with variant purchase prices; no landed
-    cost ledger (backend owns cost of goods).
-13. **Recharts not used**: report charts are lightweight CSS bars — functional and clean, but a
-    richer charting pass is possible.
-14. **Engine tests run via Bun scripts and the Bun test runner**: business rules are covered by the
-    executed acceptance script (`scripts/acceptance-checks.sh`, hardened — 24 checks), the
-    handoff regression suite (`scripts/handoff-regressions.ts`, 24 assertions covering the
-    review's seven defect classes and the returns-list endpoint) and the shared-contracts suite
-    (`scripts/contracts-check.ts`, 32 assertions); all run in CI, alongside 35 Bun tests for return stock, REST transport, cache races and backend mode.
-15. **Production build verified**: `next build` (Turbopack) completes with strict TypeScript
-    (no `ignoreBuildErrors` bypass) and 47/47 pages prerender. CI (`.github/workflows/ci.yml`)
-    runs lint + `tsc --noEmit` + build + all five suites on every push. The earlier
-    `useSearchParams()` prerender failures on `/account/returns`, `/track` and
-    `/admin/returns` are fixed with Suspense boundaries.
-16. **CSV exports** cover the current filtered dataset for the sales/top-products tables; other
-    tables export on request (pattern is established).
-17. **Input validation is now layered**: shared zod request schemas live in
-    `src/services/contracts/validation.ts` and run at the adapter boundary (client-side, fast
-    feedback) and in the contracts suite; the service engines re-validate authoritatively
-    (defense in depth). The NestJS backend must re-validate again — the shared schemas are the
-    reference. The old `src/schemas/` reservation is gone.
-18. **GhanaPostGPS** is stored and validated as text only (no geocoding claim), as required.
-19. **Cart persistence** is localStorage convenience; stale cart lines surface as “currently
-    unavailable” rows with removal, per the non-authoritative-cart rule.
-20. **Held POS drafts** reserve stock for 20 minutes (shorter than order holds) — configurable in
-    the backend contract.
-21. **Production-without-backend fallback**: a production bundle with no `API_BASE_URL` /
-    `NEXT_PUBLIC_API_BASE_URL` falls back to the in-process mock adapter with a one-time console
-    warning so the demo remains demonstrable — a demo affordance, not a production
-    configuration (documented in docs/API_CONTRACTS.md §1).
-Both backend URLs are required together; mock routes return 404 when either selects backend mode.
+1. **Dispatch and rider authority is not implemented in the production API.** The frontend has a rich dispatch/rider prototype, but ready-to-dispatch queues, rider assignment/availability, provider booking, pickup, POD, failure/reschedule and retry still need a durable backend authority.
+2. **COD collection and rider remittance are not implemented.** COD may authorize an eligible delivery handover where zone policy permits it, but delivery completion, cash collection and rider remittance must become three separate durable events/ledgers in the next dispatch/COD wave.
+3. **Physical Returns Authority is not implemented in the production API.** After stock has left the store, inventory must increase only from an actual received return with disposition/provenance. The existing frontend/mock return flows are specifications, not production stock authority.
+4. **POS cashier sales are not yet a production API authority.** The future POS service must reuse the same exactly-once inventory-depletion primitive and add cashier/session/payment controls instead of creating a second stock path.
+5. **Complete storefront/account cutover is pending.** The backend implements a growing set of public/customer endpoints, but the Next.js application can still run against mock operations. Do not deploy production storefront mode until every required operation for that journey resolves to a real API contract.
+6. **Live payment/refund provider activation remains closed.** Provider-neutral payment and refund authority is implemented and tested, but no claim is made that live Hubtel credentials, production webhooks or production money movement are activated.
+7. **No live courier provider is connected.** Provider adapters, manual fallback and webhook/POD behavior belong to the dispatch milestone; do not label any courier “integrated” until its real adapter is verified.
+8. **No live AI execution authority.** Current AI screens/suggestions remain deterministic or prototype-level. Any future AI action must be evidence-backed and pass through the same permissions and transactional authorities as a human action.
+9. **No production SMS/email/push integration.** Notification UX may exist, but no real delivery provider is claimed.
+10. **Tax policy is not hardcoded.** Ghana tax treatment remains owner/configuration work; the application must not invent a tax rate.
 
-22. **Client cache default TTL is 0 (no-store)**: the tag-invalidation machinery is complete and
-    exercised, but reads are intentionally not cached in the prototype because stock changes
-    live; raising `NEXT_PUBLIC_CACHE_TTL_MS` enables short-TTL caching for the real API.
+## 3. Frontend/demo boundaries
 
-23. **Validation coverage**: request schemas cover 16 high-impact operations and selected response shapes. The backend must authoritatively validate every operation. Wire tests establish mapping, not the existence of 92 live endpoints.
-24. **Return provenance/reconciliation**: all credited lots are tracked and reversals preserve history. Moved/reserved stock or incomplete legacy metadata blocks reclassification. Unknown perishable provenance must remain quarantined in production.
-25. **Browser refresh**: the shared hook listens for mutation invalidation and ignores older completions. Custom loaders still require their own refresh handling; cross-session realtime updates are not implemented.
+11. **Mock transport still exists by design.** `src/services/client.ts` and the HTTP adapter are the swap boundary. The in-process mock remains useful for demos/regressions but must not silently become production authority.
+12. **Demo role/login flows remain in the frontend.** Production staff/rider login UX still needs to be connected to the real identity APIs and demo selectors removed from production builds.
+13. **The frontend fulfilment mock is less authoritative than the backend.** The production backend now has reservation-derived lot-level picks, exact quantities, shortages, backend-derived `allowedActions`, packing metadata and handover blockers. When live-connected, the UI must render those projections rather than infer transitions from local state.
+14. **Returns screens remain prototype-backed until Physical Returns Authority lands.** Demo saleable/quarantine/damaged behavior is valuable acceptance material but is not evidence that the production API currently restocks returns.
+15. **Dispatch/rider screens are prototype-backed until Dispatch Authority lands.** Optional location sharing is demo-labelled; there is no live GPS, invented movement or authoritative ETA.
+16. **POS and cashier screens are prototype-backed until POS Authority lands.** Current mock acceptance tests demonstrate the intended invariants but are not a production cash ledger.
+17. **Account conveniences remain incomplete.** Some customer account/profile/support interactions are demo/read-only because their production write authorities have not yet been prioritized.
+18. **Reports and AI are derivative.** They should read authoritative ledgers after the transactional authorities land; no report or AI screen may become a hidden writer of stock, payment, refund, return or dispatch truth.
 
-## Frontend continuation wave (2026-10-12) — remaining gaps
+## 4. Smaller UX / operational follow-ups
 
-26. **Fulfilment “Ready to pack” queue is empty by design**: the demo/mock state machine has one
-    `picking → packed` transition, so there is no separate “picked” state to feed a pack queue.
-    The contract exposes `pack: FulfilmentOrderCard[]` and the tab renders only when non-empty;
-    when the backend fulfilment authority introduces an explicit picked state, the queue will
-    populate with no frontend change. `allowedActions` already renders only actions the service
-    permits.
-27. **Per-line picked quantity is not tracked in the mock**: picking progress is reported as
-    lines-with-complete-allocations vs total lines, and shortages are the FEFO shortfall recorded
-    at pick time. A backend lot-level pick confirmation (scan-by-scan) will replace progress
-    semantics without contract breakage (`allocatedQty`/`shortageQty` stay optional).
-28. **Contract extensions proposed by this wave are frontend-authored**: optional fields on
-    `FulfilmentLineCard`/`FulfilmentOrderCard`/`DashboardActionable`/`AISuggestion`
-    (`allocatedQty`, `shortageQty`, `pickerName`, `allowedActions`, `refundsAttention`,
-    `proposedAction`, inventory `summary`, …). The mock adapter already serves them; the backend
-    team should adopt or negotiate them when the fulfilment/refund authorities land (see
-    docs/ZAI_FRONTEND_HANDOFF.md §10).
-29. **Mobile card alternates** were added for the three densest staff tables (orders, inventory,
-    payments); remaining tables rely on responsive column hiding + in-table horizontal scroll,
-    which remains acceptable for their column counts.
-30. **Rider status badge contrast** (light-green on light background) is at the edge of WCAG AA
-    in direct sunlight; flagged for the design pass when the real rider app theme lands.
-31. **Shortage seed fixture `ord_1016`** is demo data demonstrating the exceptions queue; its
-    hold quantity (1) intentionally differs from the ordered quantity (2) to reflect the
-    damage-after-ordering story. It is seeded, not user-generated.
+19. Remaining dense admin tables mostly use responsive column hiding plus contained horizontal scroll; orders, inventory and payments already have dedicated mobile-card alternatives.
+20. Rider status badge contrast should receive another direct-sunlight/accessibility pass when the real rider application/theme is finalized.
+21. Cross-session realtime updates are not implemented across all frontend screens. Mutation invalidation and race protection exist, but production push/realtime refresh should be added only after the underlying live APIs are connected.
+22. Catalogue/cart convenience state may persist in the browser; it is never stock authority. Checkout/POS must always revalidate against the backend.
+23. Provider credentials, raw webhook evidence and other execution secrets must remain server-only. Existing customer/staff projections intentionally omit them.
 
-## Execution note
+## 5. Current verified checkpoint
 
-All planned routes and the full vertical workflow were completed within this session; no work was
-abandoned mid-build. The stopping point is exactly the prototype boundary described above — the
-backend integration team takes over from docs/HANDOFF.md.
+Latest reviewed code checkpoint before these documentation-only commits is `ef6762423ded43bc3fe6f3083ce7e94941566d89` on `feat/fulfilment-handover-20261012`. PostgreSQL 17 applied migrations 001–006; the API suite passed **268/268**, including the pre-merge variant-provenance regression; production OpenAPI generated twice at **35 paths** with zero drift; API foundation run `38396198571` succeeded; and root CI run `38396198558` passed lint, typecheck, production build, **48/48** static generation, **50/50** Bun regressions with **460** expectations, **24/24** handoff assertions, **32/32** contract checks, **24/24** acceptance checks and a **58/58** route sweep.
+
+See `docs/HANDOFF.md` for the next implementation sequence and `docs/VERIFICATION.md` for the evidence record.
