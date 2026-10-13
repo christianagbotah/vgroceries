@@ -55,20 +55,23 @@ Do not create placeholder endpoints that pretend these are implemented. Keep man
 
 ## 6. Verification checkpoint
 
-Implementation head verified before this documentation update:
+Latest reviewed code checkpoint before these documentation-only commits:
 
 - branch: `feat/fulfilment-handover-20261012`
-- implementation SHA: `f07f86c098460285e9b73a8963d3fad5204b99c6`
+- reviewed code/documentation SHA: `ef6762423ded43bc3fe6f3083ce7e94941566d89`
 - PR: `#12`
 - PostgreSQL 17: migrations **001–006** applied successfully
-- API integration/security/concurrency tests: **267/267 pass**
+- API integration/security/concurrency tests: **268/268 pass**
 - production OpenAPI: **35 paths**, two consecutive byte-identical generations, zero committed drift
-- root CI: ESLint, TypeScript and production build pass
-- Bun regression tests: **50/50**
+- root CI: ESLint, TypeScript and production build pass; static generation **48/48**
+- Bun regression tests: **50/50** with **460** expectations
 - handoff regression assertions: **24/24**
 - shared contract checks: **32/32**
 - business acceptance checks: **24/24**
 - route sweep: **58/58 HTTP 200**
-- GitHub Actions associated with the implementation head: **CI success** and **API foundation success**
+- API foundation run `38396198571`: **success**
+- CI run `38396198558`: **success**
 
-See `docs/VERIFICATION.md` for the current evidence record and `docs/ZAI_FRONTEND_HANDOFF.md` for the frontend continuation wave.
+The 268-test API checkpoint includes the pre-merge regression proving fulfilment query projections fail closed when reservation stock-position variant provenance does not match the order line.
+
+See `docs/VERIFICATION.md` for the evidence record and `docs/ZAI_FRONTEND_HANDOFF.md` for the frontend continuation wave.
