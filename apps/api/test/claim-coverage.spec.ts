@@ -135,7 +135,7 @@ test("multiple active generations are rejected", async () => {
   );
 });
 
-test("stale active reservations are expired before coverage is evaluated", async () => {
+test("stale active reservations are excluded before coverage evaluation without escaping caller rollback", async () => {
   await reserve({
     id: "res-stale",
     claimId: "claim-stale",
@@ -152,7 +152,10 @@ test("stale active reservations are expired before coverage is evaluated", async
     })),
     expectLost,
   );
-  assert.equal((await db.reservation.findUniqueOrThrow({ where: { id: "res-stale" } })).state, "expired");
+  // lockExact marks stale rows expired before evaluating coverage. Because the
+  // missing-coverage error aborts the caller transaction, that state change is
+  // intentionally rolled back with every other transactional effect.
+  assert.equal((await db.reservation.findUniqueOrThrow({ where: { id: "res-stale" } })).state, "active");
 });
 
 test("variant mismatch is rejected even when claim-line quantity matches", async () => {
