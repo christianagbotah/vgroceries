@@ -39,11 +39,11 @@ export class DispatchPolicyService {
 
   canReassign(job: ReassignableJob): boolean {
     if (job.custodyState === "dispatch") return true;
-    return job.status === "return_to_store" && job.custodyState === "store_returned" && Boolean(job.returnedToStoreAt);
+    return ["return_to_store", "unassigned"].includes(job.status) && job.custodyState === "store_returned" && Boolean(job.returnedToStoreAt);
   }
 
   adminJobDecision(job: ReassignableJob): { allowedActions: ("assign" | "unassign" | "reassign" | "reschedule" | "return_to_store" | "receive_returned_goods" | "provider_transition")[]; blockers: string[] } {
-    if (job.status === "unassigned" && job.custodyState === "dispatch") return { allowedActions: ["assign"], blockers: [] };
+    if (job.status === "unassigned" && this.canReassign(job)) return { allowedActions: ["assign"], blockers: [] };
     if (job.status === "return_to_store" && job.custodyState === "return_pending")
       return { allowedActions: ["receive_returned_goods"], blockers: ["return_not_physically_received"] };
     if (job.status === "failed") {

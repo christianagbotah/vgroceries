@@ -55,7 +55,7 @@ export class DispatchQueryService {
   }
 
   private returnsInspectionMessage(job: { status: string; custodyState: string; returnedToStoreAt: Date | null } | null | undefined) {
-    return job?.status === "return_to_store" && job.custodyState === "store_returned" && job.returnedToStoreAt
+    return job && ["return_to_store", "unassigned"].includes(job.status) && job.custodyState === "store_returned" && job.returnedToStoreAt
       ? "Returned to store — awaiting Returns inspection." as const
       : undefined;
   }

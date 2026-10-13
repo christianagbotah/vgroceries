@@ -83,3 +83,10 @@ test("rider actions expose custody-preserving rescheduled retry only when due",(
   const dueDispatch=policy.riderJobDecision("rescheduled","dispatch",new Date(Date.now()-1000));
   assert.equal(dueDispatch.allowedActions.includes("accept"),true);
 });
+
+
+test("physically returned unassigned jobs advertise assignment without losing return custody truth",()=>{
+  const decision=policy.adminJobDecision({status:"unassigned",custodyState:"store_returned",returnedToStoreAt:new Date("2026-10-13T11:00:00Z")});
+  assert.deepEqual(decision.allowedActions,["assign"]);
+  assert.deepEqual(decision.blockers,[]);
+});

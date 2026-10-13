@@ -5,6 +5,7 @@ import type { INestApplication } from "@nestjs/common";
 import { createApplication } from "../src/bootstrap";
 import { readConfig } from "../src/config";
 import { Database } from "../src/database/database";
+import { ApiProblem } from "../src/http/errors";
 import { DispatchCommandService } from "../src/dispatch/dispatch-command.service";
 import { RiderCommandService } from "../src/dispatch/rider-command.service";
 import { DispatchPolicyService } from "../src/dispatch/dispatch-policy.service";
@@ -38,4 +39,31 @@ test("rider command lock protocol cannot invert profile and job locks",()=>{
   const jobLock=block.indexOf('SELECT id FROM "DeliveryJob"');
   assert.ok(orderLock>=0&&profileLock>=0&&jobLock>=0);
   assert.ok(orderLock<profileLock&&profileLock<jobLock,"lock order must be Order -> RiderProfile -> DeliveryJob");
+});
+
+
+test("admin assignment races never surface a database deadlock",async()=>{
+  const r=await rider("admin-deadlock"),a=await order("VG-RACE-ADMIN-A"),b=await order("VG-RACE-ADMIN-B");
+  const assigned=await dispatch.assign(a.id,{riderProfileId:r.profile.id},ctx("admin-deadlock-seed","admin-seed"));
+  let releaseHolder!:()=>void,readyHolder!:()=>void;
+  const released=new Promise<void>(resolve=>{releaseHolder=resolve;});
+  const ready=new Promise<void>(resolve=>{readyHolder=resolve;});
+  const holder=db.$transaction(async tx=>{
+    await tx.$queryRaw`SELECT id FROM "RiderProfile" WHERE id=${r.profile.id} FOR UPDATE`;
+    readyHolder();
+    await released;
+  });
+  await ready;
+  const assigning=dispatch.assign(b.id,{riderProfileId:r.profile.id},ctx("admin-deadlock-assign","admin-a"));
+  await new Promise(resolve=>setTimeout(resolve,100));
+  const reassigning=dispatch.reassign(assigned.jobId,{riderProfileId:r.profile.id},ctx("admin-deadlock-reassign","admin-b"));
+  await new Promise(resolve=>setTimeout(resolve,100));
+  releaseHolder();
+  await holder;
+  const results=await Promise.allSettled([assigning,reassigning]);
+  const summary=results.map(result=>result.status==="fulfilled"?"fulfilled":`${result.reason?.constructor?.name??"Error"}:${String(result.reason)}`).join(" | ");
+  assert.equal(results.filter(result=>result.status==="fulfilled").length,1,summary);
+  for(const result of results){
+    if(result.status==="rejected") assert.ok(result.reason instanceof ApiProblem,`unexpected database error: ${String(result.reason)}`);
+  }
 });

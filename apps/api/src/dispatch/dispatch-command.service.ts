@@ -49,6 +49,11 @@ export class DispatchCommandService {
     await tx.$queryRaw<Array<{ locked: number }>>`SELECT 1::int AS locked FROM pg_advisory_xact_lock(hashtextextended(${key}, 0))`;
   }
 
+  private async assignmentAdvisory(tx: Tx) {
+    const key = "dispatch.assignment-authority";
+    await tx.$queryRaw<Array<{ locked: number }>>`SELECT 1::int AS locked FROM pg_advisory_xact_lock(hashtextextended(${key}, 0))`;
+  }
+
   private async execute<T extends object>(
     action: string,
     entityId: string,
@@ -141,6 +146,7 @@ export class DispatchCommandService {
   async assign(orderId: string, input: ProductionDispatchAssignRequest, context: DispatchCommandContext) {
     const note = normalizeDispatchNote(input.note);
     return this.execute("assign", orderId, { ...input, note }, context, (v) => this.parseAction(v), async (tx) => {
+      await this.assignmentAdvisory(tx);
       const { order, job: existing } = await this.lockOrderJob(tx, orderId);
       this.policy.assertDispatchEligible(order, order.fulfilmentRun);
       if (existing && existing.status !== "unassigned") conflict("Order already has an active delivery assignment.");
@@ -172,6 +178,7 @@ export class DispatchCommandService {
   async reassign(jobId: string, input: ProductionDispatchReassignRequest, context: DispatchCommandContext) {
     const note = normalizeDispatchNote(input.note);
     return this.execute("reassign", jobId, { ...input, note }, context, (v) => this.parseAction(v), async (tx) => {
+      await this.assignmentAdvisory(tx);
       const orderId = await this.lockOrderForJob(tx, jobId);
       const job = await this.lockJob(tx, jobId);
       if (!this.policy.canReassign(job)) conflict("Delivery custody is not safe for reassignment.");

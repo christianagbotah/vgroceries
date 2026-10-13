@@ -27,6 +27,11 @@ test("returned-to-store projection explicitly awaits Returns inspection",async()
   assert.equal((detail as any).returnsInspectionMessage,"Returned to store — awaiting Returns inspection.");
   const queue=await queries.listDispatch({page:1,perPage:25,status:"return_to_store"});
   assert.equal((queue.items.find(x=>x.jobId===j.id) as any)?.returnsInspectionMessage,"Returned to store — awaiting Returns inspection.");
+  await db.deliveryJob.update({where:{id:j.id},data:{status:"unassigned"}});
+  await db.order.update({where:{id:o.id},data:{deliveryStatus:"unassigned"}});
+  const unassigned=await queries.dispatchDetail(j.id);
+  assert.deepEqual(unassigned.allowedActions,["assign"]);
+  assert.equal((unassigned as any).returnsInspectionMessage,"Returned to store — awaiting Returns inspection.");
 });
 
 
