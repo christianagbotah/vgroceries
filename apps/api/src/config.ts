@@ -21,6 +21,27 @@ export interface PaymentConfig {
   hostedDomains: string[];
 }
 
+export type ProductMediaConfig =
+  | { kind: "filesystem"; root: string; publicBaseUrl: string }
+  | {
+      kind: "s3";
+      endpoint: string;
+      region: string;
+      bucket: string;
+      accessKeyId: string;
+      secretAccessKey: string;
+      publicBaseUrl: string;
+    };
+
+export interface ImageGenerationConfig {
+  providerId: "openai" | "fake";
+  model: string;
+  openAiApiKey?: string;
+  timeoutMs: number;
+  maxCandidates: number;
+  workerPollIntervalMs: number;
+}
+
 export interface ApiConfig {
   databaseUrl: string;
   webOrigins: string[];
@@ -30,6 +51,8 @@ export interface ApiConfig {
   host: string;
   commerce: CommerceConfig | null;
   payments: PaymentConfig | null;
+  productMedia: ProductMediaConfig | null;
+  imageGeneration: ImageGenerationConfig | null;
 }
 
 export const API_CONFIG = Symbol("API_CONFIG");
@@ -216,6 +239,67 @@ export function readConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
     };
   }
 
+  const mediaAuxNames = [
+    "PRODUCT_MEDIA_FILESYSTEM_ROOT",
+    "PRODUCT_MEDIA_PUBLIC_BASE_URL",
+    "PRODUCT_MEDIA_S3_ENDPOINT",
+    "PRODUCT_MEDIA_S3_REGION",
+    "PRODUCT_MEDIA_S3_BUCKET",
+    "PRODUCT_MEDIA_S3_ACCESS_KEY_ID",
+    "PRODUCT_MEDIA_S3_SECRET_ACCESS_KEY",
+  ] as const;
+  const mediaAuxSupplied = mediaAuxNames.some((name) => Boolean(env[name]));
+  let productMedia: ProductMediaConfig | null = null;
+  if (!env.PRODUCT_MEDIA_STORAGE && mediaAuxSupplied)
+    throw new Error("PRODUCT_MEDIA_STORAGE is required when product media configuration is supplied");
+  if (env.PRODUCT_MEDIA_STORAGE) {
+    const publicBaseUrl = env.PRODUCT_MEDIA_PUBLIC_BASE_URL;
+    if (!publicBaseUrl) throw new Error(`${env.PRODUCT_MEDIA_STORAGE === "filesystem" ? "Filesystem" : "S3"} product media bundle requires PRODUCT_MEDIA_PUBLIC_BASE_URL`);
+    const publicUrl = new URL(publicBaseUrl);
+    if (!["http:", "https:"].includes(publicUrl.protocol) || !publicBaseUrl.endsWith("/"))
+      throw new Error("PRODUCT_MEDIA_PUBLIC_BASE_URL must be an absolute HTTP(S) URL ending in /");
+    if (env.PRODUCT_MEDIA_STORAGE === "filesystem") {
+      if (!env.PRODUCT_MEDIA_FILESYSTEM_ROOT || !env.PRODUCT_MEDIA_FILESYSTEM_ROOT.startsWith("/"))
+        throw new Error("Filesystem product media bundle requires an absolute PRODUCT_MEDIA_FILESYSTEM_ROOT");
+      if (["PRODUCT_MEDIA_S3_ENDPOINT","PRODUCT_MEDIA_S3_REGION","PRODUCT_MEDIA_S3_BUCKET","PRODUCT_MEDIA_S3_ACCESS_KEY_ID","PRODUCT_MEDIA_S3_SECRET_ACCESS_KEY"].some((name) => Boolean(env[name])))
+        throw new Error("Filesystem product media bundle must not include S3 fields");
+      productMedia = { kind: "filesystem", root: env.PRODUCT_MEDIA_FILESYSTEM_ROOT, publicBaseUrl };
+    } else if (env.PRODUCT_MEDIA_STORAGE === "s3") {
+      const required = ["PRODUCT_MEDIA_S3_ENDPOINT","PRODUCT_MEDIA_S3_REGION","PRODUCT_MEDIA_S3_BUCKET","PRODUCT_MEDIA_S3_ACCESS_KEY_ID","PRODUCT_MEDIA_S3_SECRET_ACCESS_KEY"] as const;
+      if (required.some((name) => !env[name])) throw new Error("S3 product media bundle must be supplied completely");
+      const endpoint = new URL(env.PRODUCT_MEDIA_S3_ENDPOINT!);
+      if (!["http:", "https:"].includes(endpoint.protocol)) throw new Error("S3 product media bundle endpoint must use HTTP(S)");
+      productMedia = {
+        kind: "s3", endpoint: env.PRODUCT_MEDIA_S3_ENDPOINT!, region: env.PRODUCT_MEDIA_S3_REGION!,
+        bucket: env.PRODUCT_MEDIA_S3_BUCKET!, accessKeyId: env.PRODUCT_MEDIA_S3_ACCESS_KEY_ID!,
+        secretAccessKey: env.PRODUCT_MEDIA_S3_SECRET_ACCESS_KEY!, publicBaseUrl,
+      };
+    } else throw new Error("PRODUCT_MEDIA_STORAGE must be filesystem or s3");
+  }
+
+  const aiAuxNames = ["AI_IMAGE_MODEL", "OPENAI_API_KEY", "AI_IMAGE_TIMEOUT_MS", "AI_IMAGE_MAX_CANDIDATES", "AI_IMAGE_WORKER_POLL_MS"] as const;
+  if (!env.AI_IMAGE_PROVIDER && aiAuxNames.some((name) => Boolean(env[name])))
+    throw new Error("AI_IMAGE_PROVIDER is required when AI image configuration is supplied");
+  let imageGeneration: ImageGenerationConfig | null = null;
+  if (env.AI_IMAGE_PROVIDER) {
+    if (!productMedia) throw new Error("PRODUCT_MEDIA_STORAGE must be configured before AI image generation");
+    if (!['openai','fake'].includes(env.AI_IMAGE_PROVIDER)) throw new Error("AI_IMAGE_PROVIDER must be openai or fake");
+    if (env.AI_IMAGE_PROVIDER === "openai" && !env.OPENAI_API_KEY) throw new Error("OPENAI_API_KEY is required when AI_IMAGE_PROVIDER=openai");
+    const boundedInt = (name: "AI_IMAGE_TIMEOUT_MS" | "AI_IMAGE_MAX_CANDIDATES" | "AI_IMAGE_WORKER_POLL_MS", fallback: number, min: number, max: number) => {
+      const value = env[name] === undefined || env[name] === "" ? fallback : Number(env[name]);
+      if (!Number.isInteger(value) || value < min || value > max) throw new Error(`${name} must be an integer between ${min} and ${max}`);
+      return value;
+    };
+    imageGeneration = {
+      providerId: env.AI_IMAGE_PROVIDER as "openai" | "fake",
+      model: env.AI_IMAGE_MODEL || "gpt-image-2",
+      ...(env.AI_IMAGE_PROVIDER === "openai" ? { openAiApiKey: env.OPENAI_API_KEY! } : {}),
+      timeoutMs: boundedInt("AI_IMAGE_TIMEOUT_MS", 60_000, 1_000, 120_000),
+      maxCandidates: boundedInt("AI_IMAGE_MAX_CANDIDATES", 4, 1, 4),
+      workerPollIntervalMs: boundedInt("AI_IMAGE_WORKER_POLL_MS", 2_000, 100, 60_000),
+    };
+  }
+
   return {
     databaseUrl: env.DATABASE_URL,
     webOrigins,
@@ -225,5 +309,7 @@ export function readConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
     host: env.API_HOST ?? "127.0.0.1",
     commerce,
     payments,
+    productMedia,
+    imageGeneration,
   };
 }

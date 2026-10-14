@@ -7,10 +7,10 @@ import {
 import { Reflector } from "@nestjs/core";
 import { ApiProblem } from "../http/errors";
 import { AuthRequest, IdentityService } from "./identity.service";
+import { hasPermission, type PermissionName } from "./permissions";
 
-export const Permission = (
-  permission: "inventory.read" | "inventory.receive",
-) => SetMetadata("permission", permission);
+export const Permission = (permission: PermissionName) =>
+  SetMetadata("permission", permission);
 @Injectable()
 export class AccessGuard implements CanActivate {
   constructor(
@@ -20,11 +20,11 @@ export class AccessGuard implements CanActivate {
   async canActivate(context: ExecutionContext) {
     const req = context.switchToHttp().getRequest<AuthRequest>();
     Object.assign(req, await this.identity.authenticate(req));
-    const permission = this.reflector.getAllAndOverride<string>("permission", [
+    const permission = this.reflector.getAllAndOverride<PermissionName>("permission", [
       context.getHandler(),
       context.getClass(),
     ]);
-    if (permission && !["admin", "inventory_manager"].includes(req.actor.role))
+    if (permission && !hasPermission(req.actor.role, permission))
       throw new ApiProblem(403, "FORBIDDEN", "Permission denied.");
     return true;
   }
