@@ -36,9 +36,11 @@ export interface CatalogProduct {
   shortDescription: string;
   description: string;
   tags: string[];
+  /** Compatibility image: approved featured media URL when present, otherwise the legacy product image. */
   image: string;
   featuredImage?: CatalogMediaImage;
-  gallery?: CatalogMediaImage[];
+  /** Ordered approved storefront gallery. Private/rejected/archived media never appears here. */
+  gallery: CatalogMediaImage[];
   variants: CatalogVariant[];
   anyAvailable: boolean;
   minPriceMinor: number;
