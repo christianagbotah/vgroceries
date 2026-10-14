@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Get,
+  HttpCode,
   Param,
   Post,
   Req,
@@ -11,6 +12,11 @@ import {
   UseInterceptors,
 } from "@nestjs/common";
 import { FileInterceptor } from "@nestjs/platform-express";
+import {
+  reorderGalleryRequestSchema,
+  setFeaturedMediaRequestSchema,
+  setProductBrandModeRequestSchema,
+} from "@variety/contracts";
 import type { Response } from "express";
 import { ApiProblem } from "../http/errors";
 import { AccessGuard, Permission } from "../identity/access.guard";
@@ -52,6 +58,98 @@ export class ProductMediaController {
         altText: altText ?? "",
         bytes: file.buffer,
       }),
+    };
+  }
+
+  @Post("media/:mediaId/approve")
+  @HttpCode(200)
+  @Permission("catalog.media.approve")
+  async approve(@Req() req: AuthRequest, @Param("mediaId") mediaId: string) {
+    return { ok: true, data: await this.media.approve(mediaId, req.actor.id, req.requestId) };
+  }
+
+  @Post("media/:mediaId/reject")
+  @HttpCode(200)
+  @Permission("catalog.media.approve")
+  async reject(@Req() req: AuthRequest, @Param("mediaId") mediaId: string) {
+    return { ok: true, data: await this.media.reject(mediaId, req.actor.id, req.requestId) };
+  }
+
+  @Post("media/:mediaId/archive")
+  @HttpCode(200)
+  @Permission("catalog.media.publish")
+  async archive(
+    @Req() req: AuthRequest,
+    @Param("mediaId") mediaId: string,
+    @Body() body: Record<string, unknown>,
+  ) {
+    const input = body ?? {};
+    if (Object.keys(input).some((key) => key !== "replacementFeaturedMediaId"))
+      throw new ApiProblem(400, "VALIDATION_FAILED", "Archive request contains unsupported fields.");
+    const replacement = Object.prototype.hasOwnProperty.call(input, "replacementFeaturedMediaId")
+      ? input.replacementFeaturedMediaId
+      : undefined;
+    if (replacement !== undefined && replacement !== null && (typeof replacement !== "string" || !replacement.trim()))
+      throw new ApiProblem(400, "VALIDATION_FAILED", "Replacement featured media ID is invalid.");
+    return {
+      ok: true,
+      data: await this.media.archive(
+        mediaId,
+        req.actor.id,
+        req.requestId,
+        replacement === null ? null : typeof replacement === "string" ? replacement.trim() : undefined,
+      ),
+    };
+  }
+
+  @Post("products/:productId/media/featured")
+  @HttpCode(200)
+  @Permission("catalog.media.publish")
+  async featured(
+    @Req() req: AuthRequest,
+    @Param("productId") productId: string,
+    @Body() body: unknown,
+  ) {
+    const parsed = setFeaturedMediaRequestSchema.safeParse(body);
+    if (!parsed.success)
+      throw new ApiProblem(400, "VALIDATION_FAILED", "Invalid featured media request.");
+    return {
+      ok: true,
+      data: await this.media.setFeatured(productId, parsed.data.mediaId, req.actor.id, req.requestId),
+    };
+  }
+
+  @Post("products/:productId/media/reorder")
+  @HttpCode(200)
+  @Permission("catalog.media.publish")
+  async reorder(
+    @Req() req: AuthRequest,
+    @Param("productId") productId: string,
+    @Body() body: unknown,
+  ) {
+    const parsed = reorderGalleryRequestSchema.safeParse(body);
+    if (!parsed.success)
+      throw new ApiProblem(400, "VALIDATION_FAILED", "Invalid gallery order request.");
+    return {
+      ok: true,
+      data: await this.media.reorderGallery(productId, parsed.data.orderedMediaIds, req.actor.id, req.requestId),
+    };
+  }
+
+  @Post("products/:productId/media/brand-mode")
+  @HttpCode(200)
+  @Permission("catalog.media.publish")
+  async brandMode(
+    @Req() req: AuthRequest,
+    @Param("productId") productId: string,
+    @Body() body: unknown,
+  ) {
+    const parsed = setProductBrandModeRequestSchema.safeParse(body);
+    if (!parsed.success)
+      throw new ApiProblem(400, "VALIDATION_FAILED", "Invalid product brand mode request.");
+    return {
+      ok: true,
+      data: await this.media.setBrandMode(productId, parsed.data.brandMode, req.actor.id, req.requestId),
     };
   }
 

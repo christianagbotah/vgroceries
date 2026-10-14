@@ -17,6 +17,9 @@ import {
   fulfilmentQueueResponseSchema,
   fulfilmentStartPickingRequestSchema,
   createProductDraftRequestSchema,
+  reorderGalleryRequestSchema,
+  setFeaturedMediaRequestSchema,
+  setProductBrandModeRequestSchema,
 } from "@variety/contracts";
 import { z } from "zod";
 import { foundationOpenApi } from "./openapi";
@@ -100,6 +103,10 @@ export function productionOpenApi(app: INestApplication): OpenAPIObject {
     FulfilmentDetailResponse: json(fulfilmentDetailResponseSchema),
     FulfilmentActionResponse: json(fulfilmentActionResponseSchema),
     CreateProductDraftRequest: json(createProductDraftRequestSchema),
+    SetFeaturedMediaRequest: json(setFeaturedMediaRequestSchema),
+    ReorderGalleryRequest: json(reorderGalleryRequestSchema),
+    SetProductBrandModeRequest: json(setProductBrandModeRequestSchema),
+    ArchiveProductMediaRequest: json(z.strictObject({ replacementFeaturedMediaId: z.string().min(1).nullable().optional() })),
     ProductDraftResponse: {
       type: "object", required: ["productId", "editorPath"], additionalProperties: false,
       properties: { productId: { type: "string" }, editorPath: { type: "string" } },
@@ -154,7 +161,7 @@ export function productionOpenApi(app: INestApplication): OpenAPIObject {
     };
 
   doc.info.description =
-    "Implemented production subset: identity, catalogue, Product Media upload/review preparation, inventory receiving, delivery configuration, authoritative checkout/orders, provider-neutral Payments Authority, provider-neutral Refunds Authority, and administrator Fulfilment + Stock Handover Authority. AI generation execution, media publishing lifecycle, courier dispatch, COD collection/remittance, physical returns, POS cash authority and public storefront cutover remain closed.";
+    "Implemented production subset: identity, catalogue, Product Media upload/review preparation, inventory receiving, delivery configuration, authoritative checkout/orders, provider-neutral Payments Authority, provider-neutral Refunds Authority, and administrator Fulfilment + Stock Handover Authority. AI generation execution, courier dispatch, COD collection/remittance, physical returns, POS cash authority and public storefront cutover remain closed.";
 
   const productId: ParameterObject = { name: "productId", in: "path", required: true, schema: { type: "string", minLength: 1 } };
   const mediaId: ParameterObject = { name: "mediaId", in: "path", required: true, schema: { type: "string", minLength: 1 } };
@@ -199,6 +206,73 @@ export function productionOpenApi(app: INestApplication): OpenAPIObject {
         ...mediaErrors,
       },
     },
+  };
+
+  const mediaAction = (
+    description: string,
+    responseSchema: "ProductMediaViewEnvelope" | "AdminProductMediaViewEnvelope",
+    parameters: ParameterObject[],
+    requestSchema?: string,
+    requestRequired = true,
+  ): OperationObject => ({
+    security,
+    description,
+    parameters: [...parameters, csrf],
+    ...(requestSchema ? {
+      requestBody: {
+        required: requestRequired,
+        content: { "application/json": { schema: ref(requestSchema) } },
+      },
+    } : {}),
+    responses: { "200": response(responseSchema), ...mediaErrors },
+  });
+
+  doc.paths["/api/v1/admin/catalog/media/{mediaId}/approve"] = {
+    post: mediaAction(
+      "Administrator-only approval. Promotes one private review candidate into immutable public Variety-controlled storage; it does not publish the product itself.",
+      "ProductMediaViewEnvelope",
+      [mediaId],
+    ),
+  };
+  doc.paths["/api/v1/admin/catalog/media/{mediaId}/reject"] = {
+    post: mediaAction(
+      "Administrator-only rejection of a draft/review candidate. Rejected media is never storefront-visible.",
+      "ProductMediaViewEnvelope",
+      [mediaId],
+    ),
+  };
+  doc.paths["/api/v1/admin/catalog/media/{mediaId}/archive"] = {
+    post: mediaAction(
+      "Administrator-only archival. Archiving the current featured media requires an approved same-product replacement or explicit null removal in the same transaction.",
+      "ProductMediaViewEnvelope",
+      [mediaId],
+      "ArchiveProductMediaRequest",
+      false,
+    ),
+  };
+  doc.paths["/api/v1/admin/catalog/products/{productId}/media/featured"] = {
+    post: mediaAction(
+      "Administrator-only featured-image change. The target must be approved, active and owned by the product; null explicitly removes the featured image.",
+      "AdminProductMediaViewEnvelope",
+      [productId],
+      "SetFeaturedMediaRequest",
+    ),
+  };
+  doc.paths["/api/v1/admin/catalog/products/{productId}/media/reorder"] = {
+    post: mediaAction(
+      "Administrator-only gallery ordering. IDs must be unique approved active media owned by the product; omitted approved media is removed from the ordered gallery.",
+      "AdminProductMediaViewEnvelope",
+      [productId],
+      "ReorderGalleryRequest",
+    ),
+  };
+  doc.paths["/api/v1/admin/catalog/products/{productId}/media/brand-mode"] = {
+    post: mediaAction(
+      "Administrator-only audited override of branded/unbranded product classification used by future image-generation truth rules.",
+      "AdminProductMediaViewEnvelope",
+      [productId],
+      "SetProductBrandModeRequest",
+    ),
   };
 
   doc.paths["/api/v1/admin/fulfilment"] = {

@@ -57,6 +57,42 @@ export class ProductMediaService {
     };
   }
 
+  private async lockProductMedia(tx: Prisma.TransactionClient, productId: string) {
+    const products = await tx.$queryRaw<Array<{ id: string }>>`
+      SELECT id FROM "Product" WHERE id=${productId} FOR UPDATE
+    `;
+    if (!products.length) throw new ApiProblem(404, "PRODUCT_NOT_FOUND", "Product not found.");
+    await tx.$queryRaw`
+      SELECT id FROM "ProductMedia" WHERE "productId"=${productId} ORDER BY id FOR UPDATE
+    `;
+  }
+
+  private async compactGallery(tx: Prisma.TransactionClient, productId: string) {
+    const rows = await tx.productMedia.findMany({
+      where: { productId, status: "approved", archivedAt: null, galleryOrder: { not: null } },
+      orderBy: [{ galleryOrder: "asc" }, { id: "asc" }],
+      select: { id: true, galleryOrder: true },
+    });
+    for (let index = 0; index < rows.length; index += 1) {
+      if (rows[index].galleryOrder !== index)
+        await tx.productMedia.update({ where: { id: rows[index].id }, data: { galleryOrder: index } });
+    }
+  }
+
+  private async cleanupUnreferenced(storageKey: string) {
+    const storage = this.requireStorage();
+    try {
+      if (await this.db.productMedia.count({ where: { storageKey } }) === 0)
+        await storage.delete(storageKey);
+    } catch (error) {
+      console.error(JSON.stringify({
+        event: "product_media.cleanup_failed",
+        storageKey,
+        errorType: error instanceof Error ? error.name : "unknown",
+      }));
+    }
+  }
+
   async viewProductMedia(productId: string): Promise<AdminProductMediaView> {
     const product = await this.db.product.findUnique({
       where: { id: productId },
@@ -194,6 +230,233 @@ export class ProductMediaService {
         throw new ApiProblem(409, "MEDIA_DUPLICATE", "This image is already attached to the product.");
       throw error;
     }
+  }
+
+  async approve(mediaId: string, actorId: string, requestId: string): Promise<ProductMediaView> {
+    const storage = this.requireStorage();
+    const seed = await this.db.productMedia.findUnique({ where: { id: mediaId } });
+    if (!seed) throw new ApiProblem(404, "MEDIA_NOT_FOUND", "Product media not found.");
+    if (seed.status === "approved" && seed.archivedAt === null) return this.mediaView(seed);
+    if (!["draft", "ready_for_review"].includes(seed.status))
+      throw new ApiProblem(409, "MEDIA_STATE_INVALID", "Only review candidates can be approved.");
+
+    let bytes: Buffer;
+    try { bytes = await storage.read(seed.storageKey); }
+    catch (error) {
+      if (error instanceof ProductMediaStorageError && error.code === "STORAGE_NOT_FOUND")
+        throw new ApiProblem(409, "MEDIA_CONTENT_NOT_FOUND", "The review candidate content is missing.");
+      throw new ApiProblem(503, "PRODUCT_MEDIA_UNAVAILABLE", "Product media storage is temporarily unavailable.");
+    }
+    const publicKey = createProductMediaStorageKey(seed.productId, seed.sha256, "public");
+    let stored;
+    try {
+      stored = await storage.put({ key: publicKey, bytes, contentType: seed.mimeType as ProductMediaView["mimeType"], visibility: "public" });
+    } catch (error) {
+      if (error instanceof ProductMediaStorageError && error.code === "STORAGE_KEY_CONFLICT")
+        throw new ApiProblem(409, "MEDIA_STORAGE_CONFLICT", "The approved media object conflicts with existing storage.");
+      throw new ApiProblem(503, "PRODUCT_MEDIA_UNAVAILABLE", "Product media storage is temporarily unavailable.");
+    }
+
+    try {
+      const row = await this.db.$transaction(async (tx) => {
+        await this.lockProductMedia(tx, seed.productId);
+        const current = await tx.productMedia.findUnique({ where: { id: mediaId } });
+        if (!current) throw new ApiProblem(404, "MEDIA_NOT_FOUND", "Product media not found.");
+        if (current.status === "approved" && current.archivedAt === null) return current;
+        if (!["draft", "ready_for_review"].includes(current.status) || current.storageKey !== seed.storageKey)
+          throw new ApiProblem(409, "MEDIA_STATE_INVALID", "The review candidate changed before approval.");
+        const approvedAt = new Date();
+        const media = await tx.productMedia.update({
+          where: { id: mediaId },
+          data: {
+            status: "approved",
+            storageKey: publicKey,
+            publicUrl: stored.publicUrl ?? storage.publicUrl(publicKey),
+            approvedBy: actorId,
+            approvedAt,
+            rejectedAt: null,
+            archivedAt: null,
+          },
+        });
+        await tx.auditEvent.create({
+          data: {
+            actorId,
+            action: "media.approved",
+            entityId: mediaId,
+            requestId,
+            details: { productId: seed.productId, beforeStatus: current.status, publicStorageKey: publicKey },
+          },
+        });
+        return media;
+      });
+      if (row.storageKey === publicKey && seed.storageKey !== publicKey)
+        await this.cleanupUnreferenced(seed.storageKey);
+      return this.mediaView(row);
+    } catch (error) {
+      await this.cleanupUnreferenced(publicKey);
+      throw error;
+    }
+  }
+
+  async reject(mediaId: string, actorId: string, requestId: string): Promise<ProductMediaView> {
+    const seed = await this.db.productMedia.findUnique({ where: { id: mediaId }, select: { productId: true } });
+    if (!seed) throw new ApiProblem(404, "MEDIA_NOT_FOUND", "Product media not found.");
+    const row = await this.db.$transaction(async (tx) => {
+      await this.lockProductMedia(tx, seed.productId);
+      const current = await tx.productMedia.findUnique({ where: { id: mediaId } });
+      if (!current) throw new ApiProblem(404, "MEDIA_NOT_FOUND", "Product media not found.");
+      if (current.status === "rejected") return current;
+      if (!["draft", "ready_for_review"].includes(current.status))
+        throw new ApiProblem(409, "MEDIA_STATE_INVALID", "Only review candidates can be rejected.");
+      const media = await tx.productMedia.update({
+        where: { id: mediaId },
+        data: { status: "rejected", rejectedAt: new Date(), galleryOrder: null },
+      });
+      await tx.auditEvent.create({
+        data: {
+          actorId,
+          action: "media.rejected",
+          entityId: mediaId,
+          requestId,
+          details: { productId: seed.productId, beforeStatus: current.status },
+        },
+      });
+      return media;
+    });
+    return this.mediaView(row);
+  }
+
+  async setFeatured(productId: string, mediaId: string | null, actorId: string, requestId: string): Promise<AdminProductMediaView> {
+    await this.db.$transaction(async (tx) => {
+      await this.lockProductMedia(tx, productId);
+      const product = await tx.product.findUniqueOrThrow({ where: { id: productId } });
+      if (mediaId !== null) {
+        const media = await tx.productMedia.findFirst({ where: { id: mediaId, productId } });
+        if (!media) throw new ApiProblem(404, "MEDIA_NOT_FOUND", "Product media not found.");
+        if (media.status !== "approved" || media.archivedAt !== null)
+          throw new ApiProblem(409, "MEDIA_NOT_APPROVED", "Only approved active media can be featured.");
+      }
+      if (product.featuredMediaId === mediaId) return;
+      await tx.product.update({ where: { id: productId }, data: { featuredMediaId: mediaId } });
+      await tx.auditEvent.create({
+        data: {
+          actorId,
+          action: "media.featured.changed",
+          entityId: productId,
+          requestId,
+          details: { beforeMediaId: product.featuredMediaId, afterMediaId: mediaId },
+        },
+      });
+    });
+    return this.viewProductMedia(productId);
+  }
+
+  async reorderGallery(productId: string, orderedMediaIds: string[], actorId: string, requestId: string): Promise<AdminProductMediaView> {
+    await this.db.$transaction(async (tx) => {
+      await this.lockProductMedia(tx, productId);
+      const media = orderedMediaIds.length
+        ? await tx.productMedia.findMany({ where: { productId, id: { in: orderedMediaIds } } })
+        : [];
+      if (media.length !== orderedMediaIds.length)
+        throw new ApiProblem(404, "MEDIA_NOT_FOUND", "One or more product media items were not found.");
+      if (media.some((row) => row.status !== "approved" || row.archivedAt !== null))
+        throw new ApiProblem(409, "MEDIA_NOT_APPROVED", "Only approved active media can be placed in the gallery.");
+      await tx.productMedia.updateMany({
+        where: { productId, galleryOrder: { not: null } },
+        data: { galleryOrder: null },
+      });
+      for (let index = 0; index < orderedMediaIds.length; index += 1)
+        await tx.productMedia.update({ where: { id: orderedMediaIds[index] }, data: { galleryOrder: index } });
+      await tx.auditEvent.create({
+        data: {
+          actorId,
+          action: "media.gallery.reordered",
+          entityId: productId,
+          requestId,
+          details: { orderedMediaIds },
+        },
+      });
+    });
+    return this.viewProductMedia(productId);
+  }
+
+  async archive(
+    mediaId: string,
+    actorId: string,
+    requestId: string,
+    replacementFeaturedMediaId?: string | null,
+  ): Promise<ProductMediaView> {
+    const seed = await this.db.productMedia.findUnique({ where: { id: mediaId }, select: { productId: true } });
+    if (!seed) throw new ApiProblem(404, "MEDIA_NOT_FOUND", "Product media not found.");
+    const row = await this.db.$transaction(async (tx) => {
+      await this.lockProductMedia(tx, seed.productId);
+      const product = await tx.product.findUniqueOrThrow({ where: { id: seed.productId } });
+      const current = await tx.productMedia.findUnique({ where: { id: mediaId } });
+      if (!current) throw new ApiProblem(404, "MEDIA_NOT_FOUND", "Product media not found.");
+      if (current.status === "archived") return current;
+
+      if (product.featuredMediaId === mediaId) {
+        if (replacementFeaturedMediaId === undefined)
+          throw new ApiProblem(409, "FEATURED_REPLACEMENT_REQUIRED", "Choose a replacement featured image or explicitly remove the featured image first.");
+        if (replacementFeaturedMediaId !== null) {
+          if (replacementFeaturedMediaId === mediaId)
+            throw new ApiProblem(409, "FEATURED_REPLACEMENT_INVALID", "The archived image cannot replace itself.");
+          const replacement = await tx.productMedia.findFirst({ where: { id: replacementFeaturedMediaId, productId: seed.productId } });
+          if (!replacement) throw new ApiProblem(404, "MEDIA_NOT_FOUND", "Replacement product media not found.");
+          if (replacement.status !== "approved" || replacement.archivedAt !== null)
+            throw new ApiProblem(409, "MEDIA_NOT_APPROVED", "Replacement featured media must be approved and active.");
+        }
+        await tx.product.update({ where: { id: seed.productId }, data: { featuredMediaId: replacementFeaturedMediaId } });
+        await tx.auditEvent.create({
+          data: {
+            actorId,
+            action: "media.featured.changed",
+            entityId: seed.productId,
+            requestId,
+            details: { beforeMediaId: mediaId, afterMediaId: replacementFeaturedMediaId },
+          },
+        });
+      }
+
+      const archived = await tx.productMedia.update({
+        where: { id: mediaId },
+        data: { status: "archived", archivedAt: new Date(), galleryOrder: null },
+      });
+      await this.compactGallery(tx, seed.productId);
+      await tx.auditEvent.create({
+        data: {
+          actorId,
+          action: "media.archived",
+          entityId: mediaId,
+          requestId,
+          details: { productId: seed.productId, beforeStatus: current.status },
+        },
+      });
+      return archived;
+    });
+    return this.mediaView(row);
+  }
+
+  async setBrandMode(productId: string, brandMode: ProductBrandMode, actorId: string, requestId: string): Promise<AdminProductMediaView> {
+    await this.db.$transaction(async (tx) => {
+      const products = await tx.$queryRaw<Array<{ id: string }>>`
+        SELECT id FROM "Product" WHERE id=${productId} FOR UPDATE
+      `;
+      if (!products.length) throw new ApiProblem(404, "PRODUCT_NOT_FOUND", "Product not found.");
+      const product = await tx.product.findUniqueOrThrow({ where: { id: productId } });
+      if (product.brandMode === brandMode) return;
+      await tx.product.update({ where: { id: productId }, data: { brandMode } });
+      await tx.auditEvent.create({
+        data: {
+          actorId,
+          action: "product.brand_mode.overridden",
+          entityId: productId,
+          requestId,
+          details: { beforeBrandMode: product.brandMode, afterBrandMode: brandMode },
+        },
+      });
+    });
+    return this.viewProductMedia(productId);
   }
 
   async readContent(mediaId: string): Promise<{ bytes: Buffer; mimeType: string }> {
