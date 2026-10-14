@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import type { CatalogMediaImage } from "@/services/contracts";
 
 interface ProductMediaGalleryProps {
@@ -46,10 +46,6 @@ export function ProductMediaGallery({ productName, featuredImage, gallery, fallb
 
   const [activeId, setActiveId] = useState(media[0].id);
   const active = media.find((item) => item.id === activeId) ?? media[0];
-
-  useEffect(() => {
-    if (!media.some((item) => item.id === activeId)) setActiveId(media[0].id);
-  }, [activeId, media]);
 
   return (
     <div className="space-y-3">
