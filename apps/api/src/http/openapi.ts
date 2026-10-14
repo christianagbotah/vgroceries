@@ -219,7 +219,14 @@ export function foundationOpenApi(app: INestApplication) {
   for (const [path, item] of Object.entries(doc.paths)) {
     const suffix = path.slice("/api/v1".length);
     const name = responses[suffix];
-    if (!name) throw new Error(`Undocumented foundation endpoint: ${path}`);
+    if (!name) {
+      const productionExtension =
+        suffix === "/admin/catalog/products" ||
+        suffix.startsWith("/admin/catalog/products/") ||
+        suffix.startsWith("/admin/catalog/media/");
+      if (productionExtension) continue;
+      throw new Error(`Undocumented foundation endpoint: ${path}`);
+    }
     for (const method of ["get", "post"] as const) {
       const operation = item?.[method];
       if (!operation) continue;

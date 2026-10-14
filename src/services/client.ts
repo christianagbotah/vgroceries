@@ -27,6 +27,12 @@ import type {
   AdminOrderRow,
   AdminProductDetail,
   AdminProductRow,
+  AdminProductMediaView,
+  CreateGenerationRequest,
+  CreateProductDraftRequest,
+  ImageGenerationJobView,
+  ProductMediaView,
+  ProductBrandMode,
   AdminReturnRow,
   AdminRiderRow,
   AssistantResponse,
@@ -94,6 +100,7 @@ export type { QueryValue };
 export interface ApiCallOptions {
   query?: Record<string, QueryValue>;
   body?: Record<string, unknown>;
+  formData?: FormData;
   /** Retry-safety: forwarded as the Idempotency-Key header. */
   idempotencyKey?: string;
   /** Skip zod request validation (contract tests only). */
@@ -106,6 +113,7 @@ export async function api<T = unknown>(op: string, options?: ApiCallOptions): Pr
     op,
     query: options?.query,
     body: options?.body,
+    formData: options?.formData,
     idempotencyKey: options?.idempotencyKey,
     skipValidation: options?.skipValidation,
   };
@@ -232,6 +240,28 @@ export const apiOps = {
   adminProducts: (q?: string) => api<AdminProductRow[]>("admin.products", { query: { q } }),
   adminProduct: (productId: string) => api<AdminProductDetail>("admin.product", { query: { productId } }),
   productUpdate: (body: Record<string, unknown>) => api<DoneResponse>("admin.product.update", { body }),
+  productDraftCreate: (body: CreateProductDraftRequest) =>
+    api<{ productId: string; editorPath: string }>("admin.product.create", { body: body as unknown as Record<string, unknown> }),
+  productMedia: (productId: string) =>
+    api<AdminProductMediaView>("admin.product-media", { query: { productId } }),
+  productMediaUpload: (productId: string, formData: FormData) =>
+    api<ProductMediaView>("admin.product-media.upload", { query: { productId }, formData }),
+  productMediaGenerate: (productId: string, body: CreateGenerationRequest, idempotencyKey: string) =>
+    api<ImageGenerationJobView>("admin.product-media.generate", { query: { productId }, body: body as unknown as Record<string, unknown>, idempotencyKey }),
+  productMediaGeneration: (jobId: string) =>
+    api<ImageGenerationJobView>("admin.product-media.generation", { query: { jobId } }),
+  productMediaApprove: (mediaId: string) =>
+    api<ProductMediaView>("admin.product-media.approve", { query: { mediaId }, body: {} }),
+  productMediaReject: (mediaId: string) =>
+    api<ProductMediaView>("admin.product-media.reject", { query: { mediaId }, body: {} }),
+  productMediaArchive: (mediaId: string, replacementFeaturedMediaId?: string | null) =>
+    api<ProductMediaView>("admin.product-media.archive", { query: { mediaId }, body: replacementFeaturedMediaId === undefined ? {} : { replacementFeaturedMediaId } }),
+  productMediaSetFeatured: (productId: string, mediaId: string | null) =>
+    api<AdminProductMediaView>("admin.product-media.featured", { query: { productId }, body: { mediaId } }),
+  productMediaReorder: (productId: string, orderedMediaIds: string[]) =>
+    api<AdminProductMediaView>("admin.product-media.reorder", { query: { productId }, body: { orderedMediaIds } }),
+  productMediaBrandMode: (productId: string, brandMode: ProductBrandMode) =>
+    api<AdminProductMediaView>("admin.product-media.brand-mode", { query: { productId }, body: { brandMode } }),
   variantUpdate: (body: Record<string, unknown>) => api<DoneResponse>("admin.variant.update", { body }),
   categories: () => api<AdminCategoryRow[]>("admin.categories"),
   categoryUpdate: (body: Record<string, unknown>) => api<DoneResponse>("admin.categories.update", { body }),

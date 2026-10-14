@@ -45,13 +45,19 @@ export class MockServiceAdapter implements ServiceAdapter {
       if (v !== undefined && v !== null && v !== "") query.set(k, String(v));
     }
 
+    // The mock protocol models multipart deterministically without a network hop.
+    const multipartBody: Record<string, unknown> = {};
+    if (req.formData) {
+      for (const [key, value] of req.formData.entries()) multipartBody[key] = value;
+      if (req.idempotencyKey) multipartBody.idempotencyKey = req.idempotencyKey;
+    }
     // The mock engines read idempotency keys from the body; surface the
     // header-style key there so both transports behave identically.
-    const body = normalizedBody ?? {};
+    const body = req.formData ? multipartBody : (normalizedBody ?? {});
 
     const result = await handleApi({
       path: req.op,
-      method: normalizedBody !== undefined ? "POST" : "GET",
+      method: normalizedBody !== undefined || req.formData !== undefined ? "POST" : "GET",
       query,
       body,
     });

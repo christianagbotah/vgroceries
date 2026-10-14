@@ -5,6 +5,7 @@ import Image from "next/image";
 import { useCallback, useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { apiOps, ApiError } from "@/services/client";
+import { ProductMediaStudio } from "@/features/catalog/product-media-studio";
 import { useStaff } from "@/features/staff/role-context";
 import { LoadingState, ErrorState } from "@/components/shared/states";
 import { Badge } from "@/components/ui/badge";
@@ -117,6 +118,8 @@ export default function AdminProductDetailPage() {
           {detail.tags.map((t) => <Badge key={t} variant="secondary" className="text-xs">{t}</Badge>)}
         </div>
       </div>
+
+      <ProductMediaStudio productId={detail.id} productName={detail.name} />
 
       {/* variants */}
       <section aria-labelledby="variants-heading" className="overflow-hidden rounded-xl border bg-card">

@@ -101,6 +101,14 @@ import type { Order, OrderLine } from "@/types/domain";
  * machine. Surfaced as `allowedActions` so the UI can render exactly what
  * the (future) backend authority allows instead of hardcoding transitions.
  */
+type MockMedia = { id:string; productId:string; source:"upload"|"ai_generated"|"ai_edited"; status:"ready_for_review"|"approved"|"rejected"|"archived"; previewUrl:string; publicUrl?:string; mimeType:"image/png"|"image/jpeg"|"image/webp"; width:number; height:number; byteSize:number; sha256:string; altText:string; galleryOrder?:number; generationJobId?:string; createdBy:string; createdAt:string; updatedAt:string; approvedAt?:string; approvedBy?:string; };
+type MockGeneration = { id:string; productId:string; requestedBy:string; mode:string; stylePreset:string; status:string; provider:string; model:string; candidateCount:number; attemptCount:number; referenceMediaId?:string; candidateMediaIds:string[]; createdAt:string; updatedAt:string; completedAt?:string; };
+type MockMediaState = { media:MockMedia[]; generations:MockGeneration[]; featured:Map<string,string>; brandMode:Map<string,"auto"|"unbranded"|"branded">; generationKeys:Map<string,string>; };
+const mediaStates = new WeakMap<VgStore, MockMediaState>();
+function mediaState(store: VgStore): MockMediaState { let state=mediaStates.get(store); if(!state){state={media:[],generations:[],featured:new Map(),brandMode:new Map(),generationKeys:new Map()};mediaStates.set(store,state);} return state; }
+function mockPreview(productSlug:string, seed:string){ const photo=productImageFor(productSlug); return photo || `data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="800" height="800"><rect width="100%" height="100%" fill="#eef5e8"/><text x="50%" y="50%" text-anchor="middle" font-size="42" fill="#0b5d3b">Variety Groceries ${seed}</text></svg>`)}`; }
+function mockMediaView(store:VgStore, productId:string){ const state=mediaState(store); const product=store.products.find(p=>p.id===productId); if(!product) throw new OpError("VALIDATION_FAILED","Product not found."); const active=state.media.filter(m=>m.productId===productId && m.status!=="archived"); const featuredId=state.featured.get(productId); return { productId, brandMode:state.brandMode.get(productId)??"auto", resolvedBrandMode:(state.brandMode.get(productId)==="branded"?"branded":"unbranded"), featuredMedia:active.find(m=>m.id===featuredId && m.status==="approved"), approvedGallery:active.filter(m=>m.status==="approved").sort((a,b)=>(a.galleryOrder??999)-(b.galleryOrder??999)), reviewCandidates:active.filter(m=>m.status==="ready_for_review"), generationJobs:state.generations.filter(j=>j.productId===productId).slice(-10).reverse() }; }
+
 const FULFILMENT_ACTIONS: Record<string, string[]> = {
   awaiting_confirmation: ["confirm", "cancel", "note"],
   confirmed: ["picking", "cancel", "note", "substitute"],
@@ -988,6 +996,27 @@ export async function handleApi(req: ApiRequest): Promise<ApiResult> {
         const stk = closeStocktake(store, b("stocktakeId"), body.applyCorrections === true, b("actor") || "stf_nana");
         return ok({ status: stk.status });
       }
+
+      /* ---------------- Product Media studio (deterministic UAT mock) ---------------- */
+      case "admin.product.create": {
+        const id=nextId("prd"); const now=nowIso(); const name=b("name").trim(), slug=b("slug").trim(); if(!name||!slug||!b("categoryId")) throw new OpError("VALIDATION_FAILED","Name, slug and category are required.");
+        store.products.push({id,slug,name,categoryId:b("categoryId"),shortDescription:b("shortDescription"),description:b("description"),tags:Array.isArray(body.tags)?body.tags as string[]:[],variants:[],isPublished:false,createdAt:now,updatedAt:now});
+        return ok({productId:id,editorPath:`/admin/products/${id}`});
+      }
+      case "admin.product-media": return ok(mockMediaView(store,q("productId")));
+      case "admin.product-media.upload": {
+        const productId=q("productId"), product=store.products.find(p=>p.id===productId); if(!product) throw new OpError("VALIDATION_FAILED","Product not found."); const state=mediaState(store); const id=nextId("media"); const now=nowIso(); const file=body.file as File|undefined; const row:MockMedia={id,productId,source:"upload",status:"ready_for_review",previewUrl:mockPreview(product.slug,id),mimeType:(file?.type==="image/jpeg"||file?.type==="image/webp"?file.type:"image/png") as MockMedia["mimeType"],width:1024,height:1024,byteSize:file?.size??1024,sha256:"a".repeat(64),altText:b("altText")||product.name,createdBy:"mock-catalogue-user",createdAt:now,updatedAt:now}; state.media.push(row); return ok(row);
+      }
+      case "admin.product-media.generate": {
+        const productId=q("productId"), product=store.products.find(p=>p.id===productId); if(!product) throw new OpError("VALIDATION_FAILED","Product not found."); const state=mediaState(store); const key=b("idempotencyKey"); const prior=key&&state.generationKeys.get(key); if(prior) return ok(state.generations.find(j=>j.id===prior)); const count=Math.max(1,Math.min(4,n("candidateCount",1))); const jobId=nextId("gen"); const now=nowIso(); const ids:string[]=[]; for(let i=0;i<count;i++){const id=nextId("media");ids.push(id);state.media.push({id,productId,source:b("mode")==="branded_packshot_edit"?"ai_edited":"ai_generated",status:"ready_for_review",previewUrl:mockPreview(product.slug,`${jobId}-${i}`),mimeType:"image/webp",width:1024,height:1024,byteSize:24000+i,sha256:(i%2?"b":"c").repeat(64),altText:product.name,generationJobId:jobId,createdBy:"mock-catalogue-user",createdAt:now,updatedAt:now});} const job:MockGeneration={id:jobId,productId,requestedBy:"mock-catalogue-user",mode:b("mode")||"unbranded_generation",stylePreset:b("stylePreset")||"clean_studio",status:"succeeded",provider:"fake",model:"gpt-image-2",candidateCount:count,attemptCount:1,referenceMediaId:b("referenceMediaId")||undefined,candidateMediaIds:ids,createdAt:now,updatedAt:now,completedAt:now};state.generations.push(job);if(key)state.generationKeys.set(key,jobId);return ok(job);
+      }
+      case "admin.product-media.generation": { const job=mediaState(store).generations.find(j=>j.id===q("jobId")); if(!job) throw new OpError("VALIDATION_FAILED","Generation job not found."); return ok(job); }
+      case "admin.product-media.approve": { const state=mediaState(store), row=state.media.find(m=>m.id===q("mediaId")); if(!row) throw new OpError("VALIDATION_FAILED","Media not found."); row.status="approved";row.approvedAt=nowIso();row.approvedBy="mock-admin";row.updatedAt=nowIso();return ok(row); }
+      case "admin.product-media.reject": { const row=mediaState(store).media.find(m=>m.id===q("mediaId")); if(!row) throw new OpError("VALIDATION_FAILED","Media not found.");row.status="rejected";row.updatedAt=nowIso();return ok(row); }
+      case "admin.product-media.archive": { const state=mediaState(store), row=state.media.find(m=>m.id===q("mediaId")); if(!row) throw new OpError("VALIDATION_FAILED","Media not found.");row.status="archived";row.updatedAt=nowIso();if(state.featured.get(row.productId)===row.id)state.featured.delete(row.productId);return ok(row); }
+      case "admin.product-media.featured": { const productId=q("productId"), state=mediaState(store), id=(body.mediaId as string|null); if(id===null)state.featured.delete(productId); else {const row=state.media.find(m=>m.id===id&&m.productId===productId&&m.status==="approved");if(!row)throw new OpError("VALIDATION_FAILED","Featured media must be approved.");state.featured.set(productId,id);}return ok(mockMediaView(store,productId)); }
+      case "admin.product-media.reorder": { const productId=q("productId"), state=mediaState(store), ids=(body.orderedMediaIds??[]) as string[]; ids.forEach((id,i)=>{const row=state.media.find(m=>m.id===id&&m.productId===productId&&m.status==="approved");if(!row)throw new OpError("VALIDATION_FAILED","Gallery media must be approved.");row.galleryOrder=i;});return ok(mockMediaView(store,productId)); }
+      case "admin.product-media.brand-mode": { const productId=q("productId"); mediaState(store).brandMode.set(productId,b("brandMode") as "auto"|"unbranded"|"branded");return ok(mockMediaView(store,productId)); }
 
       /* ---------------- Staff: catalogue & purchasing ---------------- */
       case "admin.products": {

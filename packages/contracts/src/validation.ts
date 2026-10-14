@@ -281,6 +281,44 @@ export const riderActionRequestSchema = z.object({
   note: z.string().optional(),
 });
 
+export const productBrandModeSchema = z.enum(["auto", "unbranded", "branded"]);
+export const imageGenerationModeSchema = z.enum(["unbranded_generation", "branded_packshot_edit"]);
+export const imageStylePresetSchema = z.enum(["clean_studio", "fresh_market", "lifestyle_kitchen", "ghana_market"]);
+export const imageBackgroundIntentSchema = z.enum(["auto", "plain", "grocery_shelf", "kitchen_counter", "market_display"]);
+
+export const createProductDraftRequestSchema = z.strictObject({
+  name: z.string().trim().min(1).max(160),
+  slug: z.string().trim().min(1).max(128).regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/),
+  categoryId: idSchema,
+  shortDescription: z.string().trim().max(500).optional(),
+  description: z.string().trim().max(5_000).optional(),
+  tags: z.array(z.string().trim().min(1).max(80)).max(30).optional(),
+});
+
+export const createGenerationRequestSchema = z.strictObject({
+  mode: imageGenerationModeSchema,
+  stylePreset: imageStylePresetSchema,
+  backgroundIntent: imageBackgroundIntentSchema,
+  candidateCount: z.number().int().min(1).max(4),
+  referenceMediaId: idSchema.optional(),
+  operatorNote: z.string().trim().min(1).max(500).optional(),
+});
+
+export const setFeaturedMediaRequestSchema = z.strictObject({
+  mediaId: idSchema.nullable(),
+});
+
+export const reorderGalleryRequestSchema = z.strictObject({
+  orderedMediaIds: z.array(idSchema).max(100),
+}).refine((value) => new Set(value.orderedMediaIds).size === value.orderedMediaIds.length, {
+  message: "Gallery media IDs must be unique",
+  path: ["orderedMediaIds"],
+});
+
+export const setProductBrandModeRequestSchema = z.strictObject({
+  brandMode: productBrandModeSchema,
+});
+
 /* ------------------------------------------------------------------ */
 /* Response schemas — conformance-checked against the live service     */
 /* ------------------------------------------------------------------ */
@@ -312,6 +350,14 @@ export const catalogVariantSchema = z.object({
   isAvailable: z.boolean(),
 });
 
+export const catalogMediaImageSchema = z.object({
+  id: z.string(),
+  url: z.string(),
+  altText: z.string(),
+  width: z.number().int().positive(),
+  height: z.number().int().positive(),
+});
+
 export const catalogProductSchema = z.object({
   id: z.string(),
   slug: z.string(),
@@ -324,6 +370,8 @@ export const catalogProductSchema = z.object({
   description: z.string(),
   tags: z.array(z.string()),
   image: z.string(),
+  featuredImage: catalogMediaImageSchema.optional(),
+  gallery: z.array(catalogMediaImageSchema).optional(),
   variants: z.array(catalogVariantSchema),
   anyAvailable: z.boolean(),
   minPriceMinor: z.number(),
@@ -500,6 +548,11 @@ export const requestSchemas: Record<string, z.ZodTypeAny> = {
   "admin.dispatch.assign": dispatchAssignRequestSchema,
   "admin.refund.action": legacyRefundActionRequestSchema,
   "rider.action": riderActionRequestSchema,
+  "admin.product.create": createProductDraftRequestSchema,
+  "admin.product-media.generate": createGenerationRequestSchema,
+  "admin.product-media.featured": setFeaturedMediaRequestSchema,
+  "admin.product-media.reorder": reorderGalleryRequestSchema,
+  "admin.product-media.brand-mode": setProductBrandModeRequestSchema,
 };
 
 /** Validate a request body against its declared schema, if any. */

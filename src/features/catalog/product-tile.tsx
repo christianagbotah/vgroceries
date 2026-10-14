@@ -17,6 +17,7 @@ export function ProductTile({ product, priority }: { product: CatalogProduct; pr
   const available = product.variants.filter((v) => v.isAvailable);
   const [variantId, setVariantId] = useState(available[0]?.id ?? product.variants[0]?.id ?? "");
   const chosen = product.variants.find((v) => v.id === variantId) ?? available[0];
+  const productImage = product.featuredImage?.url ?? product.image;
 
   const quickAdd = () => {
     if (!chosen?.isAvailable) return;
@@ -25,7 +26,7 @@ export function ProductTile({ product, priority }: { product: CatalogProduct; pr
       productId: product.id,
       quantity: "1",
       name: `${product.name} — ${chosen.name}`,
-      image: product.image,
+      image: productImage,
       priceMinor: chosen.priceMinor,
     });
     toast({ title: "Added to cart", description: `${product.name} — ${chosen.name}` });
@@ -35,7 +36,7 @@ export function ProductTile({ product, priority }: { product: CatalogProduct; pr
     <article className="group flex h-full min-w-0 flex-col overflow-hidden rounded-2xl border bg-white shadow-[0_4px_15px_rgba(0,0,0,.035)] transition duration-200 hover:-translate-y-0.5 hover:border-primary/25 hover:shadow-[0_12px_28px_rgba(5,74,49,.10)]">
       <div className="product-card-photo relative aspect-[1.18/1] overflow-hidden bg-[#f8f8f4]">
         <Link href={`/products/${product.slug}`} className="absolute inset-0 focus-visible:outline-2" aria-label={`${product.name} — view details`}>
-          <Image src={product.image} alt={`${product.name} product photo`} fill sizes="(max-width:640px) 50vw, (max-width:1024px) 25vw, 190px" className="object-cover transition-transform duration-300 group-hover:scale-[1.035]" priority={priority} />
+          <Image src={productImage} alt={product.featuredImage?.altText || `${product.name} product photo`} fill unoptimized={Boolean(product.featuredImage)} sizes="(max-width:640px) 50vw, (max-width:1024px) 25vw, 190px" className="object-cover transition-transform duration-300 group-hover:scale-[1.035]" priority={priority} />
         </Link>
         {chosen?.compareAtPriceMinor ? <span className="absolute left-2 top-2 rounded-full bg-brand-amber px-2 py-1 text-[10px] font-black text-[color:var(--brand-green-deep)] shadow-sm">Offer</span> : null}
         <Button asChild variant="secondary" size="icon" className="absolute right-2 top-2 size-8 rounded-full bg-white/90 shadow-sm backdrop-blur hover:bg-white" aria-label={`Wishlist ${product.name}`}>

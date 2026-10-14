@@ -1,37 +1,65 @@
 import { Inject, Injectable } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
-import type { CatalogProduct, CatalogVariant } from "@variety/contracts";
+import type { CatalogMediaImage, CatalogProduct, CatalogVariant } from "@variety/contracts";
 import { API_CONFIG, ApiConfig } from "../config";
 import { Database } from "../database/database";
 import { ApiProblem } from "../http/errors";
 
-type ProductRecord = Prisma.ProductGetPayload<{
-  include: { category: true; variants: true };
-}>;
+const approvedMediaWhere = {
+  status: "approved",
+  archivedAt: null,
+  publicUrl: { not: null },
+} satisfies Prisma.ProductMediaWhereInput;
+
+const productInclude = {
+  category: true,
+  variants: { where: { active: true }, orderBy: { id: "asc" } },
+  featuredMedia: true,
+  media: {
+    where: { ...approvedMediaWhere, galleryOrder: { not: null } },
+    orderBy: [{ galleryOrder: "asc" }, { createdAt: "asc" }, { id: "asc" }],
+  },
+} satisfies Prisma.ProductInclude;
+
+type ProductRecord = Prisma.ProductGetPayload<{ include: typeof productInclude }>;
 type Availability = {
   variantId: string;
   availableToSell: Prisma.Decimal;
   safetyStock: Prisma.Decimal;
 };
+
 export const priceLabel = (minor: number) => `₵${(minor / 100).toFixed(2)}`;
+
 @Injectable()
 export class CatalogService {
   constructor(
     private readonly db: Database,
     @Inject(API_CONFIG) private readonly config: ApiConfig,
   ) {}
+
   private eligible() {
     return Prisma.sql`p.published AND EXISTS(SELECT 1 FROM "Category" c WHERE c.id=p."categoryId" AND c.active)
       AND EXISTS(SELECT 1 FROM "Variant" v JOIN variant_availability a ON a."variantId"=v.id WHERE v."productId"=p.id AND v.active AND a."locationId"=${this.config.stockLocationId} AND a."availableToSell">0)`;
   }
+
+  private publicMedia(item: ProductRecord["media"][number] | ProductRecord["featuredMedia"]): CatalogMediaImage | undefined {
+    if (!item || item.status !== "approved" || item.archivedAt !== null || !item.publicUrl) return undefined;
+    return {
+      id: item.id,
+      url: item.publicUrl,
+      altText: item.altText,
+      width: item.width,
+      height: item.height,
+    };
+  }
+
   private async map(records: ProductRecord[]): Promise<CatalogProduct[]> {
     const ids = records.flatMap((p) => p.variants.map((v) => v.id));
     const available = ids.length
-      ? await this.db.$queryRaw<
-          Availability[]
-        >`SELECT "variantId","availableToSell","safetyStock" FROM variant_availability WHERE "variantId" IN (${Prisma.join(ids)}) AND "locationId"=${this.config.stockLocationId}`
+      ? await this.db.$queryRaw<Availability[]>`SELECT "variantId","availableToSell","safetyStock" FROM variant_availability WHERE "variantId" IN (${Prisma.join(ids)}) AND "locationId"=${this.config.stockLocationId}`
       : [];
     const map = new Map(available.map((a) => [a.variantId, a]));
+
     return records.map((p) => {
       const variants: CatalogVariant[] = p.variants
         .filter((v) => v.active)
@@ -57,9 +85,13 @@ export class CatalogService {
             safetyStock: a?.safetyStock.toString() ?? "0",
           };
         });
-      const minPriceMinor = variants.length
-        ? Math.min(...variants.map((v) => v.priceMinor))
-        : 0;
+
+      const minPriceMinor = variants.length ? Math.min(...variants.map((v) => v.priceMinor)) : 0;
+      const featuredImage = this.publicMedia(p.featuredMedia);
+      const gallery = p.media
+        .map((item) => this.publicMedia(item))
+        .filter((item): item is CatalogMediaImage => Boolean(item));
+
       return {
         id: p.id,
         slug: p.slug,
@@ -70,7 +102,9 @@ export class CatalogService {
         shortDescription: p.shortDescription,
         description: p.description,
         tags: p.tags,
-        image: p.image,
+        image: featuredImage?.url ?? p.image,
+        ...(featuredImage ? { featuredImage } : {}),
+        gallery,
         variants,
         anyAvailable: variants.some((v) => v.isAvailable),
         minPriceMinor,
@@ -78,18 +112,17 @@ export class CatalogService {
       };
     });
   }
+
   private async records(ids: string[]) {
     if (!ids.length) return [];
     const rows = await this.db.product.findMany({
       where: { id: { in: ids }, published: true, category: { active: true } },
-      include: {
-        category: true,
-        variants: { where: { active: true }, orderBy: { id: "asc" } },
-      },
+      include: productInclude,
     });
     const index = new Map(rows.map((p) => [p.id, p]));
     return ids.flatMap((id) => (index.has(id) ? [index.get(id)!] : []));
   }
+
   async list(query: {
     q: string;
     category?: string;
@@ -106,12 +139,8 @@ export class CatalogService {
         : query.sort === "price-desc"
           ? Prisma.sql`${price} DESC,p.id ASC`
           : Prisma.sql`p.name ASC,p.id ASC`;
-    const ids = await this.db.$queryRaw<
-      { id: string }[]
-    >`SELECT p.id FROM "Product" p WHERE ${where} ORDER BY ${order} LIMIT ${query.perPage} OFFSET ${(query.page - 1) * query.perPage}`;
-    const [count] = await this.db.$queryRaw<
-      { total: bigint }[]
-    >`SELECT count(*) AS total FROM "Product" p WHERE ${where}`;
+    const ids = await this.db.$queryRaw<{ id: string }[]>`SELECT p.id FROM "Product" p WHERE ${where} ORDER BY ${order} LIMIT ${query.perPage} OFFSET ${(query.page - 1) * query.perPage}`;
+    const [count] = await this.db.$queryRaw<{ total: bigint }[]>`SELECT count(*) AS total FROM "Product" p WHERE ${where}`;
     const total = Number(count.total);
     return {
       items: await this.map(await this.records(ids.map((x) => x.id))),
@@ -121,13 +150,11 @@ export class CatalogService {
       pages: Math.max(1, Math.ceil(total / query.perPage)),
     };
   }
+
   async detail(slug: string) {
     const p = await this.db.product.findFirst({
       where: { slug, published: true, category: { active: true } },
-      include: {
-        category: true,
-        variants: { where: { active: true }, orderBy: { id: "asc" } },
-      },
+      include: productInclude,
     });
     if (!p) throw new ApiProblem(404, "NOT_FOUND", "Product not found.");
     const [product] = await this.map([p]);
@@ -144,6 +171,7 @@ export class CatalogService {
       .slice(0, 4);
     return { product, related, purchasable: product.anyAvailable };
   }
+
   async categories() {
     const rows = await this.db.$queryRaw<
       {
@@ -166,13 +194,10 @@ export class CatalogService {
       isActive: true,
     }));
   }
+
   async home() {
-    const ids = await this.db.$queryRaw<
-      { id: string }[]
-    >`SELECT p.id FROM "Product" p WHERE ${this.eligible()} ORDER BY p."createdAt" DESC,p.id LIMIT 4`;
-    const offers = await this.db.$queryRaw<
-      { id: string }[]
-    >`SELECT p.id FROM "Product" p WHERE ${this.eligible()} AND EXISTS(SELECT 1 FROM "Variant" v WHERE v."productId"=p.id AND v.active AND v."compareAtPriceMinor">v."priceMinor") ORDER BY p.name,p.id LIMIT 4`;
+    const ids = await this.db.$queryRaw<{ id: string }[]>`SELECT p.id FROM "Product" p WHERE ${this.eligible()} ORDER BY p."createdAt" DESC,p.id LIMIT 4`;
+    const offers = await this.db.$queryRaw<{ id: string }[]>`SELECT p.id FROM "Product" p WHERE ${this.eligible()} AND EXISTS(SELECT 1 FROM "Variant" v WHERE v."productId"=p.id AND v.active AND v."compareAtPriceMinor">v."priceMinor") ORDER BY p.name,p.id LIMIT 4`;
     return {
       categories: await this.categories(),
       offers: await this.map(await this.records(offers.map((x) => x.id))),
@@ -180,6 +205,7 @@ export class CatalogService {
       trendingNew: await this.map(await this.records(ids.map((x) => x.id))),
     };
   }
+
   async byVariants(ids: string[]) {
     const products = await this.db.product.findMany({
       where: {
@@ -187,10 +213,7 @@ export class CatalogService {
         category: { active: true },
         variants: { some: { id: { in: [...new Set(ids)] }, active: true } },
       },
-      include: {
-        category: true,
-        variants: { where: { active: true }, orderBy: { id: "asc" } },
-      },
+      include: productInclude,
       orderBy: { id: "asc" },
     });
     return this.map(products);

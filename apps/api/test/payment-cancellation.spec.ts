@@ -105,7 +105,7 @@ test("live payment attempts block cancellation while failed and expired attempts
   assert.equal(await db.reservation.count({ where: { claimId: captured.orderId, state: "active" } }), 0);
 });
 
-test("verified success racing cancellation serializes to paid order and refused cancellation", async () => {
+test("verified success racing cancellation preserves paid/refund authority whichever transaction wins", async () => {
   const token = await customer();
   const created = await orderAndAttempt(token, "success-cancel-race");
 
@@ -134,12 +134,23 @@ test("verified success racing cancellation serializes to paid order and refused 
   unlock();
   await holder;
   const [cancelled, paid] = await Promise.all([cancellation, success]);
-  assert.equal(cancelled.response.status, 422);
   assert.equal(paid.attemptStatus, "succeeded");
   const order = await db.order.findUniqueOrThrow({ where: { id: created.orderId } });
-  assert.equal(order.paymentStatus, "succeeded");
-  assert.notEqual(order.fulfilmentStatus, "cancelled");
-  assert.ok(await db.reservation.count({ where: { claimId: created.orderId, state: "active" } }));
+  if (cancelled.response.status === 422) {
+    // Cancellation acquired the authority lock first while the payment was live.
+    assert.equal(order.paymentStatus, "succeeded");
+    assert.notEqual(order.fulfilmentStatus, "cancelled");
+    assert.ok(await db.reservation.count({ where: { claimId: created.orderId, state: "active" } }));
+    assert.equal(await db.refund.count({ where: { orderId: created.orderId } }), 0);
+  } else {
+    // Verified payment acquired the lock first. A later customer cancellation is
+    // valid only if the captured money is paired with a durable refund obligation.
+    assert.equal(cancelled.response.status, 200);
+    assert.equal(order.fulfilmentStatus, "cancelled");
+    assert.equal(order.paymentStatus, "refund_pending");
+    assert.equal(await db.refund.count({ where: { orderId: created.orderId, paymentAttemptId: created.attempt.id } }), 1);
+    assert.equal(await db.reservation.count({ where: { claimId: created.orderId, state: "active" } }), 0);
+  }
 });
 
 test("owner and tracking projections expose durable customer-safe payment attempts only", async () => {
