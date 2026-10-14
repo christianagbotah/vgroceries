@@ -55,6 +55,25 @@ describe("rich storefront visual system", () => {
     expect(tile).toContain("Add to cart");
     expect(tile).toContain("Wishlist");
   });
+
+  test("product tiles prefer approved featured media for both display and cart snapshots", () => {
+    const tile = read("src/features/catalog/product-tile.tsx");
+
+    expect(tile).toContain("product.featuredImage?.url ?? product.image");
+    expect(tile).toContain("const productImage");
+    expect(tile).toContain("image: productImage");
+  });
+
+  test("product detail renders the approved featured image and ordered gallery thumbnails", () => {
+    const product = read("src/app/(storefront)/products/[slug]/page.tsx");
+
+    expect(product).toContain('from "@/features/catalog/product-media-gallery"');
+    expect(product).toContain("<ProductMediaGallery");
+    expect(product).toContain("featuredImage={entry.featuredImage}");
+    expect(product).toContain("gallery={entry.gallery}");
+    expect(product).toContain("fallbackImage={entry.image}");
+  });
+
   test("shop, category and product routes carry the rich visual system beyond the homepage", () => {
     const shop = read("src/app/(storefront)/shop/page.tsx");
     const categories = read("src/app/(storefront)/categories/page.tsx");
@@ -68,5 +87,4 @@ describe("rich storefront visual system", () => {
     expect(product).toContain("product-detail-photo");
     expect(product).not.toContain("Representative product art");
   });
-
 });
