@@ -5,6 +5,7 @@
  */
 
 import type { Paged } from "./common";
+import type { CatalogMediaImage } from "./catalog-media";
 
 /* ---------------- public storefront ---------------- */
 
@@ -36,6 +37,8 @@ export interface CatalogProduct {
   description: string;
   tags: string[];
   image: string;
+  featuredImage?: CatalogMediaImage;
+  gallery?: CatalogMediaImage[];
   variants: CatalogVariant[];
   anyAvailable: boolean;
   minPriceMinor: number;

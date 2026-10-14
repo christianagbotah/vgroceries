@@ -96,9 +96,74 @@ model Product {
   image String @default("")
   tags String[]
   published Boolean @default(false)
+  brandMode String @default("auto")
+  featuredMediaId String? @unique
+  featuredMedia ProductMedia? @relation("ProductFeaturedMedia", fields: [featuredMediaId], references: [id], onDelete: SetNull)
+  media ProductMedia[] @relation("ProductMediaCollection")
+  generationJobs ImageGenerationJob[] @relation("ProductGenerationJobs")
   createdAt DateTime @default(now()) @db.Timestamptz(3)
   variants Variant[]
   @@index([categoryId, published])
+}
+
+model ProductMedia {
+  id String @id @default(uuid())
+  productId String
+  product Product @relation("ProductMediaCollection", fields: [productId], references: [id], onDelete: Restrict)
+  source String
+  status String @default("draft")
+  storageKey String @unique
+  publicUrl String?
+  mimeType String
+  width Int
+  height Int
+  byteSize Int
+  sha256 String
+  altText String @default("")
+  galleryOrder Int?
+  originalFilename String?
+  generationJobId String?
+  generationJob ImageGenerationJob? @relation("GenerationCandidates", fields: [generationJobId], references: [id], onDelete: SetNull)
+  referenceForJobs ImageGenerationJob[] @relation("GenerationReferenceMedia")
+  createdBy String
+  approvedBy String?
+  approvedAt DateTime? @db.Timestamptz(3)
+  rejectedAt DateTime? @db.Timestamptz(3)
+  archivedAt DateTime? @db.Timestamptz(3)
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+  featuredFor Product? @relation("ProductFeaturedMedia")
+  @@index([productId, status, galleryOrder])
+  @@index([generationJobId])
+  @@index([sha256])
+}
+
+model ImageGenerationJob {
+  id String @id @default(uuid())
+  productId String
+  product Product @relation("ProductGenerationJobs", fields: [productId], references: [id], onDelete: Restrict)
+  requestedBy String
+  mode String
+  stylePreset String
+  status String @default("queued")
+  provider String
+  model String
+  prompt String
+  requestSnapshot Json
+  referenceMediaId String?
+  referenceMedia ProductMedia? @relation("GenerationReferenceMedia", fields: [referenceMediaId], references: [id], onDelete: Restrict)
+  candidateCount Int
+  providerRequestId String?
+  attemptCount Int @default(0)
+  errorCode String?
+  errorMessage String?
+  startedAt DateTime? @db.Timestamptz(3)
+  completedAt DateTime? @db.Timestamptz(3)
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+  candidates ProductMedia[] @relation("GenerationCandidates")
+  @@index([productId, createdAt])
+  @@index([status, createdAt])
 }
 
 model Variant {
