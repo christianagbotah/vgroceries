@@ -1,0 +1,25 @@
+[Unit]
+Description=Variety Groceries Product Media AI Worker
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=lightworld
+Group=lightworld
+WorkingDirectory=/home/lightworld/webapps/varietygroceries-api/current/apps/api
+EnvironmentFile=/home/lightworld/config/varietygroceries/api.env
+ExecStart=/usr/bin/npm run worker:media
+Restart=on-failure
+RestartSec=3s
+TimeoutStopSec=30s
+KillSignal=SIGTERM
+UMask=0027
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/home/lightworld/data/varietygroceries/product-media
+
+[Install]
+WantedBy=multi-user.target
