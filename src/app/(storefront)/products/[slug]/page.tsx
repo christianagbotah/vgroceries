@@ -39,7 +39,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
       <nav aria-label="Breadcrumb" className="mt-4 text-xs font-semibold text-muted-foreground"><Link href="/" className="hover:underline">Home</Link><span aria-hidden> / </span><Link href="/shop" className="hover:underline">Shop</Link><span aria-hidden> / </span><Link href={`/categories/${entry.categorySlug}`} className="hover:underline">{entry.categoryName}</Link><span aria-hidden> / </span><span aria-current="page">{entry.name}</span></nav>
 
       <section className="mt-3 grid gap-5 rounded-2xl border bg-white p-3 shadow-[0_8px_30px_rgba(5,70,48,.06)] sm:p-5 lg:grid-cols-[minmax(0,48%)_minmax(0,52%)] lg:gap-8 lg:p-7">
-        <div className="space-y-3">
+        <div className="product-detail-photo space-y-3">
           <ProductMediaGallery
             productName={entry.name}
             featuredImage={entry.featuredImage}
