@@ -1,6 +1,6 @@
-import Image from "next/image";
 import Link from "next/link";
 import { getProductData } from "@/services/server-data";
+import { ProductMediaGallery } from "@/features/catalog/product-media-gallery";
 import { ProductPurchasePanel } from "@/features/catalog/product-purchase-panel";
 import { ProductTile } from "@/features/catalog/product-tile";
 import { Badge } from "@/components/ui/badge";
@@ -16,7 +16,16 @@ export async function generateMetadata({ params }: ProductPageProps): Promise<Me
   const { slug } = await params;
   const data = await getProductData(slug);
   if (!data) return { title: "Product not found" };
-  return { title: data.product.name, description: data.product.shortDescription, openGraph: { title: data.product.name, description: data.product.shortDescription } };
+  const image = data.product.featuredImage?.url ?? data.product.image;
+  return {
+    title: data.product.name,
+    description: data.product.shortDescription,
+    openGraph: {
+      title: data.product.name,
+      description: data.product.shortDescription,
+      images: image ? [{ url: image, alt: data.product.featuredImage?.altText || data.product.name }] : undefined,
+    },
+  };
 }
 
 export default async function ProductPage({ params }: ProductPageProps) {
@@ -31,12 +40,19 @@ export default async function ProductPage({ params }: ProductPageProps) {
 
       <section className="mt-3 grid gap-5 rounded-2xl border bg-white p-3 shadow-[0_8px_30px_rgba(5,70,48,.06)] sm:p-5 lg:grid-cols-[minmax(0,48%)_minmax(0,52%)] lg:gap-8 lg:p-7">
         <div className="space-y-3">
-          <div className="product-detail-photo relative aspect-[1.12/1] overflow-hidden rounded-2xl bg-[#f7f8f2]">
-            <Image src={entry.image} alt={`${entry.name} grocery product photo`} fill sizes="(max-width:1024px) 100vw, 650px" className="object-cover" priority />
-            <div className="absolute left-3 top-3 flex flex-wrap gap-2">{entry.variants.some((v) => v.compareAtPriceMinor) ? <span className="rounded-full bg-brand-amber px-3 py-1 text-[11px] font-black text-[color:var(--brand-green-deep)] shadow">Offer</span> : null}<span className="rounded-full bg-white/90 px-3 py-1 text-[11px] font-bold text-primary shadow-sm backdrop-blur">Demo catalogue</span></div>
-            <Link href="/account/lists" className="absolute right-3 top-3 grid size-10 place-items-center rounded-full bg-white/90 text-primary shadow-sm backdrop-blur hover:bg-white" aria-label={`Add ${entry.name} to wishlist`}><Heart className="size-5" /></Link>
+          <ProductMediaGallery
+            productName={entry.name}
+            featuredImage={entry.featuredImage}
+            gallery={entry.gallery}
+            fallbackImage={entry.image}
+          />
+          <div className="flex flex-wrap items-center justify-between gap-2 px-1">
+            <div className="flex flex-wrap gap-2">
+              {entry.variants.some((v) => v.compareAtPriceMinor) ? <span className="rounded-full bg-brand-amber px-3 py-1 text-[11px] font-black text-[color:var(--brand-green-deep)] shadow-sm">Offer</span> : null}
+              {entry.featuredImage ? <span className="rounded-full bg-primary/10 px-3 py-1 text-[11px] font-bold text-primary">Approved media</span> : <span className="rounded-full bg-muted px-3 py-1 text-[11px] font-bold text-muted-foreground">Legacy image</span>}
+            </div>
+            <Link href="/account/lists" className="inline-flex h-9 items-center gap-1.5 rounded-full border bg-white px-3 text-xs font-bold text-primary shadow-sm hover:bg-muted/40" aria-label={`Add ${entry.name} to wishlist`}><Heart className="size-4" /> Wishlist</Link>
           </div>
-          <p className="px-1 text-[11px] leading-relaxed text-muted-foreground">Demo catalogue photography is representative. The production media workflow will store approved featured and gallery images per product.</p>
         </div>
 
         <div className="flex flex-col">
@@ -46,7 +62,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
 
           <div className="mt-5 rounded-2xl border border-primary/10 bg-[#fbfcf8] p-4 sm:p-5"><ProductPurchasePanel product={entry} /></div>
 
-          <div className="mt-5 rounded-2xl border bg-white p-4"><h2 className="flex items-center gap-2 text-sm font-bold"><Leaf className="size-4 text-primary" /> About this item</h2><p className="mt-2 text-sm leading-relaxed text-muted-foreground">{entry.description}</p><p className="mt-2 text-[11px] leading-relaxed text-muted-foreground">Ingredient and allergen suitability is not inferred by the demo. Always verify the physical label where applicable.</p></div>
+          <div className="mt-5 rounded-2xl border bg-white p-4"><h2 className="flex items-center gap-2 text-sm font-bold"><Leaf className="size-4 text-primary" /> About this item</h2><p className="mt-2 text-sm leading-relaxed text-muted-foreground">{entry.description}</p><p className="mt-2 text-[11px] leading-relaxed text-muted-foreground">Ingredient and allergen suitability is not inferred by the store. Always verify the physical label where applicable.</p></div>
 
           <div className="mt-4 grid grid-cols-2 gap-2 text-[11px] sm:grid-cols-4">
             <div className="rounded-xl bg-primary/5 p-3"><Truck className="mb-2 size-4 text-primary" /><strong className="block text-foreground">Delivery</strong><span className="text-muted-foreground">Configured Accra zones</span></div>
