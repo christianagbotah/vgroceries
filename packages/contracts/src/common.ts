@@ -145,6 +145,7 @@ export type CacheTag =
   | "sessions" // cashier sessions
   | "config" // settings, zones, slots
   | "ai" // suggestions
+  | "product-media" // private review media + generation jobs
   | "*"; // everything (demo reset)
 
 /** Payload of the `vg:cache-invalidated` window event. */

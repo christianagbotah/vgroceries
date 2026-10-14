@@ -20,7 +20,7 @@ function buildRequest(base: string, req: ServiceRequest, body: Record<string, un
   let method: "GET" | "POST";
   let path: string;
   if (protocol === "mock") {
-    method = body !== undefined ? "POST" : "GET";
+    method = body !== undefined || req.formData !== undefined ? "POST" : "GET";
     path = `/${req.op.replace(/\./g, "/")}`;
   } else {
     const endpoint = Object.hasOwn(restEndpoints, req.op) ? restEndpoints[req.op] : undefined;
@@ -90,7 +90,7 @@ export class HttpServiceAdapter implements ServiceAdapter {
   async request<T = unknown>(req: ServiceRequest): Promise<T> {
     const body = normalizedRequestBody(req);
     const { url, method } = buildRequest(this.base, req, body, this.protocol);
-    if (method === "POST" && !req.skipValidation) {
+    if (method === "POST" && req.formData === undefined && !req.skipValidation) {
       const checked = validateRequest(req.op, body ?? {});
       if (!checked.ok) throw new ApiError("VALIDATION_FAILED", `Invalid request for ${req.op}: ${checked.issues.join("; ")}`);
     }
@@ -100,11 +100,11 @@ export class HttpServiceAdapter implements ServiceAdapter {
     try {
       const res = await fetch(url, {
         method, headers: {
-          ...(method === "POST" ? { "Content-Type": "application/json" } : {}),
+          ...(method === "POST" && req.formData === undefined ? { "Content-Type": "application/json" } : {}),
           ...(this.opts.headers?.() ?? {}),
           ...(key ? { "Idempotency-Key": key } : {}),
         },
-        body: method === "POST" ? JSON.stringify(body ?? {}) : undefined,
+        body: method === "POST" ? (req.formData ?? JSON.stringify(body ?? {})) : undefined,
         credentials: this.opts.credentials ?? "same-origin", cache: "no-store", signal: controller.signal,
       });
       let json: unknown;

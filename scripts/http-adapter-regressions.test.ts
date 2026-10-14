@@ -7,13 +7,21 @@ import { MockServiceAdapter } from "../src/services/adapters/mock";
 import { ApiError } from "../src/services/adapters/types";
 import { getStore, resetStore } from "../src/services/mock/store";
 
-interface WireCall { path: string; method: string; query: URLSearchParams; key: string | null; body: unknown }
+interface WireCall { path: string; method: string; query: URLSearchParams; key: string | null; contentType: string | null; body: unknown }
 const calls: WireCall[] = [];
 let reply: (req: Request) => Response = () => Response.json({ ok: true, data: { received: true } });
 const server = Bun.serve({ hostname: "127.0.0.1", port: 0, async fetch(req) {
   const url = new URL(req.url);
+  const contentType = req.headers.get("content-type");
+  let body: unknown = undefined;
+  if (req.method === "POST") {
+    if (contentType?.startsWith("multipart/form-data")) {
+      const form = await req.formData();
+      body = Object.fromEntries([...form.entries()].map(([key, value]) => [key, value instanceof File ? { name: value.name, type: value.type, size: value.size } : value]));
+    } else body = await req.json();
+  }
   calls.push({ path: url.pathname, method: req.method, query: url.searchParams,
-    key: req.headers.get("Idempotency-Key"), body: req.method === "POST" ? await req.json() : undefined });
+    key: req.headers.get("Idempotency-Key"), contentType, body });
   return reply(req);
 } });
 const base = `http://127.0.0.1:${server.port}`;
@@ -81,6 +89,31 @@ describe("production HTTP contract", () => {
       idempotencyKey: "different-key" })).rejects.toMatchObject({ code: "IDEMPOTENCY_CONFLICT" });
     expect(calls).toHaveLength(0);
   });
+
+  test("multipart product media upload preserves path params and lets fetch own the boundary", async () => {
+    const formData = new FormData();
+    formData.set("altText", "Fresh tomatoes on a clean background");
+    formData.set("file", new File([new Uint8Array([1, 2, 3, 4])], "tomatoes.png", { type: "image/png" }));
+    await new HttpServiceAdapter(`${base}/api/v1`).request({
+      op: "admin.product-media.upload", query: { productId: "prd media/001" }, formData,
+    } as any);
+    expect(calls[0].path).toBe("/api/v1/admin/catalog/products/prd%20media%2F001/media/uploads");
+    expect(calls[0].contentType).toStartWith("multipart/form-data; boundary=");
+    expect(calls[0].contentType).not.toContain("application/json");
+    expect(calls[0].body).toMatchObject({ altText: "Fresh tomatoes on a clean background", file: { name: "tomatoes.png", type: "image/png", size: 4 } });
+  });
+  test("multipart generation-safe transport preserves idempotency headers", async () => {
+    const formData = new FormData(); formData.set("file", new File(["x"], "x.png", { type: "image/png" }));
+    await new HttpServiceAdapter(`${base}/api/v1`).request({ op: "admin.product-media.upload", query: { productId: "prd_001" }, formData, idempotencyKey: "media-upload-001" } as any);
+    expect(calls[0].key).toBe("media-upload-001");
+  });
+  test("body and formData are mutually exclusive before any request is sent", async () => {
+    const formData = new FormData(); formData.set("altText", "x");
+    await expect(new HttpServiceAdapter(`${base}/api/v1`).request({ op: "admin.product-media.upload", query: { productId: "prd_001" }, body: { altText: "x" }, formData } as any))
+      .rejects.toMatchObject({ code: "VALIDATION_FAILED" });
+    expect(calls).toHaveLength(0);
+  });
+
   test("problem responses preserve machine-readable domain codes", async () => {
     reply = () => Response.json({ type: "about:blank", status: 409, code: "OUT_OF_STOCK", detail: "Last unit sold", details: { variantId: "var_tof_1" } }, { status: 409 });
     await expect(new HttpServiceAdapter(`${base}/api/v1`).request({ op: "catalog.list" })).rejects.toMatchObject({

@@ -27,8 +27,10 @@ export interface ServiceRequest {
   /** Dot-namespaced operation, e.g. "checkout.complete". */
   op: string;
   query?: Record<string, QueryValue>;
-  /** Present ⇒ mutating operation (POST). */
+  /** JSON request body. Mutually exclusive with formData. */
   body?: Record<string, unknown>;
+  /** Multipart request body. Fetch owns the Content-Type boundary. */
+  formData?: FormData;
   /** Sent as the `Idempotency-Key` header over HTTP. */
   idempotencyKey?: string;
   /** Response families to invalidate after a successful mutation. */
@@ -55,6 +57,9 @@ export class ApiError extends Error {
 
 /** Normalize replay metadata before either transport validates or sends it. */
 export function normalizedRequestBody(req: ServiceRequest): Record<string, unknown> | undefined {
+  if (req.body !== undefined && req.formData !== undefined)
+    throw new ApiError("VALIDATION_FAILED", "JSON body and multipart formData are mutually exclusive.");
+  if (req.formData !== undefined) return undefined;
   if (req.idempotencyKey !== undefined && req.body?.idempotencyKey !== undefined && req.body.idempotencyKey !== req.idempotencyKey) {
     throw new ApiError("IDEMPOTENCY_CONFLICT", "The transport and body idempotency keys disagree.");
   }

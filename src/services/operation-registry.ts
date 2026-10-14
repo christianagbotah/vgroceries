@@ -31,6 +31,7 @@ const DEL: CacheTag[] = ["delivery"];
 const SESS: CacheTag[] = ["sessions"];
 const CONF: CacheTag[] = ["config"];
 const AI: CacheTag[] = ["ai"];
+const MEDIA: CacheTag[] = ["product-media"];
 
 export const operationMeta: Record<string, OperationMeta> = {
   /* catalogue (public) */
@@ -112,6 +113,17 @@ export const operationMeta: Record<string, OperationMeta> = {
   "admin.products": { tags: CAT },
   "admin.product": { tags: [...CAT, ...STOCK] },
   "admin.product.update": { invalidates: CAT },
+  "admin.product.create": { invalidates: [...CAT, ...MEDIA] },
+  "admin.product-media": { tags: [...CAT, ...MEDIA] },
+  "admin.product-media.generation": { tags: MEDIA },
+  "admin.product-media.upload": { invalidates: [...CAT, ...MEDIA] },
+  "admin.product-media.generate": { invalidates: [...CAT, ...MEDIA] },
+  "admin.product-media.approve": { invalidates: [...CAT, ...MEDIA] },
+  "admin.product-media.reject": { invalidates: [...CAT, ...MEDIA] },
+  "admin.product-media.archive": { invalidates: [...CAT, ...MEDIA] },
+  "admin.product-media.featured": { invalidates: [...CAT, ...MEDIA] },
+  "admin.product-media.reorder": { invalidates: [...CAT, ...MEDIA] },
+  "admin.product-media.brand-mode": { invalidates: [...CAT, ...MEDIA] },
   "admin.variant.update": { invalidates: CAT },
   "admin.categories": { tags: CAT },
   "admin.categories.update": { invalidates: CAT },
