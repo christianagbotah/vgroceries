@@ -33,9 +33,9 @@ function requestSchemaText(op: any) {
   return JSON.stringify(op.requestBody ?? {}).toLowerCase();
 }
 
-test("production OpenAPI exposes exactly the three Refunds Authority paths on a 45-path surface", () => {
+test("production OpenAPI exposes exactly the three Refunds Authority paths on a 47-path surface", () => {
   for (const path of refundPaths) assert.ok(document.paths[path], `missing ${path}`);
-  assert.equal(Object.keys(document.paths).length, 45);
+  assert.equal(Object.keys(document.paths).length, 47);
   for (const absent of [
     "/api/v1/refunds/manual",
     "/api/v1/refunds/cash",

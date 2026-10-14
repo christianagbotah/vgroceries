@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Get,
+  Headers,
   HttpCode,
   Param,
   Post,
@@ -13,6 +14,8 @@ import {
 } from "@nestjs/common";
 import { FileInterceptor } from "@nestjs/platform-express";
 import {
+  createGenerationRequestSchema,
+  replayKeySchema,
   reorderGalleryRequestSchema,
   setFeaturedMediaRequestSchema,
   setProductBrandModeRequestSchema,
@@ -21,18 +24,54 @@ import type { Response } from "express";
 import { ApiProblem } from "../http/errors";
 import { AccessGuard, Permission } from "../identity/access.guard";
 import type { AuthRequest } from "../identity/identity.service";
+import { GenerationJobService } from "./generation-job.service";
 import { MAX_PRODUCT_MEDIA_BYTES } from "./image-validation";
 import { ProductMediaService } from "./product-media.service";
 
 @Controller("admin/catalog")
 @UseGuards(AccessGuard)
 export class ProductMediaController {
-  constructor(private readonly media: ProductMediaService) {}
+  constructor(
+    private readonly media: ProductMediaService,
+    private readonly generations: GenerationJobService,
+  ) {}
 
   @Get("products/:productId/media")
   @Permission("catalog.media.read")
   async view(@Param("productId") productId: string) {
     return { ok: true, data: await this.media.viewProductMedia(productId) };
+  }
+
+  @Post("products/:productId/media/generations")
+  @Permission("catalog.media.generate")
+  async generate(
+    @Req() req: AuthRequest,
+    @Param("productId") productId: string,
+    @Headers("idempotency-key") idempotencyKey: string | undefined,
+    @Body() body: unknown,
+  ) {
+    const parsed = createGenerationRequestSchema.safeParse(body);
+    if (!parsed.success)
+      throw new ApiProblem(400, "VALIDATION_FAILED", "Invalid product image generation request.");
+    const key = replayKeySchema.safeParse(idempotencyKey);
+    if (!key.success)
+      throw new ApiProblem(400, "VALIDATION_FAILED", "A valid Idempotency-Key is required.");
+    return {
+      ok: true,
+      data: await this.generations.queueGeneration({
+        productId,
+        actorId: req.actor.id,
+        requestId: req.requestId,
+        idempotencyKey: key.data,
+        request: parsed.data,
+      }),
+    };
+  }
+
+  @Get("media/generations/:jobId")
+  @Permission("catalog.media.read")
+  async generation(@Param("jobId") jobId: string) {
+    return { ok: true, data: await this.generations.getGeneration(jobId) };
   }
 
   @Post("products/:productId/media/uploads")

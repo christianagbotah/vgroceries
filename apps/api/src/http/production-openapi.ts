@@ -16,6 +16,7 @@ import {
   fulfilmentPickRequestSchema,
   fulfilmentQueueResponseSchema,
   fulfilmentStartPickingRequestSchema,
+  createGenerationRequestSchema,
   createProductDraftRequestSchema,
   reorderGalleryRequestSchema,
   setFeaturedMediaRequestSchema,
@@ -102,6 +103,7 @@ export function productionOpenApi(app: INestApplication): OpenAPIObject {
     FulfilmentQueueResponse: json(fulfilmentQueueResponseSchema),
     FulfilmentDetailResponse: json(fulfilmentDetailResponseSchema),
     FulfilmentActionResponse: json(fulfilmentActionResponseSchema),
+    CreateGenerationRequest: json(createGenerationRequestSchema),
     CreateProductDraftRequest: json(createProductDraftRequestSchema),
     SetFeaturedMediaRequest: json(setFeaturedMediaRequestSchema),
     ReorderGalleryRequest: json(reorderGalleryRequestSchema),
@@ -151,7 +153,7 @@ export function productionOpenApi(app: INestApplication): OpenAPIObject {
   });
   for (const name of [
     "FulfilmentQueueResponse", "FulfilmentDetailResponse", "FulfilmentActionResponse",
-    "ProductDraftResponse", "ProductMediaView", "AdminProductMediaView",
+    "ProductDraftResponse", "ProductMediaView", "ImageGenerationJobView", "AdminProductMediaView",
   ])
     schemas[name + "Envelope"] = {
       type: "object",
@@ -161,7 +163,7 @@ export function productionOpenApi(app: INestApplication): OpenAPIObject {
     };
 
   doc.info.description =
-    "Implemented production subset: identity, catalogue, Product Media upload/review preparation, inventory receiving, delivery configuration, authoritative checkout/orders, provider-neutral Payments Authority, provider-neutral Refunds Authority, and administrator Fulfilment + Stock Handover Authority. AI generation execution, courier dispatch, COD collection/remittance, physical returns, POS cash authority and public storefront cutover remain closed.";
+    "Implemented production subset: identity, catalogue, Product Media upload/review plus queued image-generation authority, inventory receiving, delivery configuration, authoritative checkout/orders, provider-neutral Payments Authority, provider-neutral Refunds Authority, and administrator Fulfilment + Stock Handover Authority. Image-generation worker execution, courier dispatch, COD collection/remittance, physical returns, POS cash authority and public storefront cutover remain closed.";
 
   const productId: ParameterObject = { name: "productId", in: "path", required: true, schema: { type: "string", minLength: 1 } };
   const mediaId: ParameterObject = { name: "mediaId", in: "path", required: true, schema: { type: "string", minLength: 1 } };
@@ -196,6 +198,32 @@ export function productionOpenApi(app: INestApplication): OpenAPIObject {
       responses: { "201": response("ProductMediaViewEnvelope"), ...mediaErrors },
     },
   };
+  const mediaReplay: ParameterObject = {
+    name: "Idempotency-Key",
+    in: "header",
+    required: true,
+    description: "Durable staff-scoped replay key for one product image-generation request.",
+    schema: { type: "string", minLength: 8, maxLength: 128, pattern: "^[A-Za-z0-9:_-]{8,128}$" },
+  };
+  const jobId: ParameterObject = { name: "jobId", in: "path", required: true, schema: { type: "string", minLength: 1 } };
+  doc.paths["/api/v1/admin/catalog/products/{productId}/media/generations"] = {
+    post: {
+      security,
+      description: "Authorized catalogue staff queue an asynchronous product-image generation job. The server builds the final truth-bounded prompt, persists one durable job, and never publishes generated media automatically.",
+      parameters: [productId, mediaReplay, csrf],
+      requestBody: { required: true, content: { "application/json": { schema: ref("CreateGenerationRequest") } } },
+      responses: { "201": response("ImageGenerationJobViewEnvelope"), ...mediaErrors },
+    },
+  };
+  doc.paths["/api/v1/admin/catalog/media/generations/{jobId}"] = {
+    get: {
+      security,
+      description: "Authorized catalogue staff poll durable image-generation status. Candidate media IDs appear only after candidate rows are persisted.",
+      parameters: [jobId],
+      responses: { "200": response("ImageGenerationJobViewEnvelope"), ...mediaErrors },
+    },
+  };
+
   doc.paths["/api/v1/admin/catalog/media/{mediaId}/content"] = {
     get: {
       security,
