@@ -36,6 +36,16 @@ export interface AccountSummaryResponse {
   recentOrders: AccountRecentOrderRow[];
 }
 
+export interface AccountProfileResponse {
+  customer: Customer;
+}
+
+export interface AccountProfileUpdateRequest {
+  name: string;
+  phone: string;
+  email?: string;
+}
+
 export interface AccountOrderRow {
   id: string;
   reference: string;

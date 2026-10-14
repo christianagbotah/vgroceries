@@ -139,6 +139,12 @@ export const accountCancelRequestSchema = z.object({
   reason: z.string().min(1),
 });
 
+export const accountProfileUpdateRequestSchema = z.strictObject({
+  name: z.string().trim().min(2).max(120),
+  phone: z.string().trim().regex(/^\+?[0-9][0-9\s-]{7,19}$/),
+  email: z.string().trim().email().max(254).optional().or(z.literal("")),
+});
+
 export const createReturnRequestSchema = z.object({
   orderId: idSchema,
   requestedBy: z.string().min(1).optional(),
@@ -481,6 +487,7 @@ export const requestSchemas: Record<string, z.ZodTypeAny> = {
   "checkout.complete": checkoutCompleteRequestSchema,
   "checkout.payment-outcome": paymentOutcomeRequestSchema,
   "account.cancel": accountCancelRequestSchema,
+  "account.profile.update": accountProfileUpdateRequestSchema,
   "account.create-return": createReturnRequestSchema,
   "admin.pos.complete": posCompleteRequestSchema,
   "admin.pos.hold": posHoldRequestSchema,
