@@ -1,10 +1,23 @@
 import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 
+const productsList = readFileSync("src/app/admin/products/page.tsx", "utf8");
 const productDetail = readFileSync("src/app/admin/products/[id]/page.tsx", "utf8");
 const studio = readFileSync("src/features/catalog/product-media-studio.tsx", "utf8");
 
 describe("Product Media Studio admin integration", () => {
+  test("Add Product creates an unpublished draft and routes into its editor", () => {
+    expect(productsList).toContain("Add product");
+    expect(productsList).toContain("apiOps.productDraftCreate");
+    expect(productsList).toContain("apiOps.categories()");
+    expect(productsList).toContain("name:");
+    expect(productsList).toContain("categoryId:");
+    expect(productsList).toContain("slug:");
+    expect(productsList).toContain("shortDescription:");
+    expect(productsList).toContain("router.push(result.editorPath)");
+    expect(productsList).toContain("unpublished draft");
+  });
+
   test("product detail mounts the dedicated media studio", () => {
     expect(productDetail).toContain('from "@/features/catalog/product-media-studio"');
     expect(productDetail).toContain("<ProductMediaStudio");
