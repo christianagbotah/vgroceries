@@ -17,7 +17,14 @@ const server = Bun.serve({ hostname: "127.0.0.1", port: 0, async fetch(req) {
   if (req.method === "POST") {
     if (contentType?.startsWith("multipart/form-data")) {
       const form = await req.formData();
-      body = Object.fromEntries([...form.entries()].map(([key, value]) => [key, value instanceof File ? { name: value.name, type: value.type, size: value.size } : value]));
+      body = Object.fromEntries([...form.entries()].map(([key, value]) => {
+        const item = value as unknown;
+        if (typeof item === "object" && item !== null && "name" in item && "type" in item && "size" in item) {
+          const file = item as { name: unknown; type: unknown; size: unknown };
+          return [key, { name: String(file.name), type: String(file.type), size: Number(file.size) }];
+        }
+        return [key, value];
+      }));
     } else body = await req.json();
   }
   calls.push({ path: url.pathname, method: req.method, query: url.searchParams,
