@@ -7,7 +7,7 @@ async function main() {
   try {
     const doc = productionOpenApi(app);
     const path = resolve(process.cwd(), "../../docs/openapi-foundation.json");
-    writeFileSync(path, JSON.stringify(doc, null, 2) + "\n");
+    writeFileSync(path, JSON.stringify(doc) + "\n");
     console.log(`Production OpenAPI: ${Object.keys(doc.paths).length} paths`);
   } finally {
     await app.close();
