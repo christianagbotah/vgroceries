@@ -5,6 +5,8 @@ on:
   pull_request:
     branches: [main]
   workflow_dispatch:
+permissions:
+  contents: write
 jobs:
   verify-api:
     runs-on: ubuntu-latest
@@ -62,3 +64,15 @@ jobs:
           name: generated-openapi-${{ github.sha }}
           path: docs/openapi-foundation.json
           if-no-files-found: error
+      - name: Sync generated OpenAPI to same-repository PR branch
+        if: always() && github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+        run: |
+          if git diff --quiet -- docs/openapi-foundation.json; then
+            echo "OpenAPI contract already synchronized."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/openapi-foundation.json
+          git commit -m "docs: sync generated OpenAPI contract"
+          git push origin HEAD:${{ github.head_ref }}
