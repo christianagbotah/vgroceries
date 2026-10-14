@@ -18,6 +18,8 @@ import type { QueryValue, ServiceRequest } from "./adapters/types";
 import type {
   AccountCancelResponse,
   AccountOrderRow,
+  AccountProfileResponse,
+  AccountProfileUpdateRequest,
   AccountReturnRow,
   AccountSummaryResponse,
   AdminCategoryRow,
@@ -156,6 +158,10 @@ export const apiOps = {
 
   /* account */
   accountSummary: (customerId?: string) => api<AccountSummaryResponse>("account.summary", { query: { customerId } }),
+  accountProfile: () => api<AccountProfileResponse>("account.profile"),
+  accountProfileUpdate: (body: AccountProfileUpdateRequest) =>
+    api<AccountProfileResponse>("account.profile.update", { body: body as unknown as Record<string, unknown> }),
+  accountLogout: () => api<DoneResponse>("account.logout", { body: {} }),
   accountOrders: (customerId?: string) => api<AccountOrderRow[]>("account.orders", { query: { customerId } }),
   accountCancel: (orderId: string, reason: string) =>
     api<AccountCancelResponse>("account.cancel", { body: { orderId, reason } }),

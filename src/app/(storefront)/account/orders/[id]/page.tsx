@@ -15,7 +15,7 @@ import { formatMoney } from "@/lib/money";
 import { PAYMENT_METHOD_LABELS } from "@/types/domain";
 import { formatDateTime } from "@/lib/format";
 import { useToast } from "@/hooks/use-toast";
-import { Ban, CircleDashed, MessageSquarePlus, Package } from "lucide-react";
+import { Ban, CircleDashed, Navigation, Package } from "lucide-react";
 
 export default function AccountOrderDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -71,10 +71,15 @@ export default function AccountOrderDetailPage() {
           <h2 className="font-serif text-xl font-bold">Order {order.reference}</h2>
           <p className="text-sm text-muted-foreground">Placed {order.createdAtLabel} UTC</p>
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <StatusBadge kind="payment" status={order.paymentStatus} />
           <StatusBadge kind="fulfilment" status={order.fulfilmentStatus} />
           {order.fulfilment === "delivery" ? <StatusBadge kind="delivery" status={order.deliveryStatus} /> : null}
+          <Button asChild size="sm" className="h-9">
+            <Link href={`/track?orderId=${encodeURIComponent(order.id)}`}>
+              <Navigation className="size-4" aria-hidden /> Track order
+            </Link>
+          </Button>
         </div>
       </div>
 

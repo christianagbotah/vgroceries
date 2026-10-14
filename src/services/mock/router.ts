@@ -423,6 +423,25 @@ export async function handleApi(req: ApiRequest): Promise<ApiResult> {
       }
 
       /* ---------------- Customer account (demo) ---------------- */
+      case "account.profile": {
+        const customer = store.customers[0];
+        return ok({ customer });
+      }
+      case "account.profile.update": {
+        const customer = store.customers[0];
+        const name = b("name").trim();
+        const phone = b("phone").trim();
+        const email = b("email").trim();
+        if (!name || !phone) throw new OpError("VALIDATION_FAILED", "Name and phone are required.");
+        customer.name = name;
+        customer.phone = phone;
+        customer.email = email || undefined;
+        audit(store, customer.id, "account.profile_updated", "Customer", customer.id);
+        return ok({ customer });
+      }
+      case "account.logout": {
+        return ok({ done: true });
+      }
       case "account.summary": {
         const customer = store.customers.find((c) => c.id === q("customerId")) ?? store.customers[0];
         const orders = store.orders.filter((o) => o.customerId === customer.id);

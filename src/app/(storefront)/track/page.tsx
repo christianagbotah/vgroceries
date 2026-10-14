@@ -1,7 +1,7 @@
 "use client";
 
-import { Suspense, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { apiOps, ApiError, type PublicOrder } from "@/services/client";
 import { Button } from "@/components/ui/button";
@@ -27,12 +27,26 @@ export default function TrackPage() {
 
 function TrackForm() {
   const params = useSearchParams();
-  const router = useRouter();
+  const orderId = params.get("orderId");
   const [reference, setReference] = useState(params.get("reference") ?? "");
   const [code, setCode] = useState(params.get("code") ?? "");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [order, setOrder] = useState<PublicOrder | null>(null);
+
+  useEffect(() => {
+    if (!orderId) return;
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
+    apiOps.orderStatus(orderId)
+      .then((result) => { if (!cancelled) setOrder(result); })
+      .catch((err) => {
+        if (!cancelled) setError(err instanceof ApiError ? err.message : "Could not load this order.");
+      })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [orderId]);
 
   const track = async (e?: React.FormEvent) => {
     e?.preventDefault();
@@ -56,11 +70,12 @@ function TrackForm() {
         <h1 className="font-serif text-2xl font-bold sm:text-3xl">Track your order</h1>
       </div>
       <p className="mt-1 text-sm text-muted-foreground">
-        Enter the order reference and the code from your confirmation screen. Both are needed
-        together — a reference alone never reveals your order.
+        {orderId
+          ? "Showing live order status from your account — no verification code is needed when you open tracking from your own order."
+          : "Guest tracking uses the order reference and verification code from the confirmation screen."}
       </p>
 
-      <form onSubmit={track} className="mt-5 space-y-4 rounded-2xl border bg-card p-4 sm:p-5" aria-label="Track order form">
+      {!orderId ? <form onSubmit={track} className="mt-5 space-y-4 rounded-2xl border bg-card p-4 sm:p-5" aria-label="Track order form">
         <div className="grid gap-4 sm:grid-cols-2">
           <div>
             <Label htmlFor="tr-ref">Order reference</Label>
@@ -90,7 +105,9 @@ function TrackForm() {
         <Button type="submit" size="lg" className="h-12 w-full" disabled={loading || !reference.trim() || !code.trim()}>
           {loading ? "Checking…" : "Track order"}
         </Button>
-      </form>
+      </form> : null}
+
+      {orderId && loading ? <LoadingState rows={4} label="Loading your order status" /> : null}
 
       {error ? <ErrorState title="Could not track that order" message={error} className="mt-4" /> : null}
 
@@ -180,7 +197,7 @@ function TrackForm() {
         </div>
       ) : null}
 
-      {!order && !error && !loading ? (
+      {!orderId && !order && !error && !loading ? (
         <p className="mt-6 rounded-xl border border-dashed p-3 text-sm text-muted-foreground">
           Demo tip: track <code className="rounded bg-muted px-1 font-mono text-xs">VG-8Q2M1A</code> with code{" "}
           <code className="rounded bg-muted px-1 font-mono text-xs">7H2K9P</code> (a delivered order with a partial refund), or{" "}
