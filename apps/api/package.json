@@ -25,6 +25,7 @@
     "@prisma/client": "7.10.0",
     "@variety/contracts": "file:../../packages/contracts",
     "helmet": "8.1.0",
+    "multer": "^2.4.0",
     "pg": "8.16.3",
     "reflect-metadata": "0.2.2",
     "rxjs": "7.8.2",
@@ -33,6 +34,7 @@
   },
   "devDependencies": {
     "@types/express": "5.0.3",
+    "@types/multer": "^2.3.0",
     "@types/node": "24.10.0",
     "prisma": "7.10.0",
     "typescript": "5.9.3"

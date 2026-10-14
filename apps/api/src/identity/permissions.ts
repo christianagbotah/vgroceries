@@ -1,6 +1,7 @@
 export type PermissionName =
   | "inventory.read"
   | "inventory.receive"
+  | "catalog.product.create"
   | "catalog.media.read"
   | "catalog.media.generate"
   | "catalog.media.upload"
@@ -10,6 +11,7 @@ export type PermissionName =
 const adminPermissions = new Set<PermissionName>([
   "inventory.read",
   "inventory.receive",
+  "catalog.product.create",
   "catalog.media.read",
   "catalog.media.generate",
   "catalog.media.upload",

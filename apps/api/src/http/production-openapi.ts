@@ -16,6 +16,7 @@ import {
   fulfilmentPickRequestSchema,
   fulfilmentQueueResponseSchema,
   fulfilmentStartPickingRequestSchema,
+  createProductDraftRequestSchema,
 } from "@variety/contracts";
 import { z } from "zod";
 import { foundationOpenApi } from "./openapi";
@@ -98,8 +99,53 @@ export function productionOpenApi(app: INestApplication): OpenAPIObject {
     FulfilmentQueueResponse: json(fulfilmentQueueResponseSchema),
     FulfilmentDetailResponse: json(fulfilmentDetailResponseSchema),
     FulfilmentActionResponse: json(fulfilmentActionResponseSchema),
+    CreateProductDraftRequest: json(createProductDraftRequestSchema),
+    ProductDraftResponse: {
+      type: "object", required: ["productId", "editorPath"], additionalProperties: false,
+      properties: { productId: { type: "string" }, editorPath: { type: "string" } },
+    },
+    ProductMediaView: {
+      type: "object",
+      required: ["id","productId","source","status","previewUrl","mimeType","width","height","byteSize","sha256","altText","createdBy","createdAt","updatedAt"],
+      additionalProperties: false,
+      properties: {
+        id:{type:"string"}, productId:{type:"string"},
+        source:{type:"string",enum:["upload","ai_generated","ai_edited","legacy_import"]},
+        status:{type:"string",enum:["draft","ready_for_review","approved","rejected","archived"]},
+        previewUrl:{type:"string"}, publicUrl:{type:"string"},
+        mimeType:{type:"string",enum:["image/jpeg","image/png","image/webp"]},
+        width:{type:"integer",minimum:1}, height:{type:"integer",minimum:1}, byteSize:{type:"integer",minimum:1},
+        sha256:{type:"string",pattern:"^[0-9a-f]{64}$"}, altText:{type:"string"}, galleryOrder:{type:"integer",minimum:0},
+        originalFilename:{type:"string"}, generationJobId:{type:"string"}, createdBy:{type:"string"}, approvedBy:{type:"string"},
+        approvedAt:{type:"string",format:"date-time"}, rejectedAt:{type:"string",format:"date-time"}, archivedAt:{type:"string",format:"date-time"},
+        createdAt:{type:"string",format:"date-time"}, updatedAt:{type:"string",format:"date-time"},
+      },
+    },
+    ImageGenerationJobView: {
+      type:"object", required:["id","productId","requestedBy","mode","stylePreset","status","provider","model","candidateCount","attemptCount","candidateMediaIds","createdAt","updatedAt"],
+      additionalProperties:false,
+      properties:{
+        id:{type:"string"}, productId:{type:"string"}, requestedBy:{type:"string"},
+        mode:{type:"string",enum:["unbranded_generation","branded_packshot_edit"]},
+        stylePreset:{type:"string",enum:["clean_studio","fresh_market","lifestyle_kitchen","ghana_market"]},
+        status:{type:"string",enum:["queued","generating","succeeded","failed","cancelled"]},
+        provider:{type:"string"},model:{type:"string"},candidateCount:{type:"integer",minimum:1,maximum:4},attemptCount:{type:"integer",minimum:0,maximum:3},
+        referenceMediaId:{type:"string"},candidateMediaIds:{type:"array",items:{type:"string"}},errorCode:{type:"string"},errorMessage:{type:"string"},
+        startedAt:{type:"string",format:"date-time"},completedAt:{type:"string",format:"date-time"},createdAt:{type:"string",format:"date-time"},updatedAt:{type:"string",format:"date-time"},
+      },
+    },
+    AdminProductMediaView: {
+      type:"object", required:["productId","brandMode","resolvedBrandMode","approvedGallery","reviewCandidates","generationJobs"], additionalProperties:false,
+      properties:{
+        productId:{type:"string"},brandMode:{type:"string",enum:["auto","unbranded","branded"]},resolvedBrandMode:{type:"string",enum:["unbranded","branded"]},
+        featuredMedia:ref("ProductMediaView"),approvedGallery:{type:"array",items:ref("ProductMediaView")},reviewCandidates:{type:"array",items:ref("ProductMediaView")},generationJobs:{type:"array",items:ref("ImageGenerationJobView")},
+      },
+    },
   });
-  for (const name of ["FulfilmentQueueResponse", "FulfilmentDetailResponse", "FulfilmentActionResponse"])
+  for (const name of [
+    "FulfilmentQueueResponse", "FulfilmentDetailResponse", "FulfilmentActionResponse",
+    "ProductDraftResponse", "ProductMediaView", "AdminProductMediaView",
+  ])
     schemas[name + "Envelope"] = {
       type: "object",
       required: ["ok", "data"],
@@ -108,7 +154,52 @@ export function productionOpenApi(app: INestApplication): OpenAPIObject {
     };
 
   doc.info.description =
-    "Implemented production subset: identity, catalogue, inventory receiving, delivery configuration, authoritative checkout/orders, provider-neutral Payments Authority, provider-neutral Refunds Authority, and administrator Fulfilment + Stock Handover Authority. Courier dispatch, COD collection/remittance, physical returns, POS cash authority and public storefront cutover remain closed.";
+    "Implemented production subset: identity, catalogue, Product Media upload/review preparation, inventory receiving, delivery configuration, authoritative checkout/orders, provider-neutral Payments Authority, provider-neutral Refunds Authority, and administrator Fulfilment + Stock Handover Authority. AI generation execution, media publishing lifecycle, courier dispatch, COD collection/remittance, physical returns, POS cash authority and public storefront cutover remain closed.";
+
+  const productId: ParameterObject = { name: "productId", in: "path", required: true, schema: { type: "string", minLength: 1 } };
+  const mediaId: ParameterObject = { name: "mediaId", in: "path", required: true, schema: { type: "string", minLength: 1 } };
+  const mediaErrors = { "400": errorResponse, "401": errorResponse, "403": errorResponse, "404": errorResponse, "409": errorResponse, "413": errorResponse, "500": errorResponse, "503": errorResponse };
+
+  doc.paths["/api/v1/admin/catalog/products"] = {
+    post: {
+      security,
+      description: "Administrator-only creation of an unpublished catalogue product draft. Publication, pricing and stock are not implied by this command.",
+      parameters: [csrf],
+      requestBody: { required: true, content: { "application/json": { schema: ref("CreateProductDraftRequest") } } },
+      responses: { "201": response("ProductDraftResponseEnvelope"), ...mediaErrors },
+    },
+  };
+  doc.paths["/api/v1/admin/catalog/products/{productId}/media"] = {
+    get: {
+      security,
+      description: "Authorized catalogue staff view one product's featured media, approved gallery, private review candidates and recent generation jobs.",
+      parameters: [productId],
+      responses: { "200": response("AdminProductMediaViewEnvelope"), ...mediaErrors },
+    },
+  };
+  doc.paths["/api/v1/admin/catalog/products/{productId}/media/uploads"] = {
+    post: {
+      security,
+      description: "Authorized catalogue staff upload a JPEG, PNG or WebP candidate. The server decodes and normalizes bytes into private storage; upload never publishes storefront media.",
+      parameters: [productId, csrf],
+      requestBody: {
+        required: true,
+        content: { "multipart/form-data": { schema: { type:"object", required:["file"], properties:{ file:{type:"string",format:"binary"}, altText:{type:"string",maxLength:1000} } } } },
+      },
+      responses: { "201": response("ProductMediaViewEnvelope"), ...mediaErrors },
+    },
+  };
+  doc.paths["/api/v1/admin/catalog/media/{mediaId}/content"] = {
+    get: {
+      security,
+      description: "Authenticated preview of Variety-controlled product media bytes, including private review candidates. This route is never a public storefront hotlink.",
+      parameters: [mediaId],
+      responses: {
+        "200": { description:"Image bytes", content:{ "image/webp":{ schema:{type:"string",format:"binary"} }, "image/jpeg":{ schema:{type:"string",format:"binary"} }, "image/png":{ schema:{type:"string",format:"binary"} } } },
+        ...mediaErrors,
+      },
+    },
+  };
 
   doc.paths["/api/v1/admin/fulfilment"] = {
     get: {
