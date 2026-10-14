@@ -2,40 +2,25 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
-
-function loadImporter(): null | {
-  planLegacyProductMediaImport: (
-    products: Array<{ id: string; image: string }>,
-    options: { legacyPublicRoot: string; reviewPolicy?: "draft" | "approve" },
-  ) => Array<{
-    productId: string;
-    sourcePath: string;
-    source: string;
-    status: string;
-    visibility: string;
-  }>;
-} {
-  try {
-    return require("../scripts/import-legacy-product-media");
-  } catch (error: any) {
-    if (error?.code === "MODULE_NOT_FOUND") return null;
-    throw error;
-  }
-}
+import { planLegacyProductMediaImport } from "../scripts/import-legacy-product-media";
 
 async function readRepoFile(path: string): Promise<string> {
   try {
     return await readFile(resolve(__dirname, "../../../..", path), "utf8");
-  } catch (error: any) {
-    if (error?.code === "ENOENT") return "";
+  } catch (error: unknown) {
+    if (
+      typeof error === "object" &&
+      error !== null &&
+      "code" in error &&
+      (error as { code?: string }).code === "ENOENT"
+    )
+      return "";
     throw error;
   }
 }
 
 test("legacy media import plans only owned local product images as unapproved legacy_import rows by default", () => {
-  const importer = loadImporter();
-  assert.ok(importer, "legacy importer module must exist");
-  const planned = importer.planLegacyProductMediaImport([
+  const planned = planLegacyProductMediaImport([
     { id: "local-product", image: "/images/products/banana.png" },
     { id: "external-product", image: "https://images.example.test/banana.png" },
     { id: "protocol-relative", image: "//images.example.test/banana.png" },
@@ -53,9 +38,7 @@ test("legacy media import plans only owned local product images as unapproved le
 });
 
 test("legacy media import requires an explicit approve review policy before planning public approved media", () => {
-  const importer = loadImporter();
-  assert.ok(importer, "legacy importer module must exist");
-  const [planned] = importer.planLegacyProductMediaImport(
+  const [planned] = planLegacyProductMediaImport(
     [{ id: "local-product", image: "/images/products/banana.png" }],
     { legacyPublicRoot: "/srv/variety/current/public", reviewPolicy: "approve" },
   );
@@ -72,7 +55,7 @@ test("UAT deployment templates isolate public product media and run the worker a
 
   assert.match(nginx, /alias \/home\/lightworld\/data\/varietygroceries\/product-media\/public\//);
   assert.doesNotMatch(nginx, /product-media\/private/);
-  assert.match(nginx, /location \/media\/products\//);
+  assert.match(nginx, /location \^~ \/media\/products\//);
   assert.match(systemd, /^User=lightworld$/m);
   assert.match(systemd, /^Restart=on-failure$/m);
   assert.match(systemd, /npm run worker:media/);
