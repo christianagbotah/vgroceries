@@ -7,13 +7,15 @@ import type { CatalogMediaImage } from "@/services/contracts";
 interface ProductMediaGalleryProps {
   productName: string;
   featuredImage?: CatalogMediaImage;
-  gallery: CatalogMediaImage[];
+  /** Legacy mock/UAT catalogue rows may omit gallery; production API always returns an array. */
+  gallery?: CatalogMediaImage[];
   fallbackImage: string;
 }
 
 type DisplayMedia = CatalogMediaImage & { isLegacyFallback?: boolean };
 
 export function ProductMediaGallery({ productName, featuredImage, gallery, fallbackImage }: ProductMediaGalleryProps) {
+  const approvedGallery = gallery ?? [];
   const media = useMemo<DisplayMedia[]>(() => {
     const ordered: DisplayMedia[] = [];
     const seen = new Set<string>();
@@ -23,7 +25,7 @@ export function ProductMediaGallery({ productName, featuredImage, gallery, fallb
       seen.add(featuredImage.id);
     }
 
-    for (const item of gallery) {
+    for (const item of approvedGallery) {
       if (!seen.has(item.id)) {
         ordered.push(item);
         seen.add(item.id);
@@ -42,7 +44,7 @@ export function ProductMediaGallery({ productName, featuredImage, gallery, fallb
     }
 
     return ordered;
-  }, [fallbackImage, featuredImage, gallery, productName]);
+  }, [approvedGallery, fallbackImage, featuredImage, productName]);
 
   const [activeId, setActiveId] = useState(media[0].id);
   const active = media.find((item) => item.id === activeId) ?? media[0];
@@ -89,7 +91,7 @@ export function ProductMediaGallery({ productName, featuredImage, gallery, fallb
       ) : null}
 
       <p className="px-1 text-[11px] leading-relaxed text-muted-foreground">
-        {featuredImage || gallery.length
+        {featuredImage || approvedGallery.length
           ? "Storefront photography is selected from approved product media."
           : "This product is using its legacy catalogue image until approved product media is published."}
       </p>
