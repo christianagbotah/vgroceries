@@ -1,27 +1,56 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Input } from "@/components/ui/input";
-import { Menu, Search, ShoppingCart, Package, MapPin, CircleHelp } from "lucide-react";
+import {
+  ChevronDown,
+  CircleHelp,
+  Heart,
+  MapPin,
+  Menu,
+  Package,
+  Search,
+  ShoppingCart,
+  UserRound,
+} from "lucide-react";
 import { useCart } from "@/features/checkout/cart-store";
 
 const NAV = [
-  { href: "/shop", label: "Shop" },
+  { href: "/shop", label: "All groceries" },
   { href: "/shop?category=cat_fp", label: "Fresh Produce" },
   { href: "/shop?category=cat_gs", label: "Grains & Staples" },
   { href: "/shop?category=cat_os", label: "Oils & Sauces" },
   { href: "/shop?category=cat_de", label: "Dairy & Eggs" },
   { href: "/shop?category=cat_bv", label: "Beverages" },
+  { href: "/shop?category=cat_sn", label: "Snacks" },
   { href: "/help", label: "Help" },
 ];
 
+function Brand({ compact = false, inverse = false }: { compact?: boolean; inverse?: boolean }) {
+  return (
+    <Link href="/" className="flex shrink-0 items-center gap-2.5 focus-visible:rounded-lg" aria-label="Variety Groceries home">
+      <Image src="/brand/variety-mark.svg" alt="" width={48} height={48} className={compact ? "size-9" : "size-11 sm:size-12"} priority />
+      <span className={cn("leading-none", compact && "hidden sm:block")}>
+        <span className={cn("block text-[19px] font-black tracking-[-0.055em] sm:text-[24px]", inverse ? "text-white" : "text-[color:var(--brand-green-deep)]")}>
+          Variety<span className="text-brand-amber">Groceries</span>
+        </span>
+        <span className={cn("mt-1 hidden text-[10px] font-semibold tracking-wide sm:block", inverse ? "text-white/55" : "text-muted-foreground")}>
+          Quality groceries. Brighter everyday living.
+        </span>
+      </span>
+    </Link>
+  );
+}
+
 export function StorefrontHeader() {
   const pathname = usePathname();
+  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const lines = useCart((s) => s.lines);
@@ -30,129 +59,76 @@ export function StorefrontHeader() {
   const isActive = (href: string) => {
     const base = href.split("?")[0];
     if (base === "/shop") return pathname === "/shop" || pathname.startsWith("/categories") || pathname.startsWith("/products");
-    if (base === "/") return pathname === "/";
-    return pathname === base || pathname.startsWith(base + "/");
+    return pathname === base || pathname.startsWith(`${base}/`);
+  };
+
+  const submitSearch = () => {
+    const trimmed = query.trim();
+    router.push(trimmed ? `/shop?query=${encodeURIComponent(trimmed)}` : "/shop");
   };
 
   return (
-    <header className="sticky top-0 z-40 border-b bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/85">
-      {/* utility strip */}
-      <div className="bg-primary text-primary-foreground">
-        <div className="mx-auto flex max-w-7xl items-center justify-between gap-2 px-4 py-1.5 text-xs sm:text-[13px]">
-          <p className="truncate">Fresh groceries across Accra — delivery and collection (demo)</p>
-          <div className="hidden items-center gap-4 sm:flex">
-            <Link href="/track" className="inline-flex items-center gap-1 hover:underline focus-visible:underline">
-              <Package className="size-3.5" aria-hidden /> Track order
-            </Link>
-            <Link href="/help" className="inline-flex items-center gap-1 hover:underline focus-visible:underline">
-              <CircleHelp className="size-3.5" aria-hidden /> Help
-            </Link>
+    <header className="sticky top-0 z-40 border-b border-black/5 bg-white/95 shadow-[0_4px_24px_rgba(8,61,42,0.05)] backdrop-blur-xl">
+      <div className="bg-[color:var(--brand-green-deep)] text-white">
+        <div className="mx-auto flex min-h-8 max-w-[1500px] items-center justify-between gap-3 px-4 text-[11px] font-semibold sm:text-xs">
+          <p className="truncate">Fresh groceries for Accra homes · delivery and collection available in this demo</p>
+          <div className="hidden items-center gap-4 md:flex">
+            <Link href="/track" className="inline-flex items-center gap-1.5 hover:underline"><Package className="size-3.5" /> Track order</Link>
+            <Link href="/help" className="inline-flex items-center gap-1.5 hover:underline"><CircleHelp className="size-3.5" /> Help</Link>
           </div>
         </div>
       </div>
 
-      <div className="mx-auto max-w-7xl px-4">
-        <div className="flex h-16 items-center gap-3 lg:h-[72px]">
-          <Sheet open={open} onOpenChange={setOpen}>
-            <SheetTrigger asChild>
-              <Button variant="ghost" size="icon" className="lg:hidden" aria-label="Open menu">
-                <Menu className="size-5" />
-              </Button>
-            </SheetTrigger>
-            <SheetContent side="left" className="w-72 p-0">
-              <SheetTitle className="border-b p-4 font-serif text-lg">Variety Groceries</SheetTitle>
-              <nav className="flex flex-col p-2" aria-label="Mobile navigation">
-                {NAV.map((item) => (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    onClick={() => setOpen(false)}
-                    className={cn(
-                      "rounded-lg px-3 py-3 text-[15px] hover:bg-accent",
-                      isActive(item.href) && "bg-accent font-semibold"
-                    )}
-                  >
-                    {item.label}
-                  </Link>
-                ))}
-                <Link href="/account" onClick={() => setOpen(false)} className="rounded-lg px-3 py-3 text-[15px] hover:bg-accent">
-                  My account
-                </Link>
-                <Link href="/track" onClick={() => setOpen(false)} className="rounded-lg px-3 py-3 text-[15px] hover:bg-accent">
-                  Track an order
-                </Link>
-              </nav>
-            </SheetContent>
-          </Sheet>
+      <div className="mx-auto max-w-[1500px] px-3 sm:px-4">
+        <div className="grid min-h-[72px] grid-cols-[auto_1fr_auto] items-center gap-2 py-2.5 lg:grid-cols-[auto_minmax(500px,1fr)_auto] lg:gap-5">
+          <div className="flex items-center gap-1.5">
+            <Sheet open={open} onOpenChange={setOpen}>
+              <SheetTrigger asChild>
+                <Button variant="ghost" size="icon" className="size-10 lg:hidden" aria-label="Open menu"><Menu className="size-5" /></Button>
+              </SheetTrigger>
+              <SheetContent side="left" className="w-[310px] p-0">
+                <SheetTitle className="border-b p-4"><Brand compact /></SheetTitle>
+                <nav className="flex flex-col p-2" aria-label="Mobile navigation">
+                  {NAV.map((item) => (
+                    <Link key={item.href} href={item.href} onClick={() => setOpen(false)} className={cn("rounded-xl px-3 py-3 text-[15px] font-medium hover:bg-accent", isActive(item.href) && "bg-accent font-bold text-primary")}>{item.label}</Link>
+                  ))}
+                  <div className="my-2 border-t" />
+                  <Link href="/account" onClick={() => setOpen(false)} className="rounded-xl px-3 py-3 text-[15px] hover:bg-accent">My account</Link>
+                  <Link href="/account/lists" onClick={() => setOpen(false)} className="rounded-xl px-3 py-3 text-[15px] hover:bg-accent">Saved lists</Link>
+                  <Link href="/track" onClick={() => setOpen(false)} className="rounded-xl px-3 py-3 text-[15px] hover:bg-accent">Track an order</Link>
+                </nav>
+              </SheetContent>
+            </Sheet>
+            <Brand />
+          </div>
 
-          {/* text wordmark until an owner-supplied logo is available */}
-          <Link href="/" className="flex items-center gap-2 focus-visible:outline-2" aria-label="Variety Groceries home">
-            <span className="flex size-9 items-center justify-center rounded-lg bg-primary font-serif text-lg font-bold text-primary-foreground" aria-hidden>
-              V
-            </span>
-            <span className="hidden flex-col leading-none sm:flex">
-              <span className="font-serif text-lg font-bold tracking-tight">Variety Groceries</span>
-              <span className="text-[11px] text-muted-foreground">varietygrocery.com · Ghana</span>
-            </span>
-          </Link>
-
-          {/* search */}
-          <form
-            className="ml-auto hidden max-w-md flex-1 items-center gap-2 md:flex"
-            role="search"
-            onSubmit={(e) => {
-              e.preventDefault();
-              window.location.href = query.trim() ? `/shop?query=${encodeURIComponent(query.trim())}` : "/shop";
-            }}
-          >
+          <form className="order-3 col-span-3 flex h-11 overflow-hidden rounded-xl border bg-white shadow-sm md:order-none md:col-span-1" role="search" onSubmit={(e) => { e.preventDefault(); submitSearch(); }}>
+            <Link href="/categories" className="hidden items-center gap-2 border-r bg-[#fbfbf7] px-3 text-xs font-bold text-foreground hover:bg-accent xl:flex">
+              All Categories <ChevronDown className="size-3.5" />
+            </Link>
             <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
-              <Input
-                type="search"
-                placeholder="Search available groceries…"
-                className="h-11 pl-9"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                aria-label="Search products"
-              />
+              <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground md:hidden" aria-hidden />
+              <Input type="search" placeholder="Search for fresh groceries, products, brands…" className="h-full rounded-none border-0 pl-9 shadow-none focus-visible:ring-0 md:pl-4" value={query} onChange={(e) => setQuery(e.target.value)} aria-label="Search products" />
             </div>
+            <button type="submit" className="grid w-12 place-items-center bg-primary text-primary-foreground hover:bg-[color:var(--brand-green-deep)]" aria-label="Search"><Search className="size-4.5" /></button>
           </form>
 
-          <div className="ml-auto flex items-center gap-1 md:ml-0">
-            <Button asChild variant="ghost" size="icon" className="size-11" aria-label="Track an order">
-              <Link href="/track">
-                <MapPin className="size-5" aria-hidden />
-              </Link>
-            </Button>
+          <div className="ml-auto flex items-center gap-0.5 sm:gap-1.5">
+            <div className="hidden items-center gap-2 border-r pr-3 xl:flex">
+              <MapPin className="size-5 text-primary" />
+              <div className="text-[10px] leading-tight text-muted-foreground">Deliver to<br /><strong className="text-xs text-foreground">Accra, Ghana</strong></div>
+            </div>
+            <Button asChild variant="ghost" size="icon" className="hidden size-11 sm:inline-flex" aria-label="Account"><Link href="/account"><UserRound className="size-5" /></Link></Button>
+            <Button asChild variant="ghost" size="icon" className="hidden size-11 sm:inline-flex" aria-label="Wishlist"><Link href="/account/lists"><Heart className="size-5" /></Link></Button>
             <Button asChild variant="ghost" size="icon" className="relative size-11" aria-label={`Cart, ${itemCount} items`}>
-              <Link href="/cart">
-                <ShoppingCart className="size-5" aria-hidden />
-                {itemCount > 0 ? (
-                  <span className="absolute -right-1 -top-1 flex size-5 items-center justify-center rounded-full bg-brand-amber text-[11px] font-bold text-primary-foreground">
-                    {itemCount}
-                  </span>
-                ) : null}
-              </Link>
-            </Button>
-            <Button asChild className="hidden h-11 px-4 sm:inline-flex">
-              <Link href="/account">Account</Link>
+              <Link href="/cart"><ShoppingCart className="size-5" />{itemCount > 0 ? <span className="absolute right-0 top-0 grid size-5 place-items-center rounded-full bg-primary text-[10px] font-black text-white">{itemCount}</span> : null}</Link>
             </Button>
           </div>
         </div>
 
-        {/* category nav row */}
-        <nav className="hidden items-center gap-1 overflow-x-auto pb-2 lg:flex" aria-label="Categories">
+        <nav className="hidden h-9 items-center gap-1 overflow-x-auto border-t border-black/5 lg:flex" aria-label="Categories">
           {NAV.map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={cn(
-                "whitespace-nowrap rounded-full px-3 py-1.5 text-sm hover:bg-accent",
-                isActive(item.href) && "bg-accent font-semibold"
-              )}
-            >
-              {item.label}
-            </Link>
+            <Link key={item.href} href={item.href} className={cn("whitespace-nowrap rounded-lg px-3 py-1.5 text-xs font-semibold text-muted-foreground transition hover:bg-accent hover:text-foreground", isActive(item.href) && "bg-primary/8 text-primary")}>{item.label}</Link>
           ))}
         </nav>
       </div>
@@ -162,47 +138,32 @@ export function StorefrontHeader() {
 
 export function StorefrontFooter() {
   return (
-    <footer className="mt-auto border-t bg-card">
-      <div className="mx-auto grid max-w-7xl gap-8 px-4 py-10 sm:grid-cols-2 lg:grid-cols-4">
-        <div className="space-y-2">
-          <p className="font-serif text-lg font-bold">Variety Groceries</p>
-          <p className="text-sm text-muted-foreground">
-            Fresh groceries for Ghanaian homes — shop online or in store. Demo storefront for the
-            varietygrocery.com prototype.
-          </p>
+    <footer className="storefront-footer-rich mt-auto bg-[color:var(--brand-green-deep)] text-white">
+      <div className="mx-auto grid max-w-[1500px] gap-8 px-4 py-10 sm:grid-cols-2 lg:grid-cols-[1.35fr_.8fr_.9fr_.8fr_1.3fr]">
+        <div className="space-y-4 sm:col-span-2 lg:col-span-1">
+          <Brand compact inverse />
+          <p className="max-w-xs text-sm leading-relaxed text-white/70">A connected grocery experience for everyday Ghanaian homes — fresh food, pantry staples, household essentials and order support in one place.</p>
+          <p className="text-xs font-semibold text-brand-amber">Prices shown in Ghana cedis (₵).</p>
         </div>
         <div>
-          <p className="mb-2 text-sm font-semibold">Shop</p>
-          <ul className="space-y-1.5 text-sm text-muted-foreground">
-            <li><Link href="/shop" className="hover:text-foreground hover:underline">All groceries</Link></li>
-            <li><Link href="/categories/fresh-produce" className="hover:text-foreground hover:underline">Fresh produce</Link></li>
-            <li><Link href="/shop?sort=price-asc" className="hover:text-foreground hover:underline">Budget picks</Link></li>
-          </ul>
+          <p className="mb-3 text-sm font-bold">Shop</p>
+          <ul className="space-y-2 text-xs text-white/70"><li><Link href="/shop">All products</Link></li><li><Link href="/shop?category=cat_fp">Fresh produce</Link></li><li><Link href="/shop?category=cat_de">Dairy & eggs</Link></li><li><Link href="/shop?category=cat_mf">Meat & fish</Link></li></ul>
         </div>
         <div>
-          <p className="mb-2 text-sm font-semibold">Orders &amp; support</p>
-          <ul className="space-y-1.5 text-sm text-muted-foreground">
-            <li><Link href="/track" className="hover:text-foreground hover:underline">Track an order</Link></li>
-            <li><Link href="/account/returns" className="hover:text-foreground hover:underline">Returns &amp; refunds</Link></li>
-            <li><Link href="/help" className="hover:text-foreground hover:underline">Help centre</Link></li>
-          </ul>
+          <p className="mb-3 text-sm font-bold">Customer service</p>
+          <ul className="space-y-2 text-xs text-white/70"><li><Link href="/track">Track your order</Link></li><li><Link href="/account/returns">Returns & refunds</Link></li><li><Link href="/help">Help centre</Link></li><li><Link href="/delivery">Delivery information</Link></li></ul>
         </div>
         <div>
-          <p className="mb-2 text-sm font-semibold">Policies</p>
-          <ul className="space-y-1.5 text-sm text-muted-foreground">
-            <li><Link href="/delivery" className="hover:text-foreground hover:underline">Delivery information</Link></li>
-            <li><Link href="/returns-policy" className="hover:text-foreground hover:underline">Returns policy</Link></li>
-            <li><Link href="/privacy" className="hover:text-foreground hover:underline">Privacy</Link></li>
-            <li><Link href="/terms" className="hover:text-foreground hover:underline">Terms</Link></li>
-          </ul>
+          <p className="mb-3 text-sm font-bold">About</p>
+          <ul className="space-y-2 text-xs text-white/70"><li><Link href="/privacy">Privacy</Link></li><li><Link href="/terms">Terms</Link></li><li><Link href="/returns-policy">Returns policy</Link></li><li><Link href="/assistant">Shopping assistant</Link></li></ul>
+        </div>
+        <div>
+          <p className="text-sm font-bold">Stay connected</p>
+          <p className="mt-1 text-xs leading-relaxed text-white/65">Use your account for order history and repeat shopping. Public notification channels remain demo-only until launch configuration is complete.</p>
+          <div className="mt-4 flex gap-2"><Button asChild variant="secondary" className="h-10"><Link href="/account">My account</Link></Button><Button asChild className="h-10 bg-brand-amber text-[color:var(--brand-green-deep)] hover:bg-brand-amber/90"><Link href="/shop">Shop now</Link></Button></div>
         </div>
       </div>
-      <div className="border-t">
-        <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-2 px-4 py-4 text-xs text-muted-foreground">
-          <p>© {new Date().getFullYear()} Variety Groceries (demo prototype). Prices in Ghana cedis (₵). Fictional demo data.</p>
-          <p>Mobile Money · Card · Bank transfer · Cash — payment providers not yet connected.</p>
-        </div>
-      </div>
+      <div className="border-t border-white/10"><div className="mx-auto flex max-w-[1500px] flex-wrap items-center justify-between gap-2 px-4 py-4 text-[11px] text-white/55"><p>© {new Date().getFullYear()} Variety Groceries · Ghana · Demo storefront</p><p>Mobile Money · Card · Bank transfer · Cash — provider connections remain clearly labelled in the checkout.</p></div></div>
     </footer>
   );
 }

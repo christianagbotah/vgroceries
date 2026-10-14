@@ -7,6 +7,11 @@ const nextConfig: NextConfig = {
     ignoreBuildErrors: false,
   },
   reactStrictMode: false,
+  images: {
+    remotePatterns: [
+      { protocol: "https", hostname: "images.unsplash.com" },
+    ],
+  },
   // Allow the sandbox preview proxy to request /_next/* assets without cross-origin warnings.
   allowedDevOrigins: ["preview-chat-d906d6ba-f705-46ad-a8c1-c0d56db34e11.space-z.ai"],
 };
