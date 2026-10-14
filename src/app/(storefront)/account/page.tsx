@@ -38,9 +38,11 @@ export default function AccountPage() {
           <p className="font-medium">{data.customer.name}</p>
           <p className="text-muted-foreground">{data.customer.phone}</p>
           <p className="text-muted-foreground">{data.customer.email}</p>
-          <p className="pt-1 text-xs text-muted-foreground">
-            Guest checkout keeps working without an account — this demo profile is fictional.
-          </p>
+          <div className="pt-3">
+            <Button asChild variant="outline" size="sm" className="h-9">
+              <Link href="/account/profile">Edit profile</Link>
+            </Button>
+          </div>
         </CardContent>
       </Card>
 

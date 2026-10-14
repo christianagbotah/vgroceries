@@ -12,11 +12,13 @@ import {
   ChevronDown,
   CircleHelp,
   Heart,
+  House,
   MapPin,
   Menu,
   Package,
   Search,
   ShoppingCart,
+  Store,
   UserRound,
 } from "lucide-react";
 import { useCart } from "@/features/checkout/cart-store";
@@ -113,16 +115,21 @@ export function StorefrontHeader() {
             <button type="submit" className="grid w-12 place-items-center bg-primary text-primary-foreground hover:bg-[color:var(--brand-green-deep)]" aria-label="Search"><Search className="size-4.5" /></button>
           </form>
 
-          <div className="ml-auto flex items-center gap-0.5 sm:gap-1.5">
-            <div className="hidden items-center gap-2 border-r pr-3 xl:flex">
-              <MapPin className="size-5 text-primary" />
+          <div className="ml-auto flex items-center gap-0.5 sm:gap-2">
+            <div className="hidden items-center gap-2 border-r pr-4 lg:flex">
+              <MapPin className="size-5 text-primary" aria-hidden />
               <div className="text-[10px] leading-tight text-muted-foreground">Deliver to<br /><strong className="text-xs text-foreground">Accra, Ghana</strong></div>
             </div>
-            <Button asChild variant="ghost" size="icon" className="hidden size-11 sm:inline-flex" aria-label="Account"><Link href="/account"><UserRound className="size-5" /></Link></Button>
-            <Button asChild variant="ghost" size="icon" className="hidden size-11 sm:inline-flex" aria-label="Wishlist"><Link href="/account/lists"><Heart className="size-5" /></Link></Button>
-            <Button asChild variant="ghost" size="icon" className="relative size-11" aria-label={`Cart, ${itemCount} items`}>
-              <Link href="/cart"><ShoppingCart className="size-5" />{itemCount > 0 ? <span className="absolute right-0 top-0 grid size-5 place-items-center rounded-full bg-primary text-[10px] font-black text-white">{itemCount}</span> : null}</Link>
-            </Button>
+            <Link href="/account" className="hidden min-w-[58px] flex-col items-center justify-center gap-0.5 rounded-xl px-2 py-1.5 text-foreground transition hover:bg-accent sm:flex" aria-label="Account">
+              <UserRound className="size-5" aria-hidden /><span className="text-[10px] font-semibold">Account</span>
+            </Link>
+            <Link href="/account/lists" className="hidden min-w-[58px] flex-col items-center justify-center gap-0.5 rounded-xl px-2 py-1.5 text-foreground transition hover:bg-accent md:flex" aria-label="Wishlist">
+              <Heart className="size-5" aria-hidden /><span className="text-[10px] font-semibold">Wishlist</span>
+            </Link>
+            <Link href="/cart" className="relative flex min-w-[48px] flex-col items-center justify-center gap-0.5 rounded-xl px-2 py-1.5 text-foreground transition hover:bg-accent sm:min-w-[58px]" aria-label={`Cart, ${itemCount} items`}>
+              <span className="relative"><ShoppingCart className="size-5" aria-hidden />{itemCount > 0 ? <span className="absolute -right-3 -top-2 grid size-5 place-items-center rounded-full bg-primary text-[10px] font-black text-white">{itemCount}</span> : null}</span>
+              <span className="hidden text-[10px] font-semibold sm:block">Cart</span>
+            </Link>
           </div>
         </div>
 
@@ -133,6 +140,56 @@ export function StorefrontHeader() {
         </nav>
       </div>
     </header>
+  );
+}
+
+export function StorefrontMobileNav() {
+  const pathname = usePathname();
+  const router = useRouter();
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [mobileQuery, setMobileQuery] = useState("");
+  const lines = useCart((state) => state.lines);
+  const itemCount = lines.reduce((total, line) => total + Number(line.quantity), 0);
+
+  const active = (href: string) =>
+    href === "/" ? pathname === "/" : pathname === href || pathname.startsWith(`${href}/`);
+
+  const mobileSearch = (event: React.FormEvent) => {
+    event.preventDefault();
+    const query = mobileQuery.trim();
+    setSearchOpen(false);
+    router.push(query ? `/shop?query=${encodeURIComponent(query)}` : "/shop");
+  };
+
+  return (
+    <>
+      <nav className="fixed inset-x-0 bottom-0 z-50 grid grid-cols-5 border-t border-black/10 bg-white/95 px-1 pt-1 shadow-[0_-8px_30px_rgba(8,61,42,0.10)] backdrop-blur-xl pb-[max(.35rem,env(safe-area-inset-bottom))] md:hidden" aria-label="Mobile storefront navigation">
+        <Link href="/" className={cn("flex min-h-14 flex-col items-center justify-center gap-1 rounded-xl text-[10px] font-semibold", active("/") ? "text-primary" : "text-muted-foreground")}><House className="size-5" aria-hidden />Home</Link>
+        <Link href="/shop" className={cn("flex min-h-14 flex-col items-center justify-center gap-1 rounded-xl text-[10px] font-semibold", active("/shop") || pathname.startsWith("/categories") || pathname.startsWith("/products") ? "text-primary" : "text-muted-foreground")}><Store className="size-5" aria-hidden />Shop</Link>
+        <button type="button" onClick={() => setSearchOpen(true)} className="flex min-h-14 flex-col items-center justify-center gap-1 rounded-xl text-[10px] font-semibold text-muted-foreground" aria-label="Search groceries"><Search className="size-5" aria-hidden />Search</button>
+        <Link href="/cart" className={cn("relative flex min-h-14 flex-col items-center justify-center gap-1 rounded-xl text-[10px] font-semibold", active("/cart") ? "text-primary" : "text-muted-foreground")}><span className="relative"><ShoppingCart className="size-5" aria-hidden />{itemCount > 0 ? <span className="absolute -right-3 -top-2 grid size-4 place-items-center rounded-full bg-primary text-[9px] font-black text-white">{itemCount}</span> : null}</span>Cart</Link>
+        <Link href="/account" className={cn("flex min-h-14 flex-col items-center justify-center gap-1 rounded-xl text-[10px] font-semibold", active("/account") ? "text-primary" : "text-muted-foreground")}><UserRound className="size-5" aria-hidden />Account</Link>
+      </nav>
+
+      <Sheet open={searchOpen} onOpenChange={setSearchOpen}>
+        <SheetContent side="bottom" className="rounded-t-3xl px-4 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-5 md:hidden">
+          <SheetTitle className="text-lg">Search Variety Groceries</SheetTitle>
+          <form onSubmit={mobileSearch} className="mt-3 flex h-12 overflow-hidden rounded-xl border bg-white shadow-sm">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
+              <Input autoFocus type="search" value={mobileQuery} onChange={(event) => setMobileQuery(event.target.value)} placeholder="Search groceries, products, brands…" className="h-full border-0 pl-9 shadow-none focus-visible:ring-0" />
+            </div>
+            <Button type="submit" className="h-full rounded-none px-5">Search</Button>
+          </form>
+          <div className="mt-4 grid grid-cols-2 gap-2">
+            <Button asChild variant="outline" className="justify-start"><Link href="/categories" onClick={() => setSearchOpen(false)}>Browse categories</Link></Button>
+            <Button asChild variant="outline" className="justify-start"><Link href="/account/lists" onClick={() => setSearchOpen(false)}>Wishlist</Link></Button>
+            <Button asChild variant="outline" className="justify-start"><Link href="/account/orders" onClick={() => setSearchOpen(false)}>My orders</Link></Button>
+            <Button asChild variant="outline" className="justify-start"><Link href="/help" onClick={() => setSearchOpen(false)}>Help centre</Link></Button>
+          </div>
+        </SheetContent>
+      </Sheet>
+    </>
   );
 }
 

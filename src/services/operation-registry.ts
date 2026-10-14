@@ -52,6 +52,9 @@ export const operationMeta: Record<string, OperationMeta> = {
 
   /* account */
   "account.summary": { tags: [...ORD, ...RET] },
+  "account.profile": { tags: ORD },
+  "account.profile.update": { invalidates: ORD },
+  "account.logout": { invalidates: ["*"] },
   "account.orders": { tags: ORD },
   "account.cancel": { invalidates: [...ORD, ...STOCK, ...CAT] },
   "account.return-lines": { tags: RET },
