@@ -55,3 +55,10 @@ jobs:
           npm run openapi
           cmp /tmp/openapi-first.json ../../docs/openapi-foundation.json
           git diff --exit-code -- ../../docs/openapi-foundation.json
+      - name: Capture generated OpenAPI for contract-sync debugging
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: generated-openapi-${{ github.sha }}
+          path: docs/openapi-foundation.json
+          if-no-files-found: error
