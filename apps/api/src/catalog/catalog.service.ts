@@ -5,35 +5,28 @@ import { API_CONFIG, ApiConfig } from "../config";
 import { Database } from "../database/database";
 import { ApiProblem } from "../http/errors";
 
-type ProductRecord = Prisma.ProductGetPayload<{
-  include: {
-    category: true;
-    variants: true;
-    featuredMedia: true;
-    media: true;
-  };
-}>;
+const approvedMediaWhere = {
+  status: "approved",
+  archivedAt: null,
+  publicUrl: { not: null },
+} satisfies Prisma.ProductMediaWhereInput;
+
+const productInclude = {
+  category: true,
+  variants: { where: { active: true }, orderBy: { id: "asc" } },
+  featuredMedia: true,
+  media: {
+    where: { ...approvedMediaWhere, galleryOrder: { not: null } },
+    orderBy: [{ galleryOrder: "asc" }, { createdAt: "asc" }, { id: "asc" }],
+  },
+} satisfies Prisma.ProductInclude;
+
+type ProductRecord = Prisma.ProductGetPayload<{ include: typeof productInclude }>;
 type Availability = {
   variantId: string;
   availableToSell: Prisma.Decimal;
   safetyStock: Prisma.Decimal;
 };
-
-const approvedMediaWhere = {
-  status: "approved",
-  archivedAt: null,
-  publicUrl: { not: null },
-} as const;
-
-const productInclude = {
-  category: true,
-  variants: { where: { active: true }, orderBy: { id: "asc" as const } },
-  featuredMedia: true,
-  media: {
-    where: { ...approvedMediaWhere, galleryOrder: { not: null } },
-    orderBy: [{ galleryOrder: "asc" as const }, { createdAt: "asc" as const }, { id: "asc" as const }],
-  },
-} as const;
 
 export const priceLabel = (minor: number) => `₵${(minor / 100).toFixed(2)}`;
 
