@@ -73,7 +73,7 @@ async function media(input: {
       width: 1200,
       height: 1200,
       byteSize: 2048,
-      sha256: `${input.id}-sha256`,
+      sha256: "a".repeat(64),
       altText: `${input.id} alt`,
       galleryOrder: input.order ?? null,
       createdBy: "catalog-media-test",
