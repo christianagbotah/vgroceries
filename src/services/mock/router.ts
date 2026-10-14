@@ -93,6 +93,7 @@ import { formatMoney } from "@/lib/money";
 import { formatDateTime } from "@/lib/format";
 import { nextId, nowIso, orderReference } from "@/lib/id";
 import { addQty, cmpQty, subQty } from "@/lib/quantity";
+import { productImageFor } from "@/lib/product-image-map";
 import type { Order, OrderLine } from "@/types/domain";
 
 /**
@@ -218,7 +219,7 @@ export function catalogEntry(store: VgStore, productId: string) {
     id: p.id, slug: p.slug, name: p.name, categoryId: p.categoryId,
     categoryName: cat?.name, categorySlug: cat?.slug, tint: cat?.tint,
     shortDescription: p.shortDescription, description: p.description, tags: p.tags,
-    image: `/products/${p.slug}.svg`,
+    image: productImageFor(p.slug),
     variants,
     anyAvailable: variants.some((v) => v.isAvailable),
     minPriceMinor: Math.min(...variants.map((v) => v.priceMinor)),
@@ -712,7 +713,7 @@ export async function handleApi(req: ApiRequest): Promise<ApiResult> {
           return {
             variantId: v.id, productId: p.id, productName: p.name, variantName: v.name,
             unit: v.unit, priceMinor: v.priceMinor, priceLabel: formatMoney(v.priceMinor),
-            barcode: v.barcode, image: `/products/${p.slug}.svg`,
+            barcode: v.barcode, image: productImageFor(p.slug),
             availableToSell: a.availableToSell, isAvailable: a.isAvailable,
           };
         }));
@@ -826,7 +827,7 @@ export async function handleApi(req: ApiRequest): Promise<ApiResult> {
             availableToSell: a.availableToSell, isAvailable: a.isAvailable,
             nextExpiry: a.nextExpiry, lotCount: a.lots.length,
             lastMovementAt: movements[0]?.at, lastMovement: movements[0]?.reason,
-            image: `/products/${p.slug}.svg`,
+            image: productImageFor(p.slug),
           };
         });
         const search = q("q").toLowerCase();
@@ -980,7 +981,7 @@ export async function handleApi(req: ApiRequest): Promise<ApiResult> {
           });
           return {
             id: p.id, name: p.name, slug: p.slug, categoryName: cat?.name, categoryId: p.categoryId,
-            isPublished: p.isPublished, shortDescription: p.shortDescription, image: `/products/${p.slug}.svg`,
+            isPublished: p.isPublished, shortDescription: p.shortDescription, image: productImageFor(p.slug),
             variants, anyAvailable: variants.some((v) => v.isAvailable),
           };
         });
@@ -997,7 +998,7 @@ export async function handleApi(req: ApiRequest): Promise<ApiResult> {
         return ok({
           id: p.id, name: p.name, slug: p.slug, description: p.description, shortDescription: p.shortDescription,
           tags: p.tags, isPublished: p.isPublished, categoryName: cat?.name, categoryId: p.categoryId,
-          image: `/products/${p.slug}.svg`,
+          image: productImageFor(p.slug),
           variants: p.variants.map((vid) => {
             const v = store.variants.find((x) => x.id === vid)!;
             const a = availability(store, vid);

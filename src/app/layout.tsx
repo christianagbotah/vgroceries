@@ -22,6 +22,11 @@ export const metadata: Metadata = {
     "Shop fresh produce, grains, household essentials and more from Variety Groceries (varietygrocery.com). Delivery across Accra and in-store collection. Demo storefront prototype.",
   keywords: ["groceries", "Ghana", "Accra", "online grocery", "Variety Groceries", "delivery", "collection"],
   applicationName: "Variety Groceries",
+  icons: {
+    icon: "/brand/variety-mark.svg",
+    shortcut: "/brand/variety-mark.svg",
+    apple: "/brand/variety-mark.svg",
+  },
   openGraph: {
     title: "Variety Groceries",
     description: "Fresh groceries for Ghanaian homes — delivery and collection (demo storefront).",
