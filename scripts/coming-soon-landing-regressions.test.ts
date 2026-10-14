@@ -1,10 +1,11 @@
 import { describe, expect, test } from "bun:test";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
 const root = join(import.meta.dir, "..");
 const htmlPath = join(root, "deploy", "coming-soon", "index.html");
 const logoPath = join(root, "deploy", "coming-soon", "logo.svg");
+const socialPreviewPath = join(root, "deploy", "coming-soon", "social-preview.jpg");
 
 function read(path: string) {
   return readFileSync(path, "utf8");
@@ -44,6 +45,26 @@ describe("rich coming-soon landing page", () => {
     expect(html).toContain("Store preview");
     expect(html).toContain("Launching soon");
     expect(html).not.toContain("window.location");
+  });
+
+  test("publishes WhatsApp/Open Graph metadata with a same-domain JPEG preview", () => {
+    const html = read(htmlPath);
+
+    expect(html).toContain('property="og:type" content="website"');
+    expect(html).toContain('property="og:url" content="https://varietygroceries.com/"');
+    expect(html).toContain('property="og:image" content="https://varietygroceries.com/social-preview.jpg"');
+    expect(html).toContain('property="og:image:type" content="image/jpeg"');
+    expect(html).toContain('property="og:image:width" content="1200"');
+    expect(html).toContain('property="og:image:height" content="630"');
+    expect(html).toContain('name="twitter:card" content="summary_large_image"');
+    expect(html).toContain('name="twitter:image" content="https://varietygroceries.com/social-preview.jpg"');
+    expect(existsSync(socialPreviewPath)).toBe(true);
+    if (existsSync(socialPreviewPath)) {
+      const image = readFileSync(socialPreviewPath);
+      expect(image[0]).toBe(0xff);
+      expect(image[1]).toBe(0xd8);
+      expect(image.length).toBeGreaterThan(10_000);
+    }
   });
 
   test("keeps the maintenance page responsive and accessible", () => {
