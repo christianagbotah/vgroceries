@@ -119,6 +119,17 @@ async function main() {
         update: { active: true },
       });
 
+      // The private integration preview fixture predates the rich UAT catalogue.
+      // Keep it in the database for integration work, but never expose it to shoppers.
+      await tx.product.updateMany({
+        where: { id: "preview_rice" },
+        data: { published: false },
+      });
+      await tx.category.updateMany({
+        where: { id: "preview_food" },
+        data: { active: false },
+      });
+
       const categoryIds = new Map<string, string>();
       for (const category of categories) {
         const row = await tx.category.upsert({

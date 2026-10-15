@@ -59,6 +59,14 @@ describe("rich UAT storefront seed", () => {
     expect(text).toContain("findUnique");
   });
 
+  test("retires the old private preview fixture from customer-facing UAT", () => {
+    const text = source();
+    expect(text).toContain('id: "preview_rice"');
+    expect(text).toContain('published: false');
+    expect(text).toContain('id: "preview_food"');
+    expect(text).toContain('active: false');
+  });
+
   test("is exposed only as an explicit API package command", () => {
     const pkg = readFileSync(packagePath, "utf8");
     expect(pkg).toContain('"seed:uat-storefront"');
