@@ -69,6 +69,8 @@ describe("Product Media UAT rollout contract", () => {
     expect(source).toContain("CanReload");
     expect(source).toContain("/usr/local/apps/nginx/sbin/nginx");
     expect(source).toContain("-s reload");
+    expect(source).toContain("for _ in $(seq 1 20)");
+    expect(source).toContain("sleep 0.25");
   });
 
   test("installs and verifies the worker and validates the configured AI provider without printing secrets", () => {

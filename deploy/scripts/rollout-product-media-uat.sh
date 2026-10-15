@@ -204,10 +204,17 @@ printf 'variety-media-rollout-ok\n' > "$probe_path"
 chown lightworld:lightworld "$probe_path"
 chmod 0644 "$probe_path"
 
-public_code="$(curl -sS -o /dev/null -w '%{http_code}' "$PORTAL_BASE_URL/media/products/$probe_name")"
+public_code=""
+private_code=""
+for _ in $(seq 1 20); do
+  public_code="$(curl -sS -o /dev/null -w '%{http_code}' "$PORTAL_BASE_URL/media/products/$probe_name")"
+  private_code="$(curl -sS -o /dev/null -w '%{http_code}' "$PORTAL_BASE_URL/media/private/$probe_name")"
+  if [[ "$public_code" == "200" && "$private_code" == "404" ]]; then
+    break
+  fi
+  sleep 0.25
+done
 [[ "$public_code" == "200" ]] || fail "public media probe returned HTTP $public_code instead of 200"
-
-private_code="$(curl -sS -o /dev/null -w '%{http_code}' "$PORTAL_BASE_URL/media/private/$probe_name")"
 [[ "$private_code" == "404" ]] || fail "private media probe returned HTTP $private_code instead of 404"
 
 coming_soon_code="$(curl -sS -o /dev/null -w '%{http_code}' "$PUBLIC_COMING_SOON_URL")"
