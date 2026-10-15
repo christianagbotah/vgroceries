@@ -27,6 +27,7 @@ describe("Product Media UAT rollout contract", () => {
   test("prepares isolated public/private media roots and runs database migration before dry-run and import", () => {
     const source = rolloutSource();
 
+    expect(source).toContain('install -d -o lightworld -g lightworld -m 0751 "$MEDIA_ROOT"');
     expect(source).toContain('"$SHARED_ROOT/product-media/public"');
     expect(source).toContain('"$SHARED_ROOT/product-media/private"');
     expect(source).toContain("migrate:deploy");
