@@ -20,6 +20,7 @@ describe("portal live API UAT rollout", () => {
     expect(source).toContain("EnvironmentFile=/home/lightworld/config/varietygroceries/portal.env");
     expect(source).toContain("ExecStart=/home/lightworld/runtime/node24/bin/node server.js");
     expect(source).toContain("WorkingDirectory=/home/lightworld/webapps/varietygroceries-portal-current");
+    expect(source).toContain("ReadWritePaths=/home/lightworld/webapps/varietygroceries-portal-current/.next/cache");
   });
 
   test("rollout writes the live-backend env, preserves Coming Soon, and has rollback", () => {
@@ -30,5 +31,6 @@ describe("portal live API UAT rollout", () => {
     expect(source).toContain("https://varietygroceries.com/");
     expect(source).toContain("rollback()");
     expect(source).toContain("nginx -t");
+    expect(source).toContain('install -d -o lightworld -g lightworld -m 0755 "$PORTAL_RELEASE_DIR/.next/cache"');
   });
 });

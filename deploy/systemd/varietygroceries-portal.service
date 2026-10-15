@@ -22,6 +22,7 @@ NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
 ProtectHome=read-only
+ReadWritePaths=/home/lightworld/webapps/varietygroceries-portal-current/.next/cache
 ReadOnlyPaths=/home/lightworld/releases
 
 [Install]

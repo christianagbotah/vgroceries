@@ -99,6 +99,7 @@ PY
 chown -R lightworld:lightworld "$PORTAL_RELEASE_DIR"
 find "$PORTAL_RELEASE_DIR" -type d -exec chmod 0755 {} +
 find "$PORTAL_RELEASE_DIR" -type f -exec chmod 0644 {} +
+install -d -o lightworld -g lightworld -m 0755 "$PORTAL_RELEASE_DIR/.next/cache"
 
 ln -sfn "$PORTAL_RELEASE_DIR" "${PORTAL_LINK}.next"
 mv -Tf "${PORTAL_LINK}.next" "$PORTAL_LINK"
