@@ -9,6 +9,7 @@ API_ENV_FILE="${API_ENV_FILE:-/home/lightworld/config/varietygroceries/api.env}"
 NGINX_SNIPPET_TARGET="${NGINX_SNIPPET_TARGET:-}"
 SERVICE_NAME="${SERVICE_NAME:-varietygroceries-media-worker.service}"
 SYSTEMD_UNIT_TARGET="${SYSTEMD_UNIT_TARGET:-/etc/systemd/system/$SERVICE_NAME}"
+LOCK_FILE="${LOCK_FILE:-/run/lock/varietygroceries-product-media-uat.lock}"
 MEDIA_ROOT="$SHARED_ROOT/product-media"
 LEGACY_PUBLIC_ROOT="${LEGACY_PRODUCT_MEDIA_ROOT:-$APP_ROOT/public}"
 SOURCE_SYSTEMD_UNIT="$APP_ROOT/deploy/systemd/varietygroceries-media-worker.service"
@@ -39,9 +40,13 @@ read_env_value() {
 }
 
 [[ "${EUID:-$(id -u)}" -eq 0 ]] || fail "run this rollout as root (or through sudo)"
+command -v flock >/dev/null 2>&1 || fail "flock is required for guarded rollout locking"
 [[ -n "$NGINX_SNIPPET_TARGET" ]] || fail "NGINX_SNIPPET_TARGET must point to an include file inside the portal HTTPS server configuration"
 [[ "$APP_ROOT" != "$PUBLIC_COMING_SOON_ROOT" && "$APP_ROOT" != "$PUBLIC_COMING_SOON_ROOT/"* ]] || \
   fail "APP_ROOT must never point at the public Coming Soon site"
+
+exec 9>"$LOCK_FILE"
+flock -n 9 || fail "another Product Media UAT rollout is already running"
 
 require_file "$API_DIR/package.json"
 require_file "$API_ENV_FILE"
@@ -70,6 +75,13 @@ case "$ai_provider" in
 esac
 unset openai_key
 
+# The protected EnvironmentFile is the same authority used by systemd. Load it into
+# this process so migrations and import commands target the exact UAT database/storage.
+set -a
+# shellcheck disable=SC1090
+source "$API_ENV_FILE"
+set +a
+
 install -d -o lightworld -g lightworld -m 0750 "$SHARED_ROOT/product-media/private"
 install -d -o lightworld -g lightworld -m 0755 "$SHARED_ROOT/product-media/public"
 
@@ -93,6 +105,7 @@ probe_path="$SHARED_ROOT/product-media/public/$probe_name"
 had_nginx_target=0
 had_systemd_target=0
 worker_was_active=0
+worker_was_enabled=0
 runtime_files_changed=0
 
 if [[ -f "$NGINX_SNIPPET_TARGET" ]]; then
@@ -105,6 +118,9 @@ if [[ -f "$SYSTEMD_UNIT_TARGET" ]]; then
 fi
 if systemctl is-active --quiet "$SERVICE_NAME"; then
   worker_was_active=1
+fi
+if systemctl is-enabled --quiet "$SERVICE_NAME"; then
+  worker_was_enabled=1
 fi
 
 restore_runtime_files() {
@@ -124,6 +140,11 @@ restore_runtime_files() {
   fi
 
   systemctl daemon-reload >/dev/null 2>&1
+  if [[ "$worker_was_enabled" -eq 1 ]]; then
+    systemctl enable "$SERVICE_NAME" >/dev/null 2>&1
+  else
+    systemctl disable "$SERVICE_NAME" >/dev/null 2>&1
+  fi
   if [[ "$worker_was_active" -eq 1 ]]; then
     systemctl restart "$SERVICE_NAME" >/dev/null 2>&1
   else
@@ -144,6 +165,7 @@ on_exit() {
   fi
   rm -f "$probe_path"
   rm -rf "$tmp_dir"
+  trap - EXIT
   exit "$status"
 }
 trap on_exit EXIT
