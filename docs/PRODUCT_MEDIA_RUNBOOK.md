@@ -47,11 +47,11 @@ Keep OpenAI disabled for the first UAT pass. The fake provider gives determinist
 
 The preferred UAT path is `deploy/scripts/rollout-product-media-uat.sh`. It is deliberately separate from the public `varietygroceries.com` Coming Soon root.
 
-First identify the Nginx include file that is actually included inside the HTTPS `portal.varietygroceries.com` server block. Do not guess or overwrite the whole server block. Pass that exact include path as `NGINX_SNIPPET_TARGET`:
+First identify the Nginx include file that is actually included inside the HTTPS `portal.varietygroceries.com` server block. Do not guess or overwrite the whole server block. Pass that exact include path as `NGINX_SNIPPET_TARGET`. Invoke the checked-in script through `bash` so the rollout does not depend on Git file-mode metadata:
 
 ```bash
-sudo NGINX_SNIPPET_TARGET=/path/to/the/portal-product-media-include.conf \
-  /home/lightworld/webapps/varietygroceries-api/current/deploy/scripts/rollout-product-media-uat.sh
+sudo env NGINX_SNIPPET_TARGET=/path/to/the/portal-product-media-include.conf \
+  bash /home/lightworld/webapps/varietygroceries-api/current/deploy/scripts/rollout-product-media-uat.sh
 ```
 
 The guarded rollout:
