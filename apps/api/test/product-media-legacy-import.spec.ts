@@ -2,7 +2,12 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
-import { planLegacyProductMediaImport } from "../scripts/import-legacy-product-media";
+import type { Database } from "../src/database/database";
+import type { ProductMediaStorage } from "../src/product-media/product-media.storage";
+import {
+  importLegacyProductMediaItem,
+  planLegacyProductMediaImport,
+} from "../scripts/import-legacy-product-media";
 
 async function readRepoFile(path: string): Promise<string> {
   try {
@@ -44,6 +49,90 @@ test("legacy media import requires an explicit approve review policy before plan
   );
   assert.equal(planned.status, "approved");
   assert.equal(planned.visibility, "public");
+});
+
+test("legacy media import cleans an unreferenced object when a duplicate wins after storage", async () => {
+  const deleted: string[] = [];
+  const sha256 = "a".repeat(64);
+  const storage: ProductMediaStorage = {
+    async put(input) {
+      return {
+        storageKey: input.key,
+        byteSize: input.bytes.length,
+        publicUrl: `https://portal.varietygroceries.com/media/products/${input.key.replace(/^public\//, "")}`,
+      };
+    },
+    async read() {
+      throw new Error("not used");
+    },
+    async delete(storageKey) {
+      deleted.push(storageKey);
+    },
+    async exists() {
+      return true;
+    },
+    publicUrl(storageKey) {
+      return `https://portal.varietygroceries.com/media/products/${storageKey.replace(/^public\//, "")}`;
+    },
+  };
+
+  const db = {
+    productMedia: {
+      async findFirst() {
+        return null;
+      },
+      async count() {
+        return 0;
+      },
+    },
+    async $transaction(run: (tx: unknown) => Promise<unknown>) {
+      return run({
+        productMedia: {
+          async findFirst() {
+            return { id: "existing-private-row" };
+          },
+          async create() {
+            throw new Error("duplicate must prevent create");
+          },
+        },
+        auditEvent: {
+          async create() {
+            throw new Error("duplicate must prevent audit create");
+          },
+        },
+      });
+    },
+  } as unknown as Database;
+
+  const result = await importLegacyProductMediaItem({
+    db,
+    storage,
+    product: {
+      id: "product-race",
+      name: "Race Product",
+      image: "/images/products/race.png",
+    },
+    plan: {
+      productId: "product-race",
+      sourcePath: "/srv/variety/current/public/images/products/race.png",
+      source: "legacy_import",
+      status: "approved",
+      visibility: "public",
+    },
+    actorId: "legacy-media-import-test",
+    readSource: async () => Buffer.from("fixture"),
+    normalize: async () => ({
+      bytes: Buffer.from("normalized-webp"),
+      mimeType: "image/webp",
+      width: 100,
+      height: 100,
+      byteSize: Buffer.byteLength("normalized-webp"),
+      sha256,
+    }),
+  });
+
+  assert.equal(result, "existing");
+  assert.deepEqual(deleted, [`public/product-race/${sha256.slice(0, 2)}/${sha256}.webp`]);
 });
 
 test("UAT deployment templates isolate public product media and run the worker as lightworld", async () => {
