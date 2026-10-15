@@ -29,6 +29,7 @@ export default async function HomePage() {
   const featured = [...offers, ...popular, ...trendingNew]
     .filter((product, index, all) => all.findIndex((candidate) => candidate.id === product.id) === index)
     .slice(0, 8);
+  const freshProduceCategory = categories.find((category) => category.slug === "fresh-produce");
 
   return (
     <div className="mx-auto max-w-[1500px] px-3 pb-10 sm:px-4">
@@ -76,7 +77,7 @@ export default async function HomePage() {
       </section>
 
       <section className="mt-6" aria-labelledby="home-featured">
-        <div className="mb-2 flex items-end justify-between gap-3 px-1"><div><h2 id="home-featured" className="font-serif text-2xl font-bold tracking-tight">Featured products</h2><p className="text-xs text-muted-foreground">A fuller preview of popular picks, current offers and fresh finds with live mock availability and pricing.</p></div><Link href="/shop" className="text-xs font-bold text-primary hover:underline">View all products <ArrowRight className="ml-1 inline size-3.5" /></Link></div>
+        <div className="mb-2 flex items-end justify-between gap-3 px-1"><div><h2 id="home-featured" className="font-serif text-2xl font-bold tracking-tight">Featured products</h2><p className="text-xs text-muted-foreground">A fuller preview of popular picks, current offers and fresh finds with current availability and pricing.</p></div><Link href="/shop" className="text-xs font-bold text-primary hover:underline">View all products <ArrowRight className="ml-1 inline size-3.5" /></Link></div>
         <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-8">{featured.map((p, i) => <ProductTile key={p.id} product={p} priority={i < 2} />)}</div>
       </section>
 
@@ -84,7 +85,7 @@ export default async function HomePage() {
         <article className="relative min-h-[155px] overflow-hidden rounded-2xl bg-[color:var(--brand-green-deep)] p-6 text-white sm:p-7">
           <Image src={storefrontProducePromoImage} alt="Colourful basket of fresh produce" fill sizes="(max-width:1024px) 100vw, 65vw" className="object-cover object-right opacity-75" />
           <div className="absolute inset-0 bg-gradient-to-r from-[color:var(--brand-green-deep)] via-[color:var(--brand-green-deep)]/90 to-transparent" />
-          <div className="relative max-w-md"><h2 className="font-serif text-3xl font-bold leading-none">Healthy choices for a <span className="text-brand-amber">brighter tomorrow</span></h2><p className="mt-2 text-xs leading-relaxed text-white/80">Fresh produce, pantry staples and household essentials — all connected to one stock-aware shopping flow.</p><Button asChild className="mt-4 h-9 bg-brand-amber text-[color:var(--brand-green-deep)] hover:bg-brand-amber/90"><Link href="/shop?category=cat_fp">Shop fresh produce <ArrowRight className="size-3.5" /></Link></Button></div>
+          <div className="relative max-w-md"><h2 className="font-serif text-3xl font-bold leading-none">Healthy choices for a <span className="text-brand-amber">brighter tomorrow</span></h2><p className="mt-2 text-xs leading-relaxed text-white/80">Fresh produce, pantry staples and household essentials — all connected to one stock-aware shopping flow.</p><Button asChild className="mt-4 h-9 bg-brand-amber text-[color:var(--brand-green-deep)] hover:bg-brand-amber/90"><Link href={freshProduceCategory ? `/shop?category=${encodeURIComponent(freshProduceCategory.id)}` : "/shop"}>Shop fresh produce <ArrowRight className="size-3.5" /></Link></Button></div>
         </article>
         <article className="relative min-h-[155px] overflow-hidden rounded-2xl bg-[#fff4d8] p-6 sm:p-7">
           <Image src={storefrontPantryPromoImage} alt="Pantry groceries and household essentials" fill sizes="(max-width:1024px) 100vw, 35vw" className="object-cover object-right opacity-65" />

@@ -16,7 +16,8 @@
     "openapi": "node --env-file-if-exists=.env dist/scripts/openapi.js",
     "worker:media": "node --env-file-if-exists=.env dist/src/media-worker.js",
     "media:import-legacy": "node --env-file-if-exists=.env dist/scripts/import-legacy-product-media.js",
-    "media:coverage": "node --env-file-if-exists=.env dist/scripts/product-media-coverage.js"
+    "media:coverage": "node --env-file-if-exists=.env dist/scripts/product-media-coverage.js",
+    "seed:uat-storefront": "node --env-file-if-exists=.env dist/scripts/seed-uat-storefront.js"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "3.1151.0",
