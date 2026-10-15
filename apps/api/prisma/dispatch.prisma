@@ -1,0 +1,69 @@
+model RiderProfile {
+  id                String    @id @default(uuid())
+  userId            String    @unique
+  phone             String
+  kind              String
+  vehicle           String?
+  zones             String[]
+  isAvailable       Boolean   @default(false)
+  unavailableReason String?
+  lastLocationAt    DateTime? @db.Timestamptz(3)
+  lastLocationLabel String?
+  createdAt         DateTime  @default(now()) @db.Timestamptz(3)
+  updatedAt         DateTime  @updatedAt @db.Timestamptz(3)
+
+  @@index([isAvailable])
+}
+
+model DeliveryProvider {
+  id           String   @id
+  name         String
+  capabilities String[]
+  status       String
+  notes        String?
+  isConfigured Boolean  @default(false)
+  createdAt    DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt    DateTime @updatedAt @db.Timestamptz(3)
+}
+
+model DeliveryJob {
+  id                String    @id @default(uuid())
+  orderId           String    @unique
+  assignmentKind    String
+  riderUserId       String?
+  providerId        String?
+  manualAssignee    String?
+  status            String    @default("assigned")
+  instructions      String?
+  failureReason     String?
+  rescheduledFor    DateTime? @db.Timestamptz(3)
+  proofMethod       String?
+  proofDetail       String?
+  proofAt           DateTime? @db.Timestamptz(3)
+  assignedAt        DateTime? @db.Timestamptz(3)
+  acceptedAt        DateTime? @db.Timestamptz(3)
+  pickedUpAt        DateTime? @db.Timestamptz(3)
+  outForDeliveryAt  DateTime? @db.Timestamptz(3)
+  deliveredAt       DateTime? @db.Timestamptz(3)
+  failedAt          DateTime? @db.Timestamptz(3)
+  returnedToStoreAt DateTime? @db.Timestamptz(3)
+  createdBy         String
+  createdAt         DateTime  @default(now()) @db.Timestamptz(3)
+  updatedAt         DateTime  @updatedAt @db.Timestamptz(3)
+  version           Int       @default(1)
+
+  @@index([riderUserId, status])
+  @@index([status, createdAt])
+}
+
+model DeliveryJobEvent {
+  id        String   @id @default(uuid())
+  jobId     String
+  actorId   String?
+  actorKind String
+  action    String
+  note      String?
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+
+  @@index([jobId, createdAt])
+}
