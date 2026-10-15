@@ -24,9 +24,11 @@ async function readRepoFile(path: string): Promise<string> {
   }
 }
 
-test("legacy media import plans only owned local product images as unapproved legacy_import rows by default", () => {
+test("legacy media import plans only owned local raster product images as unapproved legacy_import rows by default", () => {
   const planned = planLegacyProductMediaImport([
     { id: "local-product", image: "/images/products/banana.png" },
+    { id: "legacy-sketch", image: "/products/banana.svg" },
+    { id: "unsupported-gif", image: "/products/banana.gif" },
     { id: "external-product", image: "https://images.example.test/banana.png" },
     { id: "protocol-relative", image: "//images.example.test/banana.png" },
     { id: "traversal", image: "/../secret.png" },
