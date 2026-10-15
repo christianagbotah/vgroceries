@@ -57,9 +57,11 @@ async function main() {
           description:
             "Sample data for private integration; replace with owner-confirmed products.",
           shortDescription: "Preview fixture",
-          image: "/images/placeholder.webp",
+          image: "https://images.unsplash.com/photo-1536304993881-ff6e9eefa2a6?auto=format&fit=crop&w=900&q=84",
         },
-        update: {},
+        update: {
+          image: "https://images.unsplash.com/photo-1536304993881-ff6e9eefa2a6?auto=format&fit=crop&w=900&q=84",
+        },
       });
       await tx.variant.upsert({
         where: { id: "preview_rice_kg" },
