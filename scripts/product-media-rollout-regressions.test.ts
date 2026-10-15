@@ -5,6 +5,7 @@ import { join } from "node:path";
 const repoRoot = process.cwd();
 const rolloutPath = join(repoRoot, "deploy/scripts/rollout-product-media-uat.sh");
 const nginxPath = join(repoRoot, "deploy/nginx/varietygroceries-product-media.conf");
+const systemdPath = join(repoRoot, "deploy/systemd/varietygroceries-media-worker.service");
 
 function rolloutSource() {
   expect(existsSync(rolloutPath)).toBe(true);
@@ -79,6 +80,8 @@ describe("Product Media UAT rollout contract", () => {
     expect(source).toContain("is-active --quiet");
     expect(source).toContain("AI_IMAGE_PROVIDER");
     expect(source).toContain("OPENAI_API_KEY");
+    const workerUnit = readFileSync(systemdPath, "utf8");
+    expect(workerUnit).toContain("ExecStart=/home/lightworld/runtime/node24/bin/node dist/src/media-worker.js");
     expect(source).not.toMatch(/echo\s+.*OPENAI_API_KEY/);
   });
 });
