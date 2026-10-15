@@ -28,7 +28,7 @@ The stable media root must not live inside a release directory. Release switches
 
 ## UAT API configuration
 
-Use a server-only environment file such as `/home/lightworld/config/varietygroceries/api.env` and protect it from non-service users.
+Use the protected server-only environment file `/home/lightworld/config/varietygroceries/api.env`. Keep it in shell-compatible `KEY=value` form because the guarded rollout uses the same file as the systemd worker and as the environment authority for migrations/imports.
 
 ```dotenv
 PRODUCT_MEDIA_STORAGE=filesystem
@@ -43,9 +43,38 @@ AI_IMAGE_WORKER_POLL_MS=2000
 
 Keep OpenAI disabled for the first UAT pass. The fake provider gives deterministic candidates without external credentials or network dependency.
 
+## Automated guarded UAT rollout
+
+The preferred UAT path is `deploy/scripts/rollout-product-media-uat.sh`. It is deliberately separate from the public `varietygroceries.com` Coming Soon root.
+
+First identify the Nginx include file that is actually included inside the HTTPS `portal.varietygroceries.com` server block. Do not guess or overwrite the whole server block. Pass that exact include path as `NGINX_SNIPPET_TARGET`:
+
+```bash
+sudo NGINX_SNIPPET_TARGET=/path/to/the/portal-product-media-include.conf \
+  /home/lightworld/webapps/varietygroceries-api/current/deploy/scripts/rollout-product-media-uat.sh
+```
+
+The guarded rollout:
+
+1. takes a non-blocking rollout lock so two operators cannot run it concurrently;
+2. refuses an `APP_ROOT` inside `/home/lightworld/webapps/varietygroceries`, preserving the public Coming Soon site;
+3. validates the protected API environment without printing provider secrets;
+4. loads that same environment for migrations and import commands;
+5. validates the expected filesystem storage root and public media URL;
+6. builds the API/worker and applies forward-only migrations;
+7. runs the legacy-media importer in a true read-only `--dry-run` first;
+8. runs the idempotent real import only after dry-run succeeds;
+9. backs up the existing Nginx include and systemd unit before changing runtime files;
+10. validates `nginx -t` before reload;
+11. installs/enables the worker and verifies it is active;
+12. probes approved/public media for HTTP 200, private media for HTTP 404, and the public Coming Soon site for HTTP 200;
+13. restores the previous Nginx/systemd files and worker active/enabled state if runtime verification fails.
+
+Database migrations and successfully imported media are intentionally not rolled backward automatically. They are forward-compatible and the import is idempotent; runtime config/service rollback is the safe automated boundary.
+
 ## Worker install and restart
 
-Install the unit from `deploy/systemd/varietygroceries-media-worker.service`, ensuring the `current` API symlink points at the same release used by the API service.
+The guarded rollout performs this automatically. For manual recovery, install the unit from `deploy/systemd/varietygroceries-media-worker.service`, ensuring the `current` API symlink points at the same release used by the API service.
 
 ```bash
 sudo cp deploy/systemd/varietygroceries-media-worker.service /etc/systemd/system/
@@ -86,12 +115,22 @@ Expected: approved public media is readable with GET/HEAD; private-style paths a
 
 ## Legacy product-image import
 
-The importer accepts only local paths already owned by the application public tree. External `http://`, `https://`, protocol-relative, `data:`, `file:` and traversal paths are skipped.
+The importer accepts only local raster paths already owned by the application public tree. External `http://`, `https://`, protocol-relative, `data:`, `file:`, SVG/GIF and traversal paths are skipped.
 
-Build first, then run from `apps/api`:
+Build first, then always preview from `apps/api` with the true read-only mode:
 
 ```bash
 npm run build
+LEGACY_PRODUCT_MEDIA_ROOT=/path/to/release/public \
+LEGACY_PRODUCT_MEDIA_REVIEW_POLICY=draft \
+npm run media:import-legacy -- --dry-run
+```
+
+`--dry-run` reads the legacy product catalogue and computes the import plan only. It does not construct media storage, create `ProductMedia`, write audit rows, or open the import write transaction. Unknown command-line flags fail closed rather than being ignored.
+
+Only after the dry-run output has been reviewed should the real idempotent import run:
+
+```bash
 LEGACY_PRODUCT_MEDIA_ROOT=/path/to/release/public \
 LEGACY_PRODUCT_MEDIA_REVIEW_POLICY=draft \
 npm run media:import-legacy
@@ -102,12 +141,13 @@ npm run media:import-legacy
 An explicit migration decision may use:
 
 ```bash
+LEGACY_PRODUCT_MEDIA_REVIEW_POLICY=approve npm run media:import-legacy -- --dry-run
 LEGACY_PRODUCT_MEDIA_REVIEW_POLICY=approve npm run media:import-legacy
 ```
 
 That mode writes approved/public media and is intentionally not the default. It does not automatically make an image featured. Use it only when the source-image ownership and product/image mapping have already been reviewed.
 
-The importer is idempotent for the same product and normalized SHA-256 and audits each new import.
+The real importer is idempotent for the same product and normalized SHA-256 and audits each new import.
 
 ## Fake-provider UAT flow
 
@@ -189,6 +229,8 @@ Application rollback must not roll back or delete the stable media root.
 5. Keep approved public objects and private candidates intact unless a specific corrupt object is identified.
 6. Verify storefront catalogue, checkout, account/orders, public media GETs, and private-media denial.
 7. Restart the worker only when its code/config is known compatible with the current schema.
+
+The guarded UAT rollout automatically restores the prior Nginx include, worker unit and worker active/enabled state when its runtime probes fail. It intentionally preserves migrated database state and stable media objects.
 
 ## Final verification checklist
 
