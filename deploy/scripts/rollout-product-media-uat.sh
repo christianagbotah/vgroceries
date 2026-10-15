@@ -39,6 +39,22 @@ read_env_value() {
   printf '%s' "$value"
 }
 
+reload_nginx() {
+  local can_reload
+  can_reload="$(systemctl show nginx.service -p CanReload --value 2>/dev/null || true)"
+  if [[ "$can_reload" == "yes" ]]; then
+    systemctl reload nginx
+    return
+  fi
+
+  if [[ -x /usr/local/apps/nginx/sbin/nginx && -f /usr/local/apps/nginx/etc/nginx.conf ]]; then
+    /usr/local/apps/nginx/sbin/nginx -s reload -c /usr/local/apps/nginx/etc/nginx.conf
+    return
+  fi
+
+  nginx -s reload
+}
+
 [[ "${EUID:-$(id -u)}" -eq 0 ]] || fail "run this rollout as root (or through sudo)"
 command -v flock >/dev/null 2>&1 || fail "flock is required for guarded rollout locking"
 [[ -n "$NGINX_SNIPPET_TARGET" ]] || fail "NGINX_SNIPPET_TARGET must point to an include file inside the portal HTTPS server configuration"
@@ -152,7 +168,7 @@ restore_runtime_files() {
   fi
 
   if nginx -t >/dev/null 2>&1; then
-    systemctl reload nginx >/dev/null 2>&1
+    reload_nginx >/dev/null 2>&1
   fi
   set -e
 }
@@ -181,7 +197,7 @@ systemctl daemon-reload
 systemctl enable --now "$SERVICE_NAME"
 systemctl is-active --quiet "$SERVICE_NAME" || fail "$SERVICE_NAME is not active"
 
-systemctl reload nginx
+reload_nginx
 
 printf 'variety-media-rollout-ok\n' > "$probe_path"
 chown lightworld:lightworld "$probe_path"
