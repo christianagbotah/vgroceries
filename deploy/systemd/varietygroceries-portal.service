@@ -1,0 +1,28 @@
+[Unit]
+Description=Variety Groceries UAT Portal
+After=network-online.target varietygroceries-api.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=lightworld
+Group=lightworld
+WorkingDirectory=/home/lightworld/webapps/varietygroceries-portal-current
+Environment=NODE_ENV=production
+Environment=HOSTNAME=127.0.0.1
+Environment=PORT=3037
+EnvironmentFile=/home/lightworld/config/varietygroceries/portal.env
+ExecStart=/home/lightworld/runtime/node24/bin/node server.js
+Restart=on-failure
+RestartSec=3s
+TimeoutStopSec=30s
+KillSignal=SIGTERM
+UMask=0027
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadOnlyPaths=/home/lightworld/releases
+
+[Install]
+WantedBy=multi-user.target
