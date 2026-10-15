@@ -46,7 +46,7 @@ describe("Product Media UAT rollout contract", () => {
     const nginx = readFileSync(nginxPath, "utf8");
 
     const nginxTestIndex = source.indexOf("nginx -t");
-    const nginxReloadIndex = source.indexOf("reload nginx");
+    const nginxReloadIndex = source.lastIndexOf("reload_nginx");
     expect(nginxTestIndex).toBeGreaterThan(-1);
     expect(nginxReloadIndex).toBeGreaterThan(nginxTestIndex);
     expect(source).toContain("/media/private/");
@@ -58,6 +58,15 @@ describe("Product Media UAT rollout contract", () => {
     expect(nginx).toContain("product-media/public/");
     expect(nginx).toContain("location ~ ^/media/(?:private|draft|review)/");
     expect(nginx).toContain("return 404;");
+  });
+
+  test("reloads nginx portably when the systemd unit does not support reload", () => {
+    const source = rolloutSource();
+
+    expect(source).toContain("reload_nginx()");
+    expect(source).toContain("CanReload");
+    expect(source).toContain("/usr/local/apps/nginx/sbin/nginx");
+    expect(source).toContain("-s reload");
   });
 
   test("installs and verifies the worker and validates the configured AI provider without printing secrets", () => {
