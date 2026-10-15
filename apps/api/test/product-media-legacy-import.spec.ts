@@ -6,7 +6,9 @@ import type { Database } from "../src/database/database";
 import type { ProductMediaStorage } from "../src/product-media/product-media.storage";
 import {
   importLegacyProductMediaItem,
+  parseLegacyProductMediaImportArgs,
   planLegacyProductMediaImport,
+  runLegacyProductMediaImport,
 } from "../scripts/import-legacy-product-media";
 
 async function readRepoFile(path: string): Promise<string> {
@@ -51,6 +53,59 @@ test("legacy media import requires an explicit approve review policy before plan
   );
   assert.equal(planned.status, "approved");
   assert.equal(planned.visibility, "public");
+});
+
+test("legacy media import CLI accepts only --dry-run and rejects unknown flags", () => {
+  assert.deepEqual(parseLegacyProductMediaImportArgs([]), { dryRun: false });
+  assert.deepEqual(parseLegacyProductMediaImportArgs(["--dry-run"]), { dryRun: true });
+  assert.throws(
+    () => parseLegacyProductMediaImportArgs(["--force"]),
+    /Unknown legacy product media import argument: --force/,
+  );
+});
+
+test("legacy media import dry-run plans catalogue changes without storage or database writes", async () => {
+  let mutationAttempted = false;
+  const db = {
+    product: {
+      async findMany() {
+        return [
+          { id: "local-product", name: "Bananas", image: "/images/products/banana.png" },
+          { id: "external-product", name: "External", image: "https://images.example.test/x.png" },
+        ];
+      },
+    },
+    productMedia: {
+      async findFirst() {
+        mutationAttempted = true;
+        throw new Error("dry-run must not inspect or mutate product media rows");
+      },
+    },
+    async $transaction() {
+      mutationAttempted = true;
+      throw new Error("dry-run must not open a write transaction");
+    },
+  } as unknown as Database;
+
+  const summary = await runLegacyProductMediaImport({
+    db,
+    legacyPublicRoot: "/srv/variety/current/public",
+    reviewPolicy: "draft",
+    actorId: "legacy-media-import-test",
+    dryRun: true,
+  });
+
+  assert.equal(mutationAttempted, false);
+  assert.deepEqual(summary, {
+    dryRun: true,
+    discovered: 2,
+    planned: 1,
+    imported: 0,
+    existing: 0,
+    missing: 0,
+    skippedExternalOrUnsafe: 1,
+    reviewPolicy: "draft",
+  });
 });
 
 test("legacy media import cleans an unreferenced object when a duplicate wins after storage", async () => {
