@@ -72,22 +72,24 @@ function createStorage(config: ApiConfig): ProductMediaStorage {
   return new S3ProductMediaStorage(config.productMedia);
 }
 
-async function importOne(input: {
+export async function importLegacyProductMediaItem(input: {
   db: Database;
   storage: ProductMediaStorage;
   product: { id: string; name: string; image: string };
   plan: PlannedLegacyProductMediaImport;
   actorId: string;
+  readSource?: (path: string) => Promise<Buffer>;
+  normalize?: typeof validateAndNormalizeProductImage;
 }): Promise<"imported" | "existing" | "missing"> {
   let sourceBytes: Buffer;
   try {
-    sourceBytes = await readFile(input.plan.sourcePath);
+    sourceBytes = await (input.readSource ?? readFile)(input.plan.sourcePath);
   } catch (error: any) {
     if (error?.code === "ENOENT") return "missing";
     throw error;
   }
 
-  const normalized = await validateAndNormalizeProductImage(sourceBytes);
+  const normalized = await (input.normalize ?? validateAndNormalizeProductImage)(sourceBytes);
   const existing = await input.db.productMedia.findFirst({
     where: {
       productId: input.product.id,
@@ -112,7 +114,7 @@ async function importOne(input: {
   });
 
   try {
-    await input.db.$transaction(async (tx) => {
+    const transactionResult = await input.db.$transaction(async (tx) => {
       const duplicate = await tx.productMedia.findFirst({
         where: {
           productId: input.product.id,
@@ -122,7 +124,7 @@ async function importOne(input: {
         },
         select: { id: true },
       });
-      if (duplicate) return;
+      if (duplicate) return "existing" as const;
 
       const approvedAt = input.plan.status === "approved" ? new Date() : null;
       const media = await tx.productMedia.create({
@@ -165,7 +167,17 @@ async function importOne(input: {
           },
         },
       });
+      return "imported" as const;
     });
+
+    if (transactionResult === "existing") {
+      const references = await input.db.productMedia
+        .count({ where: { storageKey } })
+        .catch(() => 1);
+      if (references === 0) await input.storage.delete(storageKey);
+      return "existing";
+    }
+
     return "imported";
   } catch (error) {
     const references = await input.db.productMedia.count({ where: { storageKey } }).catch(() => 1);
@@ -212,7 +224,7 @@ async function main() {
     for (const item of plan) {
       const product = productById.get(item.productId);
       if (!product) continue;
-      const result = await importOne({ db, storage, product, plan: item, actorId });
+      const result = await importLegacyProductMediaItem({ db, storage, product, plan: item, actorId });
       summary[result] += 1;
     }
 
