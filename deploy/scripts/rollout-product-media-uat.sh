@@ -98,6 +98,7 @@ set -a
 source "$API_ENV_FILE"
 set +a
 
+install -d -o lightworld -g lightworld -m 0751 "$MEDIA_ROOT"
 install -d -o lightworld -g lightworld -m 0750 "$SHARED_ROOT/product-media/private"
 install -d -o lightworld -g lightworld -m 0755 "$SHARED_ROOT/product-media/public"
 
