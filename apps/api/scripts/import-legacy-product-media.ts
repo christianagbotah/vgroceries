@@ -45,7 +45,11 @@ export function planLegacyProductMediaImport(
 
     const withoutQuery = raw.split(/[?#]/, 1)[0];
     const relative = withoutQuery.replace(/^\/+/, "");
-    if (!relative || relative.split("/").some((segment) => segment === ".." || segment === "."))
+    if (
+      !relative ||
+      relative.split("/").some((segment) => segment === ".." || segment === ".") ||
+      !/\.(?:jpe?g|png|webp)$/i.test(relative)
+    )
       return [];
 
     const sourcePath = resolve(root, relative);
