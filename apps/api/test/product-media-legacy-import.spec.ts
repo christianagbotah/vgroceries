@@ -204,7 +204,7 @@ test("UAT deployment templates isolate public product media and run the worker a
   assert.match(nginx, /location \^~ \/media\/products\//);
   assert.match(systemd, /^User=lightworld$/m);
   assert.match(systemd, /^Restart=on-failure$/m);
-  assert.match(systemd, /npm run worker:media/);
+  assert.match(systemd, /ExecStart=\/home\/lightworld\/runtime\/node24\/bin\/node dist\/src\/media-worker\.js/);
   assert.match(runbook, /fake provider/i);
   assert.match(runbook, /OpenAI/i);
   assert.match(runbook, /S3/i);

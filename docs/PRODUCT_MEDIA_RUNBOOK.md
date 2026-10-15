@@ -19,12 +19,12 @@ Stable filesystem root:
 Ownership and permissions:
 
 ```bash
-install -d -o lightworld -g lightworld -m 0750 /home/lightworld/data/varietygroceries/product-media
+install -d -o lightworld -g lightworld -m 0751 /home/lightworld/data/varietygroceries/product-media
 install -d -o lightworld -g lightworld -m 0750 /home/lightworld/data/varietygroceries/product-media/private
 install -d -o lightworld -g lightworld -m 0755 /home/lightworld/data/varietygroceries/product-media/public
 ```
 
-The stable media root must not live inside a release directory. Release switches and application restarts must leave it intact.
+The stable media root must not live inside a release directory. Release switches and application restarts must leave it intact. The parent uses `0751` deliberately: the Webuzo Nginx worker (`nobody`) may traverse to the public subtree but cannot list the parent, while `private/` remains `0750` and therefore inaccessible to Nginx.
 
 ## UAT API configuration
 
@@ -98,7 +98,11 @@ Include `deploy/nginx/varietygroceries-product-media.conf` inside the HTTPS `por
 
 ```bash
 sudo nginx -t
-sudo systemctl reload nginx
+if [[ "$(systemctl show nginx.service -p CanReload --value 2>/dev/null || true)" == "yes" ]]; then
+  sudo systemctl reload nginx
+else
+  sudo /usr/local/apps/nginx/sbin/nginx -s reload -c /usr/local/apps/nginx/etc/nginx.conf
+fi
 ```
 
 Only `/home/lightworld/data/varietygroceries/product-media/public/` is aliased. Never add an alias for `private/`, draft, review, or worker scratch data.
