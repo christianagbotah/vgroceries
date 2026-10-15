@@ -24,6 +24,29 @@ export interface PlannedLegacyProductMediaImport {
   visibility: "private" | "public";
 }
 
+export interface LegacyProductMediaImportSummary {
+  dryRun: boolean;
+  discovered: number;
+  planned: number;
+  imported: number;
+  existing: number;
+  missing: number;
+  skippedExternalOrUnsafe: number;
+  reviewPolicy: LegacyMediaReviewPolicy;
+}
+
+export function parseLegacyProductMediaImportArgs(argv: string[]): { dryRun: boolean } {
+  let dryRun = false;
+  for (const argument of argv) {
+    if (argument === "--dry-run") {
+      dryRun = true;
+      continue;
+    }
+    throw new Error(`Unknown legacy product media import argument: ${argument}`);
+  }
+  return { dryRun };
+}
+
 export function planLegacyProductMediaImport(
   products: LegacyProductImage[],
   options: { legacyPublicRoot: string; reviewPolicy?: LegacyMediaReviewPolicy },
@@ -190,9 +213,58 @@ export async function importLegacyProductMediaItem(input: {
   }
 }
 
+export async function runLegacyProductMediaImport(input: {
+  db: Database;
+  storage?: ProductMediaStorage;
+  legacyPublicRoot: string;
+  reviewPolicy: LegacyMediaReviewPolicy;
+  actorId: string;
+  dryRun?: boolean;
+}): Promise<LegacyProductMediaImportSummary> {
+  const products = await input.db.product.findMany({
+    where: { NOT: { image: "" } },
+    select: { id: true, name: true, image: true },
+    orderBy: { id: "asc" },
+  });
+  const plan = planLegacyProductMediaImport(products, {
+    legacyPublicRoot: input.legacyPublicRoot,
+    reviewPolicy: input.reviewPolicy,
+  });
+  const productById = new Map(products.map((product) => [product.id, product]));
+  const summary: LegacyProductMediaImportSummary = {
+    dryRun: input.dryRun === true,
+    discovered: products.length,
+    planned: plan.length,
+    imported: 0,
+    existing: 0,
+    missing: 0,
+    skippedExternalOrUnsafe: products.length - plan.length,
+    reviewPolicy: input.reviewPolicy,
+  };
+
+  if (input.dryRun) return summary;
+  if (!input.storage)
+    throw new Error("Product media storage is required when legacy media import is not a dry-run.");
+
+  for (const item of plan) {
+    const product = productById.get(item.productId);
+    if (!product) continue;
+    const result = await importLegacyProductMediaItem({
+      db: input.db,
+      storage: input.storage,
+      product,
+      plan: item,
+      actorId: input.actorId,
+    });
+    summary[result] += 1;
+  }
+
+  return summary;
+}
+
 async function main() {
+  const cli = parseLegacyProductMediaImportArgs(process.argv.slice(2));
   const config = readConfig();
-  const storage = createStorage(config);
   const db = new Database(config);
   const legacyPublicRoot = resolve(
     process.env.LEGACY_PRODUCT_MEDIA_ROOT ?? resolve(process.cwd(), "../..", "public"),
@@ -202,37 +274,24 @@ async function main() {
     throw new Error("LEGACY_PRODUCT_MEDIA_REVIEW_POLICY must be draft or approve.");
   const reviewPolicy = rawPolicy as LegacyMediaReviewPolicy;
   const actorId = process.env.LEGACY_PRODUCT_MEDIA_ACTOR_ID?.trim() || "legacy-media-import";
+  const storage = cli.dryRun ? undefined : createStorage(config);
 
   await db.$connect();
   try {
-    const products = await db.product.findMany({
-      where: { NOT: { image: "" } },
-      select: { id: true, name: true, image: true },
-      orderBy: { id: "asc" },
-    });
-    const plan = planLegacyProductMediaImport(products, {
+    const summary = await runLegacyProductMediaImport({
+      db,
+      storage,
       legacyPublicRoot,
       reviewPolicy,
+      actorId,
+      dryRun: cli.dryRun,
     });
-    const productById = new Map(products.map((product) => [product.id, product]));
-    const summary = {
-      discovered: products.length,
-      planned: plan.length,
-      imported: 0,
-      existing: 0,
-      missing: 0,
-      skippedExternalOrUnsafe: products.length - plan.length,
-      reviewPolicy,
-    };
-
-    for (const item of plan) {
-      const product = productById.get(item.productId);
-      if (!product) continue;
-      const result = await importLegacyProductMediaItem({ db, storage, product, plan: item, actorId });
-      summary[result] += 1;
-    }
-
-    console.log(JSON.stringify({ event: "product_media.legacy_import.completed", ...summary }));
+    console.log(JSON.stringify({
+      event: cli.dryRun
+        ? "product_media.legacy_import.dry_run"
+        : "product_media.legacy_import.completed",
+      ...summary,
+    }));
   } finally {
     await db.$disconnect();
   }
