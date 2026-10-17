@@ -3,6 +3,7 @@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { NodesPanel } from "./nodes-panel";
 import { LanesPanel } from "./lanes-panel";
+import { WorkflowsPanel } from "./workflows-panel";
 import { MapPinned, Network, Route, Workflow } from "lucide-react";
 
 export function LogisticsWorkspace() {
@@ -23,12 +24,7 @@ export function LogisticsWorkspace() {
         </TabsList>
         <TabsContent value="nodes" className="min-w-0"><NodesPanel /></TabsContent>
         <TabsContent value="lanes" className="min-w-0"><LanesPanel /></TabsContent>
-        <TabsContent value="workflows" className="min-w-0">
-          <section className="rounded-xl border bg-card p-5">
-            <h2 className="font-serif text-lg font-bold">Delivery workflows</h2>
-            <p className="mt-1 text-sm text-muted-foreground">Workflow-version editing is the next configuration panel in this Wave L1 build.</p>
-          </section>
-        </TabsContent>
+        <TabsContent value="workflows" className="min-w-0"><WorkflowsPanel /></TabsContent>
         <TabsContent value="rules" className="min-w-0">
           <section className="rounded-xl border bg-card p-5">
             <h2 className="font-serif text-lg font-bold">Route rules</h2>
