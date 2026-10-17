@@ -121,6 +121,24 @@ describe("production HTTP contract", () => {
     expect(calls).toHaveLength(0);
   });
 
+  test("logistics REST paths substitute ids and forward replay keys without inventing one for simulation", async () => {
+    const http = new HttpServiceAdapter(`${base}/api/v1`);
+    await http.request({ op: "admin.logistics.node.update", query: { nodeId: "node accra/1" }, body: { publicName: "Accra Central" }, idempotencyKey: "logistics-node-001", skipValidation: true });
+    expect(calls.at(-1)?.path).toBe("/api/v1/admin/logistics/nodes/node%20accra%2F1");
+    expect(calls.at(-1)?.method).toBe("POST");
+    expect(calls.at(-1)?.key).toBe("logistics-node-001");
+    expect(calls.at(-1)?.query.has("nodeId")).toBe(false);
+
+    await http.request({ op: "admin.logistics.workflow.save", query: { templateId: "wf/1", versionId: "v 2" }, body: { expectedRevision: 1, stages: [] }, idempotencyKey: "logistics-wf-0001", skipValidation: true });
+    expect(calls.at(-1)?.path).toBe("/api/v1/admin/logistics/workflows/wf%2F1/versions/v%202");
+    expect(calls.at(-1)?.key).toBe("logistics-wf-0001");
+
+    await http.request({ op: "admin.logistics.route-rule.simulate", body: { originNodeId: "node-1", fulfilment: "delivery", deliveryZoneId: "zone-1", destinationKind: "doorstep" }, skipValidation: true });
+    expect(calls.at(-1)?.path).toBe("/api/v1/admin/logistics/route-rules/simulate");
+    expect(calls.at(-1)?.method).toBe("POST");
+    expect(calls.at(-1)?.key).toBeNull();
+  });
+
   test("problem responses preserve machine-readable domain codes", async () => {
     reply = () => Response.json({ type: "about:blank", status: 409, code: "OUT_OF_STOCK", detail: "Last unit sold", details: { variantId: "var_tof_1" } }, { status: 409 });
     await expect(new HttpServiceAdapter(`${base}/api/v1`).request({ op: "catalog.list" })).rejects.toMatchObject({

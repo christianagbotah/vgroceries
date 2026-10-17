@@ -88,6 +88,23 @@ import type {
   SupplierRow,
   TeamRow,
   ZoneView,
+  LogisticsNodeView,
+  LogisticsLaneView,
+  DeliveryWorkflowView,
+  DeliveryWorkflowVersionView,
+  DeliveryRouteRuleView,
+  RouteSimulationRequest,
+  RouteSimulationResponse,
+  CreateLogisticsNodeRequest,
+  UpdateLogisticsNodeRequest,
+  CreateLogisticsLaneRequest,
+  UpdateLogisticsLaneRequest,
+  CreateDeliveryWorkflowRequest,
+  SaveDeliveryWorkflowDraftRequest,
+  PublishDeliveryWorkflowRequest,
+  CreateDeliveryRouteRuleRequest,
+  UpdateDeliveryRouteRuleRequest,
+  ActivateDeliveryRouteRuleRequest,
 } from "./contracts";
 
 export { ApiError } from "./adapters/types";
@@ -269,6 +286,51 @@ export const apiOps = {
   purchases: () => api<PurchaseRow[]>("admin.purchases"),
   purchaseCreate: (body: Record<string, unknown>) => api<PurchaseCreateResponse>("admin.purchases.create", { body }),
   purchaseSend: (poId: string) => api<PurchaseSendResponse>("admin.purchases.send", { body: { poId } }),
+
+
+  /* logistics configuration — L1 plans/config only, not shipment execution */
+  logisticsNodes: (query: { q?: string; kind?: string; active?: boolean } = {}) =>
+    api<LogisticsNodeView[]>("admin.logistics.nodes", { query }),
+  logisticsNode: (nodeId: string) =>
+    api<LogisticsNodeView>("admin.logistics.node", { query: { nodeId } }),
+  logisticsNodeCreate: (body: CreateLogisticsNodeRequest, idempotencyKey: string) =>
+    api<LogisticsNodeView>("admin.logistics.node.create", { body: body as unknown as Record<string, unknown>, idempotencyKey }),
+  logisticsNodeUpdate: (nodeId: string, body: UpdateLogisticsNodeRequest, idempotencyKey: string) =>
+    api<LogisticsNodeView>("admin.logistics.node.update", { query: { nodeId }, body: body as unknown as Record<string, unknown>, idempotencyKey }),
+
+  logisticsLanes: (query: { q?: string; mode?: string; originNodeId?: string; destinationNodeId?: string; active?: boolean } = {}) =>
+    api<LogisticsLaneView[]>("admin.logistics.lanes", { query }),
+  logisticsLane: (laneId: string) =>
+    api<LogisticsLaneView>("admin.logistics.lane", { query: { laneId } }),
+  logisticsLaneCreate: (body: CreateLogisticsLaneRequest, idempotencyKey: string) =>
+    api<LogisticsLaneView>("admin.logistics.lane.create", { body: body as unknown as Record<string, unknown>, idempotencyKey }),
+  logisticsLaneUpdate: (laneId: string, body: UpdateLogisticsLaneRequest, idempotencyKey: string) =>
+    api<LogisticsLaneView>("admin.logistics.lane.update", { query: { laneId }, body: body as unknown as Record<string, unknown>, idempotencyKey }),
+
+  logisticsWorkflows: () => api<DeliveryWorkflowView[]>("admin.logistics.workflows"),
+  logisticsWorkflow: (templateId: string) =>
+    api<DeliveryWorkflowView>("admin.logistics.workflow", { query: { templateId } }),
+  logisticsWorkflowCreate: (body: CreateDeliveryWorkflowRequest, idempotencyKey: string) =>
+    api<DeliveryWorkflowView>("admin.logistics.workflow.create", { body: body as unknown as Record<string, unknown>, idempotencyKey }),
+  logisticsWorkflowDraft: (templateId: string, idempotencyKey: string) =>
+    api<DeliveryWorkflowVersionView>("admin.logistics.workflow.draft", { query: { templateId }, body: {}, idempotencyKey }),
+  logisticsWorkflowSave: (templateId: string, versionId: string, body: SaveDeliveryWorkflowDraftRequest, idempotencyKey: string) =>
+    api<DeliveryWorkflowVersionView>("admin.logistics.workflow.save", { query: { templateId, versionId }, body: body as unknown as Record<string, unknown>, idempotencyKey }),
+  logisticsWorkflowPublish: (templateId: string, body: PublishDeliveryWorkflowRequest, idempotencyKey: string) =>
+    api<DeliveryWorkflowView>("admin.logistics.workflow.publish", { query: { templateId }, body: body as unknown as Record<string, unknown>, idempotencyKey }),
+
+  logisticsRouteRules: (query: { active?: boolean; originNodeId?: string; fulfilment?: "delivery" | "collection"; destinationKind?: "doorstep" | "pickup_point" } = {}) =>
+    api<DeliveryRouteRuleView[]>("admin.logistics.route-rules", { query }),
+  logisticsRouteRule: (ruleId: string) =>
+    api<DeliveryRouteRuleView>("admin.logistics.route-rule", { query: { ruleId } }),
+  logisticsRouteRuleCreate: (body: CreateDeliveryRouteRuleRequest, idempotencyKey: string) =>
+    api<DeliveryRouteRuleView>("admin.logistics.route-rule.create", { body: body as unknown as Record<string, unknown>, idempotencyKey }),
+  logisticsRouteRuleUpdate: (ruleId: string, body: UpdateDeliveryRouteRuleRequest, idempotencyKey: string) =>
+    api<DeliveryRouteRuleView>("admin.logistics.route-rule.update", { query: { ruleId }, body: body as unknown as Record<string, unknown>, idempotencyKey }),
+  logisticsRouteRuleActivate: (ruleId: string, body: ActivateDeliveryRouteRuleRequest, idempotencyKey: string) =>
+    api<DeliveryRouteRuleView>("admin.logistics.route-rule.activate", { query: { ruleId }, body: body as unknown as Record<string, unknown>, idempotencyKey }),
+  logisticsRouteRuleSimulate: (body: RouteSimulationRequest) =>
+    api<RouteSimulationResponse>("admin.logistics.route-rule.simulate", { body: body as unknown as Record<string, unknown> }),
 
   /* dispatch */
   dispatchQueue: () => api<DispatchQueueResponse>("admin.dispatch.queue"),

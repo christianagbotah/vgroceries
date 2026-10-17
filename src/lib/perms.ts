@@ -26,6 +26,7 @@ export type Permission =
   | "dispatch.view"
   | "dispatch.assign"
   | "riders.manage"
+  | "logistics.manage"
   | "returns.view"
   | "returns.decide"
   | "refunds.view"
@@ -61,6 +62,7 @@ export const PERMISSIONS: Record<Permission, StaffRole[]> = {
   "dispatch.view": ["owner_admin", "operations_manager", "dispatcher"],
   "dispatch.assign": ["owner_admin", "operations_manager", "dispatcher"],
   "riders.manage": ["owner_admin", "operations_manager", "dispatcher"],
+  "logistics.manage": ["owner_admin"],
   "returns.view": ["owner_admin", "operations_manager", "cashier", "inventory_officer", "finance_reviewer"],
   "returns.decide": ["owner_admin", "operations_manager", "inventory_officer"],
   "refunds.view": ["owner_admin", "operations_manager", "finance_reviewer"],

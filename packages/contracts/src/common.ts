@@ -144,6 +144,7 @@ export type CacheTag =
   | "delivery" // dispatch queue, rider jobs
   | "sessions" // cashier sessions
   | "config" // settings, zones, slots
+  | "logistics" // logistics nodes, lanes, workflows and route rules
   | "ai" // suggestions
   | "product-media" // private review media + generation jobs
   | "*"; // everything (demo reset)

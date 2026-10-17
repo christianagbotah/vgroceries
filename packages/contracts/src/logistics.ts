@@ -79,9 +79,11 @@ export const logisticsNodeInputSchema = z.object({
   active: z.boolean().default(true),
 }).strict();
 export const createLogisticsNodeRequestSchema = logisticsNodeInputSchema;
+export type CreateLogisticsNodeRequest = z.infer<typeof createLogisticsNodeRequestSchema>;
 export const updateLogisticsNodeRequestSchema = logisticsNodeInputSchema.partial().refine((value) => Object.keys(value).length > 0, {
   message: "At least one node field is required.",
 });
+export type UpdateLogisticsNodeRequest = z.infer<typeof updateLogisticsNodeRequestSchema>;
 
 export const logisticsNodeDependencySchema = z.object({
   activeIncomingLanes: z.number().int().nonnegative(),
@@ -120,6 +122,7 @@ export const logisticsLaneInputSchema = z.object({
   path: ["destinationNodeId"],
 });
 export const createLogisticsLaneRequestSchema = logisticsLaneInputSchema;
+export type CreateLogisticsLaneRequest = z.infer<typeof createLogisticsLaneRequestSchema>;
 export const updateLogisticsLaneRequestSchema = z.object({
   originNodeId: idSchema.optional(),
   destinationNodeId: idSchema.optional(),
@@ -130,7 +133,8 @@ export const updateLogisticsLaneRequestSchema = z.object({
   cutoffLocalTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/).optional().nullable(),
   priority: z.number().int().nonnegative().optional(),
   active: z.boolean().optional(),
-}).strict().refine((value) => Object.keys(value).length > 0, { message: "At least one lane field is required." });
+ }).strict().refine((value) => Object.keys(value).length > 0, { message: "At least one lane field is required." });
+export type UpdateLogisticsLaneRequest = z.infer<typeof updateLogisticsLaneRequestSchema>;
 
 export const logisticsLaneViewSchema = z.object({
   id: idSchema,
@@ -200,16 +204,19 @@ export const createDeliveryWorkflowRequestSchema = z.object({
   name: shortTextSchema,
   description: z.string().trim().max(500).optional().nullable(),
   active: z.boolean().default(true),
-}).strict();
+ }).strict();
+export type CreateDeliveryWorkflowRequest = z.infer<typeof createDeliveryWorkflowRequestSchema>;
 export const saveDeliveryWorkflowDraftRequestSchema = z.object({
   expectedRevision: z.number().int().positive(),
   defaultSlaMinutes: z.number().int().positive().max(10080).optional().nullable(),
   stages: z.array(workflowStageDefinitionSchema.omit({ id: true })),
 }).strict();
+export type SaveDeliveryWorkflowDraftRequest = z.infer<typeof saveDeliveryWorkflowDraftRequestSchema>;
 export const publishDeliveryWorkflowRequestSchema = z.object({
   versionId: idSchema,
   expectedRevision: z.number().int().positive(),
 }).strict();
+export type PublishDeliveryWorkflowRequest = z.infer<typeof publishDeliveryWorkflowRequestSchema>;
 
 export const routeRuleStopSchema = z.object({
   id: idSchema.optional(),
@@ -255,6 +262,7 @@ function addRouteDestinationIssues(value: z.infer<typeof deliveryRouteRuleInputB
 }
 
 export const createDeliveryRouteRuleRequestSchema = deliveryRouteRuleInputBaseSchema.superRefine(addRouteDestinationIssues);
+export type CreateDeliveryRouteRuleRequest = z.infer<typeof createDeliveryRouteRuleRequestSchema>;
 export const updateDeliveryRouteRuleRequestSchema = z.object({
   expectedVersion: z.number().int().positive(),
   name: shortTextSchema.optional(),
@@ -270,8 +278,10 @@ export const updateDeliveryRouteRuleRequestSchema = z.object({
   active: z.boolean().optional(),
   stops: z.array(routeRuleStopSchema).min(1).optional(),
   legs: z.array(routeRuleLegSchema).optional(),
-}).strict();
+ }).strict();
+export type UpdateDeliveryRouteRuleRequest = z.infer<typeof updateDeliveryRouteRuleRequestSchema>;
 export const activateDeliveryRouteRuleRequestSchema = z.object({ expectedVersion: z.number().int().positive() }).strict();
+export type ActivateDeliveryRouteRuleRequest = z.infer<typeof activateDeliveryRouteRuleRequestSchema>;
 
 export const deliveryRouteRuleViewSchema = deliveryRouteRuleInputBaseSchema.extend({
   id: idSchema,

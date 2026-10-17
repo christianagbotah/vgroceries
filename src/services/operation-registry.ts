@@ -30,6 +30,7 @@ const RET: CacheTag[] = ["returns"];
 const DEL: CacheTag[] = ["delivery"];
 const SESS: CacheTag[] = ["sessions"];
 const CONF: CacheTag[] = ["config"];
+const LOGISTICS: CacheTag[] = ["logistics"];
 const AI: CacheTag[] = ["ai"];
 const MEDIA: CacheTag[] = ["product-media"];
 
@@ -133,6 +134,29 @@ export const operationMeta: Record<string, OperationMeta> = {
   "admin.purchases": { tags: STOCK },
   "admin.purchases.create": { invalidates: STOCK },
   "admin.purchases.send": { invalidates: STOCK },
+
+
+  /* staff: logistics configuration (L1 only; no runtime shipment authority) */
+  "admin.logistics.nodes": { tags: LOGISTICS },
+  "admin.logistics.node": { tags: LOGISTICS },
+  "admin.logistics.node.create": { invalidates: [...LOGISTICS, ...CONF] },
+  "admin.logistics.node.update": { invalidates: [...LOGISTICS, ...CONF] },
+  "admin.logistics.lanes": { tags: LOGISTICS },
+  "admin.logistics.lane": { tags: LOGISTICS },
+  "admin.logistics.lane.create": { invalidates: [...LOGISTICS, ...CONF] },
+  "admin.logistics.lane.update": { invalidates: [...LOGISTICS, ...CONF] },
+  "admin.logistics.workflows": { tags: LOGISTICS },
+  "admin.logistics.workflow": { tags: LOGISTICS },
+  "admin.logistics.workflow.create": { invalidates: [...LOGISTICS, ...CONF] },
+  "admin.logistics.workflow.draft": { invalidates: [...LOGISTICS, ...CONF] },
+  "admin.logistics.workflow.save": { invalidates: [...LOGISTICS, ...CONF] },
+  "admin.logistics.workflow.publish": { invalidates: [...LOGISTICS, ...CONF] },
+  "admin.logistics.route-rules": { tags: LOGISTICS },
+  "admin.logistics.route-rule": { tags: LOGISTICS },
+  "admin.logistics.route-rule.create": { invalidates: [...LOGISTICS, ...CONF] },
+  "admin.logistics.route-rule.update": { invalidates: [...LOGISTICS, ...CONF] },
+  "admin.logistics.route-rule.activate": { invalidates: [...LOGISTICS, ...CONF] },
+  "admin.logistics.route-rule.simulate": { tags: LOGISTICS },
 
   /* staff: dispatch, riders, providers */
   "admin.dispatch.queue": { tags: [...DEL, ...ORD] },
