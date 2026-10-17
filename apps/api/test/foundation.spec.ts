@@ -951,6 +951,28 @@ test("foundation OpenAPI describes only implemented routes with cookie/native se
   assert.equal(r.status, 200);
   const d = await r.json();
   assert.deepEqual(Object.keys(d.paths).sort(), [
+    "/api/v1/admin/dispatch",
+    "/api/v1/admin/dispatch/jobs/{jobId}",
+    "/api/v1/admin/dispatch/jobs/{jobId}/provider-transition",
+    "/api/v1/admin/dispatch/jobs/{jobId}/reassign",
+    "/api/v1/admin/dispatch/jobs/{jobId}/reschedule",
+    "/api/v1/admin/dispatch/jobs/{jobId}/return-to-store",
+    "/api/v1/admin/dispatch/jobs/{jobId}/returned-to-store",
+    "/api/v1/admin/dispatch/jobs/{jobId}/unassign",
+    "/api/v1/admin/dispatch/orders/{orderId}/assign",
+    "/api/v1/admin/riders",
+    "/api/v1/admin/riders/{riderProfileId}",
+    "/api/v1/admin/riders/{riderProfileId}/availability",
+    "/api/v1/rider/jobs",
+    "/api/v1/rider/jobs/{jobId}",
+    "/api/v1/rider/jobs/{jobId}/accept",
+    "/api/v1/rider/jobs/{jobId}/deliver",
+    "/api/v1/rider/jobs/{jobId}/fail",
+    "/api/v1/rider/jobs/{jobId}/notes",
+    "/api/v1/rider/jobs/{jobId}/out-for-delivery",
+    "/api/v1/rider/jobs/{jobId}/pickup",
+    "/api/v1/rider/me",
+    "/api/v1/rider/me/availability",
     "/api/v1/admin/catalog/media/generations/{jobId}", "/api/v1/admin/catalog/products/{productId}/media/generations",
     "/api/v1/admin/catalog/media/{mediaId}/approve", "/api/v1/admin/catalog/media/{mediaId}/reject", "/api/v1/admin/catalog/media/{mediaId}/archive", "/api/v1/admin/catalog/products/{productId}/media/featured", "/api/v1/admin/catalog/products/{productId}/media/reorder", "/api/v1/admin/catalog/products/{productId}/media/brand-mode", "/api/v1/admin/catalog/media/{mediaId}/content", "/api/v1/admin/catalog/products", "/api/v1/admin/catalog/products/{productId}/media", "/api/v1/admin/catalog/products/{productId}/media/uploads", "/api/v1/admin/fulfilment", "/api/v1/admin/fulfilment/orders/{orderId}", "/api/v1/admin/fulfilment/orders/{orderId}/confirm", "/api/v1/admin/fulfilment/orders/{orderId}/handover", "/api/v1/admin/fulfilment/orders/{orderId}/pack", "/api/v1/admin/fulfilment/orders/{orderId}/picks/{reservationId}", "/api/v1/admin/fulfilment/orders/{orderId}/start-picking", "/api/v1/admin/orders/{orderId}/actions", "/api/v1/refunds", "/api/v1/refunds/{refundId}/actions", "/api/v1/account/orders", "/api/v1/account/orders/{orderId}/cancel", "/api/v1/auth/logout", "/api/v1/auth/me", "/api/v1/auth/refresh", "/api/v1/auth/sessions", "/api/v1/catalog/categories", "/api/v1/catalog/home", "/api/v1/catalog/products", "/api/v1/catalog/products/{slug}", "/api/v1/catalog/products:by-variants", "/api/v1/checkout/complete", "/api/v1/checkout/quote", "/api/v1/checkout/zones", "/api/v1/checkout/zones/{zoneId}/slots", "/api/v1/health/live", "/api/v1/health/ready", "/api/v1/inventory/overview", "/api/v1/inventory/receive", "/api/v1/orders/{orderId}", "/api/v1/orders/{orderId}/payment-attempts", "/api/v1/orders/track", "/api/v1/payments", "/api/v1/payments/providers/{provider}/events", "/api/v1/payments/{attemptId}/reconcile",
   ].sort());

@@ -1,0 +1,69 @@
+import { after, before, beforeEach, test } from "node:test";
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import type { INestApplication } from "@nestjs/common";
+import { createApplication } from "../src/bootstrap";
+import { readConfig } from "../src/config";
+import { Database } from "../src/database/database";
+import { ApiProblem } from "../src/http/errors";
+import { DispatchCommandService } from "../src/dispatch/dispatch-command.service";
+import { RiderCommandService } from "../src/dispatch/rider-command.service";
+import { DispatchPolicyService } from "../src/dispatch/dispatch-policy.service";
+import { DispatchEventService } from "../src/dispatch/dispatch-event.service";
+import { seedCommerceFixtures } from "./commerce-fixtures";
+let app:INestApplication,db:Database,dispatch:DispatchCommandService,riderCommands:RiderCommandService;
+const config=()=>readConfig({DATABASE_URL:process.env.DATABASE_URL!,WEB_ORIGINS:"http://localhost:3000",API_STOCK_LOCATION_ID:"loc_accra",API_INSECURE_COOKIES:"true",COMMERCE_LOCATION_ID:"loc_accra",CHECKOUT_PAYMENT_HOLD_MINUTES:"15",CHECKOUT_OFFLINE_HOLD_MINUTES:"1440",GUEST_CHECKOUT_TTL_MINUTES:"1440",ORDER_VERIFICATION_ACTIVE_VERSION:"1",ORDER_VERIFICATION_KEYS:JSON.stringify({1:"11".repeat(32)})});
+const ctx=(key:string,actorId:string)=>({actorId,requestId:`req-${key}`,idempotencyKey:key}); const rctx=(key:string)=>({requestId:`req-${key}`,idempotencyKey:key});
+before(async()=>{app=await createApplication(config());db=app.get(Database);const policy=new DispatchPolicyService(),events=new DispatchEventService();dispatch=new DispatchCommandService(db,policy,events);riderCommands=new RiderCommandService(db,policy,events);});beforeEach(async()=>seedCommerceFixtures(db));after(async()=>app?.close());
+async function rider(id:string){const user=await db.user.create({data:{email:`race-${id}@example.test`,name:id,passwordHash:"x",role:"rider"}});const profile=await db.riderProfile.create({data:{userId:user.id,phone:"+233241234571",kind:"in_house",vehicle:"motorcycle",availabilityState:"available",lastAvailabilityChangedAt:new Date()}});return {user,profile};}
+async function order(ref:string){const o=await db.order.create({data:{reference:ref,customerUserId:"customer-a",customerName:"Ama",customerPhone:"+233241111111",fulfilment:"delivery",zoneId:"zone-required",paymentMethod:"cash_on_delivery",paymentStatus:"unpaid",fulfilmentStatus:"dispatched",deliveryStatus:"unassigned",subtotalMinor:1000,deliveryFeeMinor:100,totalMinor:1100,verificationKeyVersion:1,verificationCodeHash:"f".repeat(64),stockConsumedAt:new Date()}});await db.fulfilmentRun.create({data:{orderId:o.id,locationId:"loc_accra",handedOverBy:"admin-commerce",handedOverAt:new Date(),handoverKind:"dispatch"}});return o;}
+
+test("two admins cannot create two jobs for one order",async()=>{const a=await rider("a"),b=await rider("b"),o=await order("VG-RACE-ORDER");const results=await Promise.allSettled([dispatch.assign(o.id,{riderProfileId:a.profile.id},ctx("race-order-a","admin-a")),dispatch.assign(o.id,{riderProfileId:b.profile.id},ctx("race-order-b","admin-b"))]);assert.equal(results.filter(x=>x.status==="fulfilled").length,1);assert.equal(await db.deliveryJob.count({where:{orderId:o.id}}),1);});
+
+test("one rider cannot acquire two active jobs concurrently",async()=>{const r=await rider("one"),a=await order("VG-RACE-RIDER-A"),b=await order("VG-RACE-RIDER-B");const results=await Promise.allSettled([dispatch.assign(a.id,{riderProfileId:r.profile.id},ctx("race-rider-a","admin-a")),dispatch.assign(b.id,{riderProfileId:r.profile.id},ctx("race-rider-b","admin-b"))]);assert.equal(results.filter(x=>x.status==="fulfilled").length,1);assert.equal(await db.deliveryJob.count({where:{riderProfileId:r.profile.id,status:{in:["assigned","accepted","picked_up","out_for_delivery","failed","rescheduled","return_to_store"]}}}),1);});
+
+test("concurrent rider deliver and fail serialize to one terminal outcome",async()=>{const r=await rider("terminal"),o=await order("VG-RACE-TERMINAL");const assigned=await dispatch.assign(o.id,{riderProfileId:r.profile.id},ctx("term-assign","admin-a"));await riderCommands.accept(r.user.id,assigned.jobId,{},rctx("term-accept"));await riderCommands.pickup(r.user.id,assigned.jobId,{},rctx("term-pick"));await riderCommands.outForDelivery(r.user.id,assigned.jobId,{},rctx("term-out"));const results=await Promise.allSettled([riderCommands.deliver(r.user.id,assigned.jobId,{proof:{method:"signature",reference:"sig-race"}},rctx("term-deliver")),riderCommands.fail(r.user.id,assigned.jobId,{reason:"customer_unavailable"},rctx("term-fail"))]);assert.equal(results.filter(x=>x.status==="fulfilled").length,1);const job=await db.deliveryJob.findUniqueOrThrow({where:{id:assigned.jobId}});assert.ok(["delivered","failed"].includes(job.status));assert.equal((await db.order.findUniqueOrThrow({where:{id:o.id}})).paymentStatus,"unpaid");assert.equal(await db.deliveryProof.count({where:{deliveryJobId:assigned.jobId}}),job.status==="delivered"?1:0);});
+
+test("return-to-store wins safely against reassignment while rider has custody",async()=>{const r=await rider("return"),replacement=await rider("replacement"),o=await order("VG-RACE-RETURN");const assigned=await dispatch.assign(o.id,{riderProfileId:r.profile.id},ctx("ret-assign","admin-a"));await riderCommands.accept(r.user.id,assigned.jobId,{},rctx("ret-accept"));await riderCommands.pickup(r.user.id,assigned.jobId,{},rctx("ret-pick"));await riderCommands.fail(r.user.id,assigned.jobId,{reason:"vehicle_or_operational_issue"},rctx("ret-fail"));const results=await Promise.allSettled([dispatch.returnToStore(assigned.jobId,{},ctx("ret-return","admin-a")),dispatch.reassign(assigned.jobId,{riderProfileId:replacement.profile.id},ctx("ret-reassign","admin-b"))]);assert.equal(results.filter(x=>x.status==="fulfilled").length,1);const job=await db.deliveryJob.findUniqueOrThrow({where:{id:assigned.jobId}});assert.equal(job.status,"return_to_store");assert.equal(job.custodyState,"return_pending");});
+
+test("rider cannot act after a pre-pickup unassignment",async()=>{const r=await rider("unassigned"),o=await order("VG-RACE-UNASSIGN");const assigned=await dispatch.assign(o.id,{riderProfileId:r.profile.id},ctx("un-assign","admin-a"));await dispatch.unassign(assigned.jobId,{},ctx("un-admin","admin-a"));await assert.rejects(()=>riderCommands.accept(r.user.id,assigned.jobId,{},rctx("un-rider")));assert.equal((await db.deliveryJob.findUniqueOrThrow({where:{id:assigned.jobId}})).status,"unassigned");});
+
+
+test("rider command lock protocol cannot invert profile and job locks",()=>{
+  const source=readFileSync("src/dispatch/rider-command.service.ts","utf8");
+  const start=source.indexOf("private async lockOwnedJob");
+  const end=source.indexOf("private async executeJob",start);
+  const block=source.slice(start,end);
+  const orderLock=block.indexOf("FOR UPDATE OF o");
+  const profileLock=block.indexOf("FOR UPDATE OF rp");
+  const jobLock=block.indexOf('SELECT id FROM "DeliveryJob"');
+  assert.ok(orderLock>=0&&profileLock>=0&&jobLock>=0);
+  assert.ok(orderLock<profileLock&&profileLock<jobLock,"lock order must be Order -> RiderProfile -> DeliveryJob");
+});
+
+
+test("admin assignment races never surface a database deadlock",async()=>{
+  const r=await rider("admin-deadlock"),a=await order("VG-RACE-ADMIN-A"),b=await order("VG-RACE-ADMIN-B");
+  const assigned=await dispatch.assign(a.id,{riderProfileId:r.profile.id},ctx("admin-deadlock-seed","admin-seed"));
+  let releaseHolder!:()=>void,readyHolder!:()=>void;
+  const released=new Promise<void>(resolve=>{releaseHolder=resolve;});
+  const ready=new Promise<void>(resolve=>{readyHolder=resolve;});
+  const holder=db.$transaction(async tx=>{
+    await tx.$queryRaw`SELECT id FROM "RiderProfile" WHERE id=${r.profile.id} FOR UPDATE`;
+    readyHolder();
+    await released;
+  });
+  await ready;
+  const assigning=dispatch.assign(b.id,{riderProfileId:r.profile.id},ctx("admin-deadlock-assign","admin-a"));
+  await new Promise(resolve=>setTimeout(resolve,100));
+  const reassigning=dispatch.reassign(assigned.jobId,{riderProfileId:r.profile.id},ctx("admin-deadlock-reassign","admin-b"));
+  await new Promise(resolve=>setTimeout(resolve,100));
+  releaseHolder();
+  await holder;
+  const results=await Promise.allSettled([assigning,reassigning]);
+  const summary=results.map(result=>result.status==="fulfilled"?"fulfilled":`${result.reason?.constructor?.name??"Error"}:${String(result.reason)}`).join(" | ");
+  assert.equal(results.filter(result=>result.status==="fulfilled").length,1,summary);
+  for(const result of results){
+    if(result.status==="rejected") assert.ok(result.reason instanceof ApiProblem,`unexpected database error: ${String(result.reason)}`);
+  }
+});

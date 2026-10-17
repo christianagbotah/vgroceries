@@ -1,6 +1,138 @@
 # Verification record
 
-This file records the current authoritative verification checkpoints for Variety Groceries. Detailed older prototype/browser history remains available in git history; the records below describe the production backend and the frontend continuation wave that the current branch actually depends on.
+This file records the current authoritative verification checkpoints for Variety Groceries. Detailed older prototype/browser history remains available in git history; the records below describe the production backend and the frontend compatibility evidence the current branch actually depends on.
+
+## Integrated Dispatch/Rider persistence hardening — 17 October 2026
+
+**Branch under review:** `feat/dispatch-rider-authority-20261013`
+**Reviewed code checkpoint before this documentation commit:** `8355ac1a1d1878389f6c40f3172f4f5252ff3144`
+**Integrated base:** `origin/main` at `d4f72d3dde5c6b409a35075927987134b65437c1`
+
+This checkpoint closes two persistence-level bypasses that remained possible even though application services already enforced the intended Dispatch/Rider workflow. A delivery job now has a database trigger requiring authoritative Fulfilment dispatch handover before assignment, and database checks prevent a failed rider-custody job from being released to `unassigned` before custody is safely back at dispatch/store. Direct database use of `pin` as delivery proof is also regression-tested and remains rejected; supported proof metadata stays `signature` or `photo_note` until an order-bound PIN verifier exists.
+
+### Fresh isolated PostgreSQL / API gate
+
+Verification used a fresh isolated PostgreSQL **18** instance on `127.0.0.1:55433`; no production or staging database was modified. The database was recreated, all **9 migrations** applied, and the repository's complete API suite ran with the same required environment shape used by API CI.
+
+| Check | Result |
+|---|---:|
+| PostgreSQL migrations on fresh database | **9/9 applied** |
+| Complete API integration/security/concurrency suite | **399 passed, 0 failed** |
+| Focused Dispatch/Rider/manual-provider suite | **68 passed, 0 failed** |
+| Focused new schema authority regressions | **6 passed, 0 failed** |
+| Production OpenAPI | **69 paths** |
+| OpenAPI deterministic regeneration | **PASS — two byte-identical generations** |
+| OpenAPI SHA-256 | `0a83f3dc194ca6735558dc082769817c7f3bce2ed855a58193f135878353ca90` |
+| `git diff --check` | **PASS** |
+
+The TDD RED run first proved both persistence bypasses: direct job creation without handover and direct failed-rider-custody release did not reject. After migration `202610170008_dispatch_rider_integrity`, both regressions and the existing lifecycle tests ran GREEN. Existing fixture-only direct DeliveryJob creation was updated to create the same authoritative Fulfilment handover required in real operation.
+
+### Root/frontend compatibility gate
+
+The integrated repository was then verified through the root build and production-server checks:
+
+| Check | Result |
+|---|---:|
+| Frozen dependency install | **PASS** |
+| ESLint | **PASS** |
+| TypeScript `tsc --noEmit --incremental false` | **PASS** |
+| Next.js production build | **PASS** |
+| Static page generation | **49 pages** |
+| Handoff regression script | **PASS** |
+| Bun regression tests | **97 passed, 0 failed** |
+| Shared contract checks | **32 passed, 0 failed** |
+| Business-rule acceptance checks | **24 passed, 0 failed** |
+| Production-server route sweep | **68 passed, 0 failed** |
+
+The production server for these checks was isolated on port **33017**. This verification does not claim a production deployment or a production database migration.
+
+### Integrated authority state at this checkpoint
+
+The 69-path contract includes the previously verified 22-path Dispatch/Rider surface plus the Product Media authority now present in the integrated repository. Product Media supports durable upload/generation/review/gallery workflows and guarded UAT operation, while its runbook deliberately keeps external image generation and production object-storage cutover behind explicit configuration and verification. The current storefront/UAT work therefore must not be interpreted as proof that external AI generation, S3-compatible production storage, live courier APIs, COD remittance, Physical Returns, POS, Hubtel production money movement, live GPS/ETA or notification providers are production-live.
+
+A fresh GitHub PR workflow remains required before merge so PostgreSQL **17**, the repository's CI database version, independently verifies the migration and test suite.
+
+## Dispatch + Rider Authority — 13 October 2026
+
+**Branch:** `feat/dispatch-rider-authority-20261013`
+**Reviewed code checkpoint before this documentation commit:** `9515745da95dfaf2c59bee2d7019b18de3c24f3b`
+**Base:** Fulfilment + Stock Handover Authority merged on `main` as `7be1b0fdfc457763704512bae5a2bba685369279`
+
+### Local clean-room PostgreSQL / API gate
+
+A brand-new database on an isolated PostgreSQL **18.1** cluster bound only to `127.0.0.1:55432` under the unprivileged `lightworld` OS user was used. It was separate from every production/staging PostgreSQL instance. Migrations **001–007** applied in order and the complete repository API suite then passed **333/333, 0 failed**. A focused post-review Dispatch/Rider suite separately passed **65/65**.
+
+| Check | Result |
+|---|---:|
+| PostgreSQL migrations | **7/7 applied** |
+| Complete API integration/security/concurrency suite | **333 passed, 0 failed** |
+| Focused Dispatch/Rider suite | **65 passed, 0 failed** |
+| Production OpenAPI | **57 paths** |
+| Dispatch/Rider additive surface | **22 paths** |
+| OpenAPI deterministic regeneration | **PASS — two byte-identical generations** |
+| Committed OpenAPI drift check | **PASS** |
+| Dispatch source authority scan | **PASS** |
+
+The static scan found no Dispatch/Rider import/call to stock depletion, no direct StockLot/Reservation/StockDepletion/PaymentAttempt/Refund mutation, no COD cash/remittance fields, no GPS/ETA authority and no provider-network primitive. The integration suite proves that pickup/failure/reschedule/return never become a second stock authority, delivery never settles COD payment, session identity owns rider operations, and audit/outbox failures roll back atomically.
+
+The repository's GitHub API workflow runs PostgreSQL **17**. A fresh successful PR workflow is still required as final PostgreSQL-17 evidence before merge readiness; local PostgreSQL 18.1 is recorded only as clean-room local evidence.
+
+### Root CI / frontend compatibility gate
+
+Fresh exact-head local results:
+
+| Check | Result |
+|---|---:|
+| ESLint | **PASS** |
+| TypeScript `tsc --noEmit --incremental false` | **PASS** |
+| Next.js production build | **PASS** |
+| Static page generation | **48/48** |
+| Handoff regression assertions | **24/24** |
+| Bun regression tests | **50/50** — 460 expectations across 5 files |
+| Shared contract checks | **32/32** |
+| Business-rule acceptance checks | **24/24** |
+| Production-server route sweep | **58/58 HTTP 200** |
+
+Port 3000 was already occupied by an unrelated VPS service, so the branch's production server was isolated on **33013** for contracts/acceptance/route sweep and then terminated. No existing service was disturbed.
+
+### Independent review findings — RED to GREEN
+
+The whole-branch review found operational/security defects beyond the original task tests. Each accepted finding was reproduced before the fix and then re-run GREEN. Earlier pre-review hardening also required an explanatory note for failure reason `other` at both contract/database layers and corrected two stale exact-path assertions from the pre-Dispatch OpenAPI surface.
+
+1. operational rider/staff notes defaulted customer-visible -> event visibility now fails closed;
+2. rescheduled jobs could dead-end -> due-time custody-preserving retry uses existing rider/provider commands;
+3. reschedule replay failed after the scheduled time -> time eligibility runs only after idempotency replay lookup;
+4. an unassigned former rider could still read customer detail -> unassigned detail access is revoked while provenance remains;
+5. rider command locks could invert with assignment -> consistent lock ordering was introduced;
+6. `allowedActions` omitted real manual-provider/return/retry operations -> projections now derive assignment kind, custody and due time;
+7. active work could project as offline after a declared offline change -> effective busy state now outranks declaration;
+8. Zod cross-field refinements disappeared from generated OpenAPI -> affected request schemas now publish explicit `oneOf` constraints;
+9. returned-to-store responses omitted the required Returns-inspection truth -> typed `Returned to store — awaiting Returns inspection.` projection added;
+10. a later concurrency regression reproduced a real PostgreSQL **40P01 deadlock** between admin assignment/reassignment paths -> assignment authority now serializes that race with a transaction advisory lock;
+11. physically returned goods could become operationally unassignable after safe unassignment -> `unassigned + store_returned + returnedToStoreAt` is now safely assignable without changing Returns/inventory truth.
+
+The final focused regressions for the two follow-up defects passed **20/20**, and the complete exact-head API run subsequently passed **333/333**.
+
+### Proven Dispatch + Rider invariants
+
+- Dispatch eligibility begins only after authoritative delivery handover and existing `stockConsumedAt`.
+- Rider pickup changes custody but never performs another stock depletion.
+- One order cannot acquire two delivery jobs and one rider cannot own conflicting active jobs.
+- Admin assignment/reassignment races do not surface database deadlocks in the regression interleaving.
+- Rider identity comes from the authenticated session and former ownership does not leak live customer detail.
+- Delivery requires supported proof metadata and advances delivery/fulfilment without marking COD paid.
+- Failed/rescheduled/return-to-store paths do not restore inventory; store-returned goods explicitly await future Returns inspection.
+- Manual-provider transitions are staff-recorded, network-free evidence; no fake provider/GPS/ETA capability is claimed.
+- Idempotent retries do not duplicate jobs/events/proof, including reschedule retries after their due timestamp.
+- Production OpenAPI exposes exactly 9 admin-dispatch + 3 admin-rider + 10 rider-self-service paths while COD remittance/Returns/POS/live-provider webhooks remain absent.
+
+### Approved continuation
+
+After this branch reaches a green draft PR, implementation continues with the already-approved production expansion: **Wave A order tracking**, **Wave B product media + typed grocery specifications**, **Wave C external-provider registry/adapters**, then separate **COD collection/remittance** and **Physical Returns** authorities. The approved expansion design is tracked separately at `5918c7788ddfec733c9b5e28f5ce787ac9dac752`, with the Wave A implementation plan at `6834b8ee65b32f198ca2fcb4417e2c5b8461fc49`; those documents are intentionally not mixed into this focused Dispatch/Rider branch.
+
+### Deliberately not verified as production-live
+
+The successful gates above do **not** claim that COD cash collection/remittance, physical Returns/restocking, POS cashier authority, live courier network integrations, GPS/ETA, proof-media storage, production Hubtel credentials/webhooks, SMS/email/push, live AI execution, production product-gallery/specification authority or complete public-storefront backend cutover are live.
 
 ## Fulfilment + Stock Handover Authority — 13 October 2026
 

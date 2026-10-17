@@ -33,9 +33,33 @@ function requestSchemaText(op: any) {
   return JSON.stringify(op.requestBody ?? {}).toLowerCase();
 }
 
-test("production OpenAPI exposes exactly the three Refunds Authority paths on a 47-path surface", () => {
+function schemaReferences(value: unknown): string[] {
+  const text = JSON.stringify(value);
+  return [...text.matchAll(/#\/components\/schemas\/([A-Za-z0-9_]+)/g)].map((match) => match[1]);
+}
+
+function refundOpenApiSurface(): string {
+  const paths = Object.fromEntries(
+    Object.entries(document.paths).filter(([path]) => path.includes("refund") || path.includes("admin/orders")),
+  );
+  const schemas: Record<string, unknown> = {};
+  const pending = [...new Set(schemaReferences(paths))];
+  const seen = new Set<string>();
+  while (pending.length) {
+    const name = pending.shift()!;
+    if (seen.has(name)) continue;
+    seen.add(name);
+    const schema = document.components.schemas[name];
+    if (!schema) continue;
+    schemas[name] = schema;
+    for (const reference of schemaReferences(schema)) if (!seen.has(reference)) pending.push(reference);
+  }
+  return JSON.stringify({ paths, schemas }).toLowerCase();
+}
+
+test("production OpenAPI exposes exactly the three Refunds Authority paths on a 69-path surface", () => {
   for (const path of refundPaths) assert.ok(document.paths[path], `missing ${path}`);
-  assert.equal(Object.keys(document.paths).length, 47);
+  assert.equal(Object.keys(document.paths).length, 69);
   for (const absent of [
     "/api/v1/refunds/manual",
     "/api/v1/refunds/cash",
@@ -83,10 +107,7 @@ test("administrator order financial actions document only cancel-refund and serv
 });
 
 test("production refund OpenAPI contains no raw provider evidence, credentials or hidden execution authority", () => {
-  const surface = JSON.stringify({
-    paths: Object.fromEntries(Object.entries(document.paths).filter(([path]) => path.includes("refund") || path.includes("admin/orders"))),
-    schemas: document.components.schemas,
-  }).toLowerCase();
+  const surface = refundOpenApiSurface();
   for (const forbidden of [
     '"merchantrefundreference"', '"originalpaymentmerchantreference"', '"originalpaymentproviderreference"',
     '"rawbody"', '"rawbodyhash"', '"safemetadata"', '"signature"', '"webhooksecret"', '"providersecret"',
