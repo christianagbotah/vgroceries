@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useStaff, DEMO_ROLE_OPTIONS } from "@/features/staff/role-context";
 import { ROLE_LABELS } from "@/types/domain";
 import type { Permission } from "@/lib/perms";
-import { LayoutDashboard, Menu, ShoppingCart, Store, Boxes, Package, ClipboardList, Truck, Users, RotateCcw, CreditCard, UserRound, BarChart3, Sparkles, ShieldCheck, ScrollText, Settings2, FlaskConical, LogOut, Warehouse, ClipboardCheck, TriangleAlert, ReceiptText, Landmark } from "lucide-react";
+import { LayoutDashboard, Menu, ShoppingCart, Store, Boxes, Package, ClipboardList, Truck, Users, RotateCcw, CreditCard, UserRound, BarChart3, Sparkles, ShieldCheck, ScrollText, Settings2, FlaskConical, LogOut, Warehouse, ClipboardCheck, TriangleAlert, ReceiptText, Landmark, Network } from "lucide-react";
 
 interface NavItem {
   href: string;
@@ -61,6 +61,7 @@ const GROUPS: NavGroup[] = [
   {
     title: "Delivery",
     items: [
+      { href: "/admin/logistics", label: "Logistics & Delivery", permission: "logistics.manage", icon: Network },
       { href: "/admin/dispatch", label: "Dispatch", permission: "dispatch.view", icon: Truck },
       { href: "/admin/riders", label: "Riders", permission: "riders.manage", icon: Users },
       { href: "/admin/providers", label: "Providers", permission: "dispatch.view", icon: Landmark },
