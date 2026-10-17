@@ -45,6 +45,23 @@ import {
   reorderGalleryRequestSchema,
   setFeaturedMediaRequestSchema,
   setProductBrandModeRequestSchema,
+  createLogisticsNodeRequestSchema,
+  updateLogisticsNodeRequestSchema,
+  logisticsNodeViewSchema,
+  createLogisticsLaneRequestSchema,
+  updateLogisticsLaneRequestSchema,
+  logisticsLaneViewSchema,
+  createDeliveryWorkflowRequestSchema,
+  saveDeliveryWorkflowDraftRequestSchema,
+  publishDeliveryWorkflowRequestSchema,
+  deliveryWorkflowViewSchema,
+  deliveryWorkflowVersionViewSchema,
+  createDeliveryRouteRuleRequestSchema,
+  updateDeliveryRouteRuleRequestSchema,
+  activateDeliveryRouteRuleRequestSchema,
+  deliveryRouteRuleViewSchema,
+  routeSimulationRequestSchema,
+  routeSimulationResponseSchema,
 } from "@variety/contracts";
 import { z } from "zod";
 import { foundationOpenApi } from "./openapi";
@@ -240,6 +257,27 @@ export function productionOpenApi(app: INestApplication): OpenAPIObject {
     SetFeaturedMediaRequest: json(setFeaturedMediaRequestSchema),
     ReorderGalleryRequest: json(reorderGalleryRequestSchema),
     SetProductBrandModeRequest: json(setProductBrandModeRequestSchema),
+    CreateLogisticsNodeRequest: json(createLogisticsNodeRequestSchema),
+    UpdateLogisticsNodeRequest: json(updateLogisticsNodeRequestSchema),
+    LogisticsNodeView: json(logisticsNodeViewSchema),
+    LogisticsNodeList: json(z.array(logisticsNodeViewSchema)),
+    CreateLogisticsLaneRequest: json(createLogisticsLaneRequestSchema),
+    UpdateLogisticsLaneRequest: json(updateLogisticsLaneRequestSchema),
+    LogisticsLaneView: json(logisticsLaneViewSchema),
+    LogisticsLaneList: json(z.array(logisticsLaneViewSchema)),
+    CreateDeliveryWorkflowRequest: json(createDeliveryWorkflowRequestSchema),
+    SaveDeliveryWorkflowDraftRequest: json(saveDeliveryWorkflowDraftRequestSchema),
+    PublishDeliveryWorkflowRequest: json(publishDeliveryWorkflowRequestSchema),
+    DeliveryWorkflowView: json(deliveryWorkflowViewSchema),
+    DeliveryWorkflowVersionView: json(deliveryWorkflowVersionViewSchema),
+    DeliveryWorkflowList: json(z.array(deliveryWorkflowViewSchema)),
+    CreateDeliveryRouteRuleRequest: json(createDeliveryRouteRuleRequestSchema),
+    UpdateDeliveryRouteRuleRequest: json(updateDeliveryRouteRuleRequestSchema),
+    ActivateDeliveryRouteRuleRequest: json(activateDeliveryRouteRuleRequestSchema),
+    DeliveryRouteRuleView: json(deliveryRouteRuleViewSchema),
+    DeliveryRouteRuleList: json(z.array(deliveryRouteRuleViewSchema)),
+    RouteSimulationRequest: json(routeSimulationRequestSchema),
+    RouteSimulationResponse: json(routeSimulationResponseSchema),
     ArchiveProductMediaRequest: json(z.strictObject({ replacementFeaturedMediaId: z.string().min(1).nullable().optional() })),
     ProductDraftResponse: {
       type: "object", required: ["productId", "editorPath"], additionalProperties: false,
@@ -288,6 +326,9 @@ export function productionOpenApi(app: INestApplication): OpenAPIObject {
     "DispatchQueueResponse", "DispatchJobDetailResponse", "DispatchRiderFleetResponse", "DispatchRiderDetailResponse", "DispatchActionResponse",
     "RiderAvailabilityResponse", "RiderSelfResponse", "RiderJobResponse", "RiderJobsResponse", "RiderActionResponse",
     "ProductDraftResponse", "ProductMediaView", "ImageGenerationJobView", "AdminProductMediaView",
+    "LogisticsNodeView", "LogisticsNodeList", "LogisticsLaneView", "LogisticsLaneList",
+    "DeliveryWorkflowView", "DeliveryWorkflowVersionView", "DeliveryWorkflowList",
+    "DeliveryRouteRuleView", "DeliveryRouteRuleList", "RouteSimulationResponse",
   ])
     schemas[name + "Envelope"] = {
       type: "object",
@@ -297,7 +338,7 @@ export function productionOpenApi(app: INestApplication): OpenAPIObject {
     };
 
   doc.info.description =
-    "Implemented production subset: identity, catalogue, Product Media upload/review plus queued image-generation authority, inventory receiving, delivery configuration, authoritative checkout/orders, provider-neutral Payments Authority, provider-neutral Refunds Authority, Fulfilment + Stock Handover Authority, and Dispatch + Rider Authority. COD cash collection/remittance, physical returns/restocking, POS cash authority, live courier providers, GPS/ETA/route optimization, notifications and complete public storefront cutover remain closed.";
+    "Implemented production subset: identity, catalogue, Product Media upload/review plus queued image-generation authority, inventory receiving, delivery configuration, authoritative checkout/orders, provider-neutral Payments Authority, provider-neutral Refunds Authority, Fulfilment + Stock Handover Authority, Dispatch + Rider Authority, and Logistics L1 network/workflow/route configuration authority. L1 configuration does not prove or record shipment movement, customer tracking milestones, courier-provider connectivity or notification delivery. COD cash collection/remittance, physical returns/restocking, POS cash authority, live courier providers, GPS/ETA/route optimization, notifications and complete public storefront cutover remain closed.";
 
   const productId: ParameterObject = { name: "productId", in: "path", required: true, schema: { type: "string", minLength: 1 } };
   const mediaId: ParameterObject = { name: "mediaId", in: "path", required: true, schema: { type: "string", minLength: 1 } };
@@ -436,6 +477,73 @@ export function productionOpenApi(app: INestApplication): OpenAPIObject {
       [productId],
       "SetProductBrandModeRequest",
     ),
+  };
+
+  const logisticsNodeId: ParameterObject = { name: "nodeId", in: "path", required: true, schema: { type: "string", minLength: 1 } };
+  const logisticsLaneId: ParameterObject = { name: "laneId", in: "path", required: true, schema: { type: "string", minLength: 1 } };
+  const logisticsTemplateId: ParameterObject = { name: "templateId", in: "path", required: true, schema: { type: "string", minLength: 1 } };
+  const logisticsVersionId: ParameterObject = { name: "versionId", in: "path", required: true, schema: { type: "string", minLength: 1 } };
+  const logisticsRuleId: ParameterObject = { name: "ruleId", in: "path", required: true, schema: { type: "string", minLength: 1 } };
+  const logisticsMutation = (description: string, requestSchema: string, responseSchema: string, parameters: ParameterObject[] = []): OperationObject =>
+    authorityMutation(description, requestSchema, responseSchema, parameters);
+  const logisticsBodylessMutation = (description: string, responseSchema: string, parameters: ParameterObject[] = []): OperationObject => ({
+    security,
+    description,
+    parameters: [...parameters, replay, csrf],
+    responses: authorityResponses(responseSchema),
+  });
+
+  doc.paths["/api/v1/admin/logistics/nodes"] = {
+    get: readOperation("Administrator-only Logistics L1 node configuration read. Configuration does not prove shipment movement or physical custody.", "LogisticsNodeListEnvelope"),
+    post: logisticsMutation("Administrator-only Logistics L1 node configuration creation. This does not move stock or prove shipment movement.", "CreateLogisticsNodeRequest", "LogisticsNodeViewEnvelope"),
+  };
+  doc.paths["/api/v1/admin/logistics/nodes/{nodeId}"] = {
+    get: readOperation("Administrator-only Logistics L1 node configuration detail. Configuration is not shipment-location evidence.", "LogisticsNodeViewEnvelope", [logisticsNodeId]),
+    post: logisticsMutation("Administrator-only Logistics L1 node configuration update. This does not move stock or record parcel arrival.", "UpdateLogisticsNodeRequest", "LogisticsNodeViewEnvelope", [logisticsNodeId]),
+  };
+  doc.paths["/api/v1/admin/logistics/lanes"] = {
+    get: readOperation("Administrator-only Logistics L1 network-lane configuration read. A configured lane does not prove provider connectivity or a shipment transfer.", "LogisticsLaneListEnvelope"),
+    post: logisticsMutation("Administrator-only Logistics L1 network-lane configuration creation. This does not move or hand over any shipment.", "CreateLogisticsLaneRequest", "LogisticsLaneViewEnvelope"),
+  };
+  doc.paths["/api/v1/admin/logistics/lanes/{laneId}"] = {
+    get: readOperation("Administrator-only Logistics L1 network-lane configuration detail. Configuration does not prove route execution.", "LogisticsLaneViewEnvelope", [logisticsLaneId]),
+    post: logisticsMutation("Administrator-only Logistics L1 network-lane configuration update. This does not record departure, arrival or provider evidence.", "UpdateLogisticsLaneRequest", "LogisticsLaneViewEnvelope", [logisticsLaneId]),
+  };
+  doc.paths["/api/v1/admin/logistics/workflows"] = {
+    get: readOperation("Administrator-only Logistics L1 workflow configuration read. Workflow stages are presentation/configuration and do not prove runtime shipment events.", "DeliveryWorkflowListEnvelope"),
+    post: logisticsMutation("Administrator-only Logistics L1 workflow-template creation with an initial draft. It does not record customer or shipment milestones.", "CreateDeliveryWorkflowRequest", "DeliveryWorkflowViewEnvelope"),
+  };
+  doc.paths["/api/v1/admin/logistics/workflows/{templateId}"] = {
+    get: readOperation("Administrator-only Logistics L1 workflow configuration detail with immutable published history.", "DeliveryWorkflowViewEnvelope", [logisticsTemplateId]),
+  };
+  doc.paths["/api/v1/admin/logistics/workflows/{templateId}/drafts"] = {
+    post: logisticsBodylessMutation("Administrator-only Logistics L1 draft clone of the current published workflow configuration. No shipment state is changed.", "DeliveryWorkflowVersionViewEnvelope", [logisticsTemplateId]),
+  };
+  doc.paths["/api/v1/admin/logistics/workflows/{templateId}/versions/{versionId}"] = {
+    post: logisticsMutation("Administrator-only Logistics L1 draft workflow configuration save with optimistic revision protection. This does not prove runtime events.", "SaveDeliveryWorkflowDraftRequest", "DeliveryWorkflowVersionViewEnvelope", [logisticsTemplateId, logisticsVersionId]),
+  };
+  doc.paths["/api/v1/admin/logistics/workflows/{templateId}/publish"] = {
+    post: logisticsMutation("Administrator-only Logistics L1 workflow publication. Publication makes configuration selectable; it does not move a shipment or notify a customer.", "PublishDeliveryWorkflowRequest", "DeliveryWorkflowViewEnvelope", [logisticsTemplateId]),
+  };
+  doc.paths["/api/v1/admin/logistics/route-rules"] = {
+    get: readOperation("Administrator-only Logistics L1 route-rule configuration read. Rules are plans, not shipment movement evidence.", "DeliveryRouteRuleListEnvelope"),
+    post: logisticsMutation("Administrator-only Logistics L1 inactive route-rule configuration creation. The server owns activation and selection authority.", "CreateDeliveryRouteRuleRequest", "DeliveryRouteRuleViewEnvelope"),
+  };
+  doc.paths["/api/v1/admin/logistics/route-rules/{ruleId}"] = {
+    get: readOperation("Administrator-only Logistics L1 route-rule configuration detail.", "DeliveryRouteRuleViewEnvelope", [logisticsRuleId]),
+    post: logisticsMutation("Administrator-only Logistics L1 inactive route-rule configuration update or explicit deactivation. It does not move shipments.", "UpdateDeliveryRouteRuleRequest", "DeliveryRouteRuleViewEnvelope", [logisticsRuleId]),
+  };
+  doc.paths["/api/v1/admin/logistics/route-rules/{ruleId}/activate"] = {
+    post: logisticsMutation("Administrator-only Logistics L1 route-rule activation with dependency and ambiguity preflight. Activation does not prove route execution.", "ActivateDeliveryRouteRuleRequest", "DeliveryRouteRuleViewEnvelope", [logisticsRuleId]),
+  };
+  doc.paths["/api/v1/admin/logistics/route-rules/simulate"] = {
+    post: {
+      security,
+      description: "Administrator-only Logistics L1 route configuration simulation. It is diagnostic only and does not move a shipment, persist selection, call a courier provider or prove runtime movement.",
+      parameters: [csrf],
+      requestBody: { required: true, content: { "application/json": { schema: ref("RouteSimulationRequest") } } },
+      responses: authorityResponses("RouteSimulationResponseEnvelope"),
+    },
   };
 
   doc.paths["/api/v1/admin/fulfilment"] = {
