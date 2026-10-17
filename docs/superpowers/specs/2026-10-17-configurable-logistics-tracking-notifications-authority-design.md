@@ -1,7 +1,7 @@
 # Variety Groceries — Configurable Logistics Routing, Order Tracking & Notification Authority
 
 **Date:** 2026-10-17  
-**Status:** written specification self-reviewed and ready for user review  
+**Status:** written specification approved 2026-10-17; Wave L1 implementation plan prepared
 **Design branch:** `design/configurable-logistics-tracking-notifications-20261017`  
 **Base:** `main` at `b82dc55d4c17ad11268b65c8c1001b317924abe8`  
 **Supersedes:** the historical fixed Wave A tracking design/plan in the 2026-10-13 production tracking expansion. Product Media and external-provider work outside tracking are not superseded.
