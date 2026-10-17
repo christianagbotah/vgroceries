@@ -1,57 +1,60 @@
 # Known issues, incomplete work & integration limits
 
-This document separates **production backend gaps** from **frontend/demo limitations**. The NestJS/PostgreSQL API now owns identity, catalogue/inventory, reservations, checkout/orders, payments, refunds, fulfilment/stock handover, dispatch and rider operations.
+This document separates implemented backend authority from deliberately unconnected production capabilities. At reviewed checkpoint `8355ac1a1d1878389f6c40f3172f4f5252ff3144`, the generated production OpenAPI contains **69 paths**.
 
-## 1. Production backend authorities already implemented
+## 1. Production/backend authorities already implemented
 
-The backend currently has durable production authority for:
+The repository currently has durable authority for:
 
 - web/native identity, sessions, authorization and location grants;
 - catalogue/inventory reads, receiving, lots/expiry, reservations and safety-stock-aware availability;
-- atomic checkout/orders, delivery slots, ownership, tracking, cancellation and idempotency;
+- atomic checkout/orders, delivery slots, ownership, secure tracking, cancellation and idempotency;
 - electronic payment initiation/evidence/reconciliation and late-payment recovery;
 - refund obligation/approval/execution/reconciliation;
-- administrator fulfilment confirmation, picking, pick correction, packing, queue/detail projections and exactly-once stock handover/collection depletion;
-- post-handover dispatch queue, rider profiles/availability, durable delivery jobs/events, assignment/reassignment, manual-provider fallback, rider lifecycle, proof metadata, delivery failure/reschedule and return-to-store custody tracking.
+- fulfilment confirmation, picking/correction, packing and exactly-once stock handover/collection depletion;
+- post-handover dispatch, rider profiles/availability, delivery jobs/events, assignment/reassignment, manual-provider fallback, proof metadata, failure/reschedule and return-to-store custody tracking;
+- Product Media upload/generation-job/review/gallery authority and guarded UAT media operation.
 
-Picking and packing do **not** reduce physical stock. Delivery stock leaves inventory only at Fulfilment handover; rider pickup never performs a second depletion. The production OpenAPI contains **57 paths**, including **22 Dispatch/Rider paths**.
+Picking and packing do **not** reduce physical stock. Delivery stock leaves inventory at Fulfilment handover; rider pickup never performs a second depletion. New persistence constraints additionally require authoritative dispatch handover before a DeliveryJob can be rooted and prevent unsafe release of rider custody before physical return.
 
-## 2. Backend authorities still deliberately closed
+## 2. Backend/integration authorities still deliberately closed
 
-1. **COD cash collection and rider remittance are not implemented.** COD delivery completion remains independent from payment success. A separate later authority must add customer cash collection, rider liability and remittance as durable/auditable financial events.
-2. **Physical Returns Authority is not implemented in the production API.** Returned-to-store delivery custody does not restore inventory. Saleable stock may increase only after an actual received return is inspected and dispositioned with provenance.
-3. **POS cashier sales are not yet a production API authority.** The future POS service must reuse the same exactly-once inventory-depletion primitive and add cashier/session/payment controls instead of creating a second stock path.
-4. **Complete storefront/account cutover is pending.** The backend implements a growing set of public/customer/staff/rider endpoints, but the Next.js application can still run against mock operations. The next approved wave adds one-click authoritative tracking to order detail before broader cutover. Do not deploy production storefront mode until every required journey resolves to a real API contract.
-5. **Production product media/specification authority is still pending.** The current catalogue does not yet provide the approved ordered image gallery and typed category-driven grocery specification model. Production content must never fabricate ingredients, allergens, nutrition, expiry or health claims.
-6. **Live payment/refund provider activation remains closed.** Provider-neutral payment/refund authority is implemented and tested, but no claim is made that production Hubtel credentials, webhooks or live money movement are activated.
-7. **No live courier provider is connected.** Dispatch supports explicit manual-provider evidence only. No network booking/webhook flow may be labelled integrated until a real provider adapter is implemented and verified.
-8. **No production GPS/ETA authority exists.** Rider location/ETA must not be fabricated from UI state; live location requires its own consent, freshness and provider/device design.
-9. **Proof-media storage is not implemented.** Dispatch stores proof method/reference/note metadata only. Binary photo/signature storage needs a dedicated secure media boundary.
-10. **No live AI execution authority.** Current AI screens/suggestions remain deterministic or prototype-level. Any future AI action must pass through the same permissions and transactional authorities as a human action.
-11. **No production SMS/email/push integration.** Notification UX may exist, but no real delivery provider is claimed.
-12. **Tax policy is not hardcoded.** Ghana tax treatment remains owner/configuration work; the application must not invent a tax rate.
+1. **COD cash collection and rider remittance are not implemented.** Delivery status must remain independent from customer cash collection, rider liability and remittance/reconciliation.
+2. **Physical Returns Authority is not implemented.** A returned-to-store delivery does not restore inventory; actual goods must be received, inspected and dispositioned before any saleable restock.
+3. **POS cashier sales are not yet a production API authority.** POS must reuse the exactly-once depletion primitive and add cashier/session/payment controls rather than introducing a second stock path.
+4. **External courier APIs are not connected.** Manual-provider evidence exists, but no courier may be labelled API-integrated until credentials, booking/status/webhooks and failure handling are verified.
+5. **Live GPS/ETA authority does not exist.** Location sharing requires explicit consent, freshness semantics and a verified device/provider design; UI state must never fabricate movement or ETA.
+6. **Delivery-proof binary storage is separate and not implemented.** Dispatch stores proof method/reference/note metadata. Product Media storage must not be reused implicitly as proof-of-delivery authority.
+7. **Hubtel/live payment provider activation remains closed.** Provider-neutral payment/refund logic is implemented, but production credentials, webhooks and real money movement are not claimed active.
+8. **Product Media external-provider/storage cutover is incomplete.** The authority and guarded UAT workflow exist, but S3-compatible production storage and real external AI image generation require explicit credentials, configuration and promotion checks. The deterministic fake provider remains the safe UAT default.
+9. **Typed grocery specifications remain incomplete.** Production content must not fabricate ingredients, allergens, nutrition, expiry or health claims. Lot expiry remains StockLot truth.
+10. **No live AI operations authority.** AI/product-media suggestions may assist, but sensitive stock, price, refund, payment, substitution or promotion actions must remain authorized transactional operations.
+11. **No production SMS/email/push provider is claimed.** Notification UX does not prove message delivery.
+12. **Tax policy is not hardcoded.** Ghana tax treatment remains owner/configuration work.
 
-## 3. Frontend/demo boundaries
+## 3. Frontend/UAT boundaries
 
-13. **Mock transport still exists by design.** `src/services/client.ts` and the HTTP adapter are the swap boundary. The in-process mock remains useful for demos/regressions but must not silently become production authority.
-14. **Demo role/login flows remain in the frontend.** Production staff/rider login UX still needs to be connected fully to real identity APIs and demo selectors removed from production builds.
-15. **Fulfilment frontend must render backend truth.** Reservation-derived lot picks, shortages, `allowedActions`, packing metadata and handover blockers come from the backend; the UI must not infer them independently.
-16. **Dispatch/rider production backend exists, but frontend cutover is still a separate integration task.** The z.ai readiness wave must remove stale pickup-stock and COD-paid semantics and bind the screens to the 22 production routes/projections before the UI can be described as live.
-17. **Returns screens remain prototype-backed until Physical Returns Authority lands.** Demo saleable/quarantine/damaged behavior is acceptance material, not production restocking evidence.
-18. **POS and cashier screens are prototype-backed until POS Authority lands.** Current mock acceptance tests demonstrate intended invariants but are not a production cash ledger.
-19. **Account conveniences remain incomplete.** Some customer account/profile/support interactions are demo/read-only because their production write authorities have not yet been prioritized.
-20. **Reports and AI are derivative.** No report or AI screen may become a hidden writer of stock, payment, refund, return or dispatch truth.
+13. **Mock transport remains available by design.** The service/HTTP adapter is the cutover boundary; mock behavior is useful for demos/regressions but must never silently become production authority.
+14. **Complete storefront/account cutover is not finished.** The UAT portal is increasingly live-API backed, but production should be enabled journey-by-journey only where every required operation has an authoritative server contract.
+15. **Demo selectors/login conveniences must stay out of production UX.** Production staff/rider access must use real identity/session flows.
+16. **Fulfilment and Dispatch/Rider screens must render backend truth.** `allowedActions`, custody, reservation/lot provenance, shortages and handover blockers come from the server; UI-local state cannot override them.
+17. **Returns screens remain non-authoritative until Physical Returns lands.** Prototype saleable/quarantine/damaged flows are acceptance material, not production restock evidence.
+18. **POS/cashier screens remain non-authoritative until POS Authority lands.** Mock flows are not a production cash ledger.
+19. **Product Media UAT is not identical to production media hosting.** Public approved-media checks, private denial, worker behavior and release-stable filesystem storage are UAT evidence; production object-storage promotion still needs explicit verification.
+20. **Reports and AI are derivative.** Neither may become a hidden writer of stock, payment, refund, return, media review or dispatch truth.
 
 ## 4. Smaller UX / operational follow-ups
 
-21. Remaining dense admin tables mostly use responsive column hiding plus contained horizontal scroll; orders, inventory and payments already have dedicated mobile-card alternatives.
-22. Rider status badge contrast should receive another direct-sunlight/accessibility pass when the real rider application/theme is finalized.
-23. Cross-session realtime updates are not implemented across all frontend screens. Mutation invalidation/race protection exist, but push/realtime refresh should be added only after underlying live APIs are connected.
-24. Catalogue/cart convenience state may persist in the browser; it is never stock authority. Checkout/POS must always revalidate against the backend.
-25. Provider credentials, raw webhook evidence and execution secrets must remain server-only. Existing customer/staff/rider projections intentionally omit them.
+21. Remaining dense admin tables should continue receiving responsive/mobile-card QA where staff workflows are frequent.
+22. Rider status badge contrast should receive direct-sunlight/accessibility QA when the final rider theme is promoted.
+23. Cross-session realtime refresh is not universal. Add push/realtime only where the underlying live authority and conflict semantics are already defined.
+24. Catalogue/cart convenience state may persist in the browser, but checkout/POS must always revalidate authoritative price/availability.
+25. Provider credentials, raw webhook evidence, storage secrets and model keys must stay server-only.
 
 ## 5. Current verified checkpoint
 
-Reviewed code checkpoint before this documentation commit is `9515745da95dfaf2c59bee2d7019b18de3c24f3b` on `feat/dispatch-rider-authority-20261013`. A fresh local clean-room run applied migrations **001–007** on PostgreSQL 18.1 and passed **333/333** complete API tests plus **65/65** focused Dispatch/Rider tests; production OpenAPI generated twice at **57 paths** with zero drift; root lint/typecheck/build passed with **48/48** static pages; handoff assertions passed **24/24**; Bun regressions **50/50** with **460** expectations; shared contracts **32/32**; acceptance **24/24**; route sweep **58/58**. The final PostgreSQL-17 proof remains the GitHub API workflow on the draft PR and must be green before merge readiness is claimed.
+Fresh integrated verification on 17 October 2026 used an isolated PostgreSQL 18 database, separate from production/staging: **9/9 migrations applied**, complete API suite **399/399 pass**, focused Dispatch/Rider/manual-provider suite **68/68 pass**, deterministic OpenAPI **69 paths**, root lint/typecheck/production build **PASS** with **49 pages**, Bun regressions **97/97**, shared contracts **32/32**, acceptance **24/24**, and production-server route sweep **68/68**. `git diff --check` also passed.
 
-See `docs/HANDOFF.md` for the implementation sequence and `docs/VERIFICATION.md` for the evidence record.
+A fresh GitHub pull-request run on PostgreSQL 17 remains required before merge readiness is claimed. No production database migration or live-provider activation was performed by this verification.
+
+See `docs/HANDOFF.md`, `docs/VERIFICATION.md`, and `docs/PRODUCT_MEDIA_RUNBOOK.md` for the current boundaries and operational evidence.

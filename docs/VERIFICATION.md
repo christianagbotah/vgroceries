@@ -2,6 +2,56 @@
 
 This file records the current authoritative verification checkpoints for Variety Groceries. Detailed older prototype/browser history remains available in git history; the records below describe the production backend and the frontend compatibility evidence the current branch actually depends on.
 
+## Integrated Dispatch/Rider persistence hardening — 17 October 2026
+
+**Branch under review:** `feat/dispatch-rider-authority-20261013`
+**Reviewed code checkpoint before this documentation commit:** `8355ac1a1d1878389f6c40f3172f4f5252ff3144`
+**Integrated base:** `origin/main` at `d4f72d3dde5c6b409a35075927987134b65437c1`
+
+This checkpoint closes two persistence-level bypasses that remained possible even though application services already enforced the intended Dispatch/Rider workflow. A delivery job now has a database trigger requiring authoritative Fulfilment dispatch handover before assignment, and database checks prevent a failed rider-custody job from being released to `unassigned` before custody is safely back at dispatch/store. Direct database use of `pin` as delivery proof is also regression-tested and remains rejected; supported proof metadata stays `signature` or `photo_note` until an order-bound PIN verifier exists.
+
+### Fresh isolated PostgreSQL / API gate
+
+Verification used a fresh isolated PostgreSQL **18** instance on `127.0.0.1:55433`; no production or staging database was modified. The database was recreated, all **9 migrations** applied, and the repository's complete API suite ran with the same required environment shape used by API CI.
+
+| Check | Result |
+|---|---:|
+| PostgreSQL migrations on fresh database | **9/9 applied** |
+| Complete API integration/security/concurrency suite | **399 passed, 0 failed** |
+| Focused Dispatch/Rider/manual-provider suite | **68 passed, 0 failed** |
+| Focused new schema authority regressions | **6 passed, 0 failed** |
+| Production OpenAPI | **69 paths** |
+| OpenAPI deterministic regeneration | **PASS — two byte-identical generations** |
+| OpenAPI SHA-256 | `0a83f3dc194ca6735558dc082769817c7f3bce2ed855a58193f135878353ca90` |
+| `git diff --check` | **PASS** |
+
+The TDD RED run first proved both persistence bypasses: direct job creation without handover and direct failed-rider-custody release did not reject. After migration `202610170008_dispatch_rider_integrity`, both regressions and the existing lifecycle tests ran GREEN. Existing fixture-only direct DeliveryJob creation was updated to create the same authoritative Fulfilment handover required in real operation.
+
+### Root/frontend compatibility gate
+
+The integrated repository was then verified through the root build and production-server checks:
+
+| Check | Result |
+|---|---:|
+| Frozen dependency install | **PASS** |
+| ESLint | **PASS** |
+| TypeScript `tsc --noEmit --incremental false` | **PASS** |
+| Next.js production build | **PASS** |
+| Static page generation | **49 pages** |
+| Handoff regression script | **PASS** |
+| Bun regression tests | **97 passed, 0 failed** |
+| Shared contract checks | **32 passed, 0 failed** |
+| Business-rule acceptance checks | **24 passed, 0 failed** |
+| Production-server route sweep | **68 passed, 0 failed** |
+
+The production server for these checks was isolated on port **33017**. This verification does not claim a production deployment or a production database migration.
+
+### Integrated authority state at this checkpoint
+
+The 69-path contract includes the previously verified 22-path Dispatch/Rider surface plus the Product Media authority now present in the integrated repository. Product Media supports durable upload/generation/review/gallery workflows and guarded UAT operation, while its runbook deliberately keeps external image generation and production object-storage cutover behind explicit configuration and verification. The current storefront/UAT work therefore must not be interpreted as proof that external AI generation, S3-compatible production storage, live courier APIs, COD remittance, Physical Returns, POS, Hubtel production money movement, live GPS/ETA or notification providers are production-live.
+
+A fresh GitHub PR workflow remains required before merge so PostgreSQL **17**, the repository's CI database version, independently verifies the migration and test suite.
+
 ## Dispatch + Rider Authority — 13 October 2026
 
 **Branch:** `feat/dispatch-rider-authority-20261013`
