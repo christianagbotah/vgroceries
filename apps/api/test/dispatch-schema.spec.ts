@@ -33,6 +33,12 @@ function models() {
   return c;
 }
 
+async function recordDispatchHandover(orderId: string) {
+  await db.fulfilmentRun.create({ data: {
+    orderId, locationId: "loc_accra", handedOverBy: "admin-commerce", handedOverAt: new Date(), handoverKind: "dispatch",
+  } });
+}
+
 test("dispatch schema enforces rider profile and one job/proof per authority root", async () => {
   const c = models();
   const riderUser = await db.user.create({ data: { email: "dispatch-rider@example.test", name: "Rider One", passwordHash: "x", role: "rider" } });
@@ -41,8 +47,10 @@ test("dispatch schema enforces rider profile and one job/proof per authority roo
   await assert.rejects(() => c.riderProfile.update({ where: { id: profile.id }, data: { availabilityState: "busy" } }));
 
   const order = await db.order.create({ data: { reference: "VG-DISPATCH-SCHEMA", customerUserId: "customer-a", customerName: "Ama Customer", customerPhone: "+233241111111", fulfilment: "delivery", zoneId: "zone-required", paymentMethod: "cash_on_delivery", paymentStatus: "unpaid", fulfilmentStatus: "dispatched", deliveryStatus: "unassigned", subtotalMinor: 1990, deliveryFeeMinor: 1200, totalMinor: 3190, verificationKeyVersion: 1, verificationCodeHash: "a".repeat(64), stockConsumedAt: new Date() } });
+  await recordDispatchHandover(order.id);
   const job = await c.deliveryJob.create({ data: { orderId: order.id, assignmentKind: "rider", riderProfileId: profile.id, status: "assigned", custodyState: "dispatch", assignedBy: "admin-commerce", assignedAt: new Date() } });
   await assert.rejects(() => c.deliveryJob.create({ data: { orderId: order.id, assignmentKind: "rider", riderProfileId: profile.id, status: "assigned", custodyState: "dispatch", assignedBy: "admin-commerce", assignedAt: new Date() } }));
+  await assert.rejects(() => c.deliveryProof.create({ data: { deliveryJobId: job.id, method: "pin", reference: "1234", recordedByKind: "rider", recordedById: riderUser.id, recordedAt: new Date() } }));
   const proof = await c.deliveryProof.create({ data: { deliveryJobId: job.id, method: "signature", reference: "sig-ref", recordedByKind: "rider", recordedById: riderUser.id, recordedAt: new Date() } });
   await assert.rejects(() => c.deliveryProof.create({ data: { deliveryJobId: job.id, method: "photo_note", reference: "second", recordedByKind: "rider", recordedById: riderUser.id, recordedAt: new Date() } }));
   assert.equal(proof.method, "signature");
@@ -52,7 +60,11 @@ test("dispatch schema rejects invalid assignment custody status and concurrent a
   const c = models();
   const riderUser = await db.user.create({ data: { email: "dispatch-rider-two@example.test", name: "Rider Two", passwordHash: "x", role: "rider" } });
   const profile = await c.riderProfile.create({ data: { userId: riderUser.id, phone: "+233241234569", kind: "contracted", vehicle: "car", availabilityState: "available", lastAvailabilityChangedAt: new Date() } });
-  const makeOrder = async (reference: string) => db.order.create({ data: { reference, customerUserId: "customer-a", customerName: "Ama Customer", customerPhone: "+233241111111", fulfilment: "delivery", zoneId: "zone-required", paymentMethod: "cash_on_delivery", paymentStatus: "unpaid", fulfilmentStatus: "dispatched", deliveryStatus: "unassigned", subtotalMinor: 1990, deliveryFeeMinor: 1200, totalMinor: 3190, verificationKeyVersion: 1, verificationCodeHash: "b".repeat(64), stockConsumedAt: new Date() } });
+  const makeOrder = async (reference: string) => {
+    const order = await db.order.create({ data: { reference, customerUserId: "customer-a", customerName: "Ama Customer", customerPhone: "+233241111111", fulfilment: "delivery", zoneId: "zone-required", paymentMethod: "cash_on_delivery", paymentStatus: "unpaid", fulfilmentStatus: "dispatched", deliveryStatus: "unassigned", subtotalMinor: 1990, deliveryFeeMinor: 1200, totalMinor: 3190, verificationKeyVersion: 1, verificationCodeHash: "b".repeat(64), stockConsumedAt: new Date() } });
+    await recordDispatchHandover(order.id);
+    return order;
+  };
   const one = await makeOrder("VG-DISPATCH-ACTIVE-1");
   const two = await makeOrder("VG-DISPATCH-ACTIVE-2");
   const three = await makeOrder("VG-DISPATCH-BAD-TARGET");
@@ -64,6 +76,7 @@ test("dispatch schema rejects invalid assignment custody status and concurrent a
 test("dispatch schema requires detail when failure reason is other", async () => {
   const c = models();
   const order = await db.order.create({ data: { reference: "VG-DISPATCH-OTHER-REASON", customerUserId: "customer-a", customerName: "Ama Customer", customerPhone: "+233241111111", fulfilment: "delivery", zoneId: "zone-required", paymentMethod: "cash_on_delivery", paymentStatus: "unpaid", fulfilmentStatus: "dispatched", deliveryStatus: "failed", subtotalMinor: 1990, deliveryFeeMinor: 1200, totalMinor: 3190, verificationKeyVersion: 1, verificationCodeHash: "c".repeat(64), stockConsumedAt: new Date() } });
+  await recordDispatchHandover(order.id);
   await assert.rejects(() => c.deliveryJob.create({ data: { orderId: order.id, assignmentKind: "manual_provider", providerKey: "manual", status: "failed", custodyState: "dispatch", assignedBy: "admin-commerce", assignedAt: new Date(), failedAt: new Date(), failureReasonCode: "other" } }));
   const accepted = await c.deliveryJob.create({ data: { orderId: order.id, assignmentKind: "manual_provider", providerKey: "manual", status: "failed", custodyState: "dispatch", assignedBy: "admin-commerce", assignedAt: new Date(), failedAt: new Date(), failureReasonCode: "other", failureNote: "Courier encountered an unclassified security closure" } });
   assert.equal(accepted.failureReasonCode, "other");
@@ -73,4 +86,45 @@ test("delivery event and proof history are append-only", async () => {
   const c = models();
   const rows = await db.$queryRaw<Array<{ trigger_name: string }>>`SELECT tgname AS trigger_name FROM pg_trigger WHERE NOT tgisinternal AND tgname IN ('DeliveryEvent_append_only','DeliveryProof_append_only') ORDER BY tgname`;
   assert.deepEqual(rows.map((r) => r.trigger_name), ["DeliveryEvent_append_only", "DeliveryProof_append_only"]);
+});
+
+
+test("dispatch schema rejects a job root without authoritative fulfilment handover", async () => {
+  const c = models();
+  const order = await db.order.create({ data: {
+    reference: "VG-DISPATCH-NO-HANDOVER", customerUserId: "customer-a", customerName: "Ama Customer",
+    customerPhone: "+233241111111", fulfilment: "delivery", zoneId: "zone-required",
+    paymentMethod: "cash_on_delivery", paymentStatus: "unpaid", fulfilmentStatus: "dispatched",
+    deliveryStatus: "unassigned", subtotalMinor: 1990, deliveryFeeMinor: 1200, totalMinor: 3190,
+    verificationKeyVersion: 1, verificationCodeHash: "d".repeat(64), stockConsumedAt: new Date(),
+  } });
+  await assert.rejects(() => c.deliveryJob.create({ data: {
+    orderId: order.id, assignmentKind: "manual_provider", providerKey: "manual-test",
+    status: "assigned", custodyState: "dispatch", assignedBy: "admin-commerce", assignedAt: new Date(),
+  } }));
+});
+
+test("dispatch schema cannot release failed rider custody before physical return", async () => {
+  const c = models();
+  const riderUser = await db.user.create({ data: {
+    email: "dispatch-return-custody@example.test", name: "Custody Rider", passwordHash: "x", role: "rider",
+  } });
+  const profile = await c.riderProfile.create({ data: {
+    userId: riderUser.id, phone: "+233241234570", kind: "in_house", vehicle: "motorcycle",
+    availabilityState: "available", lastAvailabilityChangedAt: new Date(),
+  } });
+  const order = await db.order.create({ data: {
+    reference: "VG-DISPATCH-CUSTODY-GUARD", customerUserId: "customer-a", customerName: "Ama Customer",
+    customerPhone: "+233241111111", fulfilment: "delivery", zoneId: "zone-required",
+    paymentMethod: "cash_on_delivery", paymentStatus: "unpaid", fulfilmentStatus: "dispatched",
+    deliveryStatus: "failed", subtotalMinor: 1990, deliveryFeeMinor: 1200, totalMinor: 3190,
+    verificationKeyVersion: 1, verificationCodeHash: "e".repeat(64), stockConsumedAt: new Date(),
+  } });
+  await recordDispatchHandover(order.id);
+  const job = await c.deliveryJob.create({ data: {
+    orderId: order.id, assignmentKind: "rider", riderProfileId: profile.id, status: "failed",
+    custodyState: "rider", assignedBy: "admin-commerce", assignedAt: new Date(), pickedUpAt: new Date(),
+    failedAt: new Date(), failureReasonCode: "customer_unavailable",
+  } });
+  await assert.rejects(() => c.deliveryJob.update({ where: { id: job.id }, data: { status: "unassigned" } }));
 });

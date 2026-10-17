@@ -17,6 +17,7 @@ before(async () => {
   const profile = await db.riderProfile.create({ data: { userId: rider.id, phone: "+233241234570", kind: "in_house", vehicle: "motorcycle", availabilityState: "available", lastAvailabilityChangedAt: new Date() } });
   const order = await db.order.create({ data: { reference: "VG-DISPATCH-EVENT", customerUserId: "customer-a", customerName: "Ama", customerPhone: "+233241111111", fulfilment: "delivery", zoneId: "zone-required", paymentMethod: "cash_on_delivery", paymentStatus: "unpaid", fulfilmentStatus: "dispatched", deliveryStatus: "assigned", subtotalMinor: 1000, deliveryFeeMinor: 100, totalMinor: 1100, verificationKeyVersion: 1, verificationCodeHash: "c".repeat(64), stockConsumedAt: new Date() } });
   orderId = order.id;
+  await db.fulfilmentRun.create({ data: { orderId, locationId: "loc_accra", handedOverBy: "admin-commerce", handedOverAt: new Date(), handoverKind: "dispatch" } });
   jobId = (await db.deliveryJob.create({ data: { orderId, assignmentKind: "rider", riderProfileId: profile.id, status: "assigned", custodyState: "dispatch", assignedBy: "admin-commerce", assignedAt: new Date() } })).id;
 });
 after(async()=>{ await app?.close(); });
