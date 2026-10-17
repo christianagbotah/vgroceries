@@ -23,6 +23,7 @@ export * from "./returns";
 export * from "./inventory";
 export * from "./pos";
 export * from "./dispatch";
+export * from "./logistics";
 export * from "./rider";
 export * from "./ai";
 export * from "./staff";
@@ -30,3 +31,5 @@ export * from "./validation";
 
 export * from "./identity";
 export * from "./foundation";
+
+export * from "./endpoints";
