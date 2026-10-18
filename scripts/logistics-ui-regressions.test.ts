@@ -93,3 +93,43 @@ describe("Logistics immutable workflow builder", () => {
     expect(workflows).toContain("apiOps.logisticsWorkflowDraft");
   });
 });
+
+const routeRulesPath = "src/features/logistics/route-rules-panel.tsx";
+
+describe("Logistics route rules and simulation", () => {
+  test("workspace mounts route rules with explicit selection authority", () => {
+    const workspace = source(workspacePath), rules = source(routeRulesPath);
+    expect(workspace).toContain("<RouteRulesPanel");
+    for (const text of ["Active", "Inactive", "Priority", "Effective from", "Effective to", "Origin", "Delivery zone", "Locality", "Service level", "Workflow version", "Destination kind"])
+      expect(rules).toContain(text);
+    expect(rules).toContain("Higher number wins; two matching rules with the same highest priority are blocked as ambiguous.");
+    expect(rules).toContain("apiOps.logisticsRouteRuleCreate");
+    expect(rules).toContain("apiOps.logisticsRouteRuleUpdate");
+  });
+
+  test("editor encodes collection, pickup, doorstep and direct-route semantics explicitly", () => {
+    const rules = source(routeRulesPath);
+    expect(rules).toContain('form.fulfilment === "collection"');
+    expect(rules).toMatch(/destinationKind\s*:\s*"doorstep"/);
+    expect(rules).toMatch(/terminalRole\s*:\s*"customer_pickup"/);
+    expect(rules).toContain('form.destinationKind === "pickup_point"');
+    expect(rules).toMatch(/terminalRole[^\n]*"final_mile_dispatch"/);
+    expect(rules).toContain("Direct doorstep");
+    expect(rules).toContain("No lane is required when origin is already the final-mile dispatch point.");
+    expect(rules).toContain("active rules are read-only");
+    expect(rules).toContain("Adjacent lane");
+  });
+
+  test("simulation renders matched no-match and ambiguity without mutating route authority", () => {
+    const rules = source(routeRulesPath);
+    expect(rules).toContain("Route simulation");
+    expect(rules).toContain("apiOps.logisticsRouteRuleSimulate");
+    expect(rules).toContain("Matched");
+    expect(rules).toContain("No route configured");
+    expect(rules).toContain("Ambiguous");
+    expect(rules).toContain("conflicting rule");
+    expect(rules).toContain("apiOps.logisticsRouteRuleActivate");
+    expect(rules).toContain("Activate with server preflight");
+    expect(rules).toContain("setActionError");
+  });
+});
