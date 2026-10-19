@@ -34,6 +34,12 @@ import {
   riderJobViewSchema,
   quoteResponseSchema,
   publicOrderSchema,
+  createLogisticsNodeRequestSchema,
+  createLogisticsLaneRequestSchema,
+  routeSimulationRequestSchema,
+  logisticsNodeViewSchema,
+  deliveryWorkflowViewSchema,
+  deliveryRouteRuleViewSchema,
   type Paged,
 } from "../src/services/contracts";
 import { operationMeta } from "../src/services/operation-registry";
@@ -143,6 +149,18 @@ check(
   "validateRequest passes unknown ops through",
   validateRequest("admin.products", undefined).ok
 );
+check(
+  "logistics node schema accepts a safe configured facility",
+  createLogisticsNodeRequestSchema.safeParse({ code: "DEMO_HUB", name: "Demo Hub", publicName: "Demo Hub", kind: "hub", customerVisible: true, active: true }).success
+);
+check(
+  "logistics lane schema rejects self-links before transport",
+  !createLogisticsLaneRequestSchema.safeParse({ originNodeId: "node-a", destinationNodeId: "node-a", mode: "linehaul", typicalMinutes: 60 }).success
+);
+check(
+  "route simulation schema requires a pickup-point identity for remote pickup",
+  !routeSimulationRequestSchema.safeParse({ originNodeId: "node-a", fulfilment: "delivery", deliveryZoneId: "zone_c", destinationKind: "pickup_point" }).success
+);
 
 /* ------------------------------------------------------------------ */
 /* B. Response schema conformance (live service)                       */
@@ -174,6 +192,9 @@ const jobs = await httpOp<{ jobs: unknown[] }>("rider.jobs", { riderId: "rid_2" 
 check("rider.jobs: jobs array conforms", jobs.jobs.every((j) => riderJobViewSchema.safeParse(j).success));
 await conforms("quote", quoteResponseSchema, "checkout.quote", undefined, { lines: [{ variantId: "var_tof_1", quantity: "1" }] });
 await conforms("public order", publicOrderSchema, "checkout.status", { orderId: "ord_1011" });
+await conforms("logistics nodes", logisticsNodeViewSchema.array(), "admin.logistics.nodes");
+await conforms("logistics workflows", deliveryWorkflowViewSchema.array(), "admin.logistics.workflows");
+await conforms("logistics route rules", deliveryRouteRuleViewSchema.array(), "admin.logistics.route-rules");
 
 // Envelope discipline: every response must be a valid {ok,...} envelope.
 {

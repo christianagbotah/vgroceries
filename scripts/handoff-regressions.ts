@@ -293,5 +293,30 @@ function expectThrow(fn: () => unknown): { thrown: boolean; code?: string; messa
   );
 }
 
+/* 9. Logistics L1 mock configuration remains separate from runtime commerce truth */
+{
+  const s = fresh();
+  const runtimeBefore = JSON.stringify({
+    orders: s.orders, reservations: s.reservations, lots: s.lots,
+    paymentAttempts: s.paymentAttempts, refunds: s.refunds, deliveryJobs: s.deliveryJobs,
+  });
+  const create = await handleApi({
+    path: "admin.logistics.node.create", method: "POST", query: new URLSearchParams(),
+    body: { code: "REGRESSION_HUB", name: "Regression Hub", publicName: "Regression Hub", kind: "hub", customerVisible: true, active: true },
+  });
+  assert("9a. logistics mock can configure a demo node", create.status === 200 && (create.json as { ok: boolean }).ok === true);
+  const simulation = await handleApi({
+    path: "admin.logistics.route-rule.simulate", method: "POST", query: new URLSearchParams(),
+    body: { originNodeId: "lnode_demo_hq", fulfilment: "delivery", deliveryZoneId: "zone_c", destinationKind: "doorstep" },
+  });
+  const simulationJson = simulation.json as { ok: boolean; data?: { status?: string } };
+  assert("9b. logistics route simulation is diagnostic", simulation.status === 200 && simulationJson.ok && simulationJson.data?.status === "matched");
+  const runtimeAfter = JSON.stringify({
+    orders: s.orders, reservations: s.reservations, lots: s.lots,
+    paymentAttempts: s.paymentAttempts, refunds: s.refunds, deliveryJobs: s.deliveryJobs,
+  });
+  assert("9c. logistics configuration/simulation leaves mock runtime commerce truth unchanged", runtimeAfter === runtimeBefore);
+}
+
 console.log(`\nRESULT: ${passed} passed, ${failed} failed${failed ? " — " + failures.join("; ") : ""}`);
 process.exit(failed === 0 ? 0 : 1);
