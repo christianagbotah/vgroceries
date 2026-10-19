@@ -32,3 +32,25 @@ test("stale route updates and activation cannot overwrite the winner", async () 
   const deactivated = await routes.update("admin-commerce", created.id, "active-deactivate", { expectedVersion: 3, active: false }, "req-deactivate");
   assert.equal(deactivated.active, false);
 });
+
+test("two same-priority overlapping rules cannot both activate concurrently", async () => {
+  const wf = await publishedDoorstepWorkflow(services.workflows, "route-activation-race");
+  const source = await routeNode(services.nodes, "ACTIVATION_RACE_SOURCE", "head_office");
+  const common = {
+    originNodeId: source.id, deliveryZoneId: "zone-required", fulfilment: "delivery",
+    destinationKind: "doorstep", workflowVersionId: wf.id, priority: 11,
+    stops: [{ position: 1, nodeId: source.id, terminalRole: "final_mile_dispatch" }], legs: [],
+  } as any;
+  const first = await routes.create("admin-commerce", "activation-race-create-a", { ...common, name: "Activation race A" }, "req-activation-race-a");
+  const second = await routes.create("admin-commerce", "activation-race-create-b", { ...common, name: "Activation race B" }, "req-activation-race-b");
+  const outcomes = await Promise.allSettled([
+    routes.activate("admin-commerce", first.id, "activation-race-a", { expectedVersion: first.version }, "req-activate-race-a"),
+    routes.activate("admin-commerce", second.id, "activation-race-b", { expectedVersion: second.version }, "req-activate-race-b"),
+  ]);
+  assert.equal(outcomes.filter((row) => row.status === "fulfilled").length, 1);
+  assert.equal(outcomes.filter((row) => row.status === "rejected").length, 1);
+  const rows = await db.deliveryRouteRule.findMany({ where: { id: { in: [first.id, second.id] } }, select: { active: true } });
+  assert.equal(rows.filter((row) => row.active).length, 1);
+  const rejected = outcomes.find((row) => row.status === "rejected") as PromiseRejectedResult;
+  assert.equal(rejected.reason?.getResponse?.()?.code, "LOGISTICS_ROUTE_AMBIGUOUS");
+});

@@ -153,17 +153,34 @@ export class LogisticsBootstrapService {
       where: { name }, include: { stops: true, legs: true },
     });
     if (existing.length > 1) conflict(`${name} exists more than once; resolve operator configuration before bootstrap.`);
-    if (existing.length === 1) {
-      const rule = existing[0]!;
+    const canonical = existing[0] ?? null;
+    if (canonical) {
       if (
-        !rule.active || rule.originNodeId !== input.sourceNodeId || rule.deliveryZoneId !== input.zoneId || rule.fulfilment !== "delivery" ||
-        rule.destinationKind !== "doorstep" || rule.finalPickupNodeId !== null || rule.workflowVersionId !== input.workflowVersionId ||
-        rule.priority !== 0 || rule.locality !== null || rule.serviceLevel !== null || rule.effectiveFrom !== null || rule.effectiveTo !== null ||
-        rule.stops.length !== 1 || rule.stops[0]?.nodeId !== input.sourceNodeId || rule.stops[0]?.position !== 1 ||
-        rule.stops[0]?.terminalRole !== "final_mile_dispatch" || rule.legs.length !== 0
+        !canonical.active || canonical.originNodeId !== input.sourceNodeId || canonical.deliveryZoneId !== input.zoneId || canonical.fulfilment !== "delivery" ||
+        canonical.destinationKind !== "doorstep" || canonical.finalPickupNodeId !== null || canonical.workflowVersionId !== input.workflowVersionId ||
+        canonical.priority !== 0 || canonical.locality !== null || canonical.serviceLevel !== null || canonical.effectiveFrom !== null || canonical.effectiveTo !== null ||
+        canonical.stops.length !== 1 || canonical.stops[0]?.nodeId !== input.sourceNodeId || canonical.stops[0]?.position !== 1 ||
+        canonical.stops[0]?.terminalRole !== "final_mile_dispatch" || canonical.legs.length !== 0
       ) conflict(`${name} exists with incompatible operator configuration; bootstrap will not overwrite it.`);
-      return rule.id;
     }
+
+    const competing = await tx.deliveryRouteRule.findFirst({
+      where: {
+        active: true,
+        originNodeId: input.sourceNodeId,
+        deliveryZoneId: input.zoneId,
+        fulfilment: "delivery",
+        destinationKind: "doorstep",
+        finalPickupNodeId: null,
+        priority: 0,
+        ...(canonical ? { id: { not: canonical.id } } : {}),
+      },
+      select: { id: true, name: true },
+    });
+    if (competing)
+      conflict(`Active route '${competing.name}' overlaps the guarded direct default for ${input.zoneId}; bootstrap will not create or affirm ambiguous routing.`);
+    if (canonical) return canonical.id;
+
     const rule = await tx.deliveryRouteRule.create({ data: {
       name, originNodeId: input.sourceNodeId, deliveryZoneId: input.zoneId, fulfilment: "delivery",
       destinationKind: "doorstep", workflowVersionId: input.workflowVersionId, priority: 0,

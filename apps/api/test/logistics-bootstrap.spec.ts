@@ -96,3 +96,20 @@ test("direct bootstrap refuses incompatible stable defaults atomically", async (
   assert.equal(node.name, "Operator node");
   assert.equal(node.inventoryLocationId, null);
 });
+
+test("direct bootstrap refuses a competing active broad route instead of creating ambiguity", async () => {
+  await bootstrap.ensureDirectDefaults("admin-commerce", "req-bootstrap-initial");
+  const rule = await db.deliveryRouteRule.findFirstOrThrow({ where: { name: "VG Direct doorstep · zone-required" } });
+  await db.deliveryRouteRule.update({ where: { id: rule.id }, data: { name: "Operator broad direct route" } });
+
+  await assert.rejects(
+    () => bootstrap.ensureDirectDefaults("admin-commerce", "req-bootstrap-competing-route"),
+    (error: any) => error?.getResponse?.()?.code === "CONFLICT",
+  );
+  const broad = await db.deliveryRouteRule.findMany({ where: {
+    originNodeId: rule.originNodeId, deliveryZoneId: "zone-required", fulfilment: "delivery",
+    destinationKind: "doorstep", finalPickupNodeId: null, locality: null, serviceLevel: null, active: true,
+  } });
+  assert.equal(broad.length, 1);
+  assert.equal(broad[0]?.name, "Operator broad direct route");
+});

@@ -1,5 +1,5 @@
 import { Injectable } from "@nestjs/common";
-import { Prisma } from "@prisma/client";
+import { Prisma, type LogisticsLane } from "@prisma/client";
 import {
   logisticsLaneViewSchema,
   type LogisticsLaneMode,
@@ -29,7 +29,7 @@ type LaneListQuery = {
   active?: boolean;
 };
 type Tx = Prisma.TransactionClient;
-type LaneRecord = Prisma.LogisticsLaneGetPayload<{}>;
+type LaneRecord = LogisticsLane;
 
 function conflict(message: string, details?: unknown): never {
   throw new ApiProblem(409, "CONFLICT", message, details);
