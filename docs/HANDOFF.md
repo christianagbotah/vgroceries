@@ -1,6 +1,6 @@
 # Handoff — current authorities and next integration wave
 
-This is the current engineering handoff for Variety Groceries at reviewed code checkpoint `8355ac1a1d1878389f6c40f3172f4f5252ff3144`. The repository combines the Next.js commerce experience with a NestJS/PostgreSQL authority layer for the highest-risk retail operations. The current generated production OpenAPI contains **69 paths**.
+This is the current engineering handoff for Variety Groceries at Wave L1 code checkpoint `3752722`. The generated production OpenAPI contains **82 paths**.
 
 ## 1. Current backend authority boundary
 
@@ -12,74 +12,50 @@ The backend currently owns these capability boundaries:
 4. **Payments** — provider-neutral initiation, raw provider evidence, authoritative reconciliation, duplicate-callback safety, late-payment recovery and administrator ledger views.
 5. **Refunds** — durable refund obligations, approval/execution/reconciliation, cumulative capture limits, retries and safe customer projections.
 6. **Fulfilment + stock handover** — confirmation, picking, correction, packing and exactly-once handover/collection stock depletion.
-7. **Dispatch + rider operations** — post-handover queue, durable rider profiles/jobs/events/proof metadata, assignment/reassignment, declared/effective availability, custody-safe delivery lifecycle, failure/reschedule/return-to-store handling and explicit manual-provider fallback.
-8. **Product Media authority** — durable media records, upload/presign-complete flow, generation-job lifecycle, review/approval/rejection/archive, featured/reorder/brand-mode controls and protected/public content serving. The checked-in UAT tooling keeps storage/provider capabilities explicit rather than pretending external integrations are live.
+7. **Dispatch + rider operations** — post-handover queue, durable rider profiles/jobs/events/proof metadata, assignment/reassignment, custody-safe delivery lifecycle, failure/reschedule/return-to-store handling and explicit manual-provider fallback.
+8. **Product Media authority** — durable media records, upload/generation-job/review/gallery authority plus guarded UAT tooling.
+9. **Logistics Network & Workflow Configuration (Wave L1)** — configurable nodes/hubs, directed lanes, immutable workflow versions, deterministic route rules, activation preflight, route simulation, admin workspace and guarded direct-route bootstrap.
 
-The Dispatch/Rider surface remains **22 paths**. Product Media is now part of the integrated contract and guarded UAT workflow; it is no longer a future placeholder milestone.
+## 2. Logistics configuration boundary
 
-## 2. Inventory, handover and custody invariants
+Business owners can model head office, warehouses, fulfilment centres, hubs, outlets, pickup points and other business-defined facilities without hard-coded regional/district/zonal levels. Direct routes may have one stop and zero lanes; multi-hop routes require explicit active lanes for every adjacent stop. Highest numeric route priority wins; an equal-highest match fails as ambiguous rather than using a hidden browser/server tiebreaker.
 
-The central stock rule remains:
+Published delivery workflows are immutable. Route rules pin exact published versions. Doorstep routes require a workflow ending in `delivered`; pickup/collection routes require `customer_collected`. L1 configuration/simulation has a regression proving it does not mutate Order, Reservation, StockLot, StockDepletion, FulfilmentRun, DeliveryJob, PaymentAttempt or Refund runtime authority.
+
+See `docs/WAVE_L1_LOGISTICS_CONFIGURATION_HANDOFF.md` and `docs/LOGISTICS_CONFIGURATION_RUNBOOK.md`.
+
+## 3. Inventory, handover and custody invariants
 
 `availableToSell = sellable physical stock - active reservations - safety stock`
 
-Picking and packing do **not** decrement physical stock. Delivery stock is consumed once at Fulfilment handover to dispatch; collection stock is consumed once at customer handover. Dispatch/Rider operations never become a second stock-depletion authority.
+Picking and packing do **not** decrement physical stock. Delivery stock is consumed once at Fulfilment handover to dispatch; collection stock is consumed once at customer handover. Dispatch/Rider and Logistics configuration never become a second stock-depletion authority. A parcel visiting a logistics node does not create saleable inventory. Any goods physically returned require future Physical Returns inspection/disposition before inventory can increase.
 
-The database now reinforces the application boundary. A DeliveryJob cannot be rooted without authoritative delivery handover evidence, and status/custody combinations cannot release failed rider custody as unassigned before the parcel is actually returned. Store-returned custody requires a recorded return timestamp. Rider pickup therefore changes custody only; delivery completion changes operational outcome/customer custody only; failed or returned delivery never makes stock saleable again.
+## 4. Delivery, COD and provider boundaries
 
-Any goods that physically come back must later enter Physical Returns inspection/disposition before inventory can increase.
+Delivery completion, COD cash collection and rider remittance remain separate dimensions. A delivered COD job is not settled payment. Supported delivery-proof metadata remains `signature` or `photo_note`; `pin` stays closed until an order-bound verifier exists. Manual-provider assignment records staff evidence only and does not fabricate courier booking, GPS or ETA.
 
-## 3. Delivery, COD and proof boundaries
+Product Media backend/UAT authority is implemented, but external image generation and S3-compatible production storage are not claimed active without explicit credentialed verification.
 
-Delivery completion, COD cash collection and rider remittance are separate dimensions. A delivered COD job must not be interpreted as settled payment. There is still no rider-cash-liability/remittance ledger in this authority.
+## 5. Frontend/cutover rule
 
-Supported delivery-proof metadata is `signature` or `photo_note`. `pin` is deliberately rejected until a secure order-bound verifier exists. Dispatch proof metadata is not the same as Product Media storage; secure delivery-proof binary storage remains a separate future boundary.
-
-Manual-provider assignment records staff evidence only. It does not perform courier network calls and does not fabricate provider booking, GPS movement or ETA.
-
-## 4. Product Media boundary
-
-Product Media has moved from planned work into an implemented backend/UAT authority. The repository contains upload, generation-job, review, approval and gallery controls plus guarded deployment/runtime tooling. The UAT runbook uses a stable filesystem media root and supports deterministic fake-provider validation.
-
-This does **not** mean every production provider is active. S3-compatible production storage still requires its own credentialed cutover and verification, and external AI image generation remains disabled until a real provider key/configuration is deliberately enabled and checked. Product ingredients, allergens, nutrition, health claims and lot expiry must continue to come from typed/authoritative data rather than image generation or inference.
-
-See `docs/PRODUCT_MEDIA_RUNBOOK.md` for the operational boundary.
-
-## 5. Frontend swap/cutover rule
-
-Frontend operations still use the service/HTTP adapter boundary and may retain mock support for demos/regressions. Production journeys must bind to real server projections and `allowedActions` capability-by-capability; visual state is never authority.
-
-In particular, the UI must not infer stock depletion, mark COD paid from delivery, present returned goods as restocked, expose unapproved product media, or fabricate courier/GPS/ETA/provider state. The public/UAT portal work is useful cutover evidence but is not a blanket declaration that every storefront/account route is production-authoritative.
+Frontend operations use the service/HTTP adapter boundary and may retain mock support for demos/regressions. Production journeys must bind to server projections and `allowedActions`; visual state is never authority. The UI must not infer stock depletion, mark COD paid from delivery, present returned goods as restocked, expose unapproved media, or claim parcel movement/provider delivery from configuration alone.
 
 ## 6. Next implementation sequence
 
-The recommended next authority sequence is:
-
-1. **COD cash collection + rider remittance** — durable customer cash collection, rider liability, remittance and reconciliation without conflating those events with delivery status.
-2. **Physical Returns Authority** — actual received quantities, inspection/disposition, saleable restock vs quarantine/damaged/unsafe outcomes, cumulative return limits and lot provenance.
-3. **POS Authority** — counter-sale workflow reusing the exactly-once stock-depletion primitive with cashier sessions and cash/MoMo/card settlement boundaries.
-4. **External delivery-provider adapters** — keep in-house riders first-class while adding configured providers behind honest manual/API capability modes; no provider is API-live until credentials, booking/status/webhooks and failure behavior are verified.
-5. **Product-content completion** — finish typed category-driven grocery specifications and production media-provider/storage cutover; never invent ingredients, allergens, nutrition or health claims.
-6. **Remaining storefront/account production cutover** — replace residual mock-backed journeys only after their required write authorities are real.
-7. **Reports, notifications and AI automation** — derive from authoritative ledgers and route any write/action through the same permission and transaction boundaries as human operations.
+1. **Wave L2 — Shipment Route Execution + Dispatch Integration** — Shipment/Stop/Leg runtime identities, immutable route snapshot, append-only movement events, Fulfilment handover activation, depart/arrive/reroute and final-mile readiness.
+2. **Wave L3 — Advanced Customer Tracking** — truthful route-aware customer timeline derived only from committed shipment/dispatch events.
+3. **Wave L4 — Notification Authority & Inbox** — durable in-app notifications plus provider-backed Email/SMS/WhatsApp delivery ledger, retries, suppression/preferences and receipts.
+4. **COD cash collection + rider remittance** — customer cash fact, rider liability, remittance/allocation/reconciliation, separate from delivery.
+5. **Physical Returns Authority** — physical receipt, inspection/disposition and controlled restock/quarantine/damage outcomes.
+6. **POS Authority** — counter sales/cashier sessions reusing exactly-once stock depletion.
+7. **External courier adapters, L5 SLA/AI route assistance, product-content/provider cutovers and remaining storefront production cutover** — each behind explicit authority and verification.
 
 ## 7. Deliberately closed scope
 
-This checkpoint does **not** claim production-live COD collection/remittance, Physical Returns/restocking, POS cashier authority, external courier network integration, live GPS/ETA, delivery-proof binary storage, Hubtel production credentials/money movement, SMS/email/push, external AI image generation, S3-compatible Product Media production storage, complete typed grocery specifications, or complete public-storefront cutover.
+This checkpoint does **not** claim live Shipment movement, route-aware customer tracking cutover, Email/SMS/WhatsApp/in-app Notification Authority, COD collection/remittance, Physical Returns/restocking, POS cashier authority, external courier network integration, live GPS/ETA, delivery-proof binary storage, Hubtel production credentials/money movement, external AI image generation, S3-compatible Product Media production storage, complete typed grocery specifications, or complete public-storefront cutover.
 
 ## 8. Verification checkpoint
 
-Fresh integrated verification against code checkpoint `8355ac1a1d1878389f6c40f3172f4f5252ff3144` produced:
+Wave L1 clean-room verification has applied **10/10 migrations**, generated deterministic **82-path** OpenAPI (`fe1de21570acdea4f22297c1cda1952efcf0f092feabf9ecdce04fadbd3d365b`), passed root lint/typecheck/production build with **50/50 static pages**, **27/27** handoff regressions, **114/114** Bun tests (**1009 expectations**), **38/38** contract checks, **24/24** acceptance checks and **60/60** production-server route sweep. The exact-head complete API result is recorded in `docs/WAVE_L1_LOGISTICS_CONFIGURATION_HANDOFF.md` and `docs/VERIFICATION.md` after its running final process completes.
 
-- fresh isolated PostgreSQL 18 database: **9/9 migrations applied**;
-- complete API integration/security/concurrency suite: **399/399 pass**;
-- focused Dispatch/Rider/manual-provider suite: **68/68 pass**;
-- deterministic production OpenAPI: **69 paths**, two byte-identical generations;
-- root frozen install, ESLint, strict TypeScript and Next.js production build: **PASS**;
-- static build output: **49 pages**;
-- Bun regression suite: **97/97 pass**;
-- shared contract checks: **32/32 pass**;
-- business acceptance checks: **24/24 pass**;
-- production-server route sweep: **68/68 pass**.
-
-The local database was isolated from production/staging. A fresh GitHub PR run on PostgreSQL 17 remains required before merge readiness is claimed. See `docs/VERIFICATION.md` for the evidence record and `docs/KNOWN_ISSUES.md` for remaining boundaries.
+GitHub PostgreSQL 17 workflows remain required before merge. No production database migration or live-provider activation is implied by this local verification.

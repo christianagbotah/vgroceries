@@ -1,5 +1,61 @@
 # Verification record
 
+## Wave L1 Logistics Network & Workflow Configuration — 19 October 2026
+
+**Branch under review:** `feat/logistics-network-workflow-l1-20261017`
+**Reviewed code checkpoint before verification-doc commit:** `3752722`
+**Integrated base:** `origin/main` at `b82dc55d4c17ad11268b65c8c1001b317924abe8`
+
+Wave L1 adds production configuration authority for Logistics Nodes, Lanes, immutable Delivery Workflow versions, deterministic Route Rules, route simulation and the `/admin/logistics` workspace. It deliberately does not add Shipment movement, customer tracking cutover or notifications.
+
+### Clean-room database and API evidence
+
+A fresh isolated PostgreSQL database on `127.0.0.1:55433`, separate from production/staging, applied all **10 migrations** through `202610170009_logistics_configuration`. The final late-review regression first reproduced a missing route/workflow compatibility invariant: a doorstep route could bind a `customer_collected` workflow. The root cause was route validation checking only `published` status. Commit `3752722` now requires doorstep workflows to end in `delivered` and pickup/collection workflows to end in `customer_collected`; the exact RED test became GREEN and adjacent route/concurrency/bootstrap/authority-boundary suites passed **11/11**.
+
+| Check | Result |
+|---|---:|
+| Empty database migrations | **10/10 applied** |
+| Final exact-head complete API suite | **429/429 passed, 0 failed** |
+| Final focused L1 Logistics suite | **30 passed, 0 failed** |
+| Post-review affected route/bootstrap/boundary suite | **11 passed, 0 failed** |
+| Production OpenAPI | **82 paths** |
+| OpenAPI deterministic regeneration | **PASS — two byte-identical generations** |
+| OpenAPI SHA-256 | `fe1de21570acdea4f22297c1cda1952efcf0f092feabf9ecdce04fadbd3d365b` |
+| `git diff --check` | **PASS** |
+
+### Root/frontend compatibility evidence
+
+| Check | Result |
+|---|---:|
+| ESLint | **PASS** |
+| TypeScript `tsc --noEmit --incremental false` | **PASS** |
+| Next.js production build | **PASS** |
+| Static page generation | **50/50** |
+| Handoff regression assertions | **27/27** |
+| Bun regression suite | **114/114 — 1009 expectations across 15 files** |
+| Shared contract checks | **38/38** |
+| Business-rule acceptance checks | **24/24** |
+| Production-server route sweep | **60/60 HTTP 200** |
+
+The production build includes `/admin/logistics`. Contract checks cover the new logistics node/lane/simulation schemas and live mock-adapter response shapes. Handoff regression 9 proves configuration/simulation leaves runtime mock commerce state unchanged.
+
+### Proven L1 invariants
+
+- business hierarchy is configurable rather than hard-coded as regional/district/zonal states;
+- LogisticsNode remains distinct from Inventory Location and transit does not restock;
+- published workflow content is immutable and stale draft writes fail with conflict;
+- direct routes can have one stop/zero lanes; multi-hop routes require active adjacent lanes;
+- route selection is server-owned, highest-priority and fail-closed on no-match/ambiguity;
+- route activation is concurrency-safe and bootstrap refuses conflicting/ambiguous defaults;
+- doorstep route workflow ends in `delivered`; pickup/collection workflow ends in `customer_collected`;
+- L1 create/update/publish/activate/simulate operations do not mutate runtime commerce authorities.
+
+### Deliberately not production-live
+
+L2 Shipment movement, L3 route-aware customer tracking, L4 Email/SMS/WhatsApp/in-app notification delivery, L5 SLA/AI route automation, COD collection/remittance, Physical Returns, POS, live courier APIs, GPS/ETA, Hubtel production activation and final Product Media provider/storage cutover remain closed unless independently verified.
+
+GitHub PostgreSQL 17 CI is still required on the final pushed branch before merge.
+
 This file records the current authoritative verification checkpoints for Variety Groceries. Detailed older prototype/browser history remains available in git history; the records below describe the production backend and the frontend compatibility evidence the current branch actually depends on.
 
 ## Integrated Dispatch/Rider persistence hardening — 17 October 2026

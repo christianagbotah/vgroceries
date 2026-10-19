@@ -1160,6 +1160,174 @@ export async function handleApi(req: ApiRequest): Promise<ApiResult> {
         return ok({ status: po.status });
       }
 
+      /* ---------------- Logistics L1 configuration (development-only mock) ---------------- */
+      case "admin.logistics.nodes": {
+        const term = q("q").trim().toLowerCase();
+        const kind = q("kind");
+        const active = q("active");
+        return ok(store.logisticsNodes.filter((node) =>
+          (!term || `${node.code} ${node.name} ${node.publicName}`.toLowerCase().includes(term)) &&
+          (!kind || node.kind === kind) && (!active || node.active === (active === "true"))));
+      }
+      case "admin.logistics.node": {
+        const node = store.logisticsNodes.find((row) => row.id === q("nodeId"));
+        if (!node) throw new OpError("VALIDATION_FAILED", "Demo logistics node not found.");
+        return ok(node);
+      }
+      case "admin.logistics.node.create": {
+        const now = nowIso();
+        const code = b("code").trim().toUpperCase();
+        if (!code || store.logisticsNodes.some((row) => row.code === code)) throw new OpError("VALIDATION_FAILED", "Demo logistics node code must be unique.");
+        const node = {
+          id: nextId("lnode"), code, name: b("name").trim(), publicName: b("publicName").trim(), kind: b("kind"),
+          kindLabel: b("kindLabel") || null, parentNodeId: b("parentNodeId") || null, inventoryLocationId: b("inventoryLocationId") || null,
+          addressLine: b("addressLine") || null, locality: b("locality") || null, region: b("region") || null, ghanaPostGps: b("ghanaPostGps") || null,
+          publicDirections: b("publicDirections") || null, publicContact: b("publicContact") || null,
+          customerVisible: body.customerVisible !== false, active: body.active !== false, createdAt: now, updatedAt: now,
+          dependencies: { activeIncomingLanes: 0, activeOutgoingLanes: 0, activeRouteRules: 0, childNodes: 0, inventoryLocationExists: !!b("inventoryLocationId"), inventoryLocationActive: !!b("inventoryLocationId") },
+        } as any;
+        store.logisticsNodes.push(node);
+        return ok(node);
+      }
+      case "admin.logistics.node.update": {
+        const node = store.logisticsNodes.find((row) => row.id === q("nodeId"));
+        if (!node) throw new OpError("VALIDATION_FAILED", "Demo logistics node not found.");
+        for (const key of ["name","publicName","kind","kindLabel","parentNodeId","inventoryLocationId","addressLine","locality","region","ghanaPostGps","publicDirections","publicContact"] as const)
+          if (Object.prototype.hasOwnProperty.call(body, key)) (node as any)[key] = body[key] || null;
+        if (typeof body.code === "string") node.code = body.code.trim().toUpperCase();
+        if (typeof body.customerVisible === "boolean") node.customerVisible = body.customerVisible;
+        if (typeof body.active === "boolean") node.active = body.active;
+        node.updatedAt = nowIso();
+        return ok(node);
+      }
+      case "admin.logistics.lanes": {
+        const term = q("q").trim().toLowerCase();
+        const mode = q("mode"), origin = q("originNodeId"), destination = q("destinationNodeId"), active = q("active");
+        return ok(store.logisticsLanes.filter((lane) => {
+          const o = store.logisticsNodes.find((row) => row.id === lane.originNodeId), d = store.logisticsNodes.find((row) => row.id === lane.destinationNodeId);
+          return (!term || `${o?.code} ${o?.publicName} ${d?.code} ${d?.publicName}`.toLowerCase().includes(term)) &&
+            (!mode || lane.mode === mode) && (!origin || lane.originNodeId === origin) && (!destination || lane.destinationNodeId === destination) &&
+            (!active || lane.active === (active === "true"));
+        }));
+      }
+      case "admin.logistics.lane": {
+        const lane = store.logisticsLanes.find((row) => row.id === q("laneId"));
+        if (!lane) throw new OpError("VALIDATION_FAILED", "Demo logistics lane not found.");
+        return ok(lane);
+      }
+      case "admin.logistics.lane.create": {
+        const origin = store.logisticsNodes.find((row) => row.id === b("originNodeId"));
+        const destination = store.logisticsNodes.find((row) => row.id === b("destinationNodeId"));
+        if (!origin || !destination || origin.id === destination.id) throw new OpError("VALIDATION_FAILED", "Demo lane requires two different configured nodes.");
+        const now = nowIso();
+        const lane = {
+          id: nextId("llane"), originNodeId: origin.id, destinationNodeId: destination.id, mode: b("mode"), providerKey: b("providerKey") || null,
+          typicalMinutes: n("typicalMinutes", 60), serviceDays: Array.isArray(body.serviceDays) ? body.serviceDays : [], cutoffLocalTime: b("cutoffLocalTime") || null,
+          priority: n("priority", 0), active: body.active !== false,
+          origin: { id: origin.id, code: origin.code, publicName: origin.publicName }, destination: { id: destination.id, code: destination.code, publicName: destination.publicName },
+          activeRouteRuleCount: 0, createdAt: now, updatedAt: now,
+        } as any;
+        store.logisticsLanes.push(lane);
+        return ok(lane);
+      }
+      case "admin.logistics.lane.update": {
+        const lane = store.logisticsLanes.find((row) => row.id === q("laneId"));
+        if (!lane) throw new OpError("VALIDATION_FAILED", "Demo logistics lane not found.");
+        for (const key of ["originNodeId","destinationNodeId","mode","providerKey","typicalMinutes","serviceDays","cutoffLocalTime","priority","active"] as const)
+          if (Object.prototype.hasOwnProperty.call(body, key)) (lane as any)[key] = body[key];
+        const origin = store.logisticsNodes.find((row) => row.id === lane.originNodeId), destination = store.logisticsNodes.find((row) => row.id === lane.destinationNodeId);
+        if (origin) lane.origin = { id: origin.id, code: origin.code, publicName: origin.publicName };
+        if (destination) lane.destination = { id: destination.id, code: destination.code, publicName: destination.publicName };
+        lane.updatedAt = nowIso();
+        return ok(lane);
+      }
+      case "admin.logistics.workflows": return ok(store.logisticsWorkflows);
+      case "admin.logistics.workflow": {
+        const workflow = store.logisticsWorkflows.find((row) => row.id === q("templateId"));
+        if (!workflow) throw new OpError("VALIDATION_FAILED", "Demo logistics workflow not found.");
+        return ok(workflow);
+      }
+      case "admin.logistics.workflow.create": {
+        const now = nowIso(), templateId = nextId("lwf"), versionId = nextId("lwv");
+        const workflow = { id: templateId, name: b("name").trim(), description: b("description") || null, active: body.active !== false, currentPublishedVersionId: null,
+          versions: [{ id: versionId, templateId, versionNumber: 1, status: "draft", revision: 1, createdBy: "demo-owner", createdAt: now, publishedBy: null, publishedAt: null, defaultSlaMinutes: null, stages: [] }],
+          createdAt: now, updatedAt: now } as any;
+        store.logisticsWorkflows.push(workflow); return ok(workflow);
+      }
+      case "admin.logistics.workflow.draft": {
+        const workflow = store.logisticsWorkflows.find((row) => row.id === q("templateId"));
+        if (!workflow || !workflow.currentPublishedVersionId) throw new OpError("VALIDATION_FAILED", "Publish the demo workflow before cloning another version.");
+        if (workflow.versions.some((version) => version.status === "draft")) throw new OpError("VALIDATION_FAILED", "Demo workflow already has a draft.");
+        const source = workflow.versions.find((version) => version.id === workflow.currentPublishedVersionId)!;
+        const draft = { ...structuredClone(source), id: nextId("lwv"), versionNumber: Math.max(...workflow.versions.map((version) => version.versionNumber)) + 1,
+          status: "draft", revision: 1, createdBy: "demo-owner", createdAt: nowIso(), publishedBy: null, publishedAt: null,
+          stages: source.stages.map((stage) => ({ ...structuredClone(stage), id: nextId("lstg") })) } as any;
+        workflow.versions.push(draft); workflow.updatedAt = nowIso(); return ok(draft);
+      }
+      case "admin.logistics.workflow.save": {
+        const workflow = store.logisticsWorkflows.find((row) => row.id === q("templateId"));
+        const version = workflow?.versions.find((row) => row.id === q("versionId"));
+        if (!workflow || !version || version.status !== "draft") throw new OpError("VALIDATION_FAILED", "Editable demo workflow draft not found.");
+        if (version.revision !== n("expectedRevision")) throw new OpError("IDEMPOTENCY_CONFLICT", "Demo workflow draft changed elsewhere.");
+        version.defaultSlaMinutes = typeof body.defaultSlaMinutes === "number" ? body.defaultSlaMinutes : null;
+        version.stages = ((body.stages ?? []) as any[]).map((stage) => ({ ...structuredClone(stage), id: nextId("lstg") }));
+        version.revision += 1; workflow.updatedAt = nowIso(); return ok(version);
+      }
+      case "admin.logistics.workflow.publish": {
+        const workflow = store.logisticsWorkflows.find((row) => row.id === q("templateId"));
+        const version = workflow?.versions.find((row) => row.id === b("versionId"));
+        if (!workflow || !version || version.status !== "draft") throw new OpError("VALIDATION_FAILED", "Publishable demo workflow draft not found.");
+        if (version.revision !== n("expectedRevision")) throw new OpError("IDEMPOTENCY_CONFLICT", "Demo workflow draft changed elsewhere.");
+        version.status = "published"; version.publishedBy = "demo-owner"; version.publishedAt = nowIso(); workflow.currentPublishedVersionId = version.id; workflow.updatedAt = nowIso(); return ok(workflow);
+      }
+      case "admin.logistics.route-rules": return ok(store.logisticsRouteRules);
+      case "admin.logistics.route-rule": {
+        const rule = store.logisticsRouteRules.find((row) => row.id === q("ruleId"));
+        if (!rule) throw new OpError("VALIDATION_FAILED", "Demo logistics route rule not found."); return ok(rule);
+      }
+      case "admin.logistics.route-rule.create": {
+        const now = nowIso(), ruleId = nextId("lroute");
+        const stops = ((body.stops ?? []) as any[]).map((stop) => ({ ...structuredClone(stop), id: nextId("lrstop") }));
+        const legs = ((body.legs ?? []) as any[]).map((leg) => ({ ...structuredClone(leg), id: nextId("lrleg"), originStopId: stops[leg.position - 1]?.id, destinationStopId: stops[leg.position]?.id }));
+        const rule = { id: ruleId, name: b("name"), originNodeId: b("originNodeId"), deliveryZoneId: b("deliveryZoneId") || null, fulfilment: b("fulfilment"), locality: b("locality") || null,
+          destinationKind: b("destinationKind"), finalPickupNodeId: b("finalPickupNodeId") || null, serviceLevel: b("serviceLevel") || null, workflowVersionId: b("workflowVersionId"),
+          priority: n("priority",0), effectiveFrom: b("effectiveFrom") || null, effectiveTo: b("effectiveTo") || null, stops, legs, active: false, version: 1, createdBy: "demo-owner", createdAt: now, updatedAt: now } as any;
+        store.logisticsRouteRules.push(rule); return ok(rule);
+      }
+      case "admin.logistics.route-rule.update": {
+        const rule = store.logisticsRouteRules.find((row) => row.id === q("ruleId"));
+        if (!rule) throw new OpError("VALIDATION_FAILED", "Demo logistics route rule not found.");
+        if (rule.version !== n("expectedVersion")) throw new OpError("IDEMPOTENCY_CONFLICT", "Demo route rule changed elsewhere.");
+        for (const key of ["name","deliveryZoneId","locality","destinationKind","finalPickupNodeId","serviceLevel","workflowVersionId","priority","effectiveFrom","effectiveTo","active"] as const)
+          if (Object.prototype.hasOwnProperty.call(body,key)) (rule as any)[key]=body[key];
+        if (Array.isArray(body.stops)) { rule.stops = (body.stops as any[]).map((stop) => ({ ...structuredClone(stop), id: stop.id || nextId("lrstop") })); }
+        if (Array.isArray(body.legs)) { rule.legs = (body.legs as any[]).map((leg) => ({ ...structuredClone(leg), id: leg.id || nextId("lrleg"), originStopId: leg.originStopId || rule.stops[leg.position-1]?.id, destinationStopId: leg.destinationStopId || rule.stops[leg.position]?.id })); }
+        rule.version += 1; rule.updatedAt = nowIso(); return ok(rule);
+      }
+      case "admin.logistics.route-rule.activate": {
+        const rule = store.logisticsRouteRules.find((row) => row.id === q("ruleId"));
+        if (!rule) throw new OpError("VALIDATION_FAILED", "Demo logistics route rule not found.");
+        if (rule.version !== n("expectedVersion")) throw new OpError("IDEMPOTENCY_CONFLICT", "Demo route rule changed elsewhere.");
+        rule.active = true; rule.version += 1; rule.updatedAt = nowIso(); return ok(rule);
+      }
+      case "admin.logistics.route-rule.simulate": {
+        const normalize = (value: unknown) => typeof value === "string" && value.trim() ? value.trim().toLowerCase().replace(/\s+/g," ") : null;
+        const at = body.at ? new Date(String(body.at)) : new Date();
+        const locality = normalize(body.locality), serviceLevel = normalize(body.serviceLevel);
+        const matched = store.logisticsRouteRules.filter((rule) => rule.active && rule.originNodeId === body.originNodeId && rule.fulfilment === body.fulfilment &&
+          (rule.fulfilment !== "delivery" || rule.deliveryZoneId === body.deliveryZoneId) && rule.destinationKind === body.destinationKind &&
+          (rule.destinationKind !== "pickup_point" || rule.finalPickupNodeId === body.finalPickupNodeId) && (!rule.locality || rule.locality === locality) && (!rule.serviceLevel || rule.serviceLevel === serviceLevel) &&
+          (!rule.effectiveFrom || new Date(rule.effectiveFrom) <= at) && (!rule.effectiveTo || new Date(rule.effectiveTo) >= at));
+        if (!matched.length) return ok({ status: "no_match", candidates: [] });
+        const top = Math.max(...matched.map((rule) => rule.priority));
+        const candidates = matched.filter((rule) => rule.priority === top).map((rule) => ({
+          ruleId: rule.id, name: rule.name, priority: rule.priority, workflowVersionId: rule.workflowVersionId, destinationKind: rule.destinationKind,
+          stops: rule.stops.map((stop) => { const node=store.logisticsNodes.find((row)=>row.id===stop.nodeId)!; return { position: stop.position, nodeId: stop.nodeId, nodeCode: node?.code ?? "DEMO", nodePublicName: node?.publicName ?? "Demo node", terminalRole: stop.terminalRole }; }),
+          legs: rule.legs.map((leg) => { const lane=store.logisticsLanes.find((row)=>row.id===leg.laneId); return { position: leg.position, laneId: leg.laneId, mode: lane?.mode ?? "linehaul", originNodeId: lane?.originNodeId ?? "", destinationNodeId: lane?.destinationNodeId ?? "" }; }),
+        }));
+        return ok(candidates.length > 1 ? { status: "ambiguous", candidates } : { status: "matched", selectedRule: candidates[0], candidates });
+      }
+
       /* ---------------- Staff: dispatch & riders ---------------- */
       case "admin.dispatch.queue": {
         sweepExpiredReservations(store);

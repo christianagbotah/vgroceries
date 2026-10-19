@@ -43,6 +43,9 @@ import type {
   Supplier,
   StaffUser,
 } from "@/types/domain";
+import type {
+  LogisticsNodeView, LogisticsLaneView, DeliveryWorkflowView, DeliveryRouteRuleView,
+} from "../contracts";
 import { buildCatalog, seedCategories, seedSuppliers } from "./seed-catalog";
 import {
   buildAdjustments,
@@ -98,6 +101,10 @@ export interface VgStore {
   riders: Rider[];
   providers: DeliveryProvider[];
   deliveryJobs: DeliveryJob[];
+  logisticsNodes: LogisticsNodeView[];
+  logisticsLanes: LogisticsLaneView[];
+  logisticsWorkflows: DeliveryWorkflowView[];
+  logisticsRouteRules: DeliveryRouteRuleView[];
   returnRequests: ReturnRequest[];
   returnLines: ReturnLine[];
   refunds: Refund[];
@@ -161,6 +168,33 @@ function seedStore(): VgStore {
     riders: seedRiders,
     providers: seedProviders,
     deliveryJobs: buildDeliveryJobs(now),
+    logisticsNodes: [{
+      id: "lnode_demo_hq", code: "DEMO_HQ", name: "Accra Head Office (demo)", publicName: "Accra Head Office (demo)",
+      kind: "head_office", inventoryLocationId: "loc_store", customerVisible: true, active: true,
+      addressLine: "Demo source facility", locality: "Accra", region: "Greater Accra",
+      createdAt: now.toISOString(), updatedAt: now.toISOString(),
+      dependencies: { activeIncomingLanes: 0, activeOutgoingLanes: 0, activeRouteRules: 1, childNodes: 0, inventoryLocationExists: true, inventoryLocationActive: true },
+    }],
+    logisticsLanes: [],
+    logisticsWorkflows: [{
+      id: "lwf_demo_direct", name: "Direct doorstep workflow (demo)", description: "Development-only logistics configuration.", active: true,
+      currentPublishedVersionId: "lwv_demo_direct_1", createdAt: now.toISOString(), updatedAt: now.toISOString(),
+      versions: [{
+        id: "lwv_demo_direct_1", templateId: "lwf_demo_direct", versionNumber: 1, status: "published", revision: 1,
+        createdBy: "demo-owner", createdAt: now.toISOString(), publishedBy: "demo-owner", publishedAt: now.toISOString(),
+        defaultSlaMinutes: 240,
+        stages: [
+          { id: "lstg_demo_placed", stageKey: "placed", eventKind: "order_placed", customerTitleTemplate: "Order placed", adminLabel: "Order placed", customerVisible: true, showPlannedWhenPending: false, sortOrder: 1, exceptionSeverity: "info", notificationsAllowed: false },
+          { id: "lstg_demo_delivered", stageKey: "delivered", eventKind: "delivered", customerTitleTemplate: "Delivered", adminLabel: "Delivered", customerVisible: true, showPlannedWhenPending: true, sortOrder: 2, exceptionSeverity: "info", notificationsAllowed: false },
+        ],
+      }],
+    }],
+    logisticsRouteRules: [{
+      id: "lroute_demo_direct", name: "Accra Central direct doorstep (demo)", originNodeId: "lnode_demo_hq", deliveryZoneId: "zone_c", fulfilment: "delivery",
+      destinationKind: "doorstep", workflowVersionId: "lwv_demo_direct_1", priority: 10, active: true, version: 1, createdBy: "demo-owner",
+      stops: [{ id: "lrstop_demo_direct_1", position: 1, nodeId: "lnode_demo_hq", terminalRole: "final_mile_dispatch" }], legs: [],
+      createdAt: now.toISOString(), updatedAt: now.toISOString(),
+    }],
     returnRequests,
     returnLines,
     refunds,

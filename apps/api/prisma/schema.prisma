@@ -65,6 +65,7 @@ model Location {
   active Boolean @default(true)
   grants UserLocation[]
   positions StockPosition[]
+  logisticsNode LogisticsNode?
 }
 
 model UserLocation {
@@ -336,6 +337,7 @@ model DeliveryZone {
   codEnabled Boolean @default(false)
   slots DeliverySlot[]
   orders Order[]
+  routeRules DeliveryRouteRule[]
   @@index([active, name])
 }
 
@@ -764,4 +766,169 @@ model DeliveryProof {
   recordedByKind String
   recordedById String?
   recordedAt DateTime @db.Timestamptz(3)
+}
+
+model LogisticsNode {
+  id String @id @default(uuid())
+  code String @unique
+  name String
+  publicName String
+  kind String
+  kindLabel String?
+  parentNodeId String?
+  parent LogisticsNode? @relation("LogisticsNodeHierarchy", fields: [parentNodeId], references: [id], onDelete: Restrict)
+  children LogisticsNode[] @relation("LogisticsNodeHierarchy")
+  inventoryLocationId String? @unique
+  inventoryLocation Location? @relation(fields: [inventoryLocationId], references: [id], onDelete: Restrict)
+  addressLine String?
+  locality String?
+  region String?
+  ghanaPostGps String?
+  publicDirections String?
+  publicContact String?
+  customerVisible Boolean @default(true)
+  active Boolean @default(true)
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+  outgoingLanes LogisticsLane[] @relation("LogisticsLaneOrigin")
+  incomingLanes LogisticsLane[] @relation("LogisticsLaneDestination")
+  originRouteRules DeliveryRouteRule[] @relation("DeliveryRouteRuleOrigin")
+  finalPickupRouteRules DeliveryRouteRule[] @relation("DeliveryRouteRuleFinalPickup")
+  routeRuleStops DeliveryRouteRuleStop[]
+  @@index([active, kind, name])
+  @@index([parentNodeId])
+}
+
+model LogisticsLane {
+  id String @id @default(uuid())
+  originNodeId String
+  originNode LogisticsNode @relation("LogisticsLaneOrigin", fields: [originNodeId], references: [id], onDelete: Restrict)
+  destinationNodeId String
+  destinationNode LogisticsNode @relation("LogisticsLaneDestination", fields: [destinationNodeId], references: [id], onDelete: Restrict)
+  mode String
+  providerKey String?
+  typicalMinutes Int
+  serviceDays Int[]
+  cutoffLocalTime String?
+  priority Int @default(0)
+  active Boolean @default(true)
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+  routeRuleLegs DeliveryRouteRuleLeg[]
+  @@index([originNodeId, active])
+  @@index([destinationNodeId, active])
+}
+
+model DeliveryWorkflowTemplate {
+  id String @id @default(uuid())
+  name String
+  description String
+  active Boolean @default(true)
+  currentPublishedVersionId String? @unique
+  currentPublishedVersion DeliveryWorkflowVersion? @relation("WorkflowCurrentPublished", fields: [currentPublishedVersionId], references: [id], onDelete: Restrict)
+  versions DeliveryWorkflowVersion[] @relation("WorkflowTemplateVersions")
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+  @@index([active, name])
+}
+
+model DeliveryWorkflowVersion {
+  id String @id @default(uuid())
+  templateId String
+  template DeliveryWorkflowTemplate @relation("WorkflowTemplateVersions", fields: [templateId], references: [id], onDelete: Restrict)
+  versionNumber Int
+  status String
+  defaultSlaMinutes Int?
+  revision Int @default(1)
+  createdBy String
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  publishedBy String?
+  publishedAt DateTime? @db.Timestamptz(3)
+  stages WorkflowStageDefinition[]
+  routeRules DeliveryRouteRule[]
+  currentForTemplate DeliveryWorkflowTemplate? @relation("WorkflowCurrentPublished")
+  @@unique([templateId, versionNumber])
+  @@index([templateId, status, versionNumber])
+}
+
+model WorkflowStageDefinition {
+  id String @id @default(uuid())
+  workflowVersionId String
+  workflowVersion DeliveryWorkflowVersion @relation(fields: [workflowVersionId], references: [id], onDelete: Restrict)
+  stageKey String
+  eventKind String
+  customerTitleTemplate String
+  customerDetailTemplate String?
+  adminLabel String
+  adminHelpText String?
+  customerVisible Boolean @default(true)
+  showPlannedWhenPending Boolean @default(false)
+  slaMinutes Int?
+  sortOrder Int
+  displayGroup String?
+  exceptionSeverity String @default("info")
+  notificationsAllowed Boolean @default(false)
+  @@unique([workflowVersionId, stageKey])
+  @@unique([workflowVersionId, sortOrder])
+}
+
+model DeliveryRouteRule {
+  id String @id @default(uuid())
+  name String
+  originNodeId String
+  originNode LogisticsNode @relation("DeliveryRouteRuleOrigin", fields: [originNodeId], references: [id], onDelete: Restrict)
+  deliveryZoneId String?
+  deliveryZone DeliveryZone? @relation(fields: [deliveryZoneId], references: [id], onDelete: Restrict)
+  fulfilment String
+  locality String?
+  destinationKind String
+  finalPickupNodeId String?
+  finalPickupNode LogisticsNode? @relation("DeliveryRouteRuleFinalPickup", fields: [finalPickupNodeId], references: [id], onDelete: Restrict)
+  serviceLevel String?
+  workflowVersionId String
+  workflowVersion DeliveryWorkflowVersion @relation(fields: [workflowVersionId], references: [id], onDelete: Restrict)
+  priority Int @default(0)
+  effectiveFrom DateTime? @db.Timestamptz(3)
+  effectiveTo DateTime? @db.Timestamptz(3)
+  active Boolean @default(false)
+  version Int @default(1)
+  createdBy String
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+  stops DeliveryRouteRuleStop[]
+  legs DeliveryRouteRuleLeg[]
+  @@index([originNodeId, deliveryZoneId, active, priority])
+  @@index([workflowVersionId, active])
+  @@index([finalPickupNodeId, active])
+}
+
+model DeliveryRouteRuleStop {
+  id String @id @default(uuid())
+  ruleId String
+  rule DeliveryRouteRule @relation(fields: [ruleId], references: [id], onDelete: Restrict)
+  position Int
+  nodeId String
+  node LogisticsNode @relation(fields: [nodeId], references: [id], onDelete: Restrict)
+  terminalRole String
+  originLegs DeliveryRouteRuleLeg[] @relation("RouteRuleLegOriginStop")
+  destinationLegs DeliveryRouteRuleLeg[] @relation("RouteRuleLegDestinationStop")
+  @@unique([ruleId, position])
+  @@index([nodeId])
+}
+
+model DeliveryRouteRuleLeg {
+  id String @id @default(uuid())
+  ruleId String
+  rule DeliveryRouteRule @relation(fields: [ruleId], references: [id], onDelete: Restrict)
+  position Int
+  originStopId String
+  originStop DeliveryRouteRuleStop @relation("RouteRuleLegOriginStop", fields: [originStopId], references: [id], onDelete: Restrict)
+  destinationStopId String
+  destinationStop DeliveryRouteRuleStop @relation("RouteRuleLegDestinationStop", fields: [destinationStopId], references: [id], onDelete: Restrict)
+  laneId String
+  lane LogisticsLane @relation(fields: [laneId], references: [id], onDelete: Restrict)
+  @@unique([ruleId, position])
+  @@index([originStopId])
+  @@index([destinationStopId])
+  @@index([laneId])
 }

@@ -15,6 +15,13 @@
  */
 
 import { z } from "zod";
+import {
+  createLogisticsNodeRequestSchema, updateLogisticsNodeRequestSchema,
+  createLogisticsLaneRequestSchema, updateLogisticsLaneRequestSchema,
+  createDeliveryWorkflowRequestSchema, saveDeliveryWorkflowDraftRequestSchema, publishDeliveryWorkflowRequestSchema,
+  createDeliveryRouteRuleRequestSchema, updateDeliveryRouteRuleRequestSchema, activateDeliveryRouteRuleRequestSchema,
+  routeSimulationRequestSchema,
+} from "./logistics";
 
 /* ------------------------------------------------------------------ */
 /* Primitive conventions                                               */
@@ -530,6 +537,15 @@ export const dashboardViewSchema = z.object({
  * The HTTP adapter looks schemas up here before sending; the contracts-check
  * script validates the mapping stays complete.
  */
+
+function withoutTransportReplay(schema: z.ZodTypeAny): z.ZodTypeAny {
+  return z.preprocess((value) => {
+    if (!value || typeof value !== "object" || Array.isArray(value)) return value;
+    const { idempotencyKey: _transportReplay, ...body } = value as Record<string, unknown>;
+    return body;
+  }, schema);
+}
+
 export const requestSchemas: Record<string, z.ZodTypeAny> = {
   "checkout.quote": checkoutQuoteRequestSchema,
   "checkout.complete": checkoutCompleteRequestSchema,
@@ -548,6 +564,18 @@ export const requestSchemas: Record<string, z.ZodTypeAny> = {
   "admin.dispatch.assign": legacyDispatchAssignRequestSchema,
   "admin.refund.action": legacyRefundActionRequestSchema,
   "rider.action": riderActionRequestSchema,
+  "admin.logistics.node.create": withoutTransportReplay(createLogisticsNodeRequestSchema),
+  "admin.logistics.node.update": withoutTransportReplay(updateLogisticsNodeRequestSchema),
+  "admin.logistics.lane.create": withoutTransportReplay(createLogisticsLaneRequestSchema),
+  "admin.logistics.lane.update": withoutTransportReplay(updateLogisticsLaneRequestSchema),
+  "admin.logistics.workflow.create": withoutTransportReplay(createDeliveryWorkflowRequestSchema),
+  "admin.logistics.workflow.draft": withoutTransportReplay(z.strictObject({})),
+  "admin.logistics.workflow.save": withoutTransportReplay(saveDeliveryWorkflowDraftRequestSchema),
+  "admin.logistics.workflow.publish": withoutTransportReplay(publishDeliveryWorkflowRequestSchema),
+  "admin.logistics.route-rule.create": withoutTransportReplay(createDeliveryRouteRuleRequestSchema),
+  "admin.logistics.route-rule.update": withoutTransportReplay(updateDeliveryRouteRuleRequestSchema),
+  "admin.logistics.route-rule.activate": withoutTransportReplay(activateDeliveryRouteRuleRequestSchema),
+  "admin.logistics.route-rule.simulate": routeSimulationRequestSchema,
   "admin.product.create": createProductDraftRequestSchema,
   "admin.product-media.generate": createGenerationRequestSchema,
   "admin.product-media.featured": setFeaturedMediaRequestSchema,
