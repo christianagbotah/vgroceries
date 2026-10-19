@@ -7,7 +7,7 @@ import { Database } from "../src/database/database";
 import { seedCommerceFixtures } from "./commerce-fixtures";
 import { LogisticsRouteRuleService } from "../src/logistics/logistics-route-rule.service";
 import { AdminLogisticsRouteRulesController } from "../src/logistics/admin-logistics-route-rules.controller";
-import { publishedDoorstepWorkflow, routeNode, routeServices } from "./logistics-route-fixtures";
+import { publishedDoorstepWorkflow, publishedPickupWorkflow, routeNode, routeServices } from "./logistics-route-fixtures";
 
 let app: INestApplication; let db: Database; let routes: LogisticsRouteRuleService; let services: ReturnType<typeof routeServices>;
 const config = () => readConfig({ DATABASE_URL: process.env.DATABASE_URL!, WEB_ORIGINS: "http://localhost:3000", API_STOCK_LOCATION_ID: "loc_accra", API_INSECURE_COOKIES: "true", COMMERCE_LOCATION_ID: "loc_accra", CHECKOUT_PAYMENT_HOLD_MINUTES: "15", CHECKOUT_OFFLINE_HOLD_MINUTES: "1440", GUEST_CHECKOUT_TTL_MINUTES: "1440", ORDER_VERIFICATION_ACTIVE_VERSION: "1", ORDER_VERIFICATION_KEYS: JSON.stringify({1:"11".repeat(32)}) });
@@ -16,6 +16,7 @@ after(async () => { await app?.close(); });
 
 test("route rule authority supports direct multi-hop pickup and source collection structures", async () => {
   const wf = await publishedDoorstepWorkflow(services.workflows, "route-structures");
+  const pickupWf = await publishedPickupWorkflow(services.workflows, "route-structures");
   const source = await routeNode(services.nodes, "ROUTE_STRUCT_SOURCE", "head_office");
   const hub = await routeNode(services.nodes, "ROUTE_STRUCT_HUB", "hub");
   const pickup = await routeNode(services.nodes, "ROUTE_STRUCT_PICKUP", "pickup_point");
@@ -32,10 +33,10 @@ test("route rule authority supports direct multi-hop pickup and source collectio
   const multi = await routes.create("admin-commerce", "route-multi-create", { ...directInput, name: "Head office to hub", priority: 11, stops: [{ position: 1, nodeId: source.id, terminalRole: "transit" as const }, { position: 2, nodeId: hub.id, terminalRole: "final_mile_dispatch" as const }], legs: [{ position: 1, laneId: lane.id }] }, "req-route-multi");
   assert.equal(multi.legs[0]?.laneId, lane.id);
 
-  const pickupRule = await routes.create("admin-commerce", "route-pickup-create", { ...directInput, name: "Remote pickup", priority: 12, destinationKind: "pickup_point" as const, finalPickupNodeId: pickup.id, stops: [{ position: 1, nodeId: source.id, terminalRole: "transit" as const }, { position: 2, nodeId: hub.id, terminalRole: "transit" as const }, { position: 3, nodeId: pickup.id, terminalRole: "customer_pickup" as const }], legs: [{ position: 1, laneId: lane.id }, { position: 2, laneId: pickupLane.id }] }, "req-route-pickup");
+  const pickupRule = await routes.create("admin-commerce", "route-pickup-create", { ...directInput, name: "Remote pickup", priority: 12, destinationKind: "pickup_point" as const, finalPickupNodeId: pickup.id, workflowVersionId: pickupWf.id, stops: [{ position: 1, nodeId: source.id, terminalRole: "transit" as const }, { position: 2, nodeId: hub.id, terminalRole: "transit" as const }, { position: 3, nodeId: pickup.id, terminalRole: "customer_pickup" as const }], legs: [{ position: 1, laneId: lane.id }, { position: 2, laneId: pickupLane.id }] }, "req-route-pickup");
   assert.equal(pickupRule.finalPickupNodeId, pickup.id);
 
-  const collection = await routes.create("admin-commerce", "route-collection-create", { name: "Source collection", originNodeId: source.id, fulfilment: "collection", destinationKind: "doorstep", workflowVersionId: wf.id, priority: 1, stops: [{ position: 1, nodeId: source.id, terminalRole: "customer_pickup" }], legs: [] } as any, "req-route-collection");
+  const collection = await routes.create("admin-commerce", "route-collection-create", { name: "Source collection", originNodeId: source.id, fulfilment: "collection", destinationKind: "doorstep", workflowVersionId: pickupWf.id, priority: 1, stops: [{ position: 1, nodeId: source.id, terminalRole: "customer_pickup" }], legs: [] } as any, "req-route-collection");
   assert.equal(collection.fulfilment, "collection");
 
   await assert.rejects(() => routes.create("admin-commerce", "route-bad-first", { ...directInput, name: "Bad first", stops: [{ position: 1, nodeId: hub.id, terminalRole: "final_mile_dispatch" } as any] }, "req-bad-first"));
@@ -50,6 +51,23 @@ test("route rule authority supports direct multi-hop pickup and source collectio
 
   assert.ok(await db.auditEvent.count({ where: { action: "logistics.route_rule.created" } }) >= 4);
   assert.ok(await db.outboxEvent.count({ where: { type: "logistics.route_rule.created" } }) >= 4);
+});
+
+
+test("route rules reject workflow terminal events that contradict the destination", async () => {
+  const doorstep = await publishedDoorstepWorkflow(services.workflows, "terminal-compat-doorstep");
+  const pickup = await publishedPickupWorkflow(services.workflows, "terminal-compat-pickup");
+  const source = await routeNode(services.nodes, "TERMINAL_COMPAT_SOURCE", "head_office");
+  const direct = { name: "Terminal compatibility", originNodeId: source.id, deliveryZoneId: "zone-required", fulfilment: "delivery" as const, destinationKind: "doorstep" as const, priority: 3, stops: [{ position: 1, nodeId: source.id, terminalRole: "final_mile_dispatch" as const }], legs: [] };
+
+  await assert.rejects(
+    () => routes.create("admin-commerce", "terminal-bad-doorstep", { ...direct, workflowVersionId: pickup.id }, "req-terminal-bad-doorstep"),
+    (error: any) => error?.getResponse?.()?.code === "RULE_VIOLATION",
+  );
+  await assert.rejects(
+    () => routes.create("admin-commerce", "terminal-bad-collection", { name: "Bad source collection", originNodeId: source.id, fulfilment: "collection", destinationKind: "doorstep", workflowVersionId: doorstep.id, priority: 3, stops: [{ position: 1, nodeId: source.id, terminalRole: "customer_pickup" }], legs: [] }, "req-terminal-bad-collection"),
+    (error: any) => error?.getResponse?.()?.code === "RULE_VIOLATION",
+  );
 });
 
 test("route rule controller refuses non-admin authority", async () => {

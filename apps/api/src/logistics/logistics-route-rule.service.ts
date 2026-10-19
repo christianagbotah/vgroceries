@@ -122,8 +122,17 @@ export class LogisticsRouteRuleService {
     if (rule.destinationKind === "doorstep" && rule.finalPickupNodeId) ruleViolation("Doorstep routes cannot set a final pickup node.");
     if (rule.fulfilment === "collection" && rule.destinationKind !== "doorstep") ruleViolation("Source collection uses the direct no-final-destination route shape.");
 
-    const workflow = await tx.deliveryWorkflowVersion.findUnique({ where: { id: rule.workflowVersionId }, select: { status: true } });
+    const workflow = await tx.deliveryWorkflowVersion.findUnique({
+      where: { id: rule.workflowVersionId },
+      select: { status: true, stages: { select: { eventKind: true, sortOrder: true }, orderBy: { sortOrder: "asc" } } },
+    });
     if (!workflow || workflow.status !== "published") ruleViolation("Route rules must pin a published workflow version.");
+    const terminalEvent = workflow.stages.at(-1)?.eventKind;
+    const expectedTerminalEvent = rule.fulfilment === "collection" || rule.destinationKind === "pickup_point"
+      ? "customer_collected"
+      : "delivered";
+    if (terminalEvent !== expectedTerminalEvent)
+      ruleViolation(`Route destination requires a workflow ending in ${expectedTerminalEvent}.`);
 
     if (!rule.stops.length) ruleViolation("A route rule requires at least one stop.");
     for (let index=0; index<rule.stops.length; index++) if (rule.stops[index]!.position !== index+1) ruleViolation("Route stop positions must be contiguous starting at 1.");
