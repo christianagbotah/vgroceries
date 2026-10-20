@@ -7,9 +7,10 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { useCart } from "@/features/checkout/cart-store";
+import { WishlistButton } from "@/features/catalog/wishlist-button";
 import type { CatalogProduct } from "@/services/client";
 import { formatMoney } from "@/lib/money";
-import { Check, Heart, ShoppingCart, Star } from "lucide-react";
+import { Check, ShoppingCart, Star } from "lucide-react";
 
 export function ProductTile({ product, priority }: { product: CatalogProduct; priority?: boolean }) {
   const { add } = useCart();
@@ -39,9 +40,11 @@ export function ProductTile({ product, priority }: { product: CatalogProduct; pr
           <Image src={productImage} alt={product.featuredImage?.altText || `${product.name} product photo`} fill unoptimized={Boolean(product.featuredImage)} sizes="(max-width:640px) 50vw, (max-width:1024px) 25vw, 190px" className="object-cover transition-transform duration-300 group-hover:scale-[1.035]" priority={priority} />
         </Link>
         {chosen?.compareAtPriceMinor ? <span className="absolute left-2 top-2 rounded-full bg-brand-amber px-2 py-1 text-[10px] font-black text-[color:var(--brand-green-deep)] shadow-sm">Offer</span> : null}
-        <Button asChild variant="secondary" size="icon" className="absolute right-2 top-2 size-8 rounded-full bg-white/90 shadow-sm backdrop-blur hover:bg-white" aria-label={`Wishlist ${product.name}`}>
-          <Link href="/account/lists"><Heart className="size-4" /></Link>
-        </Button>
+        {chosen ? <WishlistButton
+          compact
+          className="absolute right-2 top-2"
+          item={{ variantId: chosen.id, productId: product.id, name: `${product.name} — ${chosen.name}`, image: productImage, priceMinor: chosen.priceMinor, slug: product.slug }}
+        /> : null}
       </div>
 
       <div className="flex flex-1 flex-col p-2.5 sm:p-3">

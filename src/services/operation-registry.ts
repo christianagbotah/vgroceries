@@ -35,6 +35,10 @@ const AI: CacheTag[] = ["ai"];
 const MEDIA: CacheTag[] = ["product-media"];
 
 export const operationMeta: Record<string, OperationMeta> = {
+  /* identity */
+  "auth.login": { invalidates: ["*"] },
+  "auth.me": {},
+
   /* catalogue (public) */
   "catalog.categories": { tags: CAT },
   "catalog.list": { tags: CAT },

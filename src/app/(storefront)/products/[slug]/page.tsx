@@ -3,8 +3,9 @@ import { getProductData } from "@/services/server-data";
 import { ProductMediaGallery } from "@/features/catalog/product-media-gallery";
 import { ProductPurchasePanel } from "@/features/catalog/product-purchase-panel";
 import { ProductTile } from "@/features/catalog/product-tile";
+import { WishlistButton } from "@/features/catalog/wishlist-button";
 import { Badge } from "@/components/ui/badge";
-import { Heart, Leaf, RotateCcw, ShieldCheck, Store, Truck } from "lucide-react";
+import { Leaf, RotateCcw, ShieldCheck, Store, Truck } from "lucide-react";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
@@ -33,6 +34,8 @@ export default async function ProductPage({ params }: ProductPageProps) {
   const data = await getProductData(slug);
   if (!data) notFound();
   const { product: entry, related, purchasable } = data;
+  const wishlistVariant = entry.variants.find((variant) => variant.isAvailable) ?? entry.variants[0];
+  const wishlistImage = entry.featuredImage?.url ?? entry.image;
 
   return (
     <div className="mx-auto max-w-[1500px] px-3 pb-10 sm:px-4">
@@ -51,7 +54,9 @@ export default async function ProductPage({ params }: ProductPageProps) {
               {entry.variants.some((v) => v.compareAtPriceMinor) ? <span className="rounded-full bg-brand-amber px-3 py-1 text-[11px] font-black text-[color:var(--brand-green-deep)] shadow-sm">Offer</span> : null}
               {entry.featuredImage ? <span className="rounded-full bg-primary/10 px-3 py-1 text-[11px] font-bold text-primary">Approved media</span> : <span className="rounded-full bg-muted px-3 py-1 text-[11px] font-bold text-muted-foreground">Legacy image</span>}
             </div>
-            <Link href="/account/lists" className="inline-flex h-9 items-center gap-1.5 rounded-full border bg-white px-3 text-xs font-bold text-primary shadow-sm hover:bg-muted/40" aria-label={`Add ${entry.name} to wishlist`}><Heart className="size-4" /> Wishlist</Link>
+            {wishlistVariant ? <WishlistButton
+              item={{ variantId: wishlistVariant.id, productId: entry.id, name: `${entry.name} — ${wishlistVariant.name}`, image: wishlistImage, priceMinor: wishlistVariant.priceMinor, slug: entry.slug }}
+            /> : null}
           </div>
         </div>
 
