@@ -102,6 +102,9 @@ export interface CompleteOrderRequest {
   addressId?: string;
   guestAddress?: GuestAddressInput;
   fulfilment: CheckoutFulfilment;
+  /** Delivery defaults to doorstep when omitted. Collection rejects destination routing fields. */
+  destinationKind?: "doorstep" | "pickup_point";
+  finalPickupNodeId?: string;
   zoneId?: string;
   slotId?: string;
   paymentMethod: CheckoutPaymentMethod;

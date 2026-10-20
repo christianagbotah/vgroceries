@@ -21,6 +21,8 @@ import {
   createDeliveryWorkflowRequestSchema, saveDeliveryWorkflowDraftRequestSchema, publishDeliveryWorkflowRequestSchema,
   createDeliveryRouteRuleRequestSchema, updateDeliveryRouteRuleRequestSchema, activateDeliveryRouteRuleRequestSchema,
   routeSimulationRequestSchema,
+  planShipmentRequestSchema, departShipmentRequestSchema, arriveShipmentRequestSchema,
+  rerouteShipmentRequestSchema, checkpointShipmentRequestSchema,
 } from "./logistics";
 
 /* ------------------------------------------------------------------ */
@@ -96,6 +98,8 @@ const checkoutCompleteBaseSchema = z.object({
   addressId: idSchema.optional(),
   guestAddress: guestAddressInputSchema.optional(),
   fulfilment: z.enum(["delivery", "collection"]),
+  destinationKind: z.enum(["doorstep", "pickup_point"]).optional(),
+  finalPickupNodeId: idSchema.optional(),
   zoneId: idSchema.optional(),
   slotId: idSchema.optional(),
   paymentMethod: z.enum([
@@ -110,14 +114,36 @@ const checkoutCompleteBaseSchema = z.object({
 
 export const replayKeySchema = z.string().regex(/^[A-Za-z0-9:_-]{8,128}$/);
 
+function addCheckoutDestinationIssues(
+  value: z.infer<typeof checkoutCompleteBaseSchema>,
+  ctx: z.RefinementCtx,
+) {
+  if (value.fulfilment === "collection") {
+    if (value.destinationKind !== undefined) {
+      ctx.addIssue({ code: "custom", path: ["destinationKind"], message: "Collection checkout cannot set a delivery destination kind." });
+    }
+    if (value.finalPickupNodeId !== undefined) {
+      ctx.addIssue({ code: "custom", path: ["finalPickupNodeId"], message: "Collection checkout cannot set a final pickup node." });
+    }
+    return;
+  }
+  const destinationKind = value.destinationKind ?? "doorstep";
+  if (destinationKind === "pickup_point" && !value.finalPickupNodeId) {
+    ctx.addIssue({ code: "custom", path: ["finalPickupNodeId"], message: "Pickup delivery requires a final pickup node." });
+  }
+  if (destinationKind === "doorstep" && value.finalPickupNodeId) {
+    ctx.addIssue({ code: "custom", path: ["finalPickupNodeId"], message: "Doorstep delivery cannot set a final pickup node." });
+  }
+}
+
 export const checkoutCompleteRequestSchema = checkoutCompleteBaseSchema.extend({
   idempotencyKey: replayKeySchema,
-});
+}).superRefine(addCheckoutDestinationIssues);
 
 /** Production REST body: Idempotency-Key is authoritative transport metadata. */
 export const checkoutCompleteRestRequestSchema = checkoutCompleteBaseSchema.extend({
   idempotencyKey: replayKeySchema.optional(),
-});
+}).superRefine(addCheckoutDestinationIssues);
 
 export const trackRequestSchema = z.object({
   reference: z.string().trim().min(1).max(128),
@@ -576,6 +602,11 @@ export const requestSchemas: Record<string, z.ZodTypeAny> = {
   "admin.logistics.route-rule.update": withoutTransportReplay(updateDeliveryRouteRuleRequestSchema),
   "admin.logistics.route-rule.activate": withoutTransportReplay(activateDeliveryRouteRuleRequestSchema),
   "admin.logistics.route-rule.simulate": routeSimulationRequestSchema,
+  "admin.logistics.shipment.plan": withoutTransportReplay(planShipmentRequestSchema),
+  "admin.logistics.shipment.depart": withoutTransportReplay(departShipmentRequestSchema),
+  "admin.logistics.shipment.arrive": withoutTransportReplay(arriveShipmentRequestSchema),
+  "admin.logistics.shipment.reroute": withoutTransportReplay(rerouteShipmentRequestSchema),
+  "admin.logistics.shipment.checkpoint": withoutTransportReplay(checkpointShipmentRequestSchema),
   "admin.product.create": createProductDraftRequestSchema,
   "admin.product-media.generate": createGenerationRequestSchema,
   "admin.product-media.featured": setFeaturedMediaRequestSchema,
