@@ -14,17 +14,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { parseMoneyToMinor } from "@/lib/money";
 import { formatMoney } from "@/lib/money";
 import { Heart, Plus, Repeat2, Sparkles, Trash2, WandSparkles } from "lucide-react";
-
-interface WishItem {
-  variantId: string;
-  productId: string;
-  name: string;
-  image: string;
-  priceMinor: number;
-  slug: string;
-}
-
-const WISH_KEY = "vg-wishlist-v1";
+import { readWishlist, writeWishlist, type WishItem } from "@/features/catalog/wishlist-store";
 
 export default function AccountListsPage() {
   const { toast } = useToast();
@@ -48,11 +38,7 @@ export default function AccountListsPage() {
   const [listError, setListError] = useState<string | null>(null);
 
   useEffect(() => {
-    try {
-      setWishlist(JSON.parse(localStorage.getItem(WISH_KEY) ?? "[]"));
-    } catch {
-      setWishlist([]);
-    }
+    setWishlist(readWishlist());
     (async () => {
       try {
         setOrders(await apiOps.accountOrders());
@@ -64,7 +50,7 @@ export default function AccountListsPage() {
 
   const persistWish = (next: WishItem[]) => {
     setWishlist(next);
-    localStorage.setItem(WISH_KEY, JSON.stringify(next));
+    writeWishlist(next);
   };
 
   useEffect(() => {

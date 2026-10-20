@@ -28,6 +28,7 @@ import {
   publicOrderSchema,
   trackRequestSchema,
   accountCancelPathRequestSchema,
+  accountProfileUpdateRequestSchema,
   paymentInitiationRequestSchema,
   paymentInitiationResultSchema,
   paymentProviderEventResponseSchema,
@@ -95,6 +96,12 @@ export function foundationOpenApi(app: INestApplication) {
     CheckoutCompleteRequest: json(checkoutCompleteRestRequestSchema),
     CompleteOrderResponse: json(z.object({ orderId:z.string(), reference:z.string(), verificationCode:z.string(), paymentRequired:z.boolean() })),
     PublicOrder: json(publicOrderSchema),
+    AccountCustomer: json(z.object({ id:z.string(), name:z.string(), phone:z.string(), email:z.string().email().optional(), addressIds:z.array(z.string()), isDemo:z.boolean(), supportNotes:z.array(z.string()), createdAt:z.iso.datetime() })),
+    AccountAddress: json(z.object({ id:z.string(), label:z.string(), recipientName:z.string(), phone:z.string(), locality:z.string(), street:z.string(), landmark:z.string().optional(), ghanaPostGps:z.string().optional(), isDefault:z.boolean().optional() })),
+    AccountRecentOrder: json(z.object({ id:z.string(), reference:z.string(), totalLabel:z.string(), fulfilmentStatus:z.string(), paymentStatus:z.string(), createdAtLabel:z.string() })),
+    AccountSummaryResponse: { type:"object", required:["customer","addresses","ordersCount","openOrders","returnsCount","recentOrders"], additionalProperties:false, properties:{ customer:ref("AccountCustomer"), addresses:{type:"array",items:ref("AccountAddress")}, ordersCount:{type:"integer",minimum:0}, openOrders:{type:"integer",minimum:0}, returnsCount:{type:"integer",minimum:0}, recentOrders:{type:"array",items:ref("AccountRecentOrder")} } },
+    AccountProfileResponse: { type:"object", required:["customer"], additionalProperties:false, properties:{ customer:ref("AccountCustomer") } },
+    AccountProfileUpdateRequest: json(accountProfileUpdateRequestSchema),
     AccountOrderRow: json(z.object({ id:z.string(), reference:z.string(), totalLabel:z.string(), fulfilmentStatus:z.string(), paymentStatus:z.string(), fulfilment:z.string(), createdAtLabel:z.string(), lineCount:z.number().int().nonnegative() })),
     AccountOrderListResponse: { type:"array", items:ref("AccountOrderRow") },
     TrackRequest: json(trackRequestSchema),
@@ -185,6 +192,8 @@ export function foundationOpenApi(app: INestApplication) {
     "/checkout/complete": "CompleteOrderResponse",
     "/orders/{orderId}": "PublicOrder",
     "/orders/track": "PublicOrder",
+    "/account/summary": "AccountSummaryResponse",
+    "/account/profile": "AccountProfileResponse",
     "/account/orders": "AccountOrderListResponse",
     "/account/orders/{orderId}/cancel": "AccountCancelResponse",
     "/orders/{orderId}/payment-attempts": "PaymentInitiationResponse",
@@ -211,6 +220,7 @@ export function foundationOpenApi(app: INestApplication) {
     "/checkout/quote": "CheckoutQuoteRequest",
     "/checkout/complete": "CheckoutCompleteRequest",
     "/orders/track": "TrackRequest",
+    "/account/profile": "AccountProfileUpdateRequest",
     "/account/orders/{orderId}/cancel": "AccountCancelRequest",
     "/orders/{orderId}/payment-attempts": "PaymentInitiationRequest",
     "/refunds/{refundId}/actions": "RefundActionRequest",
@@ -234,6 +244,8 @@ export function foundationOpenApi(app: INestApplication) {
         suffix.startsWith("/inventory/") ||
         suffix === "/auth/me" ||
         suffix === "/auth/logout" ||
+        suffix === "/account/summary" ||
+        suffix === "/account/profile" ||
         suffix.startsWith("/account/orders") ||
         suffix === "/payments" ||
         suffix === "/payments/{attemptId}/reconcile" ||
@@ -243,7 +255,7 @@ export function foundationOpenApi(app: INestApplication) {
       ) operation.security = [{ cookieAuth: [] }, { bearerAuth: [] }];
       if (suffix === "/checkout/complete" || suffix === "/orders/{orderId}" || suffix === "/orders/{orderId}/payment-attempts")
         operation.security = [{ cookieAuth: [] }, { bearerAuth: [] }, { guestAuth: [] }];
-      const successCode = method === "post" && !["/checkout/quote","/orders/track","/account/orders/{orderId}/cancel","/payments/providers/{provider}/events","/payments/{attemptId}/reconcile","/refunds/{refundId}/actions","/admin/orders/{orderId}/actions"].includes(suffix) ? "201" : "200";
+      const successCode = method === "post" && !["/checkout/quote","/orders/track","/account/profile","/account/orders/{orderId}/cancel","/payments/providers/{provider}/events","/payments/{attemptId}/reconcile","/refunds/{refundId}/actions","/admin/orders/{orderId}/actions"].includes(suffix) ? "201" : "200";
       operation.responses[successCode] = {
         description: "Successful response",
         content: { "application/json": { schema: ref(name + "Envelope") } },
@@ -353,6 +365,14 @@ export function foundationOpenApi(app: INestApplication) {
   doc.paths["/api/v1/orders/track"]!.post!.security = [];
   doc.paths["/api/v1/orders/track"]!.post!.description =
     "Public capability lookup using order reference plus verification code. Failed attempts are durably rate-limited; submitted codes are never persisted.";
+  doc.paths["/api/v1/account/summary"]!.get!.description =
+    "Authenticated-customer-only account overview. Customer identity comes from the session; response fields are customer-safe projections and Physical Returns are never inferred from Refund records.";
+  doc.paths["/api/v1/account/profile"]!.get!.description =
+    "Authenticated-customer-only profile projection.";
+  doc.paths["/api/v1/account/profile"]!.post!.description =
+    "Authenticated-customer-only profile update. Web-cookie mutation requires a trusted Origin and CSRF token; payment, order and inventory truth are unaffected.";
+  doc.paths["/api/v1/account/profile"]!.post!.parameters = [{ name: "X-CSRF-Token", in: "header", required: false, description: "Required with cookie authentication alongside a trusted Origin.", schema: { type: "string", minLength: 1 } }];
+
   doc.paths["/api/v1/account/orders"]!.get!.parameters = [
     { name: "page", in: "query", schema: { type: "integer", minimum: 1, default: 1 } },
     { name: "perPage", in: "query", schema: { type: "integer", minimum: 1, maximum: 100, default: 50 } },

@@ -104,7 +104,7 @@ export default function AccountProfilePage() {
         <CardContent className="space-y-3 text-sm text-muted-foreground">
           <p>Profile changes are kept separate from payment details and order history.</p>
           <p>Use the Log out action in the account header when you finish on a shared device.</p>
-          <p className="rounded-xl border border-dashed p-3 text-xs">Password and multi-factor controls will use the same account security area when customer authentication is connected to the production identity service.</p>
+          <p className="rounded-xl border border-dashed p-3 text-xs">Your account session is protected by the production identity service. Password-recovery and multi-factor controls will be added in this security area.</p>
         </CardContent>
       </Card>
     </div>

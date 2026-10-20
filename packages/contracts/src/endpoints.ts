@@ -5,6 +5,8 @@ export interface RestEndpoint {
   queryAliases?: Record<string, string>;
 }
 export const restEndpoints: Record<string, RestEndpoint> = {
+  "auth.login": {"method": "POST", "path": "/auth/sessions"},
+  "auth.me": {"method": "GET", "path": "/auth/me"},
   "catalog.categories": {"method": "GET", "path": "/catalog/categories"},
   "catalog.list": {"method": "GET", "path": "/catalog/products", "queryAliases": {"query": "q"}},
   "catalog.product": {"method": "GET", "path": "/catalog/products/{slug}"},

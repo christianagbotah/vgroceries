@@ -30,7 +30,7 @@ export default function AccountAddressesPage() {
       <EmptyState
         icon={MapPin}
         title="No saved addresses"
-        description="Addresses entered at checkout are saved here for next time (demo behaviour)."
+        description="You do not have a saved delivery address yet."
         action={{ label: "Shop now", href: "/shop" }}
       />
     );
@@ -55,8 +55,7 @@ export default function AccountAddressesPage() {
         ))}
       </div>
       <p className="rounded-xl border border-dashed p-3 text-sm text-muted-foreground">
-        Address editing arrives with the backend accounts service. For now, new addresses can be
-        entered at{" "}
+        Address editing is not available from this page yet. You can continue to{" "}
         <Link href="/checkout" className="text-primary underline hover:no-underline">
           checkout
         </Link>

@@ -2,10 +2,11 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
-import { apiOps } from "@/services/client";
+import { apiOps, ApiError } from "@/services/client";
 import { Button } from "@/components/ui/button";
+import { ErrorState, LoadingState } from "@/components/shared/states";
 import { User, UserRound, Package, MapPin, Heart, RotateCcw, LogOut } from "lucide-react";
 
 const TABS = [
@@ -20,18 +21,48 @@ const TABS = [
 export default function AccountLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
+  const loginPage = pathname === "/account/login";
+  const [checking, setChecking] = useState(!loginPage);
+  const [sessionError, setSessionError] = useState<string | null>(null);
   const [loggingOut, setLoggingOut] = useState(false);
+
+  useEffect(() => {
+    if (loginPage) { setChecking(false); setSessionError(null); return; }
+    let active = true;
+    setChecking(true);
+    apiOps.accountSession().then((session) => {
+      if (!active) return;
+      if (session.actor.role !== "customer") {
+        router.replace("/account/login");
+        return;
+      }
+      setSessionError(null);
+      setChecking(false);
+    }).catch((e) => {
+      if (!active) return;
+      if (e instanceof ApiError && (e.code === "UNAUTHENTICATED" || e.code === "FORBIDDEN")) {
+        router.replace("/account/login");
+        return;
+      }
+      setSessionError(e instanceof ApiError ? e.message : "Could not verify your account session.");
+      setChecking(false);
+    });
+    return () => { active = false; };
+  }, [loginPage, pathname, router]);
 
   const logout = async () => {
     setLoggingOut(true);
-    try {
-      await apiOps.accountLogout();
-    } finally {
-      router.replace("/");
+    try { await apiOps.accountLogout(); }
+    finally {
+      router.replace("/account/login");
       router.refresh();
       setLoggingOut(false);
     }
   };
+
+  if (loginPage) return children;
+  if (checking) return <div className="mx-auto max-w-5xl px-4 py-10"><LoadingState rows={3} label="Checking account session" /></div>;
+  if (sessionError) return <div className="mx-auto max-w-5xl px-4 py-10"><ErrorState message={sessionError} /></div>;
 
   return (
     <div className="mx-auto max-w-5xl px-4 pb-10 pt-6">
@@ -49,17 +80,8 @@ export default function AccountLayout({ children }: { children: React.ReactNode 
         {TABS.map((t) => {
           const active = pathname === t.href || (t.href !== "/account" && pathname.startsWith(t.href));
           return (
-            <Link
-              key={t.href}
-              href={t.href}
-              aria-current={active ? "page" : undefined}
-              className={cn(
-                "flex min-h-11 shrink-0 items-center gap-1.5 rounded-t-lg px-3 py-2.5 text-sm font-medium transition hover:bg-accent",
-                active ? "border border-b-0 border-border bg-accent text-primary" : "text-muted-foreground"
-              )}
-            >
-              <t.icon className="size-4" aria-hidden />
-              {t.label}
+            <Link key={t.href} href={t.href} aria-current={active ? "page" : undefined} className={cn("flex min-h-11 shrink-0 items-center gap-1.5 rounded-t-lg px-3 py-2.5 text-sm font-medium transition hover:bg-accent", active ? "border border-b-0 border-border bg-accent text-primary" : "text-muted-foreground")}>
+              <t.icon className="size-4" aria-hidden />{t.label}
             </Link>
           );
         })}

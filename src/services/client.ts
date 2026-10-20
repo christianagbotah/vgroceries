@@ -13,7 +13,7 @@
  * the mock store.
  */
 
-import { resolveClientAdapter } from "./adapters/browser";
+import { clearBrowserCsrfToken, resolveClientAdapter, setBrowserCsrfToken } from "./adapters/browser";
 import type { QueryValue, ServiceRequest } from "./adapters/types";
 import type {
   AccountCancelResponse,
@@ -105,6 +105,8 @@ import type {
   CreateDeliveryRouteRuleRequest,
   UpdateDeliveryRouteRuleRequest,
   ActivateDeliveryRouteRuleRequest,
+  SessionLookupResponse,
+  WebSessionResponse,
 } from "./contracts";
 
 export { ApiError } from "./adapters/types";
@@ -182,11 +184,24 @@ export const apiOps = {
   slots: (zoneId: string) => api<SlotView[]>("checkout.slots", { query: { zoneId } }),
 
   /* account */
+  accountLogin: async (email: string, password: string) => {
+    const session = await api<WebSessionResponse>("auth.login", { body: { email, password, client: "web" } });
+    setBrowserCsrfToken(session.csrfToken);
+    return session;
+  },
+  accountSession: async () => {
+    const session = await api<SessionLookupResponse>("auth.me");
+    if (session.csrfToken) setBrowserCsrfToken(session.csrfToken);
+    return session;
+  },
   accountSummary: (customerId?: string) => api<AccountSummaryResponse>("account.summary", { query: { customerId } }),
   accountProfile: () => api<AccountProfileResponse>("account.profile"),
   accountProfileUpdate: (body: AccountProfileUpdateRequest) =>
     api<AccountProfileResponse>("account.profile.update", { body: body as unknown as Record<string, unknown> }),
-  accountLogout: () => api<DoneResponse>("account.logout", { body: {} }),
+  accountLogout: async () => {
+    try { return await api<DoneResponse>("account.logout", { body: {} }); }
+    finally { clearBrowserCsrfToken(); }
+  },
   accountOrders: (customerId?: string) => api<AccountOrderRow[]>("account.orders", { query: { customerId } }),
   accountCancel: (orderId: string, reason: string) =>
     api<AccountCancelResponse>("account.cancel", { body: { orderId, reason } }),
