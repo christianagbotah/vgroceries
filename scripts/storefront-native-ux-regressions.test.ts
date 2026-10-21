@@ -28,18 +28,21 @@ describe("storefront native-like account UX", () => {
     expect(track).toContain("apiOps.orderStatus(orderId)");
   });
 
-  test("account has profile management and logout operations", () => {
-    expect(existsSync(join(root, "src/app/(storefront)/account/profile/page.tsx"))).toBe(true);
+  test("account uses production customer identity and does not advertise mock-only tabs", () => {
+    expect(existsSync(join(root, "src/app/(storefront)/account/login/page.tsx"))).toBe(true);
     const layout = read("src/app/(storefront)/account/layout.tsx");
     const client = read("src/services/client.ts");
     const endpoints = read("packages/contracts/src/endpoints.ts");
-    expect(layout).toContain("Profile");
+    expect(layout).toContain("apiOps.authMe");
     expect(layout).toContain("Log out");
-    expect(client).toContain("accountProfile");
-    expect(client).toContain("accountProfileUpdate");
+    expect(layout).not.toContain('{ href: "/account/profile"');
+    expect(layout).not.toContain('{ href: "/account/addresses"');
+    expect(layout).not.toContain('{ href: "/account/returns"');
+    expect(client).toContain("authLogin");
+    expect(client).toContain("authMe");
     expect(client).toContain("accountLogout");
-    expect(endpoints).toContain('"account.profile"');
-    expect(endpoints).toContain('"account.profile.update"');
+    expect(endpoints).toContain('"auth.login"');
+    expect(endpoints).toContain('"auth.me"');
     expect(endpoints).toContain('"account.logout"');
   });
 });

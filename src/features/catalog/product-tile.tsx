@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { useCart } from "@/features/checkout/cart-store";
+import { addProductToWishlist } from "@/features/catalog/wishlist";
 import type { CatalogProduct } from "@/services/client";
 import { formatMoney } from "@/lib/money";
 import { Check, Heart, ShoppingCart, Star } from "lucide-react";
@@ -39,8 +40,12 @@ export function ProductTile({ product, priority }: { product: CatalogProduct; pr
           <Image src={productImage} alt={product.featuredImage?.altText || `${product.name} product photo`} fill unoptimized={Boolean(product.featuredImage)} sizes="(max-width:640px) 50vw, (max-width:1024px) 25vw, 190px" className="object-cover transition-transform duration-300 group-hover:scale-[1.035]" priority={priority} />
         </Link>
         {chosen?.compareAtPriceMinor ? <span className="absolute left-2 top-2 rounded-full bg-brand-amber px-2 py-1 text-[10px] font-black text-[color:var(--brand-green-deep)] shadow-sm">Offer</span> : null}
-        <Button asChild variant="secondary" size="icon" className="absolute right-2 top-2 size-8 rounded-full bg-white/90 shadow-sm backdrop-blur hover:bg-white" aria-label={`Wishlist ${product.name}`}>
-          <Link href="/account/lists"><Heart className="size-4" /></Link>
+        <Button type="button" variant="secondary" size="icon" className="absolute right-2 top-2 size-8 rounded-full bg-white/90 shadow-sm backdrop-blur hover:bg-white" aria-label={`Add ${product.name} to wishlist`} onClick={() => {
+          const result = addProductToWishlist(product, chosen?.id);
+          if (!result.item) return;
+          toast({ title: result.added ? "Saved to wishlist" : "Already in wishlist", description: result.item.name });
+        }}>
+          <Heart className="size-4" aria-hidden />
         </Button>
       </div>
 

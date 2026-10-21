@@ -103,6 +103,7 @@ export class HttpServiceAdapter implements ServiceAdapter {
           ...(method === "POST" && req.formData === undefined ? { "Content-Type": "application/json" } : {}),
           ...(this.opts.headers?.() ?? {}),
           ...(key ? { "Idempotency-Key": key } : {}),
+          ...(req.csrfToken ? { "X-CSRF-Token": req.csrfToken } : {}),
         },
         body: method === "POST" ? (req.formData ?? JSON.stringify(body ?? {})) : undefined,
         credentials: this.opts.credentials ?? "same-origin", cache: "no-store", signal: controller.signal,

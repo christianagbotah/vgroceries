@@ -34,3 +34,4 @@ export const sessionLookupResponseSchema = z.object({
 export type SessionActor = z.infer<typeof sessionActorSchema>;
 export type WebSessionResponse = z.infer<typeof webSessionResponseSchema>;
 export type NativeSessionResponse = z.infer<typeof nativeSessionResponseSchema>;
+export type SessionLookupResponse = z.infer<typeof sessionLookupResponseSchema>;

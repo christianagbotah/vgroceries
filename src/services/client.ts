@@ -105,6 +105,8 @@ import type {
   CreateDeliveryRouteRuleRequest,
   UpdateDeliveryRouteRuleRequest,
   ActivateDeliveryRouteRuleRequest,
+  WebSessionResponse,
+  SessionLookupResponse,
 } from "./contracts";
 
 export { ApiError } from "./adapters/types";
@@ -120,6 +122,8 @@ export interface ApiCallOptions {
   formData?: FormData;
   /** Retry-safety: forwarded as the Idempotency-Key header. */
   idempotencyKey?: string;
+  /** Cookie-session CSRF token for authenticated mutations. */
+  csrfToken?: string;
   /** Skip zod request validation (contract tests only). */
   skipValidation?: boolean;
 }
@@ -132,6 +136,7 @@ export async function api<T = unknown>(op: string, options?: ApiCallOptions): Pr
     body: options?.body,
     formData: options?.formData,
     idempotencyKey: options?.idempotencyKey,
+    csrfToken: options?.csrfToken,
     skipValidation: options?.skipValidation,
   };
   return resolveClientAdapter().request<T>(req);
@@ -162,6 +167,10 @@ import type { CategoryRow, PublicOrder, SessionRow } from "./contracts";
 /* ------------------------------------------------------------------ */
 
 export const apiOps = {
+  /* identity */
+  authLogin: (email: string, password: string) => api<WebSessionResponse>("auth.login", { body: { email, password, client: "web" } }),
+  authMe: () => api<SessionLookupResponse>("auth.me"),
+
   /* catalogue */
   catalogCategories: () => api<CategoryRow[]>("catalog.categories"),
   products: (p: { query?: string; category?: string; sort?: string; page?: number; perPage?: number }) =>
@@ -186,7 +195,7 @@ export const apiOps = {
   accountProfile: () => api<AccountProfileResponse>("account.profile"),
   accountProfileUpdate: (body: AccountProfileUpdateRequest) =>
     api<AccountProfileResponse>("account.profile.update", { body: body as unknown as Record<string, unknown> }),
-  accountLogout: () => api<DoneResponse>("account.logout", { body: {} }),
+  accountLogout: (csrfToken?: string) => api<DoneResponse>("account.logout", { body: {}, csrfToken }),
   accountOrders: (customerId?: string) => api<AccountOrderRow[]>("account.orders", { query: { customerId } }),
   accountCancel: (orderId: string, reason: string) =>
     api<AccountCancelResponse>("account.cancel", { body: { orderId, reason } }),

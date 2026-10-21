@@ -33,6 +33,8 @@ export interface ServiceRequest {
   formData?: FormData;
   /** Sent as the `Idempotency-Key` header over HTTP. */
   idempotencyKey?: string;
+  /** Cookie-session CSRF token returned by /auth/me. */
+  csrfToken?: string;
   /** Response families to invalidate after a successful mutation. */
   invalidates?: CacheTag[];
   /** Skip the request-body schema validation (used by contract tests). */
