@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { apiOps, ApiError, type AwaitedOrder } from "@/services/account-types";
 import { LoadingState, ErrorState } from "@/components/shared/states";
 import { StatusBadge } from "@/components/shared/status-badge";
@@ -10,6 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Package, RotateCcw, ShoppingBag, MapPin, UserRound } from "lucide-react";
 
 export default function AccountPage() {
+  const router = useRouter();
   const [data, setData] = useState<AwaitedOrder | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -18,10 +20,14 @@ export default function AccountPage() {
       try {
         setData(await apiOps.accountSummary());
       } catch (e) {
+        if (e instanceof ApiError && (e.code === "UNAUTHENTICATED" || e.code === "FORBIDDEN")) {
+          router.replace("/account/login");
+          return;
+        }
         setError(e instanceof ApiError ? e.message : "Could not load your account.");
       }
     })();
-  }, []);
+  }, [router]);
 
   if (error) return <ErrorState message={error} />;
   if (!data) return <LoadingState rows={4} label="Loading account" />;
