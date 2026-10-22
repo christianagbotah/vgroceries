@@ -23,12 +23,14 @@ describe("customer account and wishlist regressions", () => {
     expect(layout).toContain("/account/login");
   });
 
-  test("account requests without a session are redirected before the client account shell renders", () => {
-    expect(existsSync("src/proxy.ts")).toBe(true);
+  test("account storefront does not gate on the API-path session cookie before client verification", () => {
+    const identity = read("apps/api/src/identity/identity.controller.ts");
+    const layout = read("src/app/(storefront)/account/layout.tsx");
+    expect(identity).toContain('path: "/api/v1"');
+    expect(layout).toContain("accountSession");
     if (!existsSync("src/proxy.ts")) return;
     const proxy = read("src/proxy.ts");
-    expect(proxy).toContain('request.cookies.get("vg_session")');
-    expect(proxy).toContain('url.pathname = "/account/login"');
-    expect(proxy).toContain('matcher: ["/account/:path*"]');
+    expect(proxy).not.toContain('request.cookies.get("vg_session")');
+    expect(proxy).not.toContain('matcher: ["/account/:path*"]');
   });
 });
