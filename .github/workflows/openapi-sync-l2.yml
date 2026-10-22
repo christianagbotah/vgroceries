@@ -3,6 +3,7 @@ name: L2 one-shot OpenAPI sync
 on:
   push:
     branches: [feat/logistics-shipment-execution-l2-20261020]
+  workflow_dispatch:
 
 permissions:
   contents: write
