@@ -15,6 +15,7 @@ export * from "./common";
 export * from "./catalog";
 export * from "./catalog-media";
 export * from "./checkout";
+export * from "./checkout-pickup";
 export * from "./payments";
 export * from "./refunds";
 export * from "./fulfilment";

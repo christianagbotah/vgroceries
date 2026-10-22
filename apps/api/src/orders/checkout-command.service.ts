@@ -63,12 +63,15 @@ export class CheckoutCommandService {
         if(input.paymentMethod==="cash_on_delivery"&&!zone.codEnabled)throw new ApiProblem(400,"VALIDATION_FAILED","Cash on delivery is unavailable for this zone.");
         if(zone.slotPolicy==="required"&&!input.slotId)throw new ApiProblem(400,"VALIDATION_FAILED","A delivery slot is required for this zone.");
         if(zone.slotPolicy==="none"&&input.slotId)throw new ApiProblem(400,"VALIDATION_FAILED","This zone does not accept delivery slots.");
-        if(Boolean(input.addressId)===Boolean(input.guestAddress))throw new ApiProblem(400,"VALIDATION_FAILED","Exactly one delivery address source is required.");
+        const destination=input.deliveryDestination??{kind:"doorstep" as const};
+        const hasSaved=Boolean(input.addressId); const hasGuest=Boolean(input.guestAddress);
+        if(destination.kind==="doorstep"&&hasSaved===hasGuest)throw new ApiProblem(400,"VALIDATION_FAILED","Exactly one delivery address source is required for doorstep delivery.");
+        if(destination.kind==="pickup_point"&&hasSaved&&hasGuest)throw new ApiProblem(400,"VALIDATION_FAILED","Remote pickup can include at most one contact address source.");
         if(input.addressId){
           if(principal.kind!=="customer")throw new ApiProblem(403,"FORBIDDEN","Guest checkout cannot use a saved customer address.");
           const saved=await tx.customerAddress.findUnique({where:{id:input.addressId}}); if(!saved)throw new ApiProblem(404,"NOT_FOUND","Delivery address not found."); if(saved.userId!==principal.userId)throw new ApiProblem(403,"FORBIDDEN","Delivery address belongs to another customer.");
           address={label:saved.label,recipientName:saved.recipientName,phone:saved.phone,locality:saved.locality,street:saved.street,landmark:saved.landmark??undefined,ghanaPostGps:saved.ghanaPostGps??undefined};
-        }else address=input.guestAddress!;
+        }else if(input.guestAddress) address=input.guestAddress;
       }
       if(electronic.has(input.paymentMethod)) this.paymentPolicy.assertElectronicMethodAvailable(input.paymentMethod as ElectronicPaymentMethod);
       const shipmentContext=await this.shipmentContext(tx,commerce.locationId,input);
