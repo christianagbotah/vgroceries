@@ -197,9 +197,33 @@ test("planning rejects inactive, unpublished, terminal-mismatched, and pickup-CO
 
 test("existing-order planning upgrades only logistics compatibility and never mutates stock, payment, refund, or Dispatch truth", async () => {
   const workflow = await publishedDoorstepWorkflow(services.workflows, key("existing"));
-  const source = await routeNode(services.nodes, key("EXISTING_SOURCE"), "fulfilment_center");
-  await activateDirect(source.id, workflow.id, "Existing planning", 10);
+  const alreadyMapped = await db.logisticsNode.findFirst({ where: { inventoryLocationId: "loc_accra" } });
+  const source = alreadyMapped ?? await routeNode(services.nodes, key("EXISTING_SOURCE"), "fulfilment_center");
+  if (!alreadyMapped)
+    await db.logisticsNode.update({ where: { id: source.id }, data: { inventoryLocationId: "loc_accra" } });
+  await activateDirect(source.id, workflow.id, "Existing planning", 5);
   const existing = await order("EXISTING", { logisticsExecutionRequired: false });
+  const line = await db.orderLine.create({ data: {
+    orderId: existing.id,
+    productId: "product-rice",
+    variantId: "var-rice",
+    productName: "Fixture Rice",
+    variantName: "Weighted rice",
+    unit: "kg",
+    quantity: "1",
+    unitPriceMinor: 1990,
+    lineTotalMinor: 1990,
+  } });
+  await db.reservation.create({ data: {
+    positionId: "pos-rice",
+    lotId: "lot-rice",
+    claimType: "order",
+    claimId: existing.id,
+    claimLineId: line.id,
+    quantity: "1",
+    state: "active",
+    expiresAt: new Date(Date.now() + 60 * 60 * 1000),
+  } });
   const beforeOrder = await db.order.findUniqueOrThrow({ where: { id: existing.id }, select: {
     version: true, paymentStatus: true, fulfilmentStatus: true, deliveryStatus: true, stockConsumedAt: true, logisticsExecutionRequired: true,
   } });
@@ -209,9 +233,10 @@ test("existing-order planning upgrades only logistics compatibility and never mu
   };
 
   const shipment = await db.$transaction((tx) => planning.planExistingDelivery(tx, {
-    orderId: existing.id, originNodeId: source.id, destinationKind: "doorstep", expectedOrderVersion: beforeOrder.version,
+    orderId: existing.id, destinationKind: "doorstep", expectedOrderVersion: beforeOrder.version,
   }));
   assert.equal(shipment.sequence, 1);
+  assert.equal(shipment.originNodeId, source.id);
 
   const afterOrder = await db.order.findUniqueOrThrow({ where: { id: existing.id }, select: {
     version: true, paymentStatus: true, fulfilmentStatus: true, deliveryStatus: true, stockConsumedAt: true, logisticsExecutionRequired: true,

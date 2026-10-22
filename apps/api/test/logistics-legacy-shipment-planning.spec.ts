@@ -97,6 +97,11 @@ async function legacyOrder(name: string, overrides: Record<string, unknown> = {}
 }
 
 async function activeDirectRoute(name: string) {
+  const existingSource = await db.logisticsNode.findFirst({
+    where: { inventoryLocationId: "loc_accra" },
+  });
+  if (existingSource) return existingSource;
+
   const workflow = await publishedDoorstepWorkflow(services.workflows, key(`legacy-${name}`));
   const source = await routeNode(services.nodes, key(`LEGACY_SOURCE_${name}`), "fulfilment_center");
   await db.logisticsNode.update({ where: { id: source.id }, data: { inventoryLocationId: "loc_accra" } });
@@ -139,7 +144,7 @@ test("legacy unhanded delivery derives its source from exact reservation coverag
     orderId: order.id,
     destinationKind: "doorstep",
     expectedOrderVersion: order.version,
-  } as any));
+  }));
 
   assert.equal(shipment.originNodeId, source.id);
   assert.equal(shipment.status, "planned");
@@ -171,7 +176,7 @@ test("legacy planning fails closed when fulfilment-run location conflicts with r
       orderId: order.id,
       destinationKind: "doorstep",
       expectedOrderVersion: order.version,
-    } as any)),
+    })),
     (error: any) => problemCode(error) === "RESERVATION_LOST",
   );
   assert.equal(await db.shipment.count({ where: { orderId: order.id } }), 0);
@@ -186,7 +191,7 @@ test("legacy planning refuses stale versions and handed-over evidence without cr
       orderId: stale.order.id,
       destinationKind: "doorstep",
       expectedOrderVersion: stale.order.version + 1,
-    } as any)),
+    })),
     (error: any) => problemCode(error) === "ORDER_VERSION_CONFLICT",
   );
 
@@ -196,7 +201,7 @@ test("legacy planning refuses stale versions and handed-over evidence without cr
       orderId: handed.order.id,
       destinationKind: "doorstep",
       expectedOrderVersion: handed.order.version,
-    } as any)),
+    })),
     (error: any) => problemCode(error) === "SHIPMENT_ORDER_ALREADY_HANDED_OVER",
   );
   assert.equal(await db.shipment.count({ where: { orderId: { in: [stale.order.id, handed.order.id] } } }), 0);

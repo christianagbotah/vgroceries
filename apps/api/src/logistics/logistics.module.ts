@@ -1,4 +1,5 @@
 import { Module } from "@nestjs/common";
+import { InventoryModule } from "../inventory/inventory.controller";
 import { AdminLogisticsNodesController } from "./admin-logistics-nodes.controller";
 import { AdminLogisticsLanesController } from "./admin-logistics-lanes.controller";
 import { AdminLogisticsWorkflowsController } from "./admin-logistics-workflows.controller";
@@ -9,9 +10,30 @@ import { LogisticsWorkflowService } from "./logistics-workflow.service";
 import { LogisticsRouteRuleService } from "./logistics-route-rule.service";
 import { LogisticsBootstrapService } from "./logistics-bootstrap.service";
 import { ShipmentPlanningService } from "./shipment-planning.service";
+
 @Module({
-  controllers:[AdminLogisticsNodesController,AdminLogisticsLanesController,AdminLogisticsWorkflowsController,AdminLogisticsRouteRulesController],
-  providers:[LogisticsNodeService,LogisticsLaneService,LogisticsWorkflowService,LogisticsRouteRuleService,LogisticsBootstrapService,ShipmentPlanningService],
-  exports:[LogisticsNodeService,LogisticsLaneService,LogisticsWorkflowService,LogisticsRouteRuleService,LogisticsBootstrapService,ShipmentPlanningService],
+  imports: [InventoryModule],
+  controllers: [
+    AdminLogisticsNodesController,
+    AdminLogisticsLanesController,
+    AdminLogisticsWorkflowsController,
+    AdminLogisticsRouteRulesController,
+  ],
+  providers: [
+    LogisticsNodeService,
+    LogisticsLaneService,
+    LogisticsWorkflowService,
+    LogisticsRouteRuleService,
+    LogisticsBootstrapService,
+    ShipmentPlanningService,
+  ],
+  exports: [
+    LogisticsNodeService,
+    LogisticsLaneService,
+    LogisticsWorkflowService,
+    LogisticsRouteRuleService,
+    LogisticsBootstrapService,
+    ShipmentPlanningService,
+  ],
 })
 export class LogisticsModule {}
