@@ -7,6 +7,7 @@ import { Database } from "../src/database/database";
 import { LogisticsRouteRuleService } from "../src/logistics/logistics-route-rule.service";
 import { commerceTestPassword, seedCommerceFixtures } from "./commerce-fixtures";
 import { FakePaymentProvider } from "./fake-payment-provider";
+import { FakeRefundProvider } from "./fake-refund-provider";
 import { publishedPickupWorkflow, routeNode, routeServices } from "./logistics-route-fixtures";
 
 let app: INestApplication;
@@ -64,7 +65,7 @@ async function pickupRoute(sourceId: string, visible = true) {
 
 before(async () => {
   if (!new URL(process.env.DATABASE_URL!).pathname.endsWith("variety_foundation_test")) throw Error("isolated database required");
-  app = await createApplication(config(), [new FakePaymentProvider()]); await app.listen(0, "127.0.0.1"); base = await app.getUrl();
+  app = await createApplication(config(), [new FakePaymentProvider()], [new FakeRefundProvider()]); await app.listen(0, "127.0.0.1"); base = await app.getUrl();
   db = app.get(Database); services = routeServices(db); routes = new LogisticsRouteRuleService(db);
 });
 beforeEach(async () => { await seedCommerceFixtures(db); });
