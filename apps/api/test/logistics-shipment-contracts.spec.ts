@@ -42,15 +42,12 @@ const deliveryCheckout = (overrides: Record<string, unknown> = {}) => ({
 test("shipment execution contracts expose the exact protected vocabularies", () => {
   assert.deepEqual(shipmentStatusSchema.options, [
     "planned",
-    "at_node",
+    "active_at_node",
     "in_transit",
-    "final_mile_ready",
-    "ready_for_pickup",
-    "final_mile_in_progress",
-    "delivered",
-    "customer_collected",
     "exception",
-    "return_transit",
+    "ready_for_pickup",
+    "customer_collected",
+    "final_mile_ready",
   ]);
   assert.deepEqual(shipmentLegStatusSchema.options, [
     "planned",
@@ -65,9 +62,7 @@ test("shipment execution contracts expose the exact protected vocabularies", () 
     "node_staff",
     "linehaul_internal",
     "provider",
-    "rider",
     "customer",
-    "return_transit",
   ]);
   assert.deepEqual(shipmentEventActorKindSchema.options, ["staff", "rider", "system"]);
 });
@@ -81,8 +76,9 @@ test("shipment mutation schemas are strict and never accept client-authored cust
   assert.equal(arriveShipmentRequestSchema.safeParse({ expectedVersion: 3, destinationNodeId: "node_hub" }).success, false);
   assert.equal(arriveShipmentRequestSchema.safeParse({ expectedVersion: 3, status: "arrived" }).success, false);
 
-  assert.equal(rerouteShipmentRequestSchema.safeParse({ expectedVersion: 4, replacementRuleId: "rule_backup", reason: "Hub unavailable" }).success, true);
-  assert.equal(rerouteShipmentRequestSchema.safeParse({ expectedVersion: 4, replacementRuleId: "rule_backup", reason: "Hub unavailable", stops: [] }).success, false);
+  assert.equal(rerouteShipmentRequestSchema.safeParse({ expectedVersion: 4, reason: "Hub unavailable" }).success, true);
+  assert.equal(rerouteShipmentRequestSchema.safeParse({ expectedVersion: 4, replacementRuleId: "rule_hidden", reason: "Hub unavailable" }).success, false);
+  assert.equal(rerouteShipmentRequestSchema.safeParse({ expectedVersion: 4, reason: "Hub unavailable", stops: [] }).success, false);
 
   assert.equal(checkpointShipmentRequestSchema.safeParse({ expectedVersion: 5, title: "Checked at transfer desk", detail: "Parcel seal confirmed", note: "Internal note" }).success, true);
   for (const protectedField of ["status", "custody", "paymentStatus", "stockStatus", "proof"]) {
@@ -102,17 +98,17 @@ test("shipment mutation schemas are strict and never accept client-authored cust
 
 test("checkout destination selection defaults to doorstep and enforces fulfilment cross-field rules", () => {
   assert.equal(checkoutCompleteRequestSchema.safeParse(deliveryCheckout()).success, true);
-  assert.equal(checkoutCompleteRequestSchema.safeParse(deliveryCheckout({ destinationKind: "doorstep" })).success, true);
-  assert.equal(checkoutCompleteRequestSchema.safeParse(deliveryCheckout({ destinationKind: "pickup_point", finalPickupNodeId: "node_pickup" })).success, true);
-  assert.equal(checkoutCompleteRequestSchema.safeParse(deliveryCheckout({ destinationKind: "pickup_point" })).success, false);
-  assert.equal(checkoutCompleteRequestSchema.safeParse(deliveryCheckout({ destinationKind: "doorstep", finalPickupNodeId: "node_pickup" })).success, false);
+  assert.equal(checkoutCompleteRequestSchema.safeParse(deliveryCheckout({ deliveryDestination: { kind: "doorstep" } })).success, true);
+  assert.equal(checkoutCompleteRequestSchema.safeParse(deliveryCheckout({ deliveryDestination: { kind: "pickup_point", finalPickupNodeId: "node_pickup" } })).success, true);
+  assert.equal(checkoutCompleteRequestSchema.safeParse(deliveryCheckout({ deliveryDestination: { kind: "pickup_point" } })).success, false);
+  assert.equal(checkoutCompleteRequestSchema.safeParse(deliveryCheckout({ deliveryDestination: { kind: "doorstep", finalPickupNodeId: "node_pickup" } })).success, false);
+  assert.equal(checkoutCompleteRequestSchema.safeParse(deliveryCheckout({ destinationKind: "pickup_point", finalPickupNodeId: "node_pickup" })).success, false);
 
   const collection = deliveryCheckout({ fulfilment: "collection", paymentMethod: "cash_counter", zoneId: undefined });
   assert.equal(checkoutCompleteRequestSchema.safeParse(collection).success, true);
-  assert.equal(checkoutCompleteRequestSchema.safeParse({ ...collection, destinationKind: "doorstep" }).success, false);
-  assert.equal(checkoutCompleteRequestSchema.safeParse({ ...collection, finalPickupNodeId: "node_pickup" }).success, false);
+  assert.equal(checkoutCompleteRequestSchema.safeParse({ ...collection, deliveryDestination: { kind: "doorstep" } }).success, false);
 
-  const restBody = { ...deliveryCheckout({ destinationKind: "pickup_point", finalPickupNodeId: "node_pickup" }) };
+  const restBody = { ...deliveryCheckout({ deliveryDestination: { kind: "pickup_point", finalPickupNodeId: "node_pickup" } }) };
   delete (restBody as { idempotencyKey?: string }).idempotencyKey;
   assert.equal(checkoutCompleteRestRequestSchema.safeParse(restBody).success, true);
 });
@@ -164,7 +160,7 @@ test("shipment execution exports stable admin view schemas", () => {
     sequence: 1,
     workflowVersionId: "wf_v1",
     routeRuleId: "rule_1",
-    status: "at_node",
+    status: "active_at_node",
     originNodeId: "node_accra",
     destinationKind: "doorstep",
     currentRouteRevision: 1,

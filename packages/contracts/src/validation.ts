@@ -90,7 +90,12 @@ export const guestAddressInputSchema = z.object({
   ghanaPostGps: z.string().optional(),
 });
 
-const checkoutCompleteBaseSchema = z.object({
+const deliveryDestinationSchema = z.discriminatedUnion("kind", [
+  z.strictObject({ kind: z.literal("doorstep") }),
+  z.strictObject({ kind: z.literal("pickup_point"), finalPickupNodeId: idSchema }),
+]);
+
+const checkoutCompleteBaseSchema = z.strictObject({
   lines: z.array(cartLineInputSchema).min(1),
   customerName: z.string().min(1),
   customerPhone: z.string().min(1),
@@ -99,8 +104,7 @@ const checkoutCompleteBaseSchema = z.object({
   addressId: idSchema.optional(),
   guestAddress: guestAddressInputSchema.optional(),
   fulfilment: z.enum(["delivery", "collection"]),
-  destinationKind: z.enum(["doorstep", "pickup_point"]).optional(),
-  finalPickupNodeId: idSchema.optional(),
+  deliveryDestination: deliveryDestinationSchema.optional(),
   zoneId: idSchema.optional(),
   slotId: idSchema.optional(),
   paymentMethod: z.enum([
@@ -119,21 +123,8 @@ function addCheckoutDestinationIssues(
   value: z.infer<typeof checkoutCompleteBaseSchema>,
   ctx: z.RefinementCtx,
 ) {
-  if (value.fulfilment === "collection") {
-    if (value.destinationKind !== undefined) {
-      ctx.addIssue({ code: "custom", path: ["destinationKind"], message: "Collection checkout cannot set a delivery destination kind." });
-    }
-    if (value.finalPickupNodeId !== undefined) {
-      ctx.addIssue({ code: "custom", path: ["finalPickupNodeId"], message: "Collection checkout cannot set a final pickup node." });
-    }
-    return;
-  }
-  const destinationKind = value.destinationKind ?? "doorstep";
-  if (destinationKind === "pickup_point" && !value.finalPickupNodeId) {
-    ctx.addIssue({ code: "custom", path: ["finalPickupNodeId"], message: "Pickup delivery requires a final pickup node." });
-  }
-  if (destinationKind === "doorstep" && value.finalPickupNodeId) {
-    ctx.addIssue({ code: "custom", path: ["finalPickupNodeId"], message: "Doorstep delivery cannot set a final pickup node." });
+  if (value.fulfilment === "collection" && value.deliveryDestination !== undefined) {
+    ctx.addIssue({ code: "custom", path: ["deliveryDestination"], message: "Collection checkout cannot set a delivery destination." });
   }
 }
 

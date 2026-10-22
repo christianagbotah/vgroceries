@@ -355,15 +355,12 @@ export type RouteSimulationResponse = z.infer<typeof routeSimulationResponseSche
 
 export const shipmentStatusSchema = z.enum([
   "planned",
-  "at_node",
+  "active_at_node",
   "in_transit",
-  "final_mile_ready",
-  "ready_for_pickup",
-  "final_mile_in_progress",
-  "delivered",
-  "customer_collected",
   "exception",
-  "return_transit",
+  "ready_for_pickup",
+  "customer_collected",
+  "final_mile_ready",
 ]);
 export type ShipmentStatus = z.infer<typeof shipmentStatusSchema>;
 
@@ -382,9 +379,7 @@ export const shipmentCustodySchema = z.enum([
   "node_staff",
   "linehaul_internal",
   "provider",
-  "rider",
   "customer",
-  "return_transit",
 ]);
 export type ShipmentCustody = z.infer<typeof shipmentCustodySchema>;
 
@@ -425,7 +420,6 @@ export type ArriveShipmentRequest = z.infer<typeof arriveShipmentRequestSchema>;
 
 export const rerouteShipmentRequestSchema = z.strictObject({
   expectedVersion: z.number().int().positive(),
-  replacementRuleId: idSchema,
   reason: z.string().trim().min(1).max(500),
 });
 export type RerouteShipmentRequest = z.infer<typeof rerouteShipmentRequestSchema>;
