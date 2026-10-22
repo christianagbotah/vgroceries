@@ -49,6 +49,7 @@ export interface ApiConfig {
   secureCookies: boolean;
   port: number;
   host: string;
+  logisticsShipmentExecutionEnabled: boolean;
   commerce: CommerceConfig | null;
   payments: PaymentConfig | null;
   productMedia: ProductMediaConfig | null;
@@ -83,6 +84,16 @@ export function readConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
   const port = Number(env.PORT ?? 3010);
   if (!Number.isInteger(port) || port < 1 || port > 65535)
     throw new Error("Invalid PORT");
+
+  const shipmentExecutionRaw = env.LOGISTICS_SHIPMENT_EXECUTION_ENABLED;
+  if (
+    shipmentExecutionRaw !== undefined &&
+    shipmentExecutionRaw !== "true" &&
+    shipmentExecutionRaw !== "false"
+  ) {
+    throw new Error("LOGISTICS_SHIPMENT_EXECUTION_ENABLED must be exactly true or false when supplied");
+  }
+  const logisticsShipmentExecutionEnabled = shipmentExecutionRaw === "true";
 
   const commerceNames = [
     "COMMERCE_LOCATION_ID",
@@ -307,6 +318,7 @@ export function readConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
     secureCookies: env.API_INSECURE_COOKIES !== "true",
     port,
     host: env.API_HOST ?? "127.0.0.1",
+    logisticsShipmentExecutionEnabled,
     commerce,
     payments,
     productMedia,

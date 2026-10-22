@@ -22,6 +22,8 @@ import {
   createDeliveryWorkflowRequestSchema, saveDeliveryWorkflowDraftRequestSchema, publishDeliveryWorkflowRequestSchema,
   createDeliveryRouteRuleRequestSchema, updateDeliveryRouteRuleRequestSchema, activateDeliveryRouteRuleRequestSchema,
   routeSimulationRequestSchema,
+  planShipmentRequestSchema, departShipmentRequestSchema, arriveShipmentRequestSchema,
+  rerouteShipmentRequestSchema, checkpointShipmentRequestSchema,
 } from "./logistics";
 
 /* ------------------------------------------------------------------ */
@@ -88,7 +90,12 @@ export const guestAddressInputSchema = z.object({
   ghanaPostGps: z.string().optional(),
 });
 
-const checkoutCompleteBaseSchema = z.object({
+const deliveryDestinationSchema = z.discriminatedUnion("kind", [
+  z.strictObject({ kind: z.literal("doorstep") }),
+  z.strictObject({ kind: z.literal("pickup_point"), finalPickupNodeId: idSchema }),
+]);
+
+const checkoutCompleteBaseSchema = z.strictObject({
   lines: z.array(cartLineInputSchema).min(1),
   customerName: z.string().min(1),
   customerPhone: z.string().min(1),
@@ -97,6 +104,7 @@ const checkoutCompleteBaseSchema = z.object({
   addressId: idSchema.optional(),
   guestAddress: guestAddressInputSchema.optional(),
   fulfilment: z.enum(["delivery", "collection"]),
+  deliveryDestination: deliveryDestinationSchema.optional(),
   zoneId: idSchema.optional(),
   slotId: idSchema.optional(),
   paymentMethod: z.enum([
@@ -111,14 +119,23 @@ const checkoutCompleteBaseSchema = z.object({
 
 export const replayKeySchema = z.string().regex(/^[A-Za-z0-9:_-]{8,128}$/);
 
+function addCheckoutDestinationIssues(
+  value: z.infer<typeof checkoutCompleteBaseSchema>,
+  ctx: z.RefinementCtx,
+) {
+  if (value.fulfilment === "collection" && value.deliveryDestination !== undefined) {
+    ctx.addIssue({ code: "custom", path: ["deliveryDestination"], message: "Collection checkout cannot set a delivery destination." });
+  }
+}
+
 export const checkoutCompleteRequestSchema = checkoutCompleteBaseSchema.extend({
   idempotencyKey: replayKeySchema,
-});
+}).superRefine(addCheckoutDestinationIssues);
 
 /** Production REST body: Idempotency-Key is authoritative transport metadata. */
 export const checkoutCompleteRestRequestSchema = checkoutCompleteBaseSchema.extend({
   idempotencyKey: replayKeySchema.optional(),
-});
+}).superRefine(addCheckoutDestinationIssues);
 
 export const trackRequestSchema = z.object({
   reference: z.string().trim().min(1).max(128),
@@ -578,6 +595,11 @@ export const requestSchemas: Record<string, z.ZodTypeAny> = {
   "admin.logistics.route-rule.update": withoutTransportReplay(updateDeliveryRouteRuleRequestSchema),
   "admin.logistics.route-rule.activate": withoutTransportReplay(activateDeliveryRouteRuleRequestSchema),
   "admin.logistics.route-rule.simulate": routeSimulationRequestSchema,
+  "admin.logistics.shipment.plan": withoutTransportReplay(planShipmentRequestSchema),
+  "admin.logistics.shipment.depart": withoutTransportReplay(departShipmentRequestSchema),
+  "admin.logistics.shipment.arrive": withoutTransportReplay(arriveShipmentRequestSchema),
+  "admin.logistics.shipment.reroute": withoutTransportReplay(rerouteShipmentRequestSchema),
+  "admin.logistics.shipment.checkpoint": withoutTransportReplay(checkpointShipmentRequestSchema),
   "admin.product.create": createProductDraftRequestSchema,
   "admin.product-media.generate": createGenerationRequestSchema,
   "admin.product-media.featured": setFeaturedMediaRequestSchema,

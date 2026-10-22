@@ -1,4 +1,4 @@
-import { Body, Controller, HttpCode, Post, Req, Res } from "@nestjs/common";
+import { Body, Controller, Get, HttpCode, Post, Query, Req, Res } from "@nestjs/common";
 import { ApiTags } from "@nestjs/swagger";
 import type { Response } from "express";
 import { checkoutQuoteRequestSchema, checkoutCompleteRestRequestSchema, replayKeySchema, type CompleteOrderRequest } from "@variety/contracts";
@@ -7,11 +7,16 @@ import { GuestCheckoutService } from "../commerce-identity/guest-checkout.servic
 import { ApiProblem, ApiRequest } from "../http/errors";
 import { CheckoutQuoteService } from "./checkout-quote.service";
 import { CheckoutCommandService } from "./checkout-command.service";
+import { CheckoutPickupOptionsService } from "./checkout-pickup-options.service";
 
 @ApiTags("checkout")
 @Controller("checkout")
 export class CheckoutController {
-  constructor(private readonly quoteService: CheckoutQuoteService, private readonly command: CheckoutCommandService, private readonly principals: CheckoutPrincipalService, private readonly guests: GuestCheckoutService) {}
+  constructor(private readonly quoteService: CheckoutQuoteService, private readonly command: CheckoutCommandService, private readonly principals: CheckoutPrincipalService, private readonly guests: GuestCheckoutService, private readonly pickupOptions: CheckoutPickupOptionsService) {}
+  @Get("pickup-options") @HttpCode(200)
+  async listPickupOptions(@Query("zoneId") zoneId?: string) {
+    return {ok:true,data:await this.pickupOptions.list(zoneId??"")};
+  }
   @Post("quote") @HttpCode(200)
   async quote(@Body() body: unknown,@Req() req: ApiRequest,@Res({passthrough:true}) res: Response) {
     const parsed=checkoutQuoteRequestSchema.safeParse(body);

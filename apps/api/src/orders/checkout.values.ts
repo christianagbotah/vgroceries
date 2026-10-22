@@ -78,6 +78,11 @@ function canonical(value: unknown): unknown {
   return value;
 }
 export function canonicalCheckoutRequest(input: CompleteOrderRequest): Record<string, unknown> {
+  const deliveryDestination = input.fulfilment === "delivery"
+    ? input.deliveryDestination?.kind === "pickup_point"
+      ? { kind: "pickup_point", finalPickupNodeId: input.deliveryDestination.finalPickupNodeId.trim() }
+      : { kind: "doorstep" }
+    : undefined;
   const normalized: Record<string, unknown> = {
     lines: input.lines.map((line) => ({
       variantId: line.variantId,
@@ -99,6 +104,7 @@ export function canonicalCheckoutRequest(input: CompleteOrderRequest): Record<st
         }
       : undefined,
     fulfilment: input.fulfilment,
+    deliveryDestination,
     zoneId: input.zoneId,
     slotId: input.slotId,
     paymentMethod: input.paymentMethod,

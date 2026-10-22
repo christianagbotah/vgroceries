@@ -4,9 +4,11 @@ import { DeliveryConfigModule } from "../delivery-config/delivery-config.module"
 import { CommerceIdentityModule } from "../commerce-identity/commerce-identity.module";
 import { PaymentsModule } from "../payments/payments.module";
 import { RefundsModule } from "../refunds/refunds.module";
+import { LogisticsModule } from "../logistics/logistics.module";
 import { VerificationCodeService } from "./verification-code.service";
 import { CheckoutQuoteService } from "./checkout-quote.service";
 import { CheckoutCommandService } from "./checkout-command.service";
+import { CheckoutPickupOptionsService } from "./checkout-pickup-options.service";
 import { CheckoutController } from "./checkout.controller";
 import { OrdersController } from "./orders.controller";
 import { AccountOrdersController } from "./account-orders.controller";
@@ -20,9 +22,9 @@ import { OrderFinancialActionService } from "./order-financial-action.service";
 import { AdminOrderActionsController } from "./admin-order-actions.controller";
 
 @Module({
-  imports: [InventoryModule, DeliveryConfigModule, CommerceIdentityModule, PaymentsModule, RefundsModule],
+  imports: [InventoryModule, DeliveryConfigModule, CommerceIdentityModule, PaymentsModule, RefundsModule, LogisticsModule],
   controllers: [CheckoutController, OrdersController, AccountController, AccountOrdersController, AdminOrderActionsController],
-  providers: [VerificationCodeService, CheckoutQuoteService, CheckoutCommandService, OrderProjectionService, OrderQueryService, TrackingThrottleService, OrderCancellationService, OrderFinancialActionService, AccountProfileService],
+  providers: [VerificationCodeService, CheckoutQuoteService, CheckoutCommandService, CheckoutPickupOptionsService, OrderProjectionService, OrderQueryService, TrackingThrottleService, OrderCancellationService, OrderFinancialActionService, AccountProfileService],
   exports: [VerificationCodeService, CheckoutQuoteService, CheckoutCommandService, OrderProjectionService, OrderQueryService, TrackingThrottleService, OrderCancellationService, OrderFinancialActionService],
 })
 export class OrdersModule {}

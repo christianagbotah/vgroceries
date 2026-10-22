@@ -2,6 +2,7 @@ import { writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { createApplication } from "../src/bootstrap";
 import { productionOpenApi } from "../src/http/production-openapi";
+
 async function main() {
   const app = await createApplication();
   try {
@@ -13,6 +14,7 @@ async function main() {
     await app.close();
   }
 }
+
 main().catch(() => {
   console.error("OpenAPI generation failed.");
   process.exitCode = 1;
