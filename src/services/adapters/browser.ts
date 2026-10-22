@@ -23,6 +23,18 @@ import type { CacheInvalidationEvent, CacheTag } from "../contracts/common";
 import { restEndpoints } from "../contracts/endpoints";
 
 export const CACHE_INVALIDATED_EVENT = "vg:cache-invalidated";
+const CSRF_TOKEN_KEY = "vg-csrf-token-v1";
+
+export function getBrowserCsrfToken(): string | undefined {
+  if (typeof window === "undefined") return undefined;
+  return window.sessionStorage.getItem(CSRF_TOKEN_KEY) ?? undefined;
+}
+export function setBrowserCsrfToken(token?: string): void {
+  if (typeof window === "undefined") return;
+  if (token) window.sessionStorage.setItem(CSRF_TOKEN_KEY, token);
+  else window.sessionStorage.removeItem(CSRF_TOKEN_KEY);
+}
+export function clearBrowserCsrfToken(): void { setBrowserCsrfToken(undefined); }
 
 interface CacheEntry {
   at: number;
@@ -125,6 +137,10 @@ export function resolveClientAdapter(): ServiceAdapter {
       new HttpServiceAdapter(base, {
         kind: "http:api",
         credentials: "include",
+        headers: (): Record<string, string> => {
+          const csrf = getBrowserCsrfToken();
+          return csrf ? { "X-CSRF-Token": csrf } : {};
+        },
       })
     );
   } else {

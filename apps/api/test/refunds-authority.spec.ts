@@ -57,9 +57,9 @@ function refundOpenApiSurface(): string {
   return JSON.stringify({ paths, schemas }).toLowerCase();
 }
 
-test("production OpenAPI exposes exactly the three Refunds Authority paths on a 82-path surface", () => {
+test("production OpenAPI exposes exactly the three Refunds Authority paths on a 84-path surface", () => {
   for (const path of refundPaths) assert.ok(document.paths[path], `missing ${path}`);
-  assert.equal(Object.keys(document.paths).length, 82);
+  assert.equal(Object.keys(document.paths).length, 84);
   for (const absent of [
     "/api/v1/refunds/manual",
     "/api/v1/refunds/cash",

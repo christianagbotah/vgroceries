@@ -32,5 +32,6 @@ export const sessionLookupResponseSchema = z.object({
   csrfToken: secretSchema.optional(),
 });
 export type SessionActor = z.infer<typeof sessionActorSchema>;
+export type SessionLookupResponse = z.infer<typeof sessionLookupResponseSchema>;
 export type WebSessionResponse = z.infer<typeof webSessionResponseSchema>;
 export type NativeSessionResponse = z.infer<typeof nativeSessionResponseSchema>;

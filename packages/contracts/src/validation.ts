@@ -15,6 +15,7 @@
  */
 
 import { z } from "zod";
+import { loginRequestSchema } from "./identity";
 import {
   createLogisticsNodeRequestSchema, updateLogisticsNodeRequestSchema,
   createLogisticsLaneRequestSchema, updateLogisticsLaneRequestSchema,
@@ -573,6 +574,7 @@ function withoutTransportReplay(schema: z.ZodTypeAny): z.ZodTypeAny {
 }
 
 export const requestSchemas: Record<string, z.ZodTypeAny> = {
+  "auth.login": loginRequestSchema,
   "checkout.quote": checkoutQuoteRequestSchema,
   "checkout.complete": checkoutCompleteRequestSchema,
   "checkout.payment-outcome": paymentOutcomeRequestSchema,
