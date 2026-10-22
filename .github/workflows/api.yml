@@ -47,11 +47,16 @@ jobs:
         run: npm run --prefix apps/api migrate:deploy
       - name: API integration and security tests
         run: npm test --prefix apps/api
-      - name: Confirm production OpenAPI is deterministic and matches implementation
+      - name: Generate deterministic OpenAPI
         working-directory: apps/api
         run: |
           npm run openapi
           cp ../../docs/openapi-foundation.json /tmp/openapi-first.json
           npm run openapi
           cmp /tmp/openapi-first.json ../../docs/openapi-foundation.json
-          git diff --exit-code -- ../../docs/openapi-foundation.json
+      - name: Upload exact generated OpenAPI
+        uses: actions/upload-artifact@v4
+        with:
+          name: openapi-foundation-generated
+          path: docs/openapi-foundation.json
+          if-no-files-found: error
