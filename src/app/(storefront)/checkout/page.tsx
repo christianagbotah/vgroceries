@@ -5,7 +5,8 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
 import { useCart } from "@/features/checkout/cart-store";
-import { apiOps, ApiError } from "@/services/client";
+import { api, apiOps, ApiError } from "@/services/client";
+import type { CheckoutPickupOptionView } from "@/services/contracts";
 import { formatMoney, parseMoneyToMinor } from "@/lib/money";
 import { isValidGhanaPhone, isValidGhanaPostGps } from "@/lib/format";
 import { LoadingState, EmptyState, ErrorState } from "@/components/shared/states";
@@ -39,6 +40,9 @@ export default function CheckoutPage() {
   const [zoneId, setZoneId] = useState<string>("");
   const [slotId, setSlotId] = useState<string>("");
   const [slots, setSlots] = useState<Slot[]>([]);
+  const [pickupOptions, setPickupOptions] = useState<CheckoutPickupOptionView[]>([]);
+  const [deliveryDestination, setDeliveryDestination] = useState<"doorstep" | "pickup_point">("doorstep");
+  const [pickupNodeId, setPickupNodeId] = useState("");
 
   const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
@@ -113,8 +117,39 @@ export default function CheckoutPage() {
     };
   }, [zoneId, fulfilment]);
 
+  useEffect(() => {
+    if (fulfilment !== "delivery" || !zoneId) {
+      setPickupOptions([]);
+      setPickupNodeId("");
+      setDeliveryDestination("doorstep");
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const options = await api<CheckoutPickupOptionView[]>("checkout.pickup-options", { query: { zoneId } });
+        if (cancelled) return;
+        setPickupOptions(options);
+        setPickupNodeId((current) => options.some((option) => option.nodeId === current) ? current : "");
+        if (!options.length) setDeliveryDestination("doorstep");
+      } catch {
+        if (!cancelled) {
+          setPickupOptions([]);
+          setPickupNodeId("");
+          setDeliveryDestination("doorstep");
+        }
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [zoneId, fulfilment]);
+
   const zone = zones.find((z) => z.id === zoneId);
   const slot = slots.find((s) => s.id === slotId);
+  const selectedPickup = pickupOptions.find((option) => option.nodeId === pickupNodeId);
+
+  useEffect(() => {
+    if (deliveryDestination === "pickup_point" && paymentMethod === "cash_on_delivery") setPaymentMethod("mobile_money");
+  }, [deliveryDestination, paymentMethod]);
 
   const subtotal = useMemo(() => {
     // estimate from known prices; the service recalculates authoritatively
@@ -137,7 +172,9 @@ export default function CheckoutPage() {
     if (fulfilment === "delivery") {
       if (!zoneId) errs.zoneId = "Choose a delivery zone.";
       if (!slotId && slots.length) errs.slotId = "Choose a delivery slot.";
-      if (addressId === "new") {
+      if (deliveryDestination === "pickup_point") {
+        if (!pickupNodeId || !pickupOptions.some((option) => option.nodeId === pickupNodeId)) errs.pickupNodeId = "Choose an available pickup centre.";
+      } else if (addressId === "new") {
         if (!recipientName.trim()) errs.recipientName = "Who should receive the order?";
         if (!isValidGhanaPhone(phone)) errs.phone = "Recipient phone must be a +233 number.";
         if (!locality.trim()) errs.locality = "Enter the locality (e.g. Labone).";
@@ -164,13 +201,18 @@ export default function CheckoutPage() {
         customerPhone: customerPhone.replace(/[\s-]/g, ""),
         customerEmail: customerEmail.trim() || undefined,
         fulfilment,
+        deliveryDestination: fulfilment === "delivery"
+          ? deliveryDestination === "pickup_point"
+            ? { kind: "pickup_point", finalPickupNodeId: pickupNodeId }
+            : { kind: "doorstep" }
+          : undefined,
         zoneId: fulfilment === "delivery" ? zoneId : undefined,
         slotId: fulfilment === "delivery" ? slotId : undefined,
         paymentMethod,
         note: note.trim() || undefined,
-        addressId: fulfilment === "delivery" && addressId !== "new" ? addressId : undefined,
+        addressId: fulfilment === "delivery" && deliveryDestination === "doorstep" && addressId !== "new" ? addressId : undefined,
         guestAddress:
-          fulfilment === "delivery" && addressId === "new"
+          fulfilment === "delivery" && deliveryDestination === "doorstep" && addressId === "new"
             ? {
                 label: "Delivery address",
                 recipientName: recipientName.trim(),
@@ -357,6 +399,41 @@ export default function CheckoutPage() {
                   </div>
                 </div>
 
+                {pickupOptions.length ? (
+                  <div className="space-y-3 rounded-lg border p-3 sm:p-4">
+                    <div>
+                      <Label>Delivery destination</Label>
+                      <p className="mt-1 text-xs text-muted-foreground">Choose doorstep delivery or collect from a configured Variety Groceries pickup centre.</p>
+                    </div>
+                    <RadioGroup
+                      value={deliveryDestination}
+                      onValueChange={(value) => {
+                        const next = value as "doorstep" | "pickup_point";
+                        setDeliveryDestination(next);
+                        if (next === "pickup_point" && !pickupNodeId) setPickupNodeId(pickupOptions[0]?.nodeId ?? "");
+                      }}
+                      className="grid gap-2"
+                    >
+                      <Label data-clickable htmlFor="destination-doorstep" className={cn("flex cursor-pointer items-start gap-3 rounded-lg border p-3 font-normal", deliveryDestination === "doorstep" && "border-primary bg-primary/5")}>
+                        <RadioGroupItem value="doorstep" id="destination-doorstep" className="mt-1" />
+                        <span><span className="font-medium">Doorstep delivery</span><span className="block text-sm text-muted-foreground">Deliver to your saved or new address.</span></span>
+                      </Label>
+                      {pickupOptions.map((option) => (
+                        <Label key={option.nodeId} data-clickable htmlFor={`destination-pickup-${option.nodeId}`} className={cn("flex cursor-pointer items-start gap-3 rounded-lg border p-3 font-normal", deliveryDestination === "pickup_point" && pickupNodeId === option.nodeId && "border-primary bg-primary/5")}>
+                          <RadioGroupItem value="pickup_point" id={`destination-pickup-${option.nodeId}`} className="mt-1" onClick={() => setPickupNodeId(option.nodeId)} />
+                          <span className="min-w-0">
+                            <span className="font-medium">{option.publicName}</span>
+                            <span className="block text-sm text-muted-foreground">{[option.addressLine, option.locality, option.region].filter(Boolean).join(" · ") || "Pickup centre"}</span>
+                            {option.publicDirections ? <span className="block text-xs text-muted-foreground">{option.publicDirections}</span> : null}
+                          </span>
+                        </Label>
+                      ))}
+                    </RadioGroup>
+                    {field("pickupNodeId")}
+                  </div>
+                ) : null}
+
+                {deliveryDestination === "doorstep" ? (
                 <div className="space-y-4 rounded-lg border p-3 sm:p-4">
                   <div>
                     <Label htmlFor="co-address">Delivery address</Label>
@@ -413,6 +490,14 @@ export default function CheckoutPage() {
                     </div>
                   ) : null}
                 </div>
+                ) : selectedPickup ? (
+                  <div className="rounded-lg border bg-muted/40 p-3 text-sm">
+                    <p className="font-medium">Collect from {selectedPickup.publicName}</p>
+                    <p className="mt-1 text-muted-foreground">{[selectedPickup.addressLine, selectedPickup.locality, selectedPickup.region].filter(Boolean).join(" · ")}</p>
+                    {selectedPickup.ghanaPostGps ? <p className="mt-1 font-mono text-xs text-muted-foreground">{selectedPickup.ghanaPostGps}</p> : null}
+                    {selectedPickup.publicContact ? <p className="mt-1 text-xs text-muted-foreground">Contact: {selectedPickup.publicContact}</p> : null}
+                  </div>
+                ) : null}
               </div>
             ) : (
               <p className="flex items-start gap-2 rounded-lg bg-muted/60 p-3 text-sm text-muted-foreground">
@@ -431,7 +516,7 @@ export default function CheckoutPage() {
             </h2>
             <RadioGroup value={paymentMethod} onValueChange={(v) => setPaymentMethod(v as PaymentMethod)} className="grid gap-2 sm:grid-cols-2" aria-label="Payment method">
               {(Object.keys(PAYMENT_METHOD_LABELS) as PaymentMethod[])
-                .filter((m) => (m === "cash_on_delivery" ? fulfilment === "delivery" : true))
+                .filter((m) => (m === "cash_on_delivery" ? fulfilment === "delivery" && deliveryDestination === "doorstep" : true))
                 .map((m) => (
                   <Label key={m} data-clickable htmlFor={`pay-${m}`} className={cn("flex cursor-pointer items-center gap-3 rounded-lg border p-3 font-normal", paymentMethod === m && "border-primary bg-primary/5")}>
                     <RadioGroupItem value={m} id={`pay-${m}`} />
