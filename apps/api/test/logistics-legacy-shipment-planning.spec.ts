@@ -74,6 +74,7 @@ async function legacyOrder(name: string, overrides: Record<string, unknown> = {}
   } });
   const line = await db.orderLine.create({ data: {
     orderId: order.id,
+    productId: "product-rice",
     variantId: "var-rice",
     productName: "Fixture Rice",
     variantName: "Weighted rice",
