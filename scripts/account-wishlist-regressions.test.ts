@@ -16,6 +16,14 @@ describe("customer account and wishlist regressions", () => {
     expect(button).toContain("event.stopPropagation()");
   });
 
+  test("account dashboard redirects an expired summary session to customer sign-in", () => {
+    const page = read("src/app/(storefront)/account/page.tsx");
+    expect(page).toContain('useRouter');
+    expect(page).toContain('e.code === "UNAUTHENTICATED" || e.code === "FORBIDDEN"');
+    expect(page).toContain('router.replace("/account/login")');
+    expect(page).toContain('return;');
+  });
+
   test("account area has a customer login route and session gate", () => {
     expect(existsSync("src/app/(storefront)/account/login/page.tsx")).toBe(true);
     const layout = read("src/app/(storefront)/account/layout.tsx");
