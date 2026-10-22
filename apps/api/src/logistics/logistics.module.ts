@@ -8,9 +8,10 @@ import { LogisticsLaneService } from "./logistics-lane.service";
 import { LogisticsWorkflowService } from "./logistics-workflow.service";
 import { LogisticsRouteRuleService } from "./logistics-route-rule.service";
 import { LogisticsBootstrapService } from "./logistics-bootstrap.service";
+import { ShipmentPlanningService } from "./shipment-planning.service";
 @Module({
   controllers:[AdminLogisticsNodesController,AdminLogisticsLanesController,AdminLogisticsWorkflowsController,AdminLogisticsRouteRulesController],
-  providers:[LogisticsNodeService,LogisticsLaneService,LogisticsWorkflowService,LogisticsRouteRuleService,LogisticsBootstrapService],
-  exports:[LogisticsNodeService,LogisticsLaneService,LogisticsWorkflowService,LogisticsRouteRuleService,LogisticsBootstrapService],
+  providers:[LogisticsNodeService,LogisticsLaneService,LogisticsWorkflowService,LogisticsRouteRuleService,LogisticsBootstrapService,ShipmentPlanningService],
+  exports:[LogisticsNodeService,LogisticsLaneService,LogisticsWorkflowService,LogisticsRouteRuleService,LogisticsBootstrapService,ShipmentPlanningService],
 })
 export class LogisticsModule {}

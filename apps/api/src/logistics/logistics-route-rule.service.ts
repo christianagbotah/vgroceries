@@ -17,7 +17,7 @@ import { ApiProblem } from "../http/errors";
 import { logisticsCommandHash, normalizeMatchText } from "./logistics.values";
 
 type Tx = Prisma.TransactionClient;
-type RuleGraph = Prisma.DeliveryRouteRuleGetPayload<{ include: { stops: { include: { node: true } }; legs: { include: { lane: true } } } }>;
+export type DeliveryRouteRuleGraph = Prisma.DeliveryRouteRuleGetPayload<{ include: { stops: { include: { node: true } }; legs: { include: { lane: true } } } }>;
 type StopInput = { position: number; nodeId: string; terminalRole: string };
 type LegInput = { position: number; laneId: string };
 type NormalizedRule = {
@@ -66,13 +66,14 @@ export class LogisticsRouteRuleService {
       serviceLevel: normalizeMatchText(parsed.serviceLevel),
       workflowVersionId: parsed.workflowVersionId.trim(),
       priority: parsed.priority ?? 0,
-      effectiveFrom, effectiveTo,
+      effectiveFrom,
+      effectiveTo,
       stops: [...parsed.stops].map((stop: any) => ({ position: stop.position, nodeId: stop.nodeId.trim(), terminalRole: stop.terminalRole })).sort((a,b) => a.position-b.position),
       legs: [...(parsed.legs ?? [])].map((leg: any) => ({ position: leg.position, laneId: leg.laneId.trim() })).sort((a,b) => a.position-b.position),
     };
   }
 
-  private graphAsNormalized(rule: RuleGraph): NormalizedRule {
+  private graphAsNormalized(rule: DeliveryRouteRuleGraph): NormalizedRule {
     return {
       name: rule.name, originNodeId: rule.originNodeId, deliveryZoneId: rule.deliveryZoneId, fulfilment: rule.fulfilment,
       locality: rule.locality, destinationKind: rule.destinationKind, finalPickupNodeId: rule.finalPickupNodeId,
@@ -83,7 +84,7 @@ export class LogisticsRouteRuleService {
     };
   }
 
-  private async getGraph(tx: Tx | Database, ruleId: string): Promise<RuleGraph> {
+  private async getGraph(tx: Tx | Database, ruleId: string): Promise<DeliveryRouteRuleGraph> {
     const rule = await tx.deliveryRouteRule.findUnique({
       where: { id: ruleId },
       include: { stops: { include: { node: true }, orderBy: { position: "asc" } }, legs: { include: { lane: true }, orderBy: { position: "asc" } } },
@@ -92,7 +93,7 @@ export class LogisticsRouteRuleService {
     return rule;
   }
 
-  private routeView(rule: RuleGraph): DeliveryRouteRuleView {
+  private routeView(rule: DeliveryRouteRuleGraph): DeliveryRouteRuleView {
     return deliveryRouteRuleViewSchema.parse({
       id: rule.id, name: rule.name, originNodeId: rule.originNodeId, deliveryZoneId: rule.deliveryZoneId,
       fulfilment: rule.fulfilment, locality: rule.locality, destinationKind: rule.destinationKind,
@@ -303,7 +304,7 @@ export class LogisticsRouteRuleService {
     });
   }
 
-  private candidate(rule: RuleGraph): RouteSimulationCandidate {
+  private candidate(rule: DeliveryRouteRuleGraph): RouteSimulationCandidate {
     return {
       ruleId: rule.id, name: rule.name, priority: rule.priority, workflowVersionId: rule.workflowVersionId,
       destinationKind: rule.destinationKind as any,
@@ -312,27 +313,51 @@ export class LogisticsRouteRuleService {
     };
   }
 
-  async simulate(input: RouteSimulationRequest): Promise<RouteSimulationResponse> {
+  private parseMatchContext(input: RouteSimulationRequest) {
     const parsed = this.parse<any>(routeSimulationRequestSchema, input, "Route simulation body is invalid.");
     if (parsed.fulfilment === "delivery" && !parsed.deliveryZoneId) invalid("Delivery simulation requires a delivery zone.");
     if (parsed.fulfilment === "collection" && parsed.deliveryZoneId) invalid("Collection simulation cannot use a delivery zone.");
-    const locality = normalizeMatchText(parsed.locality); const serviceLevel = normalizeMatchText(parsed.serviceLevel);
-    const at = parsed.at ? new Date(parsed.at) : new Date();
-    const rows = await this.db.deliveryRouteRule.findMany({
-      where: {
-        active: true, originNodeId: parsed.originNodeId, fulfilment: parsed.fulfilment,
-        deliveryZoneId: parsed.fulfilment === "delivery" ? parsed.deliveryZoneId : null,
-        destinationKind: parsed.destinationKind, finalPickupNodeId: parsed.destinationKind === "pickup_point" ? parsed.finalPickupNodeId : null,
-        AND: [
-          locality ? { OR: [{ locality: null }, { locality }] } : { locality: null },
-          serviceLevel ? { OR: [{ serviceLevel: null }, { serviceLevel }] } : { serviceLevel: null },
-          { OR: [{ effectiveFrom: null }, { effectiveFrom: { lte: at } }] },
-          { OR: [{ effectiveTo: null }, { effectiveTo: { gte: at } }] },
-        ],
-      },
+    return parsed;
+  }
+
+  private matchWhere(parsed: any, at: Date): Prisma.DeliveryRouteRuleWhereInput {
+    const locality = normalizeMatchText(parsed.locality);
+    const serviceLevel = normalizeMatchText(parsed.serviceLevel);
+    return {
+      active: true, originNodeId: parsed.originNodeId, fulfilment: parsed.fulfilment,
+      deliveryZoneId: parsed.fulfilment === "delivery" ? parsed.deliveryZoneId : null,
+      destinationKind: parsed.destinationKind, finalPickupNodeId: parsed.destinationKind === "pickup_point" ? parsed.finalPickupNodeId : null,
+      AND: [
+        locality ? { OR: [{ locality: null }, { locality }] } : { locality: null },
+        serviceLevel ? { OR: [{ serviceLevel: null }, { serviceLevel }] } : { serviceLevel: null },
+        { OR: [{ effectiveFrom: null }, { effectiveFrom: { lte: at } }] },
+        { OR: [{ effectiveTo: null }, { effectiveTo: { gte: at } }] },
+      ],
+    };
+  }
+
+  private async matchingGraphs(client: Tx | Database, parsed: any, at: Date): Promise<DeliveryRouteRuleGraph[]> {
+    return client.deliveryRouteRule.findMany({
+      where: this.matchWhere(parsed, at),
       include: { stops: { include: { node: true }, orderBy: { position: "asc" } }, legs: { include: { lane: true }, orderBy: { position: "asc" } } },
       orderBy: [{ priority: "desc" }, { id: "asc" }], take: 50,
     });
+  }
+
+  private uniqueTop(rows: DeliveryRouteRuleGraph[]): DeliveryRouteRuleGraph {
+    if (!rows.length)
+      throw new ApiProblem(422, "LOGISTICS_ROUTE_NOT_CONFIGURED", "No active logistics route matches this order context.");
+    const topPriority = rows[0]!.priority;
+    const top = rows.filter((row) => row.priority === topPriority);
+    if (top.length !== 1)
+      throw new ApiProblem(409, "LOGISTICS_ROUTE_AMBIGUOUS", "Multiple active logistics routes have equal authority for this order context.");
+    return top[0]!;
+  }
+
+  async simulate(input: RouteSimulationRequest): Promise<RouteSimulationResponse> {
+    const parsed = this.parseMatchContext(input);
+    const at = parsed.at ? new Date(parsed.at) : new Date();
+    const rows = await this.matchingGraphs(this.db, parsed, at);
     if (!rows.length) return routeSimulationResponseSchema.parse({ status: "no_match", candidates: [] });
     const topPriority = rows[0]!.priority;
     const candidates = rows.filter((row) => row.priority === topPriority).map((row) => this.candidate(row));
@@ -341,9 +366,22 @@ export class LogisticsRouteRuleService {
   }
 
   async resolve(context: Omit<RouteSimulationRequest,"at">, at: Date): Promise<RouteSimulationCandidate> {
-    const result = await this.simulate({ ...context, at: at.toISOString() });
-    if (result.status === "no_match") throw new ApiProblem(422, "LOGISTICS_ROUTE_NOT_CONFIGURED", "No active logistics route matches this order context.");
-    if (result.status === "ambiguous") throw new ApiProblem(409, "LOGISTICS_ROUTE_AMBIGUOUS", "Multiple active logistics routes have equal authority for this order context.");
-    return result.selectedRule;
+    const parsed = this.parseMatchContext({ ...context, at: at.toISOString() });
+    return this.candidate(this.uniqueTop(await this.matchingGraphs(this.db, parsed, at)));
+  }
+
+  async resolveInTransaction(tx: Tx, context: Omit<RouteSimulationRequest,"at">, at: Date): Promise<DeliveryRouteRuleGraph> {
+    const parsed = this.parseMatchContext({ ...context, at: at.toISOString() });
+    const selected = this.uniqueTop(await this.matchingGraphs(tx, parsed, at));
+    await tx.$queryRaw`SELECT id FROM "DeliveryRouteRule" WHERE id=${selected.id} FOR UPDATE`;
+    await tx.$queryRaw`SELECT id FROM "DeliveryRouteRuleStop" WHERE "ruleId"=${selected.id} ORDER BY position, id FOR UPDATE`;
+    await tx.$queryRaw`SELECT id FROM "DeliveryRouteRuleLeg" WHERE "ruleId"=${selected.id} ORDER BY position, id FOR UPDATE`;
+    const locked = await this.getGraph(tx, selected.id);
+    if (!locked.active)
+      throw new ApiProblem(422, "LOGISTICS_ROUTE_NOT_CONFIGURED", "Selected logistics route is no longer active.");
+    const normalized = this.graphAsNormalized(locked);
+    await this.lockDependencies(tx, normalized);
+    await this.validateStructure(tx, normalized);
+    return locked;
   }
 }
