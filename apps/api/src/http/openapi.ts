@@ -91,6 +91,17 @@ export function foundationOpenApi(app: INestApplication) {
     ZoneListResponse: { type: "array", items: ref("ZoneView") },
     SlotView: json(slotViewSchema),
     SlotListResponse: { type: "array", items: ref("SlotView") },
+    PickupOption: json(z.strictObject({
+      nodeId: z.string().min(1),
+      publicName: z.string().min(1),
+      addressLine: z.string().nullable(),
+      locality: z.string().nullable(),
+      region: z.string().nullable(),
+      ghanaPostGps: z.string().nullable(),
+      publicDirections: z.string().nullable(),
+      publicContact: z.string().nullable(),
+    })),
+    PickupOptionsResponse: { type: "array", items: ref("PickupOption") },
     QuoteResponse: json(quoteResponseSchema),
     CheckoutQuoteRequest: json(checkoutQuoteRequestSchema),
     CheckoutCompleteRequest: json(checkoutCompleteRestRequestSchema),
@@ -188,6 +199,7 @@ export function foundationOpenApi(app: INestApplication) {
     "/inventory/receive": "ReceiveResponse",
     "/checkout/zones": "ZoneListResponse",
     "/checkout/zones/{zoneId}/slots": "SlotListResponse",
+    "/checkout/pickup-options": "PickupOptionsResponse",
     "/checkout/quote": "QuoteResponse",
     "/checkout/complete": "CompleteOrderResponse",
     "/orders/{orderId}": "PublicOrder",
@@ -321,6 +333,17 @@ export function foundationOpenApi(app: INestApplication) {
       schema: { type: "string", minLength: 1 },
     },
   ];
+  doc.paths["/api/v1/checkout/pickup-options"]!.get!.parameters = [
+    {
+      name: "zoneId",
+      in: "query",
+      required: true,
+      description: "Active delivery zone used to derive customer-visible remote pickup centres from published route configuration.",
+      schema: { type: "string", minLength: 1, maxLength: 128 },
+    },
+  ];
+  doc.paths["/api/v1/checkout/pickup-options"]!.get!.description =
+    "Public customer-safe pickup choices derived from active published logistics routes. Internal route, workflow, lane and provider identifiers are never exposed.";
   doc.paths["/api/v1/inventory/overview"]!.get!.parameters = [
     {
       name: "locationId",
@@ -440,7 +463,6 @@ export function foundationOpenApi(app: INestApplication) {
   ];
   reconcilePayment.description =
     "Administrator-only reconciliation command. Reads an immutable attempt snapshot, performs authoritative provider lookup outside the database transaction, then rechecks Order→Attempt locks before applying the observation through PaymentOutcomeService. Repeat execution cannot duplicate financial effects.";
-
 
   const refundList = doc.paths["/api/v1/refunds"]!.get!;
   refundList.description =
