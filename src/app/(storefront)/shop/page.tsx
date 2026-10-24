@@ -6,6 +6,7 @@ import { ShopFilters } from "@/features/catalog/shop-filters";
 import { EmptyState, NoResults } from "@/components/shared/states";
 import { Button } from "@/components/ui/button";
 import { PaginationNav } from "@/components/shared/pagination";
+import { AdSenseSlot } from "@/components/ads/adsense-slot";
 import { storefrontPantryPromoImage } from "@/lib/product-image-map";
 import { ArrowRight, Leaf, ShoppingBasket } from "lucide-react";
 import type { Metadata } from "next";
@@ -58,6 +59,8 @@ export default async function ShopPage({ searchParams }: ShopPageProps) {
       </section>
 
       <div className="mt-3 rounded-2xl border bg-white p-3 shadow-sm sm:p-4"><ShopFilters categories={categories} total={total} /></div>
+
+      <AdSenseSlot slot={process.env.NEXT_PUBLIC_ADSENSE_SHOP_TOP_SLOT} className="mt-4" />
 
       <div className="mt-4">
         {entries.length === 0 ? (

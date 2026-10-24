@@ -25,12 +25,12 @@ import { useCart } from "@/features/checkout/cart-store";
 
 const NAV = [
   { href: "/shop", label: "All groceries" },
-  { href: "/shop?category=cat_fp", label: "Fresh Produce" },
-  { href: "/shop?category=cat_gs", label: "Grains & Staples" },
-  { href: "/shop?category=cat_os", label: "Oils & Sauces" },
-  { href: "/shop?category=cat_de", label: "Dairy & Eggs" },
-  { href: "/shop?category=cat_bv", label: "Beverages" },
-  { href: "/shop?category=cat_sn", label: "Snacks" },
+  { href: "/shop?category=fresh-produce", label: "Fresh Produce" },
+  { href: "/shop?category=grains-staples", label: "Grains & Staples" },
+  { href: "/shop?category=oils-sauces", label: "Oils & Sauces" },
+  { href: "/shop?category=dairy-eggs", label: "Dairy & Eggs" },
+  { href: "/shop?category=beverages", label: "Beverages" },
+  { href: "/shop?category=snacks", label: "Snacks" },
   { href: "/help", label: "Help" },
 ];
 
@@ -204,7 +204,7 @@ export function StorefrontFooter() {
         </div>
         <div>
           <p className="mb-3 text-sm font-bold">Shop</p>
-          <ul className="space-y-2 text-xs text-white/70"><li><Link href="/shop">All products</Link></li><li><Link href="/shop?category=cat_fp">Fresh produce</Link></li><li><Link href="/shop?category=cat_de">Dairy & eggs</Link></li><li><Link href="/shop?category=cat_mf">Meat & fish</Link></li></ul>
+          <ul className="space-y-2 text-xs text-white/70"><li><Link href="/shop">All products</Link></li><li><Link href="/shop?category=fresh-produce">Fresh produce</Link></li><li><Link href="/shop?category=dairy-eggs">Dairy & eggs</Link></li><li><Link href="/shop?category=meat-fish">Meat & fish</Link></li></ul>
         </div>
         <div>
           <p className="mb-3 text-sm font-bold">Customer service</p>

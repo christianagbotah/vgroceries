@@ -46,8 +46,20 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const adsenseClient = process.env.NEXT_PUBLIC_ADSENSE_CLIENT?.trim();
+  const adsenseEnabled = Boolean(adsenseClient && /^ca-pub-\d{16}$/.test(adsenseClient));
+
   return (
     <html lang="en" suppressHydrationWarning>
+      <head>
+        {adsenseEnabled ? (
+          <script
+            async
+            src={`https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${adsenseClient}`}
+            crossOrigin="anonymous"
+          />
+        ) : null}
+      </head>
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased bg-background text-foreground`}>
         {children}
         <Toaster />

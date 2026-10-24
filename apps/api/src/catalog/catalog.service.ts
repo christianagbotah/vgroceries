@@ -130,7 +130,7 @@ export class CatalogService {
     perPage: number;
     sort: string;
   }) {
-    const where = Prisma.sql`${this.eligible()} ${query.category ? Prisma.sql`AND p."categoryId"=${query.category}` : Prisma.empty}
+    const where = Prisma.sql`${this.eligible()} ${query.category ? Prisma.sql`AND EXISTS(SELECT 1 FROM "Category" c WHERE c.id=p."categoryId" AND (c.id=${query.category} OR c.slug=${query.category}))` : Prisma.empty}
       ${query.q ? Prisma.sql`AND (p.name ILIKE ${"%" + query.q + "%"} OR p."shortDescription" ILIKE ${"%" + query.q + "%"} OR array_to_string(p.tags,' ') ILIKE ${"%" + query.q + "%"})` : Prisma.empty}`;
     const price = Prisma.sql`(SELECT min(v."priceMinor") FROM "Variant" v WHERE v."productId"=p.id AND v.active)`;
     const order =

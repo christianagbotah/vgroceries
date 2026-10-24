@@ -575,6 +575,12 @@ test("catalogue paging rejects invalid inputs and safely handles search", async 
     "/catalog/products?q=RICE&category=cat_food&sort=price-asc&perPage=1",
   );
   assert.equal(y.body.data.total, 1);
+  const bySlug = await request(
+    "/catalog/products?q=RICE&category=food&sort=price-asc&perPage=1",
+  );
+  assert.equal(bySlug.r.status, 200);
+  assert.equal(bySlug.body.data.total, 1);
+  assert.equal(bySlug.body.data.items[0].categorySlug, "food");
 });
 test("catalogue categories and home share availability and omit prototype tracking", async () => {
   const c = await request("/catalog/categories");

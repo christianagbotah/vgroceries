@@ -67,11 +67,17 @@ backup_if_present "$API_PROXY_TARGET" api-proxy.conf
 backup_if_present "$PORTAL_VHOST" portal-vhost.conf
 backup_if_present "$PORTAL_UNIT_TARGET" portal.service
 
+ADSENSE_ENV_LINES=""
+if [[ -f "$PORTAL_ENV_FILE" ]]; then
+  ADSENSE_ENV_LINES="$(grep -E '^(ADSENSE_CLIENT|NEXT_PUBLIC_ADSENSE_CLIENT|NEXT_PUBLIC_ADSENSE_HOME_TOP_SLOT|NEXT_PUBLIC_ADSENSE_HOME_MID_SLOT|NEXT_PUBLIC_ADSENSE_HOME_BOTTOM_SLOT|NEXT_PUBLIC_ADSENSE_SHOP_TOP_SLOT)=' "$PORTAL_ENV_FILE" || true)"
+fi
+
 install -d -o lightworld -g lightworld -m 0750 "$(dirname "$PORTAL_ENV_FILE")"
 cat > "$PORTAL_ENV_FILE" <<'ENV'
 API_BASE_URL=http://127.0.0.1:3027/api/v1
 NEXT_PUBLIC_API_BASE_URL=https://portal.varietygroceries.com/api/v1
 ENV
+if [[ -n "$ADSENSE_ENV_LINES" ]]; then printf '%s\n' "$ADSENSE_ENV_LINES" >> "$PORTAL_ENV_FILE"; fi
 chown lightworld:lightworld "$PORTAL_ENV_FILE"
 chmod 0640 "$PORTAL_ENV_FILE"
 

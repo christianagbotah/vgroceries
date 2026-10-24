@@ -1,18 +1,25 @@
 import Image from "next/image";
 import Link from "next/link";
-import { getHomeData } from "@/services/server-data";
+import { getHomeData, getShopData } from "@/services/server-data";
+import type { CatalogProduct } from "@/services/contracts";
 import { ProductTile } from "@/features/catalog/product-tile";
+import { AdSenseSlot } from "@/components/ads/adsense-slot";
 import { Button } from "@/components/ui/button";
 import {
   ArrowRight,
   BadgePercent,
+  CheckCircle2,
   Leaf,
   MapPin,
+  Package,
+  Search,
   ShieldCheck,
+  ShoppingBasket,
   Sparkles,
   Store,
   Tags,
   Truck,
+  UserRound,
 } from "lucide-react";
 import { formatDateTime } from "@/lib/format";
 import {
@@ -24,34 +31,90 @@ import {
 
 export const dynamic = "force-dynamic";
 
+function unique(products: CatalogProduct[]) {
+  return products.filter((product, index, all) => all.findIndex((candidate) => candidate.id === product.id) === index);
+}
+
+function inCategories(products: CatalogProduct[], slugs: string[], limit = 8) {
+  const wanted = new Set(slugs);
+  return products.filter((product) => product.categorySlug && wanted.has(product.categorySlug)).slice(0, limit);
+}
+
+function ProductSection({
+  eyebrow,
+  title,
+  copy,
+  products,
+  href = "/shop",
+  linkLabel = "View all",
+}: {
+  eyebrow?: string;
+  title: string;
+  copy: string;
+  products: CatalogProduct[];
+  href?: string;
+  linkLabel?: string;
+}) {
+  if (!products.length) return null;
+  return (
+    <section className="mt-8" aria-label={title}>
+      <div className="mb-3 flex items-end justify-between gap-4 px-1">
+        <div>
+          {eyebrow ? <p className="mb-1 text-[11px] font-black uppercase tracking-[0.16em] text-primary">{eyebrow}</p> : null}
+          <h2 className="font-serif text-2xl font-black tracking-tight text-[color:var(--brand-green-deep)] sm:text-3xl">{title}</h2>
+          <p className="mt-1 max-w-2xl text-xs leading-relaxed text-muted-foreground sm:text-sm">{copy}</p>
+        </div>
+        <Link href={href} className="hidden shrink-0 items-center text-xs font-bold text-primary hover:underline sm:inline-flex">{linkLabel} <ArrowRight className="ml-1 size-3.5" /></Link>
+      </div>
+      <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8">
+        {products.map((product, index) => <ProductTile key={product.id} product={product} priority={index < 2} />)}
+      </div>
+      <Link href={href} className="mt-3 inline-flex items-center text-xs font-bold text-primary hover:underline sm:hidden">{linkLabel} <ArrowRight className="ml-1 size-3.5" /></Link>
+    </section>
+  );
+}
+
 export default async function HomePage() {
-  const { categories, offers, popular, trendingNew, demoTrack } = await getHomeData();
-  const featured = [...offers, ...popular, ...trendingNew]
-    .filter((product, index, all) => all.findIndex((candidate) => candidate.id === product.id) === index)
-    .slice(0, 8);
+  const [{ categories, offers, popular, trendingNew, demoTrack }, catalogue] = await Promise.all([
+    getHomeData(),
+    getShopData({ sort: "name", page: 1, perPage: 48 }),
+  ]);
+
+  const allProducts = catalogue.items;
+  const valuePicks = unique([
+    ...offers,
+    ...allProducts.filter((product) => product.variants.some((variant) => Boolean(variant.compareAtPriceMinor))),
+    ...popular,
+    ...trendingNew,
+    ...allProducts,
+  ]).slice(0, 8);
+  const freshMarket = inCategories(allProducts, ["fresh-produce", "meat-fish"], 8);
+  const pantry = inCategories(allProducts, ["grains-staples", "oils-sauces"], 8);
+  const familyFavourites = inCategories(allProducts, ["beverages", "snacks", "dairy-eggs", "baby-family"], 8);
+  const homeCare = inCategories(allProducts, ["household", "personal-care"], 8);
   const freshProduceCategory = categories.find((category) => category.slug === "fresh-produce");
 
   return (
-    <div className="mx-auto max-w-[1500px] px-3 pb-10 sm:px-4">
-      <section className="storefront-hero relative mt-3 min-h-[330px] overflow-hidden rounded-[26px] border bg-[#eef4e8] shadow-[0_16px_50px_rgba(6,64,43,0.10)] lg:min-h-[390px]" aria-labelledby="home-hero-title">
+    <div className="mx-auto max-w-[1500px] px-3 pb-12 sm:px-4">
+      <section className="storefront-hero relative mt-3 min-h-[350px] overflow-hidden rounded-[26px] border bg-[#eef4e8] shadow-[0_16px_50px_rgba(6,64,43,0.10)] lg:min-h-[420px]" aria-labelledby="home-hero-title">
         <Image src={storefrontHeroImage} alt="Abundant fresh groceries ready for shopping" fill priority sizes="100vw" className="object-cover object-center" />
         <div className="absolute inset-0 bg-gradient-to-r from-[#f9fbee] via-[#f9fbee]/95 to-[#f9fbee]/10 lg:via-[#f9fbee]/72" />
-        <div className="relative z-10 max-w-[720px] px-5 py-7 sm:px-10 sm:py-10 lg:px-12 lg:py-12">
-          <span className="inline-flex items-center gap-2 rounded-full bg-white/85 px-3 py-1.5 text-xs font-bold text-primary shadow-sm backdrop-blur"><Leaf className="size-3.5" /> Fresh selection · clear availability</span>
-          <h1 id="home-hero-title" className="mt-4 max-w-[680px] font-serif text-[42px] font-black leading-[0.95] tracking-[-0.045em] text-[color:var(--brand-green-deep)] sm:text-6xl lg:text-[70px]">
+        <div className="relative z-10 max-w-[760px] px-5 py-8 sm:px-10 sm:py-11 lg:px-12 lg:py-14">
+          <span className="inline-flex items-center gap-2 rounded-full bg-white/85 px-3 py-1.5 text-xs font-bold text-primary shadow-sm backdrop-blur"><Leaf className="size-3.5" /> Fresh selection · live availability</span>
+          <h1 id="home-hero-title" className="mt-4 max-w-[700px] font-serif text-[42px] font-black leading-[0.95] tracking-[-0.045em] text-[color:var(--brand-green-deep)] sm:text-6xl lg:text-[70px]">
             Fresh Groceries <span className="text-brand-amber">Delivered to Your Door</span>
           </h1>
           <p className="mt-4 max-w-xl text-sm font-medium leading-relaxed text-foreground/80 sm:text-base">
-            Shop market-fresh produce, Ghanaian staples, dairy, drinks and household essentials. Choose delivery in configured Accra zones or collect in store — only sellable stock is offered.
+            Shop fresh produce, Ghanaian staples, proteins, dairy, drinks and household essentials in one stock-aware store. Choose configured delivery or collection and follow your order from checkout to handover.
           </p>
-          <div className="mt-5 grid max-w-xl grid-cols-2 gap-2 text-[11px] font-bold sm:grid-cols-4">
-            <div className="flex items-center gap-2"><span className="grid size-8 place-items-center rounded-full bg-[#e3eed1] text-primary"><Leaf className="size-4" /></span>Fresh &amp; premium</div>
+          <div className="mt-5 grid max-w-2xl grid-cols-2 gap-2 text-[11px] font-bold sm:grid-cols-4">
+            <div className="flex items-center gap-2"><span className="grid size-8 place-items-center rounded-full bg-[#e3eed1] text-primary"><Leaf className="size-4" /></span>Fresh everyday picks</div>
             <div className="flex items-center gap-2"><span className="grid size-8 place-items-center rounded-full bg-[#e3eed1] text-primary"><Truck className="size-4" /></span>Delivery &amp; collection</div>
-            <div className="flex items-center gap-2"><span className="grid size-8 place-items-center rounded-full bg-[#e3eed1] text-primary"><ShieldCheck className="size-4" /></span>Trusted workflow</div>
-            <div className="flex items-center gap-2"><span className="grid size-8 place-items-center rounded-full bg-[#e3eed1] text-primary"><Tags className="size-4" /></span>Clear prices</div>
+            <div className="flex items-center gap-2"><span className="grid size-8 place-items-center rounded-full bg-[#e3eed1] text-primary"><ShieldCheck className="size-4" /></span>Stock-aware checkout</div>
+            <div className="flex items-center gap-2"><span className="grid size-8 place-items-center rounded-full bg-[#e3eed1] text-primary"><Tags className="size-4" /></span>Prices in Ghana cedis</div>
           </div>
           <div className="mt-6 flex flex-wrap gap-2.5">
-            <Button asChild size="lg" className="h-12 rounded-xl px-6 shadow-lg shadow-primary/15"><Link href="/shop">Shop fresh groceries <ArrowRight className="size-4" /></Link></Button>
+            <Button asChild size="lg" className="h-12 rounded-xl px-6 shadow-lg shadow-primary/15"><Link href="/shop">Start shopping <ArrowRight className="size-4" /></Link></Button>
             <Button asChild size="lg" variant="outline" className="h-12 rounded-xl border-primary/25 bg-white/85 px-5"><Link href="/assistant"><Sparkles className="size-4 text-brand-amber" /> Ask shopping assistant</Link></Button>
           </div>
         </div>
@@ -61,45 +124,104 @@ export default async function HomePage() {
         </div>
       </section>
 
-      <section className="mt-3" aria-labelledby="home-categories">
-        <div className="mb-2 flex items-end justify-between gap-3 px-1">
-          <div><h2 id="home-categories" className="font-serif text-2xl font-bold tracking-tight">Shop by category</h2><p className="text-xs text-muted-foreground">Browse useful grocery departments with current sellable stock.</p></div>
-          <Link href="/categories" className="shrink-0 text-xs font-bold text-primary hover:underline">View categories <ArrowRight className="ml-1 inline size-3.5" /></Link>
+      <section className="mt-4" aria-labelledby="home-categories">
+        <div className="mb-3 flex items-end justify-between gap-3 px-1">
+          <div><h2 id="home-categories" className="font-serif text-2xl font-black tracking-tight">Shop by category</h2><p className="text-xs text-muted-foreground">Jump directly into the department you need.</p></div>
+          <Link href="/categories" className="shrink-0 text-xs font-bold text-primary hover:underline">All categories <ArrowRight className="ml-1 inline size-3.5" /></Link>
         </div>
         <div className="category-image-grid grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-10">
-          {categories.slice(0, 10).map((c) => (
-            <Link key={c.id} href={`/categories/${c.slug}`} className="group overflow-hidden rounded-xl border bg-white shadow-[0_4px_16px_rgba(0,0,0,.05)] transition hover:-translate-y-0.5 hover:shadow-md">
-              <div className="relative aspect-[1.55/1] overflow-hidden bg-muted"><Image src={categoryImageFor(c.slug)} alt={`${c.name} category`} fill sizes="(max-width:640px) 50vw, 180px" className="object-cover transition duration-300 group-hover:scale-105" /></div>
-              <div className="flex items-center justify-between gap-1 px-2.5 py-2"><span className="truncate text-xs font-extrabold">{c.name}</span><ArrowRight className="size-3.5 shrink-0 text-primary" /></div>
+          {categories.slice(0, 10).map((category) => (
+            <Link key={category.id} href={`/shop?category=${encodeURIComponent(category.slug)}`} className="group overflow-hidden rounded-xl border bg-white shadow-[0_4px_16px_rgba(0,0,0,.05)] transition hover:-translate-y-0.5 hover:shadow-md">
+              <div className="relative aspect-[1.55/1] overflow-hidden bg-muted"><Image src={categoryImageFor(category.slug)} alt={`${category.name} category`} fill sizes="(max-width:640px) 50vw, 180px" className="object-cover transition duration-300 group-hover:scale-105" /></div>
+              <div className="flex items-center justify-between gap-1 px-2.5 py-2"><span className="truncate text-xs font-extrabold">{category.name}</span><span className="text-[10px] font-bold text-muted-foreground">{category.count}</span></div>
             </Link>
           ))}
         </div>
       </section>
 
-      <section className="mt-6" aria-labelledby="home-featured">
-        <div className="mb-2 flex items-end justify-between gap-3 px-1"><div><h2 id="home-featured" className="font-serif text-2xl font-bold tracking-tight">Featured products</h2><p className="text-xs text-muted-foreground">A fuller preview of popular picks, current offers and fresh finds with current availability and pricing.</p></div><Link href="/shop" className="text-xs font-bold text-primary hover:underline">View all products <ArrowRight className="ml-1 inline size-3.5" /></Link></div>
-        <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-8">{featured.map((p, i) => <ProductTile key={p.id} product={p} priority={i < 2} />)}</div>
+      <AdSenseSlot slot={process.env.NEXT_PUBLIC_ADSENSE_HOME_TOP_SLOT} className="mt-5" />
+
+      <section className="mt-8" aria-labelledby="home-value-picks">
+        <div className="mb-3 flex items-end justify-between gap-4 px-1">
+          <div>
+            <p className="mb-1 flex items-center gap-1.5 text-[11px] font-black uppercase tracking-[0.16em] text-primary"><BadgePercent className="size-3.5" /> Featured products</p>
+            <h2 id="home-value-picks" className="font-serif text-2xl font-black tracking-tight text-[color:var(--brand-green-deep)] sm:text-3xl">Today’s value picks</h2>
+            <p className="mt-1 max-w-2xl text-xs leading-relaxed text-muted-foreground sm:text-sm">Current offers and useful everyday groceries, selected only from products the store can actually sell now.</p>
+          </div>
+          <Link href="/shop" className="hidden shrink-0 items-center text-xs font-bold text-primary hover:underline sm:inline-flex">See the full shop <ArrowRight className="ml-1 size-3.5" /></Link>
+        </div>
+        <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8">{valuePicks.map((product, index) => <ProductTile key={product.id} product={product} priority={index < 2} />)}</div>
       </section>
 
-      <section className="storefront-promo-grid mt-5 grid gap-3 lg:grid-cols-[1.7fr_1fr]" aria-label="Store promotions">
-        <article className="relative min-h-[155px] overflow-hidden rounded-2xl bg-[color:var(--brand-green-deep)] p-6 text-white sm:p-7">
+      <section className="storefront-promo-grid mt-8 grid gap-3 lg:grid-cols-[1.7fr_1fr]" aria-label="Store promotions">
+        <article className="relative min-h-[190px] overflow-hidden rounded-2xl bg-[color:var(--brand-green-deep)] p-6 text-white sm:p-8">
           <Image src={storefrontProducePromoImage} alt="Colourful basket of fresh produce" fill sizes="(max-width:1024px) 100vw, 65vw" className="object-cover object-right opacity-75" />
           <div className="absolute inset-0 bg-gradient-to-r from-[color:var(--brand-green-deep)] via-[color:var(--brand-green-deep)]/90 to-transparent" />
-          <div className="relative max-w-md"><h2 className="font-serif text-3xl font-bold leading-none">Healthy choices for a <span className="text-brand-amber">brighter tomorrow</span></h2><p className="mt-2 text-xs leading-relaxed text-white/80">Fresh produce, pantry staples and household essentials — all connected to one stock-aware shopping flow.</p><Button asChild className="mt-4 h-9 bg-brand-amber text-[color:var(--brand-green-deep)] hover:bg-brand-amber/90"><Link href={freshProduceCategory ? `/shop?category=${encodeURIComponent(freshProduceCategory.id)}` : "/shop"}>Shop fresh produce <ArrowRight className="size-3.5" /></Link></Button></div>
+          <div className="relative max-w-lg"><p className="text-xs font-black uppercase tracking-[0.16em] text-brand-amber">Market basket</p><h2 className="mt-2 font-serif text-3xl font-black leading-none sm:text-4xl">Healthy choices for a <span className="text-brand-amber">brighter tomorrow</span></h2><p className="mt-3 text-sm leading-relaxed text-white/80">Build a basket around fresh produce, proteins and Ghanaian staples without losing sight of current availability.</p><Button asChild className="mt-5 h-10 bg-brand-amber text-[color:var(--brand-green-deep)] hover:bg-brand-amber/90"><Link href={freshProduceCategory ? `/shop?category=${encodeURIComponent(freshProduceCategory.slug)}` : "/shop"}>Shop fresh produce <ArrowRight className="size-3.5" /></Link></Button></div>
         </article>
-        <article className="relative min-h-[155px] overflow-hidden rounded-2xl bg-[#fff4d8] p-6 sm:p-7">
+        <article className="relative min-h-[190px] overflow-hidden rounded-2xl bg-[#fff4d8] p-6 sm:p-8">
           <Image src={storefrontPantryPromoImage} alt="Pantry groceries and household essentials" fill sizes="(max-width:1024px) 100vw, 35vw" className="object-cover object-right opacity-65" />
           <div className="absolute inset-0 bg-gradient-to-r from-[#fff4d8] via-[#fff4d8]/95 to-transparent" />
-          <div className="relative max-w-[250px]"><h2 className="font-serif text-3xl font-bold leading-none text-[color:var(--brand-green-deep)]">Smart shopping assistance</h2><p className="mt-2 text-xs leading-relaxed text-foreground/70">Ask for ingredients or a budget basket and review available catalogue suggestions before buying.</p><Button asChild variant="outline" className="mt-4 h-9 border-primary/25 bg-white/80"><Link href="/assistant"><Sparkles className="size-3.5 text-brand-amber" /> Try assistant</Link></Button></div>
+          <div className="relative max-w-[285px]"><p className="text-xs font-black uppercase tracking-[0.16em] text-primary">Need ideas?</p><h2 className="mt-2 font-serif text-3xl font-black leading-none text-[color:var(--brand-green-deep)]">Smart shopping assistance</h2><p className="mt-3 text-xs leading-relaxed text-foreground/70">Ask for ingredients or a budget basket and review available catalogue suggestions before buying.</p><Button asChild variant="outline" className="mt-5 h-10 border-primary/25 bg-white/80"><Link href="/assistant"><Sparkles className="size-3.5 text-brand-amber" /> Try assistant</Link></Button></div>
         </article>
       </section>
 
-      <section className="mt-4 grid gap-2 rounded-2xl border bg-white p-3 shadow-sm sm:grid-cols-2 lg:grid-cols-4" aria-label="Why shop with Variety Groceries">
-        <div className="flex items-center gap-3 p-2"><span className="grid size-10 shrink-0 place-items-center rounded-full bg-primary/10 text-primary"><Leaf className="size-5" /></span><div><p className="text-sm font-bold">Fresh selection</p><p className="text-[11px] text-muted-foreground">Only available products are purchasable.</p></div></div>
-        <div className="flex items-center gap-3 p-2"><span className="grid size-10 shrink-0 place-items-center rounded-full bg-primary/10 text-primary"><Truck className="size-5" /></span><div><p className="text-sm font-bold">Flexible fulfilment</p><p className="text-[11px] text-muted-foreground">Configured delivery or store collection.</p></div></div>
-        <div className="flex items-center gap-3 p-2"><span className="grid size-10 shrink-0 place-items-center rounded-full bg-primary/10 text-primary"><ShieldCheck className="size-5" /></span><div><p className="text-sm font-bold">Controlled checkout</p><p className="text-[11px] text-muted-foreground">Availability and price revalidated at checkout.</p></div></div>
-        <div className="flex items-center gap-3 p-2"><span className="grid size-10 shrink-0 place-items-center rounded-full bg-primary/10 text-primary"><Store className="size-5" /></span><div><p className="text-sm font-bold">One stock model</p><p className="text-[11px] text-muted-foreground">Online and counter sales share inventory.</p></div></div>
+      <ProductSection eyebrow="Market fresh" title="Fresh from the market" copy="Produce and proteins for soups, stews, sides and everyday family meals." products={freshMarket} href="/shop?category=fresh-produce" linkLabel="Shop fresh produce" />
+      <ProductSection eyebrow="Kitchen essentials" title="Pantry & everyday staples" copy="Rice, grains, beans, cooking oils, sauces and other cupboard essentials for regular household shopping." products={pantry} href="/shop?category=grains-staples" linkLabel="Shop pantry staples" />
+
+      <section className="mt-8 grid gap-3 lg:grid-cols-3" aria-labelledby="basket-planning-title">
+        <article className="rounded-2xl border bg-gradient-to-br from-[#edf6e8] to-white p-5 sm:p-6">
+          <p className="text-[11px] font-black uppercase tracking-[0.16em] text-primary">Quick top-up</p>
+          <h2 id="basket-planning-title" className="mt-2 font-serif text-2xl font-black text-[color:var(--brand-green-deep)]">Plan your next basket</h2>
+          <p className="mt-2 text-sm leading-relaxed text-muted-foreground">Use categories and search to refill only what the household needs, then review availability before checkout.</p>
+          <Link href="/shop" className="mt-4 inline-flex items-center text-sm font-bold text-primary hover:underline">Browse all groceries <ArrowRight className="ml-1 size-4" /></Link>
+        </article>
+        <article className="rounded-2xl border bg-white p-5 sm:p-6">
+          <div className="flex size-10 items-center justify-center rounded-full bg-primary/10 text-primary"><Sparkles className="size-5" /></div>
+          <h3 className="mt-4 font-serif text-xl font-black">Budget basket helper</h3>
+          <p className="mt-2 text-sm leading-relaxed text-muted-foreground">Tell the shopping assistant your budget and review suggestions drawn from available catalogue items.</p>
+          <Link href="/assistant" className="mt-4 inline-flex items-center text-sm font-bold text-primary hover:underline">Ask the assistant <ArrowRight className="ml-1 size-4" /></Link>
+        </article>
+        <article className="rounded-2xl border bg-white p-5 sm:p-6">
+          <div className="flex size-10 items-center justify-center rounded-full bg-brand-amber/20 text-[color:var(--brand-green-deep)]"><UserRound className="size-5" /></div>
+          <h3 className="mt-4 font-serif text-xl font-black">Save time next visit</h3>
+          <p className="mt-2 text-sm leading-relaxed text-muted-foreground">Create an account to keep your profile, follow orders and use saved lists for repeat shopping.</p>
+          <Link href="/account/signup" className="mt-4 inline-flex items-center text-sm font-bold text-primary hover:underline">Create an account <ArrowRight className="ml-1 size-4" /></Link>
+        </article>
       </section>
+
+      <ProductSection eyebrow="For the family" title="Drinks, snacks & family favourites" copy="Beverages, dairy, snacks and convenient family items for school days, workdays and weekends." products={familyFavourites} href="/shop?category=beverages" linkLabel="Shop drinks & snacks" />
+
+      <AdSenseSlot slot={process.env.NEXT_PUBLIC_ADSENSE_HOME_MID_SLOT} />
+
+      <ProductSection eyebrow="For the home" title="Home & personal care" copy="Household cleaning and personal-care essentials kept alongside your grocery order." products={homeCare} href="/shop?category=household" linkLabel="Shop household care" />
+
+      <section className="mt-9 rounded-[26px] border bg-[#f8faf4] p-5 sm:p-7" aria-labelledby="how-variety-works">
+        <div className="mx-auto max-w-3xl text-center">
+          <p className="text-[11px] font-black uppercase tracking-[0.16em] text-primary">Simple from basket to handover</p>
+          <h2 id="how-variety-works" className="mt-2 font-serif text-3xl font-black text-[color:var(--brand-green-deep)]">How Variety works</h2>
+          <p className="mt-2 text-sm text-muted-foreground">A straightforward shopping flow built around current stock, fulfilment choice and order visibility.</p>
+        </div>
+        <div className="mt-6 grid gap-3 md:grid-cols-3">
+          <article className="rounded-2xl bg-white p-5 shadow-sm"><span className="grid size-11 place-items-center rounded-full bg-primary/10 font-black text-primary">1</span><Search className="mt-4 size-5 text-primary" /><h3 className="mt-2 font-bold">Browse live catalogue</h3><p className="mt-1 text-xs leading-relaxed text-muted-foreground">Search or filter categories and choose from products currently available to sell.</p></article>
+          <article className="rounded-2xl bg-white p-5 shadow-sm"><span className="grid size-11 place-items-center rounded-full bg-primary/10 font-black text-primary">2</span><ShoppingBasket className="mt-4 size-5 text-primary" /><h3 className="mt-2 font-bold">Review your basket</h3><p className="mt-1 text-xs leading-relaxed text-muted-foreground">Choose variants and quantities, then let checkout revalidate price and availability.</p></article>
+          <article className="rounded-2xl bg-white p-5 shadow-sm"><span className="grid size-11 place-items-center rounded-full bg-primary/10 font-black text-primary">3</span><Package className="mt-4 size-5 text-primary" /><h3 className="mt-2 font-bold">Receive &amp; track</h3><p className="mt-1 text-xs leading-relaxed text-muted-foreground">Use configured delivery or collection and follow supported order milestones from the tracking page.</p></article>
+        </div>
+      </section>
+
+      <section className="mt-6 grid gap-2 rounded-2xl border bg-white p-3 shadow-sm sm:grid-cols-2 lg:grid-cols-4" aria-label="Why shop with Variety Groceries">
+        <div className="flex items-center gap-3 p-2"><span className="grid size-10 shrink-0 place-items-center rounded-full bg-primary/10 text-primary"><Leaf className="size-5" /></span><div><p className="text-sm font-bold">Fresh selection</p><p className="text-[11px] text-muted-foreground">Purchasable lists follow sellable stock.</p></div></div>
+        <div className="flex items-center gap-3 p-2"><span className="grid size-10 shrink-0 place-items-center rounded-full bg-primary/10 text-primary"><Truck className="size-5" /></span><div><p className="text-sm font-bold">Flexible fulfilment</p><p className="text-[11px] text-muted-foreground">Configured delivery or store collection.</p></div></div>
+        <div className="flex items-center gap-3 p-2"><span className="grid size-10 shrink-0 place-items-center rounded-full bg-primary/10 text-primary"><ShieldCheck className="size-5" /></span><div><p className="text-sm font-bold">Controlled checkout</p><p className="text-[11px] text-muted-foreground">Price and availability are revalidated.</p></div></div>
+        <div className="flex items-center gap-3 p-2"><span className="grid size-10 shrink-0 place-items-center rounded-full bg-primary/10 text-primary"><Store className="size-5" /></span><div><p className="text-sm font-bold">Connected inventory</p><p className="text-[11px] text-muted-foreground">Online and counter sales share stock.</p></div></div>
+      </section>
+
+      <section className="mt-8 grid gap-3 overflow-hidden rounded-[26px] bg-[color:var(--brand-green-deep)] p-6 text-white md:grid-cols-[1.35fr_.65fr] md:p-8" aria-label="Customer support and account">
+        <div><p className="text-[11px] font-black uppercase tracking-[0.16em] text-brand-amber">Shop with confidence</p><h2 className="mt-2 font-serif text-3xl font-black">Your grocery journey does not end at checkout.</h2><p className="mt-3 max-w-2xl text-sm leading-relaxed text-white/75">Track an order, review your account, manage returns where eligible, or use the help centre when you need support.</p><div className="mt-5 flex flex-wrap gap-2"><Button asChild className="bg-brand-amber text-[color:var(--brand-green-deep)] hover:bg-brand-amber/90"><Link href="/track">Track an order</Link></Button><Button asChild variant="secondary"><Link href="/help">Visit help centre</Link></Button></div></div>
+        <div className="grid grid-cols-2 gap-2 self-center"><div className="rounded-2xl bg-white/8 p-4"><CheckCircle2 className="size-5 text-brand-amber" /><p className="mt-3 text-sm font-bold">Order history</p><p className="mt-1 text-xs text-white/65">Available inside customer accounts.</p></div><div className="rounded-2xl bg-white/8 p-4"><MapPin className="size-5 text-brand-amber" /><p className="mt-3 text-sm font-bold">Delivery info</p><p className="mt-1 text-xs text-white/65">Review configured zones and fulfilment information.</p></div></div>
+      </section>
+
+      <AdSenseSlot slot={process.env.NEXT_PUBLIC_ADSENSE_HOME_BOTTOM_SLOT} />
 
       <section aria-labelledby="home-demo" className="mt-6 grid gap-3 rounded-2xl border border-dashed bg-muted/35 p-4 sm:grid-cols-2">
         <div><h2 id="home-demo" className="text-sm font-bold">Prototype demo data</h2><p className="mt-1 text-xs leading-relaxed text-muted-foreground">Products, stock, prices and customer records in this environment are fictional fixtures. External payment and courier integrations are not represented as connected unless explicitly labelled.</p></div>

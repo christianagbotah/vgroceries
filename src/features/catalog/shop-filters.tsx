@@ -26,7 +26,8 @@ export function ShopFilters({
   const params = useSearchParams();
   const [pending, startTransition] = useTransition();
   const query = params.get("query") ?? "";
-  const category = params.get("category") ?? "all";
+  const rawCategory = params.get("category") ?? "";
+  const category = categories.find((c) => c.slug === rawCategory || c.id === rawCategory)?.slug ?? "all";
   const sort = params.get("sort") ?? "popular";
 
   const update = (patch: Record<string, string>) => {
@@ -81,7 +82,7 @@ export function ShopFilters({
         <SelectContent>
           <SelectItem value="all">All categories</SelectItem>
           {categories.map((c) => (
-            <SelectItem key={c.id} value={c.id}>
+            <SelectItem key={c.id} value={c.slug}>
               {c.name} ({c.count})
             </SelectItem>
           ))}
