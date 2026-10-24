@@ -2,6 +2,7 @@ import type { ApiConfig } from "../../config";
 import type { PaymentProviderAdapter } from "../payment-provider";
 import type { RefundProviderAdapter } from "../refund-provider";
 import { PaystackPaymentAdapter, PaystackRefundAdapter } from "./paystack";
+import { HubtelPaymentAdapter } from "./hubtel";
 
 type FetchLike = typeof fetch;
 
@@ -15,6 +16,12 @@ export function createConfiguredProviderAdapters(
     return {
       paymentAdapters: [new PaystackPaymentAdapter(provider, fetcher)],
       refundAdapters: [new PaystackRefundAdapter({ secretKey: provider.secretKey }, fetcher)],
+    };
+  }
+  if (provider.kind === "hubtel") {
+    return {
+      paymentAdapters: [new HubtelPaymentAdapter(provider, fetcher)],
+      refundAdapters: [],
     };
   }
   return { paymentAdapters: [], refundAdapters: [] };
