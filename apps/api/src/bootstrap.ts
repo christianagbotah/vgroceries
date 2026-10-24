@@ -80,7 +80,7 @@ export async function createApplication(
   // This narrowly scoped raw parser must run before the generic JSON parser.
   app.use(
     "/api/v1/payments/providers/:provider/events",
-    raw({ type: "application/json", limit: "64kb" }),
+    raw({ type: ["application/json", "application/x-www-form-urlencoded"], limit: "64kb" }),
   );
   app.use(json({ limit: "64kb" }));
   app.enableCors({

@@ -20,6 +20,7 @@ export interface PaymentInitiationRequest {
 
 export type PaymentProviderAction =
   | { kind: "redirect"; url: string }
+  | { kind: "form_post"; url: string; fields: Record<string, string> }
   | { kind: "prompt"; message: string; reference?: string }
   | { kind: "instructions"; message: string; reference?: string }
   | { kind: "none" };
@@ -34,6 +35,11 @@ export interface PaymentInitiationResult {
 
 export const paymentProviderActionSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("redirect"), url: z.string().url() }).strict(),
+  z.object({
+    kind: z.literal("form_post"),
+    url: z.string().url(),
+    fields: z.record(z.string().regex(/^[A-Za-z0-9_]{1,64}$/), z.string().max(2048)).refine((fields) => Object.keys(fields).length <= 50, "Too many provider form fields"),
+  }).strict(),
   z.object({ kind: z.literal("prompt"), message: z.string().min(1), reference: z.string().min(1).optional() }).strict(),
   z.object({ kind: z.literal("instructions"), message: z.string().min(1), reference: z.string().min(1).optional() }).strict(),
   z.object({ kind: z.literal("none") }).strict(),

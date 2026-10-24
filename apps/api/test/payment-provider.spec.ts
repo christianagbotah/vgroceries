@@ -71,10 +71,13 @@ test("compatible injected provider restores readiness, method policy and electro
   assert.equal((await db.order.findUniqueOrThrow({where:{id:x.body.data.orderId}})).paymentStatus,"pending");
 });
 
-test("hosted redirect actions require HTTPS and configured hostname", async () => {
+test("hosted redirect and form-post actions require HTTPS and configured hostname", async () => {
   const fake = new FakePaymentProvider(); const { policy } = await start(readConfig(env()), fake);
   assert.throws(() => policy.validateProviderAction({ kind: "redirect", url: "http://pay.example.test/checkout" }), /HTTPS/);
   assert.throws(() => policy.validateProviderAction({ kind: "redirect", url: "https://evil.example/checkout" }), /allowlist/);
   assert.deepEqual(policy.validateProviderAction({ kind: "redirect", url: "https://pay.example.test/checkout" }), { kind: "redirect", url: "https://pay.example.test/checkout" });
+  assert.throws(() => policy.validateProviderAction({ kind: "form_post", url: "http://pay.example.test/form", fields: { A: "1" } }), /HTTPS/);
+  assert.throws(() => policy.validateProviderAction({ kind: "form_post", url: "https://evil.example/form", fields: { A: "1" } }), /allowlist/);
+  assert.deepEqual(policy.validateProviderAction({ kind: "form_post", url: "https://pay.example.test/form", fields: { A: "1" } }), { kind: "form_post", url: "https://pay.example.test/form", fields: { A: "1" } });
   assert.deepEqual(policy.validateProviderAction({ kind: "prompt", message: "Approve in wallet" }), { kind: "prompt", message: "Approve in wallet" });
 });

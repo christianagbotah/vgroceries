@@ -3,6 +3,7 @@ import type { PaymentProviderAdapter } from "../payment-provider";
 import type { RefundProviderAdapter } from "../refund-provider";
 import { PaystackPaymentAdapter, PaystackRefundAdapter } from "./paystack";
 import { HubtelPaymentAdapter } from "./hubtel";
+import { ETranzactPaymentAdapter } from "./etranzact";
 
 type FetchLike = typeof fetch;
 
@@ -21,6 +22,12 @@ export function createConfiguredProviderAdapters(
   if (provider.kind === "hubtel") {
     return {
       paymentAdapters: [new HubtelPaymentAdapter(provider, fetcher)],
+      refundAdapters: [],
+    };
+  }
+  if (provider.kind === "etranzact") {
+    return {
+      paymentAdapters: [new ETranzactPaymentAdapter(provider, fetcher)],
       refundAdapters: [],
     };
   }

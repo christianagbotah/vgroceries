@@ -12,6 +12,7 @@ import { formatMoney } from "@/lib/money";
 import { formatDateTime } from "@/lib/format";
 import { CheckCircle2, CircleDashed, Clock, Loader2, Package, PartyPopper, PhoneCall, ShieldQuestion, TriangleAlert, XCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { ProviderActionForm } from "@/features/checkout/provider-action-form";
 
 const POLL_MS = 4000;
 
@@ -150,6 +151,9 @@ export default function CheckoutStatusPage() {
           <span className="text-muted-foreground">Placed {order.createdAtLabel} UTC</span>
         </div>
       </div>
+
+      {/* Task 5 supplies the persisted provider action; the renderer is already safe for form_post. */}
+      <ProviderActionForm action={null} />
 
       {/* provider roleplay panel (customer-side demo action, not a technical control) */}
       {needsAction ? (
