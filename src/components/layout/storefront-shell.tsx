@@ -2,12 +2,20 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Input } from "@/components/ui/input";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   ChevronDown,
   CircleHelp,
@@ -23,14 +31,28 @@ import {
 } from "lucide-react";
 import { useCart } from "@/features/checkout/cart-store";
 
-const NAV = [
+const CATEGORY_NAV = [
+  { slug: "fresh-produce", label: "Fresh Produce" },
+  { slug: "grains-staples", label: "Grains & Staples" },
+  { slug: "oils-sauces", label: "Oils & Sauces" },
+  { slug: "dairy-eggs", label: "Dairy & Eggs" },
+  { slug: "beverages", label: "Beverages" },
+  { slug: "snacks", label: "Snacks" },
+  { slug: "household", label: "Household Care" },
+  { slug: "personal-care", label: "Personal Care" },
+  { slug: "meat-fish", label: "Meat & Fish" },
+  { slug: "baby-family", label: "Baby & Family" },
+] as const;
+
+type NavItem = { href: string; label: string; category?: string };
+
+const NAV: NavItem[] = [
   { href: "/shop", label: "All groceries" },
-  { href: "/shop?category=fresh-produce", label: "Fresh Produce" },
-  { href: "/shop?category=grains-staples", label: "Grains & Staples" },
-  { href: "/shop?category=oils-sauces", label: "Oils & Sauces" },
-  { href: "/shop?category=dairy-eggs", label: "Dairy & Eggs" },
-  { href: "/shop?category=beverages", label: "Beverages" },
-  { href: "/shop?category=snacks", label: "Snacks" },
+  ...CATEGORY_NAV.slice(0, 6).map((category) => ({
+    href: `/shop?category=${category.slug}`,
+    label: category.label,
+    category: category.slug,
+  })),
   { href: "/help", label: "Help" },
 ];
 
@@ -53,14 +75,20 @@ function Brand({ compact = false, inverse = false }: { compact?: boolean; invers
 export function StorefrontHeader() {
   const pathname = usePathname();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const lines = useCart((s) => s.lines);
   const itemCount = lines.reduce((a, l) => a + Number(l.quantity), 0);
+  const pathCategory = pathname.startsWith("/categories/") ? pathname.split("/")[2] ?? "" : "";
+  const selectedCategory = searchParams.get("category") ?? pathCategory;
 
-  const isActive = (href: string) => {
-    const base = href.split("?")[0];
-    if (base === "/shop") return pathname === "/shop" || pathname.startsWith("/categories") || pathname.startsWith("/products");
+  const isActive = (item: NavItem) => {
+    if (item.href === "/shop") return pathname === "/shop" && !selectedCategory;
+    if (item.category) {
+      return (pathname === "/shop" && selectedCategory === item.category) || pathname === `/categories/${item.category}`;
+    }
+    const base = item.href.split("?")[0];
     return pathname === base || pathname.startsWith(`${base}/`);
   };
 
@@ -92,7 +120,7 @@ export function StorefrontHeader() {
                 <SheetTitle className="border-b p-4"><Brand compact /></SheetTitle>
                 <nav className="flex flex-col p-2" aria-label="Mobile navigation">
                   {NAV.map((item) => (
-                    <Link key={item.href} href={item.href} onClick={() => setOpen(false)} className={cn("rounded-xl px-3 py-3 text-[15px] font-medium hover:bg-accent", isActive(item.href) && "bg-accent font-bold text-primary")}>{item.label}</Link>
+                    <Link key={item.href} href={item.href} onClick={() => setOpen(false)} className={cn("rounded-xl px-3 py-3 text-[15px] font-medium hover:bg-accent", isActive(item) && "bg-[color:var(--brand-green-deep)] font-bold text-white shadow-sm hover:bg-[color:var(--brand-green-deep)] hover:text-white")}>{item.label}</Link>
                   ))}
                   <div className="my-2 border-t" />
                   <Link href="/account" onClick={() => setOpen(false)} className="rounded-xl px-3 py-3 text-[15px] hover:bg-accent">My account</Link>
@@ -105,9 +133,28 @@ export function StorefrontHeader() {
           </div>
 
           <form className="order-3 col-span-3 flex h-11 overflow-hidden rounded-xl border bg-white shadow-sm md:order-none md:col-span-1" role="search" onSubmit={(e) => { e.preventDefault(); submitSearch(); }}>
-            <Link href="/categories" className="hidden items-center gap-2 border-r bg-[#fbfbf7] px-3 text-xs font-bold text-foreground hover:bg-accent xl:flex">
-              All Categories <ChevronDown className="size-3.5" />
-            </Link>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button type="button" className="hidden items-center gap-2 border-r bg-[#fbfbf7] px-3 text-xs font-bold text-foreground transition hover:bg-accent xl:flex" aria-label="Open all grocery categories">
+                  All Categories <ChevronDown className="size-3.5" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="w-72 rounded-xl p-2 shadow-xl">
+                <DropdownMenuLabel className="px-2 py-2 text-xs font-black uppercase tracking-[0.12em] text-muted-foreground">Shop departments</DropdownMenuLabel>
+                <DropdownMenuItem asChild className="rounded-lg p-0">
+                  <Link href="/categories" className="flex w-full items-center justify-between px-3 py-2.5 font-bold text-primary">Browse all categories <ChevronDown className="size-3.5 -rotate-90" /></Link>
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                {CATEGORY_NAV.map((category) => (
+                  <DropdownMenuItem key={category.slug} asChild className={cn("rounded-lg p-0", selectedCategory === category.slug && "bg-primary/10 text-primary")}>
+                    <Link href={`/shop?category=${category.slug}`} className="flex w-full items-center justify-between px-3 py-2.5 text-sm font-semibold">
+                      {category.label}
+                      {selectedCategory === category.slug ? <span className="size-2 rounded-full bg-brand-amber" aria-hidden /> : null}
+                    </Link>
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground md:hidden" aria-hidden />
               <Input type="search" placeholder="Search for fresh groceries, products, brands…" className="h-full rounded-none border-0 pl-9 shadow-none focus-visible:ring-0 md:pl-4" value={query} onChange={(e) => setQuery(e.target.value)} aria-label="Search products" />
@@ -133,9 +180,19 @@ export function StorefrontHeader() {
           </div>
         </div>
 
-        <nav className="hidden h-9 items-center gap-1 overflow-x-auto border-t border-black/5 lg:flex" aria-label="Categories">
+        <nav className="hidden h-10 items-center gap-1 overflow-x-auto border-t border-black/5 lg:flex" aria-label="Categories">
           {NAV.map((item) => (
-            <Link key={item.href} href={item.href} className={cn("whitespace-nowrap rounded-lg px-3 py-1.5 text-xs font-semibold text-muted-foreground transition hover:bg-accent hover:text-foreground", isActive(item.href) && "bg-primary/8 text-primary")}>{item.label}</Link>
+            <Link
+              key={item.href}
+              href={item.href}
+              aria-current={isActive(item) ? "page" : undefined}
+              className={cn(
+                "whitespace-nowrap rounded-lg px-3 py-1.5 text-xs font-semibold text-muted-foreground transition hover:bg-accent hover:text-foreground",
+                isActive(item) && "bg-[color:var(--brand-green-deep)] text-white shadow-sm ring-1 ring-brand-amber/35 hover:bg-[color:var(--brand-green-deep)] hover:text-white"
+              )}
+            >
+              {item.label}
+            </Link>
           ))}
         </nav>
       </div>

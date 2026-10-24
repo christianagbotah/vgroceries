@@ -20,6 +20,18 @@ describe("storefront category filtering", () => {
     expect(catalog).toContain("c.id=${query.category}");
     expect(catalog).toContain("c.slug=${query.category}");
   });
+
+  test("header category picker is a dropdown and tabs highlight only the selected category", () => {
+    const shell = read("src/components/layout/storefront-shell.tsx");
+    expect(shell).toContain("DropdownMenuTrigger");
+    expect(shell).toContain("DropdownMenuContent");
+    expect(shell).toContain("Browse all categories");
+    expect(shell).toContain("useSearchParams");
+    expect(shell).toContain('searchParams.get("category")');
+    expect(shell).toContain("selectedCategory === item.category");
+    expect(shell).toContain("bg-[color:var(--brand-green-deep)] text-white");
+    expect(shell).toContain('aria-current={isActive(item) ? "page" : undefined}');
+  });
 });
 
 describe("richer storefront homepage", () => {
