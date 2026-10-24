@@ -20,6 +20,7 @@ import { HealthModule } from "./health/health.controller";
 import { productionOpenApi } from "./http/production-openapi";
 import { ApiExceptionFilter, ApiRequest } from "./http/errors";
 import { PaymentsModule } from "./payments/payments.module";
+import { HubtelRefundCallbackModule } from "./payments/hubtel-refund-callback.module";
 import type { PaymentProviderAdapter } from "./payments/payment-provider";
 import { PAYMENT_PROVIDER_ADAPTERS } from "./payments/payment-provider.registry";
 import type { RefundProviderAdapter } from "./payments/refund-provider";
@@ -63,6 +64,7 @@ export async function createApplication(
       // Keep Payments after the established modules so generated OpenAPI ordering
       // remains deterministic while the four Payments Authority routes are public.
       PaymentsModule,
+      HubtelRefundCallbackModule,
     ],
   })
   class ApplicationModule {}

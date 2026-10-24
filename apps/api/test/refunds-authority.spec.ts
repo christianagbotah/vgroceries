@@ -20,6 +20,7 @@ after(async () => { await app.close(); });
 const refundPaths = [
   "/api/v1/refunds",
   "/api/v1/refunds/{refundId}/actions",
+  "/api/v1/refunds/providers/hubtel/callback/{secret}",
   "/api/v1/admin/orders/{orderId}/actions",
 ] as const;
 
@@ -57,9 +58,9 @@ function refundOpenApiSurface(): string {
   return JSON.stringify({ paths, schemas }).toLowerCase();
 }
 
-test("production OpenAPI exposes exactly the three Refunds Authority paths on a 84-path surface", () => {
+test("production OpenAPI exposes the Refunds Authority plus the Hubtel callback on an 86-path surface", () => {
   for (const path of refundPaths) assert.ok(document.paths[path], `missing ${path}`);
-  assert.equal(Object.keys(document.paths).length, 84);
+  assert.equal(Object.keys(document.paths).length, 86);
   for (const absent of [
     "/api/v1/refunds/manual",
     "/api/v1/refunds/cash",

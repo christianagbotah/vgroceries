@@ -3,8 +3,8 @@ import { timingSafeEqual } from "node:crypto";
 import { API_CONFIG, type ApiConfig } from "../config";
 import { Database } from "../database/database";
 import { ApiProblem } from "../http/errors";
-import type { RefundProviderObservation } from "../payments/refund-provider";
-import { RefundOutcomeService } from "./refund-outcome.service";
+import type { RefundProviderObservation } from "./refund-provider";
+import { RefundOutcomeService } from "../refunds/refund-outcome.service";
 
 type JsonRecord = Record<string, unknown>;
 
