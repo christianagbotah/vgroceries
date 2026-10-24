@@ -60,7 +60,7 @@ test("Hubtel adapter sends the documented order refund request with Basic auth a
     return response(202, { message: "Transaction pending. Expect callback request for final state.", responseCode: "0001", data: { orderId: input().originalPaymentProviderReference } });
   });
   const result = await adapter.initiateRefund(input());
-  assert.deepEqual(result, { kind: "accepted", state: "pending", providerRefundReference: input().originalPaymentProviderReference });
+  assert.deepEqual(result, { kind: "accepted", state: "pending" });
   assert.equal(seen?.url, `${config.baseUrl}/refund/11684/order/${input().originalPaymentProviderReference}`);
   assert.equal(seen?.init?.method, "POST");
   const headers = new Headers(seen?.init?.headers);
@@ -115,7 +115,7 @@ test("Hubtel adapter advertises mobile-money callback semantics and never claims
 });
 
 
-test("configured Hubtel refund bundle is registered by bootstrap but remains blocked from live authority without reconciliation support", async () => {
+test("configured Hubtel callback-based refund bundle is registered and can execute mobile-money refunds", async () => {
   const parsed = readConfig({
     DATABASE_URL: "postgresql://u:p@localhost/db",
     WEB_ORIGINS: "http://localhost:3000",
@@ -132,10 +132,9 @@ test("configured Hubtel refund bundle is registered by bootstrap but remains blo
   try {
     const adapters = app.get<RefundProviderAdapter[]>(REFUND_PROVIDER_ADAPTERS);
     assert.equal(adapters.some((adapter) => adapter.id === "hubtel"), true);
-    assert.throws(
-      () => app.get(RefundProviderRegistry).require("hubtel", "mobile_money"),
-      /does not support this electronic payment method/i,
-    );
+    const registered = app.get(RefundProviderRegistry).require("hubtel", "mobile_money");
+    assert.equal(registered.id, "hubtel");
+    assert.equal(registered.capabilities().lookupSupported, false);
   } finally {
     await app.close();
   }

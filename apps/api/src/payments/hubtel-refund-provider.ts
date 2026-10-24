@@ -97,7 +97,12 @@ export class HubtelRefundProvider implements RefundProviderAdapter {
     const returnedOrderId = typeof payload.data?.orderId === "string" ? payload.data.orderId : undefined;
 
     if (code === "0001" || code === "4515") {
-      return { kind: "accepted", state: "pending", providerRefundReference: returnedOrderId ?? orderId };
+      const providerRefundReference = typeof payload.data?.externalTransactionId === "string"
+        ? payload.data.externalTransactionId
+        : undefined;
+      return providerRefundReference
+        ? { kind: "accepted", state: "pending", providerRefundReference }
+        : { kind: "accepted", state: "pending" };
     }
     if (["3000", "4000", "4509"].includes(code)) {
       return { kind: "rejected", failureCode: code, customerSafeMessage: safeRejection(code) };

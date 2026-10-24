@@ -9,7 +9,7 @@ import type { RefundProviderObservation } from "../payments/refund-provider";
 export interface RefundOutcomeContext {
   actorId: string;
   requestId: string;
-  trigger: "execute" | "retry" | "manual_reconcile";
+  trigger: "execute" | "retry" | "manual_reconcile" | "provider_callback";
 }
 
 export interface RefundOutcomeResult {

@@ -26,7 +26,7 @@ export class RefundProviderRegistry {
     if (!adapter)
       throw new ApiProblem(503, "UNAVAILABLE", "Refund capability for the payment provider is unavailable.");
     const capabilities = adapter.capabilities();
-    if (!capabilities.lookupSupported || !capabilities.methods.includes(method))
+    if (!capabilities.methods.includes(method))
       throw new ApiProblem(503, "UNAVAILABLE", "Refund capability does not support this electronic payment method.");
     return adapter;
   }
