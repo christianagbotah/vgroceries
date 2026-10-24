@@ -8,7 +8,7 @@ describe("customer sign-up regressions", () => {
     expect(existsSync("src/app/(storefront)/account/signup/page.tsx")).toBe(true);
     const login = read("src/app/(storefront)/account/login/page.tsx");
     const layout = read("src/app/(storefront)/account/layout.tsx");
-    expect(login).toContain('href="/account/signup"');
+    expect(login).toContain("/account/signup");
     expect(login).toContain("Create an account");
     expect(layout).toContain('pathname === "/account/signup"');
   });

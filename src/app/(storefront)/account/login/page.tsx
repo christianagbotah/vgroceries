@@ -12,15 +12,19 @@ import { LockKeyhole, Mail, ShoppingBag } from "lucide-react";
 
 export default function CustomerLoginPage() {
   const router = useRouter();
+  const [returnPath, setReturnPath] = useState("/account");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    const candidate = new URLSearchParams(window.location.search).get("next");
+    const safeReturnPath = candidate?.startsWith("/") && !candidate.startsWith("//") ? candidate : "/account";
+    setReturnPath(safeReturnPath);
     let active = true;
     apiOps.accountSession().then((session) => {
-      if (active && session.actor.role === "customer") router.replace("/account");
+      if (active && session.actor.role === "customer") router.replace(safeReturnPath);
     }).catch(() => undefined);
     return () => { active = false; };
   }, [router]);
@@ -36,7 +40,7 @@ export default function CustomerLoginPage() {
         setError("This sign-in is not a customer account.");
         return;
       }
-      router.replace("/account");
+      router.replace(returnPath);
       router.refresh();
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "Could not sign in. Please try again.");
@@ -69,7 +73,7 @@ export default function CustomerLoginPage() {
           </form>
         </CardContent>
       </Card>
-      <p className="mt-4 text-center text-sm text-muted-foreground">New to Variety Groceries? <Link href="/account/signup" className="font-medium text-primary hover:underline">Create an account</Link></p>
+      <p className="mt-4 text-center text-sm text-muted-foreground">New to Variety Groceries? <Link href={returnPath === "/account" ? "/account/signup" : `/account/signup?next=${encodeURIComponent(returnPath)}`} className="font-medium text-primary hover:underline">Create an account</Link></p>
       <p className="mt-2 text-center text-sm text-muted-foreground">Continue shopping? <Link href="/shop" className="font-medium text-primary hover:underline">Back to the shop</Link></p>
     </div>
   );

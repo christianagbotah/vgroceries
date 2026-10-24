@@ -12,6 +12,7 @@ import { LockKeyhole, Mail, Phone, ShoppingBag, UserRound } from "lucide-react";
 
 export default function CustomerSignupPage() {
   const router = useRouter();
+  const [returnPath, setReturnPath] = useState("/account");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
@@ -21,9 +22,12 @@ export default function CustomerSignupPage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    const candidate = new URLSearchParams(window.location.search).get("next");
+    const safeReturnPath = candidate?.startsWith("/") && !candidate.startsWith("//") ? candidate : "/account";
+    setReturnPath(safeReturnPath);
     let active = true;
     apiOps.accountSession().then((session) => {
-      if (active && session.actor.role === "customer") router.replace("/account");
+      if (active && session.actor.role === "customer") router.replace(safeReturnPath);
     }).catch(() => undefined);
     return () => { active = false; };
   }, [router]);
@@ -47,7 +51,7 @@ export default function CustomerSignupPage() {
         setError("Could not create a customer account.");
         return;
       }
-      router.replace("/account");
+      router.replace(returnPath);
       router.refresh();
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "Could not create your account. Please try again.");
@@ -97,7 +101,7 @@ export default function CustomerSignupPage() {
           </form>
         </CardContent>
       </Card>
-      <p className="mt-4 text-center text-sm text-muted-foreground">Already have an account? <Link href="/account/login" className="font-medium text-primary hover:underline">Sign in</Link></p>
+      <p className="mt-4 text-center text-sm text-muted-foreground">Already have an account? <Link href={returnPath === "/account" ? "/account/login" : `/account/login?next=${encodeURIComponent(returnPath)}`} className="font-medium text-primary hover:underline">Sign in</Link></p>
       <p className="mt-2 text-center text-sm text-muted-foreground">Prefer to shop first? <Link href="/shop" className="font-medium text-primary hover:underline">Browse groceries</Link></p>
     </div>
   );

@@ -34,6 +34,7 @@ export default function CheckoutPage() {
   const [account, setAccount] = useState<AccountSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [guestCheckout, setGuestCheckout] = useState(false);
 
   const [fulfilment, setFulfilment] = useState<"delivery" | "collection">("delivery");
   const [zoneId, setZoneId] = useState<string>("");
@@ -64,27 +65,32 @@ export default function CheckoutPage() {
       setLoading(true);
       setLoadError(null);
       try {
-        const [z, acct] = await Promise.all([apiOps.zones(), apiOps.accountSummary()]);
+        const [z, acct] = await Promise.all([
+          apiOps.zones(),
+          apiOps.accountSummary().catch(() => null),
+        ]);
         setZones(z);
         setAccount(acct);
         if (z[0]) setZoneId(z[0].id);
-        setCustomerName(acct.customer.name.replace(" (demo)", ""));
-        setCustomerPhone(acct.customer.phone);
-        setCustomerEmail(acct.customer.email ?? "");
-        const defaultAddr = acct.addresses.find((a) => a.isDefault) ?? acct.addresses[0];
-        if (defaultAddr) {
-          setAddressId(defaultAddr.id);
-          setRecipientName(defaultAddr.recipientName);
-          setPhone(defaultAddr.phone);
-          setLocality(defaultAddr.locality);
-          setStreet(defaultAddr.street);
-          setLandmark(defaultAddr.landmark ?? "");
-          setGhanaPostGps(defaultAddr.ghanaPostGps ?? "");
-          const zid = z.find((zz) => zz.id === (defaultAddr as { zoneId?: string }).zoneId);
-          if (zid) setZoneId(zid.id);
+        if (acct) {
+          setCustomerName(acct.customer.name.replace(" (demo)", ""));
+          setCustomerPhone(acct.customer.phone);
+          setCustomerEmail(acct.customer.email ?? "");
+          const defaultAddr = acct.addresses.find((a) => a.isDefault) ?? acct.addresses[0];
+          if (defaultAddr) {
+            setAddressId(defaultAddr.id);
+            setRecipientName(defaultAddr.recipientName);
+            setPhone(defaultAddr.phone);
+            setLocality(defaultAddr.locality);
+            setStreet(defaultAddr.street);
+            setLandmark(defaultAddr.landmark ?? "");
+            setGhanaPostGps(defaultAddr.ghanaPostGps ?? "");
+            const zid = z.find((zz) => zz.id === (defaultAddr as { zoneId?: string }).zoneId);
+            if (zid) setZoneId(zid.id);
+          }
         }
-      } catch (e) {
-        setLoadError(e instanceof ApiError ? e.message : "Could not load checkout details.");
+      } catch {
+        setLoadError("Could not load delivery options. Please try again.");
       } finally {
         setLoading(false);
       }
@@ -229,6 +235,42 @@ export default function CheckoutPage() {
           description="Your cart is empty. Add available groceries first."
           action={{ label: "Go shopping", href: "/shop" }}
         />
+      </div>
+    );
+  }
+
+  if (!account && !guestCheckout) {
+    return (
+      <div className="mx-auto max-w-3xl px-4 pb-16 pt-6">
+        <div className="flex items-center justify-between gap-2">
+          <h1 className="font-serif text-2xl font-bold sm:text-3xl">Checkout</h1>
+          <Button asChild variant="ghost" size="sm" className="h-10">
+            <Link href="/cart"><ArrowLeft className="size-4" aria-hidden /> Back to cart</Link>
+          </Button>
+        </div>
+        <section className="mt-6 overflow-hidden rounded-2xl border bg-card shadow-sm" aria-labelledby="checkout-choice-title">
+          <div className="border-b bg-primary/5 px-5 py-5 sm:px-7">
+            <p className="text-xs font-bold uppercase tracking-[0.16em] text-primary">Checkout your way</p>
+            <h2 id="checkout-choice-title" className="mt-1 font-serif text-2xl font-bold">How would you like to continue?</h2>
+            <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground">
+              You do not need an account to place your order. Continue as a guest, or sign in to use your saved details and order history.
+            </p>
+          </div>
+          <div className="grid gap-3 p-5 sm:grid-cols-3 sm:p-7">
+            <Button size="lg" className="h-12" onClick={() => setGuestCheckout(true)}>
+              Continue as guest
+            </Button>
+            <Button asChild size="lg" variant="outline" className="h-12">
+              <Link href="/account/login?next=%2Fcheckout">Sign in</Link>
+            </Button>
+            <Button asChild size="lg" variant="outline" className="h-12">
+              <Link href="/account/signup?next=%2Fcheckout">Create account</Link>
+            </Button>
+          </div>
+          <p className="px-5 pb-5 text-xs text-muted-foreground sm:px-7 sm:pb-7">
+            Your cart stays here while you sign in or create an account.
+          </p>
+        </section>
       </div>
     );
   }
