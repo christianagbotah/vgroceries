@@ -50,6 +50,7 @@ export const operationMeta: Record<string, OperationMeta> = {
   /* checkout (public) */
   "checkout.quote": { tags: [...CAT, ...CONF] },
   "checkout.complete": { invalidates: [...CAT, ...STOCK, ...ORD] },
+  "payments.initiate": { invalidates: [...ORD, ...PAY] },
   "checkout.payment-outcome": { invalidates: [...ORD, ...PAY] },
   "checkout.status": { tags: ORD },
   "checkout.zones": { tags: CONF },

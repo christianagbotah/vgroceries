@@ -20,9 +20,12 @@ import { HealthModule } from "./health/health.controller";
 import { productionOpenApi } from "./http/production-openapi";
 import { ApiExceptionFilter, ApiRequest } from "./http/errors";
 import { PaymentsModule } from "./payments/payments.module";
+import { HubtelRefundCallbackModule } from "./payments/hubtel-refund-callback.module";
+import { HubtelPaymentProvider } from "./payments/hubtel-payment-provider";
 import type { PaymentProviderAdapter } from "./payments/payment-provider";
 import { PAYMENT_PROVIDER_ADAPTERS } from "./payments/payment-provider.registry";
 import type { RefundProviderAdapter } from "./payments/refund-provider";
+import { HubtelRefundProvider } from "./payments/hubtel-refund-provider";
 import { REFUND_PROVIDER_ADAPTERS } from "./payments/refund-provider.registry";
 
 export async function createApplication(
@@ -30,12 +33,20 @@ export async function createApplication(
   paymentAdapters: PaymentProviderAdapter[] = [],
   refundAdapters: RefundProviderAdapter[] = [],
 ) {
+  const resolvedPaymentAdapters = [...paymentAdapters];
+  if (config.hubtelPayment && !resolvedPaymentAdapters.some((adapter) => adapter.id === "hubtel"))
+    resolvedPaymentAdapters.push(new HubtelPaymentProvider(config.hubtelPayment));
+
+  const resolvedRefundAdapters = [...refundAdapters];
+  if (config.hubtelRefund && !resolvedRefundAdapters.some((adapter) => adapter.id === "hubtel"))
+    resolvedRefundAdapters.push(new HubtelRefundProvider(config.hubtelRefund));
+
   @Global()
   @Module({
     providers: [
       { provide: API_CONFIG, useValue: config },
-      { provide: PAYMENT_PROVIDER_ADAPTERS, useValue: paymentAdapters },
-      { provide: REFUND_PROVIDER_ADAPTERS, useValue: refundAdapters },
+      { provide: PAYMENT_PROVIDER_ADAPTERS, useValue: resolvedPaymentAdapters },
+      { provide: REFUND_PROVIDER_ADAPTERS, useValue: resolvedRefundAdapters },
     ],
     exports: [API_CONFIG, PAYMENT_PROVIDER_ADAPTERS, REFUND_PROVIDER_ADAPTERS],
   })
@@ -58,6 +69,7 @@ export async function createApplication(
       // Keep Payments after the established modules so generated OpenAPI ordering
       // remains deterministic while the four Payments Authority routes are public.
       PaymentsModule,
+      HubtelRefundCallbackModule,
     ],
   })
   class ApplicationModule {}

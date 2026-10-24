@@ -116,6 +116,13 @@ export function foundationOpenApi(app: INestApplication) {
     RefundListResponse: json(refundListResponseSchema),
     RefundActionRequest: json(refundActionRequestSchema),
     RefundActionResponse: json(refundActionResponseSchema),
+    HubtelRefundCallbackRequest: { type: "object", additionalProperties: true },
+    HubtelRefundCallbackResponse: json(z.object({
+      processingResult: z.enum(["applied", "pending", "failed", "exception", "duplicate"]),
+      refundStatus: z.string(),
+      executionStatus: z.string(),
+      orderPaymentStatus: z.string(),
+    })),
     AdminOrderFinancialActionRequest: json(adminOrderFinancialActionRequestSchema),
     AdminOrderFinancialActionResponse: json(adminOrderFinancialActionResponseSchema),
     LoginRequest: json(loginRequestSchema),
@@ -205,6 +212,7 @@ export function foundationOpenApi(app: INestApplication) {
     "/payments/{attemptId}/reconcile": "PaymentReconcileResponse",
     "/refunds": "RefundListResponse",
     "/refunds/{refundId}/actions": "RefundActionResponse",
+    "/refunds/providers/hubtel/callback/{secret}": "HubtelRefundCallbackResponse",
     "/admin/orders/{orderId}/actions": "AdminOrderFinancialActionResponse",
   };
   for (const name of new Set(Object.values(responses)))
@@ -228,6 +236,7 @@ export function foundationOpenApi(app: INestApplication) {
     "/account/orders/{orderId}/cancel": "AccountCancelRequest",
     "/orders/{orderId}/payment-attempts": "PaymentInitiationRequest",
     "/refunds/{refundId}/actions": "RefundActionRequest",
+    "/refunds/providers/hubtel/callback/{secret}": "HubtelRefundCallbackRequest",
     "/admin/orders/{orderId}/actions": "AdminOrderFinancialActionRequest",
   };
   for (const [path, item] of Object.entries(doc.paths)) {
@@ -257,9 +266,11 @@ export function foundationOpenApi(app: INestApplication) {
         suffix === "/refunds/{refundId}/actions" ||
         suffix === "/admin/orders/{orderId}/actions"
       ) operation.security = [{ cookieAuth: [] }, { bearerAuth: [] }];
+      if (suffix === "/refunds/providers/hubtel/callback/{secret}")
+        operation.security = [];
       if (suffix === "/checkout/complete" || suffix === "/orders/{orderId}" || suffix === "/orders/{orderId}/payment-attempts")
         operation.security = [{ cookieAuth: [] }, { bearerAuth: [] }, { guestAuth: [] }];
-      const successCode = method === "post" && !["/checkout/quote","/orders/track","/account/profile","/account/orders/{orderId}/cancel","/payments/providers/{provider}/events","/payments/{attemptId}/reconcile","/refunds/{refundId}/actions","/admin/orders/{orderId}/actions"].includes(suffix) ? "201" : "200";
+      const successCode = method === "post" && !["/checkout/quote","/orders/track","/account/profile","/account/orders/{orderId}/cancel","/payments/providers/{provider}/events","/payments/{attemptId}/reconcile","/refunds/{refundId}/actions","/refunds/providers/hubtel/callback/{secret}","/admin/orders/{orderId}/actions"].includes(suffix) ? "201" : "200";
       operation.responses[successCode] = {
         description: "Successful response",
         content: { "application/json": { schema: ref(name + "Envelope") } },
@@ -482,6 +493,23 @@ export function foundationOpenApi(app: INestApplication) {
   refundAction.requestBody = {
     required: true,
     content: { "application/json": { schema: json(refundActionRequestSchema) } },
+  };
+
+  const hubtelRefundCallback = doc.paths["/api/v1/refunds/providers/hubtel/callback/{secret}"]!.post!;
+  hubtelRefundCallback.security = [];
+  hubtelRefundCallback.parameters = [
+    {
+      name: "secret", in: "path", required: true,
+      description: "Unpredictable provider callback capability configured server-side and supplied only to Hubtel. The value is never returned by this API.",
+      schema: { type: "string", minLength: 32, maxLength: 128 },
+    },
+  ];
+  hubtelRefundCallback.description =
+    "Hubtel-only refund outcome callback. The callback capability, original Hubtel order reference, refund amount and provider transaction evidence are revalidated against the existing RefundExecution before the central RefundOutcomeService may change refund or order payment state. Duplicate terminal callbacks are idempotent.";
+  hubtelRefundCallback.requestBody = {
+    required: true,
+    description: "Hubtel provider callback JSON. Fields remain untrusted until matched to server-owned refund execution and money identity.",
+    content: { "application/json": { schema: ref("HubtelRefundCallbackRequest") } },
   };
 
   const adminOrderAction = doc.paths["/api/v1/admin/orders/{orderId}/actions"]!.post!;

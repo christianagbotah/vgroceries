@@ -51,6 +51,7 @@ import type {
   FulfilmentOrderCard,
   AiGenerateResponse,
   AiReviewResponse,
+  PaymentInitiationResult,
   PaymentOutcomeResponse,
   PosCompleteRequest,
   PosCompleteResponse,
@@ -176,6 +177,12 @@ export const apiOps = {
     api<QuoteResponse>("checkout.quote", { body: { lines, zoneId } }),
   complete: (body: CompleteOrderRequest) =>
     api<CompleteOrderResponse>("checkout.complete", { body: body as unknown as Record<string, unknown> }),
+  paymentInitiate: (orderId: string, payerPhone: string | undefined, idempotencyKey: string) =>
+    api<PaymentInitiationResult>("payments.initiate", {
+      query: { orderId },
+      body: payerPhone ? { payerPhone } : {},
+      idempotencyKey,
+    }),
   paymentOutcome: (orderId: string, outcome: "succeeded" | "failed" | "pending") =>
     api<PaymentOutcomeResponse>("checkout.payment-outcome", { body: { orderId, outcome } }),
   orderStatus: (orderId: string) => api<PublicOrder>("checkout.status", { query: { orderId } }),

@@ -483,7 +483,7 @@ export default function CheckoutPage() {
             </RadioGroup>
             <p className="text-xs text-muted-foreground">
               {paymentMethod === "mobile_money" || paymentMethod === "card_hosted" || paymentMethod === "bank_transfer"
-                ? "You will confirm the payment on the next screen. A redirect alone never marks an order paid — the provider outcome is verified by the service. No real payment is taken in this prototype."
+                ? "You will continue to the secure payment provider after placing the order. A redirect alone never marks an order paid — only a verified provider outcome can confirm payment."
                 : paymentMethod === "cash_counter"
                   ? "Pay with cash at the counter when you collect. The order can be prepared before payment."
                   : "Have the exact amount ready for the rider. Delivery completion and cash collection are recorded separately."}

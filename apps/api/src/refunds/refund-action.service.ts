@@ -338,6 +338,8 @@ export class RefundActionService {
       merchantRefundReference: snapshot.execution.merchantRefundReference,
       originalPaymentMerchantReference: snapshot.execution.originalPaymentMerchantReference,
       originalPaymentProviderReference: snapshot.execution.originalPaymentProviderReference ?? undefined,
+      originalPaymentAmountMinor: snapshot.capture.amountMinor,
+      originalPaymentResolvedAt: snapshot.capture.resolvedAt ?? undefined,
       orderReference: snapshot.orderReference,
       method: snapshot.execution.method as ElectronicPaymentMethod,
       amountMinor: snapshot.execution.amountMinor,
@@ -413,6 +415,9 @@ export class RefundActionService {
     trigger: "execute_recovery" | "retry" | "manual_reconcile",
   ): Promise<{ outcome: RefundActionResponse; resend: boolean }> {
     const adapter = this.providers.require(snapshot.execution.provider, snapshot.execution.method as ElectronicPaymentMethod);
+    if (!adapter.capabilities().lookupSupported) {
+      return { outcome: await this.currentResponse(snapshot.refund.id), resend: false };
+    }
     let observation: RefundProviderObservation;
     try {
       observation = await adapter.lookupRefund({
