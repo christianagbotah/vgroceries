@@ -14,6 +14,8 @@ export interface RefundProviderInitiationInput {
   merchantRefundReference: string;
   originalPaymentMerchantReference: string;
   originalPaymentProviderReference?: string;
+  originalPaymentAmountMinor: number;
+  originalPaymentResolvedAt?: Date;
   orderReference: string;
   method: ElectronicPaymentMethod;
   amountMinor: number;

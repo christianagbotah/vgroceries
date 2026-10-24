@@ -338,6 +338,8 @@ export class RefundActionService {
       merchantRefundReference: snapshot.execution.merchantRefundReference,
       originalPaymentMerchantReference: snapshot.execution.originalPaymentMerchantReference,
       originalPaymentProviderReference: snapshot.execution.originalPaymentProviderReference ?? undefined,
+      originalPaymentAmountMinor: snapshot.capture.amountMinor,
+      originalPaymentResolvedAt: snapshot.capture.resolvedAt ?? undefined,
       orderReference: snapshot.orderReference,
       method: snapshot.execution.method as ElectronicPaymentMethod,
       amountMinor: snapshot.execution.amountMinor,

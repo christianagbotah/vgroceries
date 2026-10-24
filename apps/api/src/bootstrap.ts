@@ -23,6 +23,7 @@ import { PaymentsModule } from "./payments/payments.module";
 import type { PaymentProviderAdapter } from "./payments/payment-provider";
 import { PAYMENT_PROVIDER_ADAPTERS } from "./payments/payment-provider.registry";
 import type { RefundProviderAdapter } from "./payments/refund-provider";
+import { HubtelRefundProvider } from "./payments/hubtel-refund-provider";
 import { REFUND_PROVIDER_ADAPTERS } from "./payments/refund-provider.registry";
 
 export async function createApplication(
@@ -30,12 +31,16 @@ export async function createApplication(
   paymentAdapters: PaymentProviderAdapter[] = [],
   refundAdapters: RefundProviderAdapter[] = [],
 ) {
+  const resolvedRefundAdapters = [...refundAdapters];
+  if (config.hubtelRefund && !resolvedRefundAdapters.some((adapter) => adapter.id === "hubtel"))
+    resolvedRefundAdapters.push(new HubtelRefundProvider(config.hubtelRefund));
+
   @Global()
   @Module({
     providers: [
       { provide: API_CONFIG, useValue: config },
       { provide: PAYMENT_PROVIDER_ADAPTERS, useValue: paymentAdapters },
-      { provide: REFUND_PROVIDER_ADAPTERS, useValue: refundAdapters },
+      { provide: REFUND_PROVIDER_ADAPTERS, useValue: resolvedRefundAdapters },
     ],
     exports: [API_CONFIG, PAYMENT_PROVIDER_ADAPTERS, REFUND_PROVIDER_ADAPTERS],
   })

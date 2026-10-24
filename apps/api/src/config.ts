@@ -21,6 +21,15 @@ export interface PaymentConfig {
   hostedDomains: string[];
 }
 
+export interface HubtelRefundConfig {
+  baseUrl: string;
+  basicUsername: string;
+  basicPassword: string;
+  collectionAccount: string;
+  callbackOrigin: string;
+  callbackSecret: string;
+}
+
 export type ProductMediaConfig =
   | { kind: "filesystem"; root: string; publicBaseUrl: string }
   | {
@@ -51,6 +60,7 @@ export interface ApiConfig {
   host: string;
   commerce: CommerceConfig | null;
   payments: PaymentConfig | null;
+  hubtelRefund: HubtelRefundConfig | null;
   productMedia: ProductMediaConfig | null;
   imageGeneration: ImageGenerationConfig | null;
 }
@@ -239,6 +249,56 @@ export function readConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
     };
   }
 
+  const hubtelRefundNames = [
+    "HUBTEL_REFUND_BASE_URL",
+    "HUBTEL_REFUND_BASIC_USERNAME",
+    "HUBTEL_REFUND_BASIC_PASSWORD",
+    "HUBTEL_REFUND_COLLECTION_ACCOUNT",
+    "HUBTEL_REFUND_CALLBACK_ORIGIN",
+    "HUBTEL_REFUND_CALLBACK_SECRET",
+  ] as const;
+  const hubtelRefundSupplied = hubtelRefundNames.filter(
+    (name) => env[name] !== undefined && env[name] !== "",
+  );
+  let hubtelRefund: HubtelRefundConfig | null = null;
+  if (hubtelRefundSupplied.length) {
+    if (hubtelRefundSupplied.length !== hubtelRefundNames.length)
+      throw new Error("Hubtel refund configuration must be supplied as a complete bundle");
+    const baseUrlRaw = env.HUBTEL_REFUND_BASE_URL!;
+    const baseUrlParsed = new URL(baseUrlRaw);
+    if (
+      !["http:", "https:"].includes(baseUrlParsed.protocol) ||
+      Boolean(baseUrlParsed.username || baseUrlParsed.password || baseUrlParsed.search || baseUrlParsed.hash) ||
+      (env.NODE_ENV === "production" && baseUrlParsed.protocol !== "https:")
+    )
+      throw new Error("HUBTEL_REFUND_BASE_URL must be an absolute API base URL (HTTPS in production)");
+    const baseUrl = baseUrlRaw.replace(/\/+$/, "");
+    const callbackOrigin = env.HUBTEL_REFUND_CALLBACK_ORIGIN!;
+    const callback = new URL(callbackOrigin);
+    if (
+      callback.origin !== callbackOrigin ||
+      !["http:", "https:"].includes(callback.protocol) ||
+      (env.NODE_ENV === "production" && callback.protocol !== "https:")
+    )
+      throw new Error("HUBTEL_REFUND_CALLBACK_ORIGIN must be an exact trusted origin (HTTPS in production)");
+    const collectionAccount = env.HUBTEL_REFUND_COLLECTION_ACCOUNT!;
+    if (!/^\d{3,32}$/.test(collectionAccount))
+      throw new Error("HUBTEL_REFUND_COLLECTION_ACCOUNT must contain only digits");
+    const callbackSecret = env.HUBTEL_REFUND_CALLBACK_SECRET!;
+    if (!/^[A-Za-z0-9_-]{32,128}$/.test(callbackSecret))
+      throw new Error("HUBTEL_REFUND_CALLBACK_SECRET must be 32-128 URL-safe characters");
+    if (env.HUBTEL_REFUND_BASIC_USERNAME!.length > 256 || env.HUBTEL_REFUND_BASIC_PASSWORD!.length > 256)
+      throw new Error("Hubtel refund Basic Auth credentials are too long");
+    hubtelRefund = {
+      baseUrl,
+      basicUsername: env.HUBTEL_REFUND_BASIC_USERNAME!,
+      basicPassword: env.HUBTEL_REFUND_BASIC_PASSWORD!,
+      collectionAccount,
+      callbackOrigin,
+      callbackSecret,
+    };
+  }
+
   const mediaAuxNames = [
     "PRODUCT_MEDIA_FILESYSTEM_ROOT",
     "PRODUCT_MEDIA_PUBLIC_BASE_URL",
@@ -309,6 +369,7 @@ export function readConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
     host: env.API_HOST ?? "127.0.0.1",
     commerce,
     payments,
+    hubtelRefund,
     productMedia,
     imageGeneration,
   };
