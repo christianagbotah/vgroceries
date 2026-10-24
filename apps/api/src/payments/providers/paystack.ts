@@ -1,5 +1,4 @@
-import { createHmac, timingSafeEqual } from "node:crypto";
-import type { ElectronicPaymentMethod } from "@variety/contracts";
+import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 import type {
   PaymentProviderAdapter,
   PaymentProviderCapabilities,
@@ -87,12 +86,16 @@ function refundState(value: unknown): RefundProviderObservation["state"] {
   }
 }
 
-function channel(method: ElectronicPaymentMethod) {
-  switch (method) {
-    case "mobile_money": return "mobile_money";
-    case "card_hosted": return "card";
-    case "bank_transfer": return "bank_transfer";
-  }
+function providerOnlyPayerEmail(input: PaymentProviderInitiationInput, callbackUrl: string) {
+  if (input.payerEmail) return input.payerEmail;
+  if (!input.payerPhone) return undefined;
+  const callbackHost = new URL(callbackUrl).hostname;
+  const domain = callbackHost.includes(".") ? callbackHost : "payments.invalid";
+  const identityHash = createHash("sha256")
+    .update(input.payerPhone.replace(/\D/g, ""))
+    .digest("hex")
+    .slice(0, 24);
+  return `customer-${identityHash}@${domain}`;
 }
 
 function providerTimestamp(data: JsonRecord) {
@@ -140,19 +143,19 @@ export class PaystackPaymentAdapter implements PaymentProviderAdapter {
   }
 
   async initiate(input: PaymentProviderInitiationInput): Promise<PaymentProviderInitiationResult> {
-    if (!input.payerEmail)
-      return { kind: "rejected", failureCode: "PAYER_EMAIL_REQUIRED", customerSafeMessage: "An email address is required to start this payment." };
+    const payerEmail = providerOnlyPayerEmail(input, this.config.callbackUrl);
+    if (!payerEmail)
+      return { kind: "rejected", failureCode: "PAYER_CONTACT_REQUIRED", customerSafeMessage: "A phone number or email address is required to start this payment." };
     const response = await this.fetcher(`${API_BASE}/transaction/initialize`, {
       method: "POST",
       headers: authHeaders(this.config.secretKey, true),
       signal: input.signal,
       body: JSON.stringify({
-        email: input.payerEmail,
+        email: payerEmail,
         amount: String(input.amountMinor),
         currency: input.currency,
         reference: input.merchantReference,
         callback_url: this.config.callbackUrl,
-        channels: [channel(input.method)],
         metadata: JSON.stringify({
           attemptId: input.attemptId,
           orderReference: input.orderReference,

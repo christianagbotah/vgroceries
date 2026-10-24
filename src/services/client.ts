@@ -177,7 +177,7 @@ export const apiOps = {
     api<QuoteResponse>("checkout.quote", { body: { lines, zoneId } }),
   complete: (body: CompleteOrderRequest) =>
     api<CompleteOrderResponse>("checkout.complete", { body: body as unknown as Record<string, unknown> }),
-  paymentInitiate: (orderId: string, payerPhone: string | undefined, idempotencyKey: string) =>
+  paymentInitiate: (orderId: string, idempotencyKey: string, payerPhone?: string) =>
     api<PaymentInitiationResult>("payments.initiate", {
       query: { orderId },
       body: payerPhone ? { payerPhone } : {},

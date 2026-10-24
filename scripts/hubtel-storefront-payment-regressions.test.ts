@@ -16,11 +16,14 @@ describe("Hubtel storefront payment handoff", () => {
     expect(operations).toContain('"payments.initiate": { invalidates: [...ORD, ...PAY] }');
   });
 
-  test("checkout status initiates provider payment and removes browser-controlled money outcomes", () => {
+  test("checkout status delegates provider payment to the replay-safe launcher", () => {
     const status = read("src/app/(storefront)/checkout/status/[id]/page.tsx");
-    expect(status).toContain("apiOps.paymentInitiate");
-    expect(status).toContain("window.location.assign");
-    expect(status).toContain("sessionStorage");
+    const launcher = read("src/features/checkout/payment-provider-launcher.tsx");
+    expect(status).toContain("PaymentProviderLauncher");
+    expect(launcher).toContain("apiOps.paymentInitiate");
+    expect(launcher).toContain("window.location.assign");
+    expect(launcher).toContain("localStorage");
+    expect(launcher).toContain('sessionStorage.setItem("vg_payment_order_id", orderId)');
     expect(status).not.toContain("apiOps.paymentOutcome");
     expect(status).not.toContain("I've approved the payment");
     expect(status).not.toContain("Payment was declined");

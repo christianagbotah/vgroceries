@@ -3,6 +3,7 @@ import { createHash, randomUUID } from "node:crypto";
 import type { Prisma } from "@prisma/client";
 import {
   electronicPaymentMethodSchema,
+  paymentProviderActionSchema,
   type ElectronicPaymentMethod,
   type PaymentInitiationRequest,
   type PaymentInitiationResult,
@@ -31,6 +32,7 @@ const MONEY_FINAL = new Set([
 interface StageAResult {
   attemptId: string;
   isNew: boolean;
+  replayAction?: PaymentProviderAction;
 }
 
 function requestHash(orderId: string, input: PaymentInitiationRequest) {
@@ -99,10 +101,15 @@ export class PaymentInitiationService {
       if (replay) {
         if (replay.requestHash !== hash)
           throw new ApiProblem(409, "IDEMPOTENCY_CONFLICT", "Idempotency key was already used with different payment input.");
-        const outcome = replay.outcome as { attemptId?: string };
-        if (!outcome.attemptId)
+        const outcome = replay.outcome as { attemptId?: unknown; action?: unknown };
+        if (typeof outcome.attemptId !== "string" || !outcome.attemptId)
           throw new ApiProblem(409, "CONFLICT", "Payment replay state is incomplete.");
-        return { attemptId: outcome.attemptId, isNew: false };
+        const parsedAction = paymentProviderActionSchema.safeParse(outcome.action);
+        return {
+          attemptId: outcome.attemptId,
+          isNew: false,
+          ...(parsedAction.success ? { replayAction: parsedAction.data } : {}),
+        };
       }
 
       const order = await this.lockOrder(tx, orderId);
@@ -197,6 +204,7 @@ export class PaymentInitiationService {
     providerReference: string | undefined,
     action: PaymentProviderAction,
     expiresAt?: Date,
+    replay?: { actorScope: string; key: string },
   ) {
     await this.db.$transaction(async (tx) => {
       const current = await tx.paymentAttempt.findUnique({ where: { id: attemptId }, select: { orderId: true } });
@@ -225,6 +233,18 @@ export class PaymentInitiationService {
       await tx.outboxEvent.create({
         data: { type: "payment.initiation_pending", aggregateId: attemptId, payload: { attemptId, orderId: current.orderId, providerReference: providerReference ?? null } },
       });
+      if (replay) {
+        await tx.idempotency.update({
+          where: {
+            actorId_operation_key: {
+              actorId: replay.actorScope,
+              operation: OPERATION,
+              key: replay.key,
+            },
+          },
+          data: { outcome: { attemptId, action } },
+        });
+      }
     });
   }
 
@@ -346,6 +366,7 @@ export class PaymentInitiationService {
     attempt: Awaited<ReturnType<PaymentInitiationService["snapshot"]>>,
     adapter: PaymentProviderAdapter,
     payerPhone?: string,
+    replay?: { actorScope: string; key: string },
   ): Promise<PaymentProviderAction> {
     try {
       const result = await adapter.initiate({
@@ -365,7 +386,7 @@ export class PaymentInitiationService {
         return { kind: "none" };
       }
       const action = this.policy.validateProviderAction(result.action);
-      await this.updateAccepted(req, attempt.id, result.providerReference, action, result.expiresAt);
+      await this.updateAccepted(req, attempt.id, result.providerReference, action, result.expiresAt, replay);
       return action;
     } catch {
       await this.updateUncertain(req, attempt.id);
@@ -388,12 +409,24 @@ export class PaymentInitiationService {
 
     let action: PaymentProviderAction = { kind: "none" };
     if (stage.isNew) {
-      action = await this.callProvider(req, attempt, adapter, input.payerPhone);
+      action = await this.callProvider(req, attempt, adapter, input.payerPhone, {
+        actorScope: principal.actorScope,
+        key,
+      });
+    } else if (
+      attempt.status === "pending" &&
+      attempt.initiationState === "accepted" &&
+      stage.replayAction
+    ) {
+      action = stage.replayAction;
     } else if (attempt.status === "initiated" && ["created", "uncertain"].includes(attempt.initiationState)) {
       const recovery = await this.applyReplayLookup(req, attempt, adapter);
       if (recovery === "retry") {
         attempt = await this.snapshot(stage.attemptId);
-        action = await this.callProvider(req, attempt, adapter, input.payerPhone);
+        action = await this.callProvider(req, attempt, adapter, input.payerPhone, {
+          actorScope: principal.actorScope,
+          key,
+        });
       }
     }
     attempt = await this.snapshot(stage.attemptId);

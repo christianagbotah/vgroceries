@@ -7,11 +7,10 @@ import { apiOps, ApiError, type PublicOrder } from "@/services/client";
 import { LoadingState, ErrorState } from "@/components/shared/states";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { Button } from "@/components/ui/button";
-import { PAYMENT_METHOD_LABELS } from "@/types/domain";
 import { formatMoney } from "@/lib/money";
-import { formatDateTime } from "@/lib/format";
-import { CheckCircle2, CircleDashed, Clock, Loader2, Package, PartyPopper, PhoneCall, ShieldQuestion, TriangleAlert, XCircle } from "lucide-react";
+import { CircleDashed, Clock, Package, PartyPopper, PhoneCall, ShieldQuestion, TriangleAlert, XCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { PaymentProviderLauncher } from "@/features/checkout/payment-provider-launcher";
 
 const POLL_MS = 4000;
 
@@ -25,8 +24,6 @@ export default function CheckoutStatusPage() {
   const [order, setOrder] = useState<PublicOrder | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [initiating, setInitiating] = useState(false);
-  const [paymentMessage, setPaymentMessage] = useState<string | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const load = useCallback(async () => {
@@ -56,40 +53,6 @@ export default function CheckoutStatusPage() {
     }
   }, [order]);
 
-  const startPayment = async () => {
-    if (!order) return;
-    setInitiating(true);
-    setPaymentMessage(null);
-    setError(null);
-    try {
-      const keyName = `vg_payment_attempt_key_${id}`;
-      let key = window.sessionStorage.getItem(keyName);
-      if (!key) {
-        key = `pay_${crypto.randomUUID().replaceAll("-", "")}`;
-        window.sessionStorage.setItem(keyName, key);
-      }
-      window.sessionStorage.setItem("vg_payment_order_id", id);
-      const payerPhone = order.paymentMethod === "mobile_money"
-        ? order.customerPhone.replace(/[\s-]/g, "")
-        : undefined;
-      const result = await apiOps.paymentInitiate(id, payerPhone, key);
-      if (result.action.kind === "redirect") {
-        window.location.assign(result.action.url);
-        return;
-      }
-      if (result.action.kind === "prompt" || result.action.kind === "instructions") {
-        setPaymentMessage(result.action.message);
-      } else {
-        setPaymentMessage("Your payment request is already in progress. We are checking the provider for the verified outcome.");
-      }
-      await load();
-    } catch (e) {
-      setError(e instanceof ApiError ? e.message : "The secure payment request could not be started.");
-    } finally {
-      setInitiating(false);
-    }
-  };
-
   if (loading) {
     return (
       <div className="mx-auto max-w-2xl px-4 pb-10 pt-8">
@@ -111,6 +74,7 @@ export default function CheckoutStatusPage() {
   const electronic = ["mobile_money", "card_hosted", "bank_transfer"].includes(order.paymentMethod);
   const paid = ["succeeded", "partially_refunded", "refunded"].includes(order.paymentStatus);
   const needsAction = electronic && (order.paymentStatus === "pending" || order.paymentStatus === "unpaid") && order.fulfilmentStatus !== "cancelled";
+  const paymentLabel = electronic ? "Electronic payment" : order.paymentMethod === "cash_counter" ? "Pay at pickup" : "Pay on delivery";
 
   return (
     <div className="mx-auto max-w-2xl px-4 pb-10 pt-8">
@@ -149,13 +113,7 @@ export default function CheckoutStatusPage() {
             icon={<PhoneCall className="size-8 animate-pulse text-primary" aria-hidden />}
             title="Complete your secure payment"
             tone="warning"
-            copy={
-              order.paymentMethod === "mobile_money"
-                ? "Continue to the payment provider, then approve the Mobile Money request on your phone."
-                : order.paymentMethod === "card_hosted"
-                  ? "Continue to the payment provider's secure card checkout."
-                  : "Continue to the payment provider to receive the verified bank-payment instructions."
-            }
+            copy="Continue to the secure payment page to choose your preferred available payment option."
           />
         ) : (
           <StatusHead
@@ -174,24 +132,11 @@ export default function CheckoutStatusPage() {
         </div>
       </div>
 
-      {needsAction ? (
-        <div className="mt-4 rounded-2xl border border-warning/40 bg-warning/10 p-4 sm:p-5">
-          <h2 className="font-semibold">Secure payment · {formatMoney(order.totalMinor)}</h2>
-          <p className="mt-1 text-sm text-muted-foreground">
-            {PAYMENT_METHOD_LABELS[order.paymentMethod]} to Variety Groceries. The provider handles the payment screen; Variety never collects card or wallet secrets in this page.
-          </p>
-          <div className="mt-3 flex flex-wrap gap-2">
-            <Button size="lg" className="h-12" onClick={startPayment} disabled={initiating}>
-              {initiating ? <Loader2 className="size-4 animate-spin" aria-hidden /> : <ShieldQuestion className="size-5" aria-hidden />}
-              {initiating ? "Opening secure payment…" : "Continue to secure payment"}
-            </Button>
-          </div>
-          {paymentMessage ? <p role="status" className="mt-3 rounded-lg bg-white/70 p-3 text-sm text-foreground">{paymentMessage}</p> : null}
-          <p className="mt-2 text-xs text-muted-foreground">
-            Returning from the provider does not mark the order paid. The status changes only after server-side provider evidence is independently verified.
-          </p>
-        </div>
-      ) : null}
+      <PaymentProviderLauncher
+        orderId={id}
+        active={needsAction}
+        finalized={paid || order.paymentStatus === "failed" || order.paymentStatus === "expired" || order.fulfilmentStatus === "cancelled"}
+      />
 
       {/* order summary */}
       <div className="mt-4 space-y-3 rounded-2xl border bg-card p-4 sm:p-5">
@@ -238,7 +183,7 @@ export default function CheckoutStatusPage() {
           <p className="text-muted-foreground">
             {order.fulfilment === "delivery" ? `Delivery${order.slotLabel ? ` · ${order.slotLabel}` : ""}` : "Collect in store"}
             {" · "}
-            {PAYMENT_METHOD_LABELS[order.paymentMethod]}
+            {paymentLabel}
           </p>
         </div>
       </div>

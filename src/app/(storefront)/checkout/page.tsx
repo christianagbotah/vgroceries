@@ -16,11 +16,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
-import { PAYMENT_METHOD_LABELS } from "@/types/domain";
 import { AlertCircle, ArrowLeft, ArrowRight, Loader2, Lock, MapPin, Store, Truck } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { PaymentMethod } from "@/types/domain";
 
+type PaymentChoice = "electronic" | "offline";
 type Zone = { id: string; name: string; areas: string[]; feeMinor: number; minimumOrderMinor: number; serviceHours: string; cutoff: string };
 type Slot = { id: string; zoneId: string; date: string; window: string; capacity: number; booked: number };
 type AccountSummary = Awaited<ReturnType<typeof apiOps.accountSummary>>;
@@ -54,7 +53,7 @@ export default function CheckoutPage() {
   const [landmark, setLandmark] = useState("");
   const [ghanaPostGps, setGhanaPostGps] = useState("");
 
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("mobile_money");
+  const [paymentChoice, setPaymentChoice] = useState<PaymentChoice>("electronic");
   const [placing, setPlacing] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [orderError, setOrderError] = useState<string | null>(null);
@@ -129,6 +128,7 @@ export default function CheckoutPage() {
 
   const deliveryFee = fulfilment === "delivery" ? zone?.feeMinor ?? 0 : 0;
   const total = subtotal + deliveryFee;
+  const paymentMethod = paymentChoice === "electronic" ? "card_hosted" : fulfilment === "delivery" ? "cash_on_delivery" : "cash_counter";
   const meetsMinimum = fulfilment === "collection" || !zone || subtotal >= zone.minimumOrderMinor;
 
   useEffect(() => {
@@ -471,22 +471,28 @@ export default function CheckoutPage() {
               <span className="mr-2 inline-flex size-7 items-center justify-center rounded-full bg-primary text-sm font-bold text-primary-foreground" aria-hidden>3</span>
               Payment
             </h2>
-            <RadioGroup value={paymentMethod} onValueChange={(v) => setPaymentMethod(v as PaymentMethod)} className="grid gap-2 sm:grid-cols-2" aria-label="Payment method">
-              {(Object.keys(PAYMENT_METHOD_LABELS) as PaymentMethod[])
-                .filter((m) => (m === "cash_on_delivery" ? fulfilment === "delivery" : true))
-                .map((m) => (
-                  <Label key={m} data-clickable htmlFor={`pay-${m}`} className={cn("flex cursor-pointer items-center gap-3 rounded-lg border p-3 font-normal", paymentMethod === m && "border-primary bg-primary/5")}>
-                    <RadioGroupItem value={m} id={`pay-${m}`} />
-                    <span className="text-sm font-medium">{PAYMENT_METHOD_LABELS[m]}</span>
-                  </Label>
-                ))}
+            <RadioGroup value={paymentChoice} onValueChange={(value) => setPaymentChoice(value as PaymentChoice)} className="grid gap-2 sm:grid-cols-2" aria-label="Payment choice">
+              <Label data-clickable htmlFor="pay-electronic" className={cn("flex cursor-pointer items-start gap-3 rounded-lg border p-3 font-normal", paymentChoice === "electronic" && "border-primary bg-primary/5")}>
+                <RadioGroupItem value="electronic" id="pay-electronic" className="mt-1" />
+                <span>
+                  <span className="block text-sm font-semibold">Electronic payment</span>
+                  <span className="mt-0.5 block text-xs text-muted-foreground">Continue to our secure payment partner and choose any available payment option there.</span>
+                </span>
+              </Label>
+              <Label data-clickable htmlFor="pay-offline" className={cn("flex cursor-pointer items-start gap-3 rounded-lg border p-3 font-normal", paymentChoice === "offline" && "border-primary bg-primary/5")}>
+                <RadioGroupItem value="offline" id="pay-offline" className="mt-1" />
+                <span>
+                  <span className="block text-sm font-semibold">{fulfilment === "delivery" ? "Pay on delivery" : "Pay at pickup"}</span>
+                  <span className="mt-0.5 block text-xs text-muted-foreground">{fulfilment === "delivery" ? "Pay when your groceries reach you." : "Pay when you collect your packed order."}</span>
+                </span>
+              </Label>
             </RadioGroup>
             <p className="text-xs text-muted-foreground">
-              {paymentMethod === "mobile_money" || paymentMethod === "card_hosted" || paymentMethod === "bank_transfer"
-                ? "You will continue to the secure payment provider after placing the order. A redirect alone never marks an order paid — only a verified provider outcome can confirm payment."
-                : paymentMethod === "cash_counter"
-                  ? "Pay with cash at the counter when you collect. The order can be prepared before payment."
-                  : "Have the exact amount ready for the rider. Delivery completion and cash collection are recorded separately."}
+              {paymentChoice === "electronic"
+                ? "You will continue to the secure payment provider after placing the order. The provider shows the payment options available to you; only a verified provider outcome can confirm payment."
+                : fulfilment === "delivery"
+                  ? "Payment and delivery completion are recorded separately for your protection."
+                  : "Your order can be prepared before you pay at pickup."}
             </p>
           </section>
 

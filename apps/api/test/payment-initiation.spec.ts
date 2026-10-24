@@ -126,6 +126,7 @@ test("customer initiation derives money/provider authority server-side and repla
   const replay = await initiate(orderId, token, "pay-init-00000001", { payerPhone: "+233241111111" });
   assert.equal(replay.response.status, 201);
   assert.equal(replay.body.data.attemptId, attemptId);
+  assert.deepEqual(replay.body.data.action, first.body.data.action);
   assert.equal(fake.initiateCalls.length, 1);
   const changed = await initiate(orderId, token, "pay-init-00000001", { payerPhone: "+233242222222" });
   assert.equal(changed.response.status, 409);

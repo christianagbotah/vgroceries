@@ -47,8 +47,21 @@ test("Paystack initializes the server-owned transaction and returns only the hos
   assert.equal(body.currency, "GHS");
   assert.equal(body.reference, "VG-PAY-ABC123");
   assert.equal(body.callback_url, "https://portal.example.test/checkout/payment-return");
-  assert.deepEqual(body.channels, ["mobile_money"]);
+  assert.equal(body.channels, undefined);
   assert.equal(JSON.parse(body.metadata).orderReference, "VG-ORDER-1001");
+});
+
+test("Paystack supports a phone-only Variety customer without inventing a customer contact email", async () => {
+  const http = fakeFetch({ body: { status: true, data: { authorization_url: "https://checkout.paystack.com/phoneonly", reference: "VG-PAY-ABC123" } } });
+  const adapter = new PaystackPaymentAdapter({ secretKey: "sk_test_secret", callbackUrl: "https://portal.example.test/checkout/payment-return" }, http.fetcher);
+  const input = paymentInput();
+  delete (input as { payerEmail?: string }).payerEmail;
+  const result = await adapter.initiate(input);
+  assert.equal(result.kind, "accepted");
+  const body = JSON.parse(String(http.calls[0].init?.body));
+  assert.match(body.email, /^customer-[0-9a-f]{24}@portal\.example\.test$/);
+  assert.equal(body.channels, undefined);
+  assert.notEqual(body.email, input.payerPhone);
 });
 
 test("Paystack lookup maps verified money identity and transaction state", async () => {
