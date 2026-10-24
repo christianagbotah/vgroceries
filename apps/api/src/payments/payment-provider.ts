@@ -18,6 +18,8 @@ export interface PaymentProviderInitiationInput {
   method: ElectronicPaymentMethod;
   amountMinor: number;
   currency: "GHS";
+  payerName: string;
+  payerEmail?: string;
   payerPhone?: string;
   signal: AbortSignal;
 }

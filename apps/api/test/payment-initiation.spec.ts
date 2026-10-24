@@ -60,7 +60,7 @@ async function native(email = "customer-a@example.test") {
 async function createOrder(token: string, key: string, quantity = "2") {
   const x = await request("/checkout/complete", {
     lines: [{ variantId: "var-salt", quantity }],
-    customerName: "Ama Customer", customerPhone: "+233241111111",
+    customerName: "Ama Customer", customerPhone: "+233241111111", customerEmail: "ama.customer@example.test",
     fulfilment: "collection", paymentMethod: "mobile_money",
   }, { authorization: `Bearer ${token}`, origin: "http://localhost:3000", "idempotency-key": key });
   assert.equal(x.response.status, 201);
@@ -120,6 +120,8 @@ test("customer initiation derives money/provider authority server-side and repla
   assert.equal(fake.initiateCalls.length, 1);
   assert.equal(fake.initiateCalls[0].amountMinor, order.totalMinor);
   assert.equal(fake.initiateCalls[0].currency, "GHS");
+  assert.equal(fake.initiateCalls[0].payerName, "Ama Customer");
+  assert.equal(fake.initiateCalls[0].payerEmail, "ama.customer@example.test");
 
   const replay = await initiate(orderId, token, "pay-init-00000001", { payerPhone: "+233241111111" });
   assert.equal(replay.response.status, 201);

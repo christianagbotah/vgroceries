@@ -12,8 +12,31 @@ export interface CommerceConfig {
   verificationKeys: Map<number, Buffer>;
 }
 
+export type PaymentProviderConfig =
+  | { kind: "paystack"; secretKey: string; callbackUrl: string }
+  | {
+      kind: "hubtel";
+      clientId: string;
+      clientSecret: string;
+      requestMoneyUrl: string;
+      statusUrl: string;
+      callbackUrl: string;
+      returnUrl: string;
+      cancellationUrl: string;
+    }
+  | {
+      kind: "etranzact";
+      terminalId: string;
+      secretKey: string;
+      checkoutUrl: string;
+      queryUrl: string;
+      responseUrl: string;
+    }
+  | { kind: "custom"; id: string };
+
 export interface PaymentConfig {
   providerId: string;
+  provider: PaymentProviderConfig;
   enabledMethods: ElectronicPaymentMethod[];
   confirmedHoldMinutes: number;
   requestTimeoutMs: number;
@@ -218,8 +241,60 @@ export function readConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
         "PAYMENT_HOSTED_DOMAINS must contain unique lowercase hostnames without scheme, port or path",
       );
 
+    const providerUrl = (name: string, value: string | undefined) => {
+      if (!value) throw new Error(`${name} is required when PAYMENT_PROVIDER_ID=${providerId}`);
+      let url: URL;
+      try {
+        url = new URL(value.replace(/\{[A-Za-z][A-Za-z0-9_]*\}/g, "value"));
+      } catch {
+        throw new Error(`${name} must be an absolute HTTP(S) URL`);
+      }
+      if (!["http:", "https:"].includes(url.protocol))
+        throw new Error(`${name} must be an absolute HTTP(S) URL`);
+      if (env.NODE_ENV === "production" && url.protocol !== "https:")
+        throw new Error(`${name} must use HTTPS in production`);
+      return value;
+    };
+    let provider: PaymentProviderConfig;
+    if (providerId === "paystack") {
+      if (!env.PAYSTACK_SECRET_KEY)
+        throw new Error("PAYSTACK_SECRET_KEY is required when PAYMENT_PROVIDER_ID=paystack");
+      provider = {
+        kind: "paystack",
+        secretKey: env.PAYSTACK_SECRET_KEY,
+        callbackUrl: providerUrl("PAYSTACK_CALLBACK_URL", env.PAYSTACK_CALLBACK_URL),
+      };
+    } else if (providerId === "hubtel") {
+      if (!env.HUBTEL_CLIENT_ID || !env.HUBTEL_CLIENT_SECRET)
+        throw new Error("HUBTEL_CLIENT_ID and HUBTEL_CLIENT_SECRET are required when PAYMENT_PROVIDER_ID=hubtel");
+      provider = {
+        kind: "hubtel",
+        clientId: env.HUBTEL_CLIENT_ID,
+        clientSecret: env.HUBTEL_CLIENT_SECRET,
+        requestMoneyUrl: providerUrl("HUBTEL_REQUEST_MONEY_URL", env.HUBTEL_REQUEST_MONEY_URL),
+        statusUrl: providerUrl("HUBTEL_STATUS_URL", env.HUBTEL_STATUS_URL),
+        callbackUrl: providerUrl("HUBTEL_CALLBACK_URL", env.HUBTEL_CALLBACK_URL),
+        returnUrl: providerUrl("HUBTEL_RETURN_URL", env.HUBTEL_RETURN_URL),
+        cancellationUrl: providerUrl("HUBTEL_CANCELLATION_URL", env.HUBTEL_CANCELLATION_URL),
+      };
+    } else if (providerId === "etranzact") {
+      if (!env.ETRANZACT_TERMINAL_ID || !env.ETRANZACT_SECRET_KEY)
+        throw new Error("ETRANZACT_TERMINAL_ID and ETRANZACT_SECRET_KEY are required when PAYMENT_PROVIDER_ID=etranzact");
+      provider = {
+        kind: "etranzact",
+        terminalId: env.ETRANZACT_TERMINAL_ID,
+        secretKey: env.ETRANZACT_SECRET_KEY,
+        checkoutUrl: providerUrl("ETRANZACT_CHECKOUT_URL", env.ETRANZACT_CHECKOUT_URL),
+        queryUrl: providerUrl("ETRANZACT_QUERY_URL", env.ETRANZACT_QUERY_URL),
+        responseUrl: providerUrl("ETRANZACT_RESPONSE_URL", env.ETRANZACT_RESPONSE_URL),
+      };
+    } else {
+      provider = { kind: "custom", id: providerId };
+    }
+
     payments = {
       providerId,
+      provider,
       enabledMethods,
       confirmedHoldMinutes: integerInRange(
         "PAYMENT_CONFIRMED_HOLD_MINUTES",

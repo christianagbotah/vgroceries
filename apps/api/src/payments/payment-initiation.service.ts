@@ -172,7 +172,7 @@ export class PaymentInitiationService {
   private async snapshot(attemptId: string) {
     const attempt = await this.db.paymentAttempt.findUnique({
       where: { id: attemptId },
-      include: { order: { select: { id: true, reference: true, customerPhone: true, paymentStatus: true } } },
+      include: { order: { select: { id: true, reference: true, customerName: true, customerEmail: true, customerPhone: true, paymentStatus: true } } },
     });
     if (!attempt) throw new ApiProblem(409, "CONFLICT", "Payment attempt no longer exists.");
     return attempt;
@@ -355,6 +355,8 @@ export class PaymentInitiationService {
         method: this.method(attempt.method),
         amountMinor: attempt.amountMinor,
         currency: "GHS",
+        payerName: attempt.order.customerName,
+        payerEmail: attempt.order.customerEmail ?? undefined,
         payerPhone: payerPhone ?? attempt.order.customerPhone,
         signal: AbortSignal.timeout(this.paymentConfig().requestTimeoutMs),
       });
