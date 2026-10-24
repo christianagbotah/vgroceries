@@ -31,6 +31,8 @@ describe("storefront category filtering", () => {
     expect(shell).toContain("selectedCategory === item.category");
     expect(shell).toContain("bg-[color:var(--brand-green-deep)] text-white");
     expect(shell).toContain('aria-current={isActive(item) ? "page" : undefined}');
+    const layout = read("src/app/(storefront)/layout.tsx");
+    expect(layout).toContain("<Suspense fallback={<HeaderFallback />}>\n        <StorefrontHeader />\n      </Suspense>");
   });
 });
 
