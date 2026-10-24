@@ -17,6 +17,7 @@ import {
   nativeSessionResponseSchema,
   sessionLookupResponseSchema,
   loginRequestSchema,
+  registerRequestSchema,
   refreshRequestSchema,
   byVariantsRequestSchema,
   stockReceiveRequestSchema,
@@ -118,6 +119,7 @@ export function foundationOpenApi(app: INestApplication) {
     AdminOrderFinancialActionRequest: json(adminOrderFinancialActionRequestSchema),
     AdminOrderFinancialActionResponse: json(adminOrderFinancialActionResponseSchema),
     LoginRequest: json(loginRequestSchema),
+    RegisterRequest: json(registerRequestSchema),
     RefreshRequest: json(refreshRequestSchema),
     ByVariantsRequest: json(byVariantsRequestSchema),
     ReceiveRequest: json(stockReceiveRequestSchema),
@@ -176,6 +178,7 @@ export function foundationOpenApi(app: INestApplication) {
     "/health/live": "LiveResponse",
     "/health/ready": "ReadyResponse",
     "/auth/sessions": "SessionResponse",
+    "/auth/register": "SessionResponse",
     "/auth/me": "SessionLookupResponse",
     "/auth/logout": "LogoutResponse",
     "/auth/refresh": "NativeSessionResponse",
@@ -214,6 +217,7 @@ export function foundationOpenApi(app: INestApplication) {
   doc.components!.schemas = schemas;
   const requests: Record<string, string> = {
     "/auth/sessions": "LoginRequest",
+    "/auth/register": "RegisterRequest",
     "/auth/refresh": "RefreshRequest",
     "/catalog/products:by-variants": "ByVariantsRequest",
     "/inventory/receive": "ReceiveRequest",
@@ -333,6 +337,8 @@ export function foundationOpenApi(app: INestApplication) {
   ];
   doc.paths["/api/v1/auth/sessions"]!.post!.description =
     "Web sign-in requires a trusted Origin and sets an HttpOnly cookie. Native sign-in returns opaque access and refresh credentials. The client field selects the response variant.";
+  doc.paths["/api/v1/auth/register"]!.post!.description =
+    "Public customer-only account registration. The server fixes role=customer, hashes the password with scrypt, creates the account and initial session atomically, and requires a trusted Origin for web registration.";
   doc.paths["/api/v1/auth/me"]!.get!.description =
     "Cookie authentication returns csrfToken for subsequent mutations; native bearer authentication omits csrfToken.";
   doc.paths["/api/v1/auth/logout"]!.post!.parameters = [

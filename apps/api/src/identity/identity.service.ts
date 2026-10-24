@@ -7,6 +7,7 @@ import { Database } from "../database/database";
 import { ApiProblem, ApiRequest } from "../http/errors";
 import {
   csrfTokenFor,
+  hashPassword,
   randomToken,
   sameSecretHash,
   tokenHash,
@@ -76,6 +77,91 @@ export class IdentityService {
         "Too many attempts. Try again later.",
       );
   }
+  async register(
+    name: string,
+    email: string,
+    phone: string,
+    password: string,
+    channel: "web" | "native",
+    req: ApiRequest,
+  ) {
+    trustedOrigin(req, this.config, channel === "web");
+    await this.throttle("register:" + email, req.ip ?? req.socket.remoteAddress ?? "unknown");
+    const passwordHash = await hashPassword(password);
+    const expiresAt = new Date(
+      Date.now() + (channel === "web" ? 8 * 60 * 60 : 30 * 24 * 60 * 60) * 1000,
+    );
+    const secret = randomToken();
+    const csrfToken = csrfTokenFor(secret);
+    const accessToken = randomToken();
+    const accessExpiresAt = new Date(Date.now() + 15 * 60 * 1000);
+    try {
+      return await this.db.$transaction(async (tx) => {
+        const user = await tx.user.create({
+          data: { name, email, phone, passwordHash, role: "customer", active: true },
+          include: { locations: true },
+        });
+        const session = await tx.session.create({
+          data: {
+            userId: user.id,
+            channel,
+            expiresAt,
+            ...(channel === "web"
+              ? { tokenHash: tokenHash(secret), csrfHash: tokenHash(csrfToken) }
+              : {
+                  accessHash: tokenHash(accessToken),
+                  accessExpiresAt,
+                  currentRefreshHash: tokenHash(secret),
+                  refreshHistory: { create: { hash: tokenHash(secret) } },
+                }),
+          },
+        });
+        await tx.auditEvent.create({
+          data: {
+            actorId: user.id,
+            action: "identity.customer_registered",
+            entityId: user.id,
+            requestId: req.requestId,
+            details: { channel },
+          },
+        });
+        await tx.auditEvent.create({
+          data: {
+            actorId: user.id,
+            action: "identity.session_created",
+            entityId: session.id,
+            requestId: req.requestId,
+            details: { channel },
+          },
+        });
+        return channel === "web"
+          ? {
+              secret,
+              data: {
+                actor: actor(user),
+                csrfToken,
+                expiresAt: expiresAt.toISOString(),
+              },
+            }
+          : {
+              secret: undefined,
+              data: {
+                actor: actor(user),
+                accessToken,
+                accessExpiresAt: accessExpiresAt.toISOString(),
+                refreshToken: secret,
+                expiresAt: expiresAt.toISOString(),
+              },
+            };
+      });
+    } catch (error) {
+      if ((error as { code?: string })?.code === "P2002") {
+        throw new ApiProblem(409, "ACCOUNT_EXISTS", "An account already exists for this email address.");
+      }
+      throw error;
+    }
+  }
+
   async login(
     email: string,
     password: string,

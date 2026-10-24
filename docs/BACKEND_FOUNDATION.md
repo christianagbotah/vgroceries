@@ -77,12 +77,16 @@ serialize refresh and persist refresh credentials in device secure storage.
 
 User activity, role and location grants are read again on each protected request.
 Customer and rider roles have no inventory privileges. The initial owner is
-created by an explicit CLI, not public registration or the demo role picker.
+created by an explicit CLI, never public registration or the demo role picker.
+Public `POST /auth/register` registration creates only the `customer` role and
+cannot accept client-authored roles or location grants; web registration requires
+a trusted Origin and atomically creates the account plus its initial session.
 The `admin` role represents the business owner and has access to every active
 stock location. Inventory managers require explicit location grants for reads
 and receiving; grants cannot confer an admin role.
-Registration, recovery, verification, MFA and the real frontend sign-in UX are
-follow-up work before production activation.
+Customer registration and the real storefront sign-up/sign-in UX are implemented.
+Recovery, email/phone verification and MFA remain follow-up work before broader
+production activation.
 
 Login budgets are durable across API replicas: five attempts per normalized
 email and 100 per source IP in a 15-minute window (successful attempts count too).

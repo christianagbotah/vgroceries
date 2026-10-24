@@ -10,7 +10,7 @@ import {
 } from "@nestjs/common";
 import { ApiBody, ApiCookieAuth, ApiTags } from "@nestjs/swagger";
 import type { Response } from "express";
-import { loginRequestSchema, refreshRequestSchema } from "@variety/contracts";
+import { loginRequestSchema, refreshRequestSchema, registerRequestSchema } from "@variety/contracts";
 import { API_CONFIG, ApiConfig } from "../config";
 import { ApiProblem, ApiRequest } from "../http/errors";
 import { AccessGuard } from "./access.guard";
@@ -23,6 +23,41 @@ export class IdentityController {
     private readonly identity: IdentityService,
     @Inject(API_CONFIG) private readonly config: ApiConfig,
   ) {}
+  @Post("register")
+  @ApiBody({
+    schema: {
+      type: "object",
+      required: ["name", "email", "phone", "password"],
+      properties: {
+        name: { type: "string", minLength: 2, maxLength: 120 },
+        email: { type: "string", format: "email", maxLength: 254 },
+        phone: { type: "string", minLength: 8, maxLength: 20 },
+        password: { type: "string", minLength: 12, maxLength: 256 },
+        client: { type: "string", enum: ["web", "native"], default: "web" },
+      },
+      additionalProperties: false,
+    },
+  })
+  async register(
+    @Body() body: unknown,
+    @Req() req: ApiRequest,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const parsed = registerRequestSchema.safeParse(body);
+    if (!parsed.success)
+      throw new ApiProblem(400, "VALIDATION_FAILED", "Invalid registration request.");
+    const { name, email, phone, password, client } = parsed.data;
+    const result = await this.identity.register(name, email, phone, password, client, req);
+    if (result.secret)
+      res.cookie("vg_session", result.secret, {
+        httpOnly: true,
+        secure: this.config.secureCookies,
+        sameSite: "lax",
+        path: "/api/v1",
+        maxAge: 8 * 60 * 60 * 1000,
+      });
+    return { ok: true, data: result.data };
+  }
   @Post("sessions")
   @ApiBody({
     schema: {

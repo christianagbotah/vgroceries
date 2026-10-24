@@ -69,7 +69,8 @@ export default function CustomerLoginPage() {
           </form>
         </CardContent>
       </Card>
-      <p className="mt-4 text-center text-sm text-muted-foreground">Continue shopping? <Link href="/shop" className="font-medium text-primary hover:underline">Back to the shop</Link></p>
+      <p className="mt-4 text-center text-sm text-muted-foreground">New to Variety Groceries? <Link href="/account/signup" className="font-medium text-primary hover:underline">Create an account</Link></p>
+      <p className="mt-2 text-center text-sm text-muted-foreground">Continue shopping? <Link href="/shop" className="font-medium text-primary hover:underline">Back to the shop</Link></p>
     </div>
   );
 }

@@ -5,6 +5,14 @@ export const loginRequestSchema = z.strictObject({
   password: z.string().min(1).max(256),
   client: z.enum(["web", "native"]).default("web"),
 });
+export const registerRequestSchema = z.strictObject({
+  name: z.string().trim().min(2).max(120),
+  email: z.string().trim().toLowerCase().email().max(254),
+  phone: z.string().trim().regex(/^\+?[0-9][0-9\s-]{7,19}$/),
+  password: z.string().min(12).max(256),
+  client: z.enum(["web", "native"]).default("web"),
+});
+export type RegisterRequest = z.infer<typeof registerRequestSchema>;
 export const refreshRequestSchema = z.strictObject({
   refreshToken: z.string().regex(/^[a-f0-9]{64}$/),
 });

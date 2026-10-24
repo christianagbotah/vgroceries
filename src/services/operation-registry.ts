@@ -37,6 +37,7 @@ const MEDIA: CacheTag[] = ["product-media"];
 export const operationMeta: Record<string, OperationMeta> = {
   /* identity */
   "auth.login": { invalidates: ["*"] },
+  "auth.signup": { invalidates: ["*"] },
   "auth.me": {},
 
   /* catalogue (public) */

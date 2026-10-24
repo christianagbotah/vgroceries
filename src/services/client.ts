@@ -189,6 +189,11 @@ export const apiOps = {
     setBrowserCsrfToken(session.csrfToken);
     return session;
   },
+  accountSignup: async (name: string, email: string, phone: string, password: string) => {
+    const session = await api<WebSessionResponse>("auth.signup", { body: { name, email, phone, password, client: "web" } });
+    setBrowserCsrfToken(session.csrfToken);
+    return session;
+  },
   accountSession: async () => {
     const session = await api<SessionLookupResponse>("auth.me");
     if (session.csrfToken) setBrowserCsrfToken(session.csrfToken);

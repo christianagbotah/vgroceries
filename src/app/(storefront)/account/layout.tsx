@@ -21,13 +21,13 @@ const TABS = [
 export default function AccountLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
-  const loginPage = pathname === "/account/login";
-  const [checking, setChecking] = useState(!loginPage);
+  const authPage = pathname === "/account/login" || pathname === "/account/signup";
+  const [checking, setChecking] = useState(!authPage);
   const [sessionError, setSessionError] = useState<string | null>(null);
   const [loggingOut, setLoggingOut] = useState(false);
 
   useEffect(() => {
-    if (loginPage) { setChecking(false); setSessionError(null); return; }
+    if (authPage) { setChecking(false); setSessionError(null); return; }
     let active = true;
     setChecking(true);
     apiOps.accountSession().then((session) => {
@@ -48,7 +48,7 @@ export default function AccountLayout({ children }: { children: React.ReactNode 
       setChecking(false);
     });
     return () => { active = false; };
-  }, [loginPage, pathname, router]);
+  }, [authPage, pathname, router]);
 
   const logout = async () => {
     setLoggingOut(true);
@@ -60,7 +60,7 @@ export default function AccountLayout({ children }: { children: React.ReactNode 
     }
   };
 
-  if (loginPage) return children;
+  if (authPage) return children;
   if (checking) return <div className="mx-auto max-w-5xl px-4 py-10"><LoadingState rows={3} label="Checking account session" /></div>;
   if (sessionError) return <div className="mx-auto max-w-5xl px-4 py-10"><ErrorState message={sessionError} /></div>;
 
