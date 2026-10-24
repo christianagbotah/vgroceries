@@ -16,16 +16,17 @@ import { cn } from "@/lib/utils";
 const POLL_MS = 4000;
 
 /**
- * Payment status screen. The customer roleplays the provider prompt
- * ("approve on your phone"); only the service-confirmed outcome changes
- * the order state — a redirect alone never marks it paid.
+ * Payment status screen. Electronic payments start through the server-owned
+ * payment-attempt authority; browser redirects and return URLs never mark an
+ * order paid. Only verified provider evidence changes payment truth.
  */
 export default function CheckoutStatusPage() {
   const { id } = useParams<{ id: string }>();
   const [order, setOrder] = useState<PublicOrder | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [acting, setActing] = useState(false);
+  const [initiating, setInitiating] = useState(false);
+  const [paymentMessage, setPaymentMessage] = useState<string | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const load = useCallback(async () => {
@@ -55,15 +56,37 @@ export default function CheckoutStatusPage() {
     }
   }, [order]);
 
-  const sendOutcome = async (outcome: "succeeded" | "failed") => {
-    setActing(true);
+  const startPayment = async () => {
+    if (!order) return;
+    setInitiating(true);
+    setPaymentMessage(null);
+    setError(null);
     try {
-      await apiOps.paymentOutcome(id, outcome);
+      const keyName = `vg_payment_attempt_key_${id}`;
+      let key = window.sessionStorage.getItem(keyName);
+      if (!key) {
+        key = `pay_${crypto.randomUUID().replaceAll("-", "")}`;
+        window.sessionStorage.setItem(keyName, key);
+      }
+      window.sessionStorage.setItem("vg_payment_order_id", id);
+      const payerPhone = order.paymentMethod === "mobile_money"
+        ? order.customerPhone.replace(/[\s-]/g, "")
+        : undefined;
+      const result = await apiOps.paymentInitiate(id, payerPhone, key);
+      if (result.action.kind === "redirect") {
+        window.location.assign(result.action.url);
+        return;
+      }
+      if (result.action.kind === "prompt" || result.action.kind === "instructions") {
+        setPaymentMessage(result.action.message);
+      } else {
+        setPaymentMessage("Your payment request is already in progress. We are checking the provider for the verified outcome.");
+      }
       await load();
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : "The provider outcome could not be delivered.");
+      setError(e instanceof ApiError ? e.message : "The secure payment request could not be started.");
     } finally {
-      setActing(false);
+      setInitiating(false);
     }
   };
 
@@ -124,14 +147,14 @@ export default function CheckoutStatusPage() {
         ) : needsAction ? (
           <StatusHead
             icon={<PhoneCall className="size-8 animate-pulse text-primary" aria-hidden />}
-            title="Confirm the payment prompt"
+            title="Complete your secure payment"
             tone="warning"
             copy={
               order.paymentMethod === "mobile_money"
-                ? "Approve the payment prompt on your phone to complete this Mobile Money payment."
+                ? "Continue to the payment provider, then approve the Mobile Money request on your phone."
                 : order.paymentMethod === "card_hosted"
-                  ? "Complete the card checkout in the provider window to finish this payment."
-                  : "Complete the bank transfer using the reference below, then confirm."
+                  ? "Continue to the payment provider's secure card checkout."
+                  : "Continue to the payment provider to receive the verified bank-payment instructions."
             }
           />
         ) : (
@@ -151,25 +174,21 @@ export default function CheckoutStatusPage() {
         </div>
       </div>
 
-      {/* provider roleplay panel (customer-side demo action, not a technical control) */}
       {needsAction ? (
         <div className="mt-4 rounded-2xl border border-warning/40 bg-warning/10 p-4 sm:p-5">
-          <h2 className="font-semibold">Payment prompt · {formatMoney(order.totalMinor)}</h2>
+          <h2 className="font-semibold">Secure payment · {formatMoney(order.totalMinor)}</h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            {PAYMENT_METHOD_LABELS[order.paymentMethod]} to Variety Groceries (demo — no real money moves).
+            {PAYMENT_METHOD_LABELS[order.paymentMethod]} to Variety Groceries. The provider handles the payment screen; Variety never collects card or wallet secrets in this page.
           </p>
           <div className="mt-3 flex flex-wrap gap-2">
-            <Button size="lg" className="h-12" onClick={() => sendOutcome("succeeded")} disabled={acting}>
-              {acting ? <Loader2 className="size-4 animate-spin" aria-hidden /> : <CheckCircle2 className="size-5" aria-hidden />}
-              I&apos;ve approved the payment
-            </Button>
-            <Button size="lg" variant="outline" className="h-12" onClick={() => sendOutcome("failed")} disabled={acting}>
-              <XCircle className="size-5" aria-hidden /> Payment was declined
+            <Button size="lg" className="h-12" onClick={startPayment} disabled={initiating}>
+              {initiating ? <Loader2 className="size-4 animate-spin" aria-hidden /> : <ShieldQuestion className="size-5" aria-hidden />}
+              {initiating ? "Opening secure payment…" : "Continue to secure payment"}
             </Button>
           </div>
+          {paymentMessage ? <p role="status" className="mt-3 rounded-lg bg-white/70 p-3 text-sm text-foreground">{paymentMessage}</p> : null}
           <p className="mt-2 text-xs text-muted-foreground">
-            This screen stands in for the provider experience in the prototype. A browser redirect or
-            screenshot can never mark the order paid — only the verified provider outcome does.
+            Returning from the provider does not mark the order paid. The status changes only after server-side provider evidence is independently verified.
           </p>
         </div>
       ) : null}

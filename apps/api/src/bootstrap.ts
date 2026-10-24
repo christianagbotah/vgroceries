@@ -21,6 +21,7 @@ import { productionOpenApi } from "./http/production-openapi";
 import { ApiExceptionFilter, ApiRequest } from "./http/errors";
 import { PaymentsModule } from "./payments/payments.module";
 import { HubtelRefundCallbackModule } from "./payments/hubtel-refund-callback.module";
+import { HubtelPaymentProvider } from "./payments/hubtel-payment-provider";
 import type { PaymentProviderAdapter } from "./payments/payment-provider";
 import { PAYMENT_PROVIDER_ADAPTERS } from "./payments/payment-provider.registry";
 import type { RefundProviderAdapter } from "./payments/refund-provider";
@@ -32,6 +33,10 @@ export async function createApplication(
   paymentAdapters: PaymentProviderAdapter[] = [],
   refundAdapters: RefundProviderAdapter[] = [],
 ) {
+  const resolvedPaymentAdapters = [...paymentAdapters];
+  if (config.hubtelPayment && !resolvedPaymentAdapters.some((adapter) => adapter.id === "hubtel"))
+    resolvedPaymentAdapters.push(new HubtelPaymentProvider(config.hubtelPayment));
+
   const resolvedRefundAdapters = [...refundAdapters];
   if (config.hubtelRefund && !resolvedRefundAdapters.some((adapter) => adapter.id === "hubtel"))
     resolvedRefundAdapters.push(new HubtelRefundProvider(config.hubtelRefund));
@@ -40,7 +45,7 @@ export async function createApplication(
   @Module({
     providers: [
       { provide: API_CONFIG, useValue: config },
-      { provide: PAYMENT_PROVIDER_ADAPTERS, useValue: paymentAdapters },
+      { provide: PAYMENT_PROVIDER_ADAPTERS, useValue: resolvedPaymentAdapters },
       { provide: REFUND_PROVIDER_ADAPTERS, useValue: resolvedRefundAdapters },
     ],
     exports: [API_CONFIG, PAYMENT_PROVIDER_ADAPTERS, REFUND_PROVIDER_ADAPTERS],

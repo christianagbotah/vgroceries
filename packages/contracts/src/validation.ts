@@ -16,6 +16,7 @@
 
 import { z } from "zod";
 import { loginRequestSchema, registerRequestSchema } from "./identity";
+import { paymentInitiationRequestSchema } from "./payments";
 import {
   createLogisticsNodeRequestSchema, updateLogisticsNodeRequestSchema,
   createLogisticsLaneRequestSchema, updateLogisticsLaneRequestSchema,
@@ -552,6 +553,7 @@ export const requestSchemas: Record<string, z.ZodTypeAny> = {
   "auth.signup": registerRequestSchema,
   "checkout.quote": checkoutQuoteRequestSchema,
   "checkout.complete": checkoutCompleteRequestSchema,
+  "payments.initiate": paymentInitiationRequestSchema,
   "checkout.payment-outcome": paymentOutcomeRequestSchema,
   "account.cancel": accountCancelRequestSchema,
   "account.profile.update": accountProfileUpdateRequestSchema,

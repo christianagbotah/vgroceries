@@ -399,6 +399,19 @@ export async function handleApi(req: ApiRequest): Promise<ApiResult> {
         });
         return ok({ orderId: result.order.id, reference: result.order.reference, verificationCode: result.order.verificationCode, paymentRequired: result.paymentRequired });
       }
+      case "payments.initiate": {
+        const order = store.orders.find((candidate) => candidate.id === q("orderId"));
+        if (!order) throw new OpError("NOT_FOUND", "Order not found.");
+        if (!["mobile_money", "card_hosted", "bank_transfer"].includes(order.paymentMethod))
+          throw new OpError("RULE_VIOLATION", "This order does not require an electronic payment.");
+        return ok({
+          attemptId: nextId("pay"),
+          method: order.paymentMethod,
+          attemptStatus: "pending",
+          paymentStatus: order.paymentStatus,
+          action: { kind: "prompt", message: "Demo payment provider is waiting for an external verified outcome." },
+        });
+      }
       case "checkout.payment-outcome": {
         const outcome = b("outcome") as "succeeded" | "failed" | "pending";
         const r = paymentCallback(store, b("orderId"), outcome);

@@ -21,6 +21,16 @@ export interface PaymentConfig {
   hostedDomains: string[];
 }
 
+export interface HubtelPaymentConfig {
+  clientId: string;
+  clientSecret: string;
+  requestMoneyUrl: string;
+  statusUrl: string;
+  callbackUrl: string;
+  returnUrl: string;
+  cancellationUrl: string;
+}
+
 export interface HubtelRefundConfig {
   baseUrl: string;
   basicUsername: string;
@@ -60,6 +70,7 @@ export interface ApiConfig {
   host: string;
   commerce: CommerceConfig | null;
   payments: PaymentConfig | null;
+  hubtelPayment: HubtelPaymentConfig | null;
   hubtelRefund: HubtelRefundConfig | null;
   productMedia: ProductMediaConfig | null;
   imageGeneration: ImageGenerationConfig | null;
@@ -249,6 +260,59 @@ export function readConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
     };
   }
 
+  const hubtelPaymentNames = [
+    "HUBTEL_CLIENT_ID",
+    "HUBTEL_CLIENT_SECRET",
+    "HUBTEL_REQUEST_MONEY_URL",
+    "HUBTEL_STATUS_URL",
+    "HUBTEL_CALLBACK_URL",
+    "HUBTEL_RETURN_URL",
+    "HUBTEL_CANCELLATION_URL",
+  ] as const;
+  const hubtelPaymentSupplied = hubtelPaymentNames.filter(
+    (name) => env[name] !== undefined && env[name] !== "",
+  );
+  let hubtelPayment: HubtelPaymentConfig | null = null;
+  if (hubtelPaymentSupplied.length || payments?.providerId === "hubtel") {
+    if (!payments || payments.providerId !== "hubtel")
+      throw new Error("Hubtel payment configuration requires PAYMENT_PROVIDER_ID=hubtel");
+    if (hubtelPaymentSupplied.length !== hubtelPaymentNames.length)
+      throw new Error("Hubtel payment configuration must be supplied as a complete bundle");
+    if (env.HUBTEL_CLIENT_ID!.length > 256 || env.HUBTEL_CLIENT_SECRET!.length > 256)
+      throw new Error("Hubtel payment credentials are too long");
+
+    const hubtelUrl = (name: (typeof hubtelPaymentNames)[number], value: string) => {
+      let parsed: URL;
+      try {
+        parsed = new URL(value.replace(/\{[A-Za-z][A-Za-z0-9_]*\}/g, "value"));
+      } catch {
+        throw new Error(`${name} must be an absolute HTTP(S) URL`);
+      }
+      if (!["http:", "https:"].includes(parsed.protocol) || parsed.username || parsed.password)
+        throw new Error(`${name} must be an absolute HTTP(S) URL without embedded credentials`);
+      if (env.NODE_ENV === "production" && parsed.protocol !== "https:")
+        throw new Error(`${name} must use HTTPS in production`);
+      return value;
+    };
+
+    const requestMoneyUrl = hubtelUrl("HUBTEL_REQUEST_MONEY_URL", env.HUBTEL_REQUEST_MONEY_URL!);
+    if (!requestMoneyUrl.includes("{mobileNumber}"))
+      throw new Error("HUBTEL_REQUEST_MONEY_URL must contain {mobileNumber}");
+    const statusUrl = hubtelUrl("HUBTEL_STATUS_URL", env.HUBTEL_STATUS_URL!);
+    if (!["{reference}", "{clientReference}", "{providerReference}", "{paylinkId}"].some((token) => statusUrl.includes(token)))
+      throw new Error("HUBTEL_STATUS_URL must contain a supported reference template");
+
+    hubtelPayment = {
+      clientId: env.HUBTEL_CLIENT_ID!,
+      clientSecret: env.HUBTEL_CLIENT_SECRET!,
+      requestMoneyUrl,
+      statusUrl,
+      callbackUrl: hubtelUrl("HUBTEL_CALLBACK_URL", env.HUBTEL_CALLBACK_URL!),
+      returnUrl: hubtelUrl("HUBTEL_RETURN_URL", env.HUBTEL_RETURN_URL!),
+      cancellationUrl: hubtelUrl("HUBTEL_CANCELLATION_URL", env.HUBTEL_CANCELLATION_URL!),
+    };
+  }
+
   const hubtelRefundNames = [
     "HUBTEL_REFUND_BASE_URL",
     "HUBTEL_REFUND_BASIC_USERNAME",
@@ -369,6 +433,7 @@ export function readConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
     host: env.API_HOST ?? "127.0.0.1",
     commerce,
     payments,
+    hubtelPayment,
     hubtelRefund,
     productMedia,
     imageGeneration,
