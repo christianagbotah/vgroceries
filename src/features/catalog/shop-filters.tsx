@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useTransition } from "react";
 import { Input } from "@/components/ui/input";
@@ -30,18 +31,23 @@ export function ShopFilters({
   const category = categories.find((c) => c.slug === rawCategory || c.id === rawCategory)?.slug ?? "all";
   const sort = params.get("sort") ?? "popular";
 
-  const update = (patch: Record<string, string>) => {
+  const nextHref = (patch: Record<string, string>) => {
     const next = new URLSearchParams(params.toString());
     for (const [k, v] of Object.entries(patch)) {
       if (!v || v === "all") next.delete(k);
       else next.set(k, v);
     }
-    next.delete("page"); // new filter set → back to page 1
-    startTransition(() => router.push(`/shop${next.toString() ? `?${next}` : ""}`, { scroll: false }));
+    next.delete("page");
+    return `/shop${next.toString() ? `?${next}` : ""}`;
+  };
+
+  const update = (patch: Record<string, string>) => {
+    startTransition(() => router.push(nextHref(patch), { scroll: false }));
   };
 
   return (
-    <div className="flex flex-wrap items-center gap-2" data-pending={pending ? "true" : "false"}>
+    <div className="space-y-3" data-pending={pending ? "true" : "false"}>
+      <div className="flex flex-wrap items-center gap-2">
       <form
         role="search"
         className="relative min-w-0 flex-1 sm:min-w-52"
@@ -104,6 +110,25 @@ export function ShopFilters({
       <p className="ml-auto text-sm text-muted-foreground tabular-nums" aria-live="polite">
         {total} available {total === 1 ? "item" : "items"}
       </p>
+      </div>
+
+      <nav id="category-filter-chips" className="flex gap-2 overflow-x-auto pb-1" aria-label="Quick category filters">
+        {[{ slug: "all", name: "All groceries", count: total }, ...categories].map((c) => {
+          const active = category === c.slug;
+          return (
+            <Link
+              key={c.slug}
+              href={nextHref({ category: c.slug })}
+              aria-current={active ? "page" : undefined}
+              className={active
+                ? "whitespace-nowrap rounded-full border border-primary bg-primary px-3 py-2 text-xs font-bold text-primary-foreground"
+                : "whitespace-nowrap rounded-full border bg-white px-3 py-2 text-xs font-bold text-foreground transition hover:border-primary/35 hover:bg-primary/5"}
+            >
+              {c.name}{c.slug === "all" ? "" : ` (${c.count})`}
+            </Link>
+          );
+        })}
+      </nav>
     </div>
   );
 }
