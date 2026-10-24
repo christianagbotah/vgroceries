@@ -100,7 +100,7 @@ test("Paystack refund create uses the original provider transaction and lookup m
     { body: { status: true, message: "Refund retrieved", data: { id: 3018284, status: "processed", amount: 5000, currency: "GHS", refunded_at: "2026-10-24T10:20:00.000Z" } } },
   );
   const adapter = new PaystackRefundAdapter({ secretKey: "sk_test_secret" }, http.fetcher);
-  const initiated = await adapter.initiateRefund({ refundId: "refund-1", executionId: "exec-1", merchantRefundReference: "VG-REF-1001", originalPaymentMerchantReference: "VG-PAY-ABC123", originalPaymentProviderReference: "4099260516", orderReference: "VG-ORDER-1001", method: "mobile_money", amountMinor: 5000, currency: "GHS", signal: new AbortController().signal });
+  const initiated = await adapter.initiateRefund({ refundId: "refund-1", executionId: "exec-1", merchantRefundReference: "VG-REF-1001", originalPaymentMerchantReference: "VG-PAY-ABC123", originalPaymentProviderReference: "4099260516", originalPaymentAmountMinor: 12345, orderReference: "VG-ORDER-1001", method: "mobile_money", amountMinor: 5000, currency: "GHS", signal: new AbortController().signal });
   assert.deepEqual(initiated, { kind: "accepted", state: "pending", providerRefundReference: "3018284" });
   assert.equal(http.calls[0].url, "https://api.paystack.co/refund");
   const createBody = JSON.parse(String(http.calls[0].init?.body));

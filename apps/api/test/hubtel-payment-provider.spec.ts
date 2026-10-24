@@ -34,6 +34,7 @@ const input = () => ({
   method: "mobile_money" as const,
   amountMinor: 12345,
   currency: "GHS" as const,
+  payerName: "Ama Customer",
   payerPhone: "+233241111111",
   signal: new AbortController().signal,
 });
