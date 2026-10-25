@@ -41,6 +41,7 @@ function inCategories(products: CatalogProduct[], slugs: string[], limit = 8) {
 }
 
 function ProductSection({
+  id,
   eyebrow,
   title,
   copy,
@@ -48,6 +49,7 @@ function ProductSection({
   href = "/shop",
   linkLabel = "View all",
 }: {
+  id?: string;
   eyebrow?: string;
   title: string;
   copy: string;
@@ -57,7 +59,7 @@ function ProductSection({
 }) {
   if (!products.length) return null;
   return (
-    <section className="mt-8" aria-label={title}>
+    <section id={id} className="mt-8" aria-label={title}>
       <div className="mb-3 flex items-end justify-between gap-4 px-1">
         <div>
           {eyebrow ? <p className="mb-1 text-[11px] font-black uppercase tracking-[0.16em] text-primary">{eyebrow}</p> : null}
@@ -90,6 +92,7 @@ export default async function HomePage() {
   ]).slice(0, 8);
   const freshMarket = inCategories(allProducts, ["fresh-produce", "meat-fish"], 8);
   const pantry = inCategories(allProducts, ["grains-staples", "oils-sauces"], 8);
+  const freshArrivals = unique([...trendingNew, ...allProducts]).slice(0, 8);
   const familyFavourites = inCategories(allProducts, ["beverages", "snacks", "dairy-eggs", "baby-family"], 8);
   const homeCare = inCategories(allProducts, ["household", "personal-care"], 8);
   const freshProduceCategory = categories.find((category) => category.slug === "fresh-produce");
@@ -141,11 +144,11 @@ export default async function HomePage() {
 
       <AdSenseSlot slot={process.env.NEXT_PUBLIC_ADSENSE_HOME_TOP_SLOT} className="mt-5" />
 
-      <section className="mt-8" aria-labelledby="home-value-picks">
+      <section id="home-offers" className="mt-8" aria-labelledby="home-value-picks">
         <div className="mb-3 flex items-end justify-between gap-4 px-1">
           <div>
-            <p className="mb-1 flex items-center gap-1.5 text-[11px] font-black uppercase tracking-[0.16em] text-primary"><BadgePercent className="size-3.5" /> Featured products</p>
-            <h2 id="home-value-picks" className="font-serif text-2xl font-black tracking-tight text-[color:var(--brand-green-deep)] sm:text-3xl">Today’s value picks</h2>
+            <p className="mb-1 flex items-center gap-1.5 text-[11px] font-black uppercase tracking-[0.16em] text-primary"><BadgePercent className="size-3.5" /> Featured products · Today’s value picks</p>
+            <h2 id="home-value-picks" className="font-serif text-2xl font-black tracking-tight text-[color:var(--brand-green-deep)] sm:text-3xl">Offers worth adding</h2>
             <p className="mt-1 max-w-2xl text-xs leading-relaxed text-muted-foreground sm:text-sm">Current offers and useful everyday groceries, selected only from products the store can actually sell now.</p>
           </div>
           <Link href="/shop" className="hidden shrink-0 items-center text-xs font-bold text-primary hover:underline sm:inline-flex">See the full shop <ArrowRight className="ml-1 size-3.5" /></Link>
@@ -166,8 +169,8 @@ export default async function HomePage() {
         </article>
       </section>
 
-      <ProductSection eyebrow="Market fresh" title="Fresh from the market" copy="Produce and proteins for soups, stews, sides and everyday family meals." products={freshMarket} href="/shop?category=fresh-produce" linkLabel="Shop fresh produce" />
-      <ProductSection eyebrow="Kitchen essentials" title="Pantry & everyday staples" copy="Rice, grains, beans, cooking oils, sauces and other cupboard essentials for regular household shopping." products={pantry} href="/shop?category=grains-staples" linkLabel="Shop pantry staples" />
+      <ProductSection id="home-fresh" eyebrow="Market fresh" title="Fresh from the market" copy="Produce and proteins for soups, stews, sides and everyday family meals." products={freshMarket} href="/shop?category=fresh-produce" linkLabel="Shop fresh produce" />
+      <ProductSection id="home-essentials" eyebrow="Kitchen essentials" title="Everyday essentials" copy="Pantry & everyday staples — rice, grains, beans, cooking oils, sauces and other cupboard basics for regular household shopping." products={pantry} href="/shop?category=grains-staples" linkLabel="Shop pantry staples" />
 
       <section className="mt-8 grid gap-3 lg:grid-cols-3" aria-labelledby="basket-planning-title">
         <article className="rounded-2xl border bg-gradient-to-br from-[#edf6e8] to-white p-5 sm:p-6">
@@ -190,13 +193,28 @@ export default async function HomePage() {
         </article>
       </section>
 
+      <ProductSection id="home-arrivals" eyebrow="New in the catalogue" title="Fresh arrivals" copy="Recently added and newly available groceries worth discovering on your next shop." products={freshArrivals} href="/shop?sort=name" linkLabel="Browse new finds" />
+
+      <section id="home-shop-by-need" className="mt-9 rounded-[26px] border bg-gradient-to-br from-white via-[#fbfcf7] to-[#eef5e7] p-5 sm:p-7" aria-labelledby="home-shop-by-need-title">
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div><p className="text-[11px] font-black uppercase tracking-[0.16em] text-primary">More ways to discover</p><h2 id="home-shop-by-need-title" className="mt-1 font-serif text-3xl font-black text-[color:var(--brand-green-deep)]">Shop by lifestyle and need</h2><p className="mt-2 max-w-2xl text-sm text-muted-foreground">Jump into common shopping missions without hunting through the full catalogue.</p></div>
+          <Link href="/categories" className="text-sm font-bold text-primary hover:underline">Explore every category <ArrowRight className="ml-1 inline size-4" /></Link>
+        </div>
+        <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <Link href="/shop?category=fresh-produce" className="rounded-2xl border bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:border-primary/30"><Leaf className="size-5 text-primary" /><h3 className="mt-3 font-bold">Fresh cooking basket</h3><p className="mt-1 text-xs text-muted-foreground">Produce for soups, stews, sides and family meals.</p></Link>
+          <Link href="/shop?category=grains-staples" className="rounded-2xl border bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:border-primary/30"><ShoppingBasket className="size-5 text-primary" /><h3 className="mt-3 font-bold">Pantry restock</h3><p className="mt-1 text-xs text-muted-foreground">Grains and everyday staples for the cupboard.</p></Link>
+          <Link href="/shop?category=beverages" className="rounded-2xl border bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:border-primary/30"><Package className="size-5 text-primary" /><h3 className="mt-3 font-bold">Drinks &amp; quick top-ups</h3><p className="mt-1 text-xs text-muted-foreground">Refreshments and convenient add-ons for the household.</p></Link>
+          <Link href="/shop?category=household" className="rounded-2xl border bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:border-primary/30"><Store className="size-5 text-primary" /><h3 className="mt-3 font-bold">Home care</h3><p className="mt-1 text-xs text-muted-foreground">Cleaning and household essentials in the same order.</p></Link>
+        </div>
+      </section>
+
       <ProductSection eyebrow="For the family" title="Drinks, snacks & family favourites" copy="Beverages, dairy, snacks and convenient family items for school days, workdays and weekends." products={familyFavourites} href="/shop?category=beverages" linkLabel="Shop drinks & snacks" />
 
       <AdSenseSlot slot={process.env.NEXT_PUBLIC_ADSENSE_HOME_MID_SLOT} />
 
       <ProductSection eyebrow="For the home" title="Home & personal care" copy="Household cleaning and personal-care essentials kept alongside your grocery order." products={homeCare} href="/shop?category=household" linkLabel="Shop household care" />
 
-      <section className="mt-9 rounded-[26px] border bg-[#f8faf4] p-5 sm:p-7" aria-labelledby="how-variety-works">
+      <section id="home-how-it-works" className="mt-9 rounded-[26px] border bg-[#f8faf4] p-5 sm:p-7" aria-labelledby="how-variety-works">
         <div className="mx-auto max-w-3xl text-center">
           <p className="text-[11px] font-black uppercase tracking-[0.16em] text-primary">Simple from basket to handover</p>
           <h2 id="how-variety-works" className="mt-2 font-serif text-3xl font-black text-[color:var(--brand-green-deep)]">How Variety works</h2>
@@ -216,8 +234,8 @@ export default async function HomePage() {
         <div className="flex items-center gap-3 p-2"><span className="grid size-10 shrink-0 place-items-center rounded-full bg-primary/10 text-primary"><Store className="size-5" /></span><div><p className="text-sm font-bold">Connected inventory</p><p className="text-[11px] text-muted-foreground">Online and counter sales share stock.</p></div></div>
       </section>
 
-      <section className="mt-8 grid gap-3 overflow-hidden rounded-[26px] bg-[color:var(--brand-green-deep)] p-6 text-white md:grid-cols-[1.35fr_.65fr] md:p-8" aria-label="Customer support and account">
-        <div><p className="text-[11px] font-black uppercase tracking-[0.16em] text-brand-amber">Shop with confidence</p><h2 className="mt-2 font-serif text-3xl font-black">Your grocery journey does not end at checkout.</h2><p className="mt-3 max-w-2xl text-sm leading-relaxed text-white/75">Track an order, review your account, manage returns where eligible, or use the help centre when you need support.</p><div className="mt-5 flex flex-wrap gap-2"><Button asChild className="bg-brand-amber text-[color:var(--brand-green-deep)] hover:bg-brand-amber/90"><Link href="/track">Track an order</Link></Button><Button asChild variant="secondary"><Link href="/help">Visit help centre</Link></Button></div></div>
+      <section id="home-customer-tools" className="mt-8 grid gap-3 overflow-hidden rounded-[26px] bg-[color:var(--brand-green-deep)] p-6 text-white md:grid-cols-[1.35fr_.65fr] md:p-8" aria-label="Customer support and account">
+        <div><p className="text-[11px] font-black uppercase tracking-[0.16em] text-brand-amber">Shop with confidence</p><h2 className="mt-2 font-serif text-3xl font-black">Plan, track and repeat your shop</h2><p className="mt-3 max-w-2xl text-sm leading-relaxed text-white/75">Your grocery journey does not end at checkout. Create an account, track an order, review order history, manage returns where eligible, or use the help centre when you need support.</p><div className="mt-5 flex flex-wrap gap-2"><Button asChild className="bg-brand-amber text-[color:var(--brand-green-deep)] hover:bg-brand-amber/90"><Link href="/account/signup">Create your free account</Link></Button><Button asChild variant="secondary"><Link href="/track">Track an order</Link></Button><Button asChild variant="secondary"><Link href="/help">Visit help centre</Link></Button></div></div>
         <div className="grid grid-cols-2 gap-2 self-center"><div className="rounded-2xl bg-white/8 p-4"><CheckCircle2 className="size-5 text-brand-amber" /><p className="mt-3 text-sm font-bold">Order history</p><p className="mt-1 text-xs text-white/65">Available inside customer accounts.</p></div><div className="rounded-2xl bg-white/8 p-4"><MapPin className="size-5 text-brand-amber" /><p className="mt-3 text-sm font-bold">Delivery info</p><p className="mt-1 text-xs text-white/65">Review configured zones and fulfilment information.</p></div></div>
       </section>
 
