@@ -2,6 +2,7 @@ import { Injectable } from "@nestjs/common";
 import type { AccountProfileResponse, AccountSummaryResponse } from "@variety/contracts";
 import { Database } from "../database/database";
 import { ApiProblem } from "../http/errors";
+import { normalizeGhanaPhone } from "../identity/ghana-phone";
 
 const money = (minor: number) => `₵${(minor / 100).toFixed(2)}`;
 const terminalFulfilment = new Set(["delivered", "collected", "cancelled"]);
@@ -23,8 +24,8 @@ export class AccountProfileService {
     return {
       id: user.id,
       name: user.name,
-      phone: user.phone.trim() || user.customerAddresses[0]?.phone || user.orders[0]?.customerPhone || "",
-      email: user.email,
+      phone: user.phone?.trim() || user.customerAddresses[0]?.phone || user.orders[0]?.customerPhone || "",
+      ...(user.email ? { email: user.email } : {}),
       addressIds: user.customerAddresses.map((address) => address.id),
       isDemo: false,
       supportNotes: [],
@@ -67,6 +68,11 @@ export class AccountProfileService {
         street: address.street,
         ...(address.landmark ? { landmark: address.landmark } : {}),
         ...(address.ghanaPostGps ? { ghanaPostGps: address.ghanaPostGps } : {}),
+        ...(address.latitude && address.longitude ? {
+          latitude: address.latitude.toNumber(),
+          longitude: address.longitude.toNumber(),
+          ...(address.locationSource ? { locationSource: address.locationSource as "device_gps" | "map_pin" } : {}),
+        } : {}),
         isDefault: address.isDefault,
       })),
       ordersCount: orders.length,
@@ -90,7 +96,8 @@ export class AccountProfileService {
     input: { name: string; phone: string; email?: string },
   ): Promise<AccountProfileResponse> {
     const name = input.name.trim().replace(/\s+/g, " ");
-    const phone = input.phone.trim().replace(/\s+/g, " ");
+    const phone = normalizeGhanaPhone(input.phone);
+    if (!phone) throw new ApiProblem(400, "VALIDATION_FAILED", "Enter a valid Ghana phone number.");
     const requestedEmail = (input.email ?? "").trim().toLowerCase();
     await this.db.$transaction(async (tx) => {
       await tx.$queryRaw`SELECT id FROM "User" WHERE id=${userId} FOR UPDATE`;
@@ -98,8 +105,12 @@ export class AccountProfileService {
       if (!user || user.role !== "customer" || !user.active)
         throw new ApiProblem(404, "NOT_FOUND", "Customer account not found.");
       const email = requestedEmail || user.email;
-      const collision = await tx.user.findFirst({ where: { email, id: { not: userId } }, select: { id: true } });
-      if (collision) throw new ApiProblem(409, "CONFLICT", "That email address is already in use.");
+      const emailCollision = email
+        ? await tx.user.findFirst({ where: { email, id: { not: userId } }, select: { id: true } })
+        : null;
+      if (emailCollision) throw new ApiProblem(409, "CONFLICT", "That email address is already in use.");
+      const phoneCollision = await tx.user.findFirst({ where: { phone, id: { not: userId } }, select: { id: true } });
+      if (phoneCollision) throw new ApiProblem(409, "CONFLICT", "That phone number is already in use.");
       await tx.user.update({ where: { id: userId }, data: { name, phone, email } });
       await tx.auditEvent.create({
         data: { actorId: userId, action: "account.profile_updated", entityId: userId, requestId, details: {} },

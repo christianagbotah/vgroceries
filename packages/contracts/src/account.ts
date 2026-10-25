@@ -15,6 +15,9 @@ export interface AddressView {
   street: string;
   landmark?: string;
   ghanaPostGps?: string;
+  latitude?: number;
+  longitude?: number;
+  locationSource?: "device_gps" | "map_pin";
   isDefault?: boolean;
 }
 

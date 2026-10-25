@@ -15,8 +15,11 @@ describe("hosted payment form-post action", () => {
     expect(source).not.toContain("innerHTML");
   });
 
-  test("checkout status imports the provider form action renderer for the real payment flow", () => {
+  test("checkout status reaches the provider form action renderer through the payment launcher", () => {
     const status = read("src/app/(storefront)/checkout/status/[id]/page.tsx");
-    expect(status).toContain('from "@/features/checkout/provider-action-form"');
+    const launcher = read("src/features/checkout/payment-provider-launcher.tsx");
+    expect(status).toContain('from "@/features/checkout/payment-provider-launcher"');
+    expect(launcher).toContain('from "@/features/checkout/provider-action-form"');
+    expect(launcher).toContain("<ProviderActionForm action={action} />");
   });
 });

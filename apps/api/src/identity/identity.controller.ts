@@ -27,7 +27,7 @@ export class IdentityController {
   @ApiBody({
     schema: {
       type: "object",
-      required: ["name", "email", "phone", "password"],
+      required: ["name", "phone", "password"],
       properties: {
         name: { type: "string", minLength: 2, maxLength: 120 },
         email: { type: "string", format: "email", maxLength: 254 },
@@ -62,9 +62,9 @@ export class IdentityController {
   @ApiBody({
     schema: {
       type: "object",
-      required: ["email", "password"],
+      required: ["identifier", "password"],
       properties: {
-        email: { type: "string", format: "email" },
+        identifier: { type: "string", description: "Ghana phone number or email address" },
         password: { type: "string", maxLength: 256 },
         client: { type: "string", enum: ["web", "native"], default: "web" },
       },
@@ -79,8 +79,16 @@ export class IdentityController {
     const parsed = loginRequestSchema.safeParse(body);
     if (!parsed.success)
       throw new ApiProblem(400, "VALIDATION_FAILED", "Invalid login request.");
-    const { email, password, client } = parsed.data;
-    const result = await this.identity.login(email, password, client, req);
+    const login = parsed.data as {
+      identifier?: string;
+      email?: string;
+      password: string;
+      client: "web" | "native";
+    };
+    const identifier = login.identifier ?? login.email;
+    if (!identifier)
+      throw new ApiProblem(400, "VALIDATION_FAILED", "Invalid login request.");
+    const result = await this.identity.login(identifier, login.password, login.client, req);
     if (result.secret)
       res.cookie("vg_session", result.secret, {
         httpOnly: true,

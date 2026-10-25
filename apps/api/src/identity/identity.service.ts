@@ -13,6 +13,7 @@ import {
   tokenHash,
   verifyPassword,
 } from "./crypto";
+import { normalizeGhanaPhone, normalizeLoginIdentifier } from "./ghana-phone";
 
 export type AuthRequest = ApiRequest & {
   actor: SessionActor;
@@ -53,9 +54,9 @@ export class IdentityService {
     private readonly db: Database,
     @Inject(API_CONFIG) private readonly config: ApiConfig,
   ) {}
-  private async throttle(email: string, ip: string) {
+  private async throttle(identifier: string, ip: string) {
     const limits = [
-      { key: tokenHash("email:" + email), limit: 5 },
+      { key: tokenHash("identity:" + identifier), limit: 5 },
       { key: tokenHash("ip:" + ip), limit: 100 },
     ].sort((a, b) => a.key.localeCompare(b.key));
     const exceeded = await this.db.$transaction(async (tx) => {
@@ -79,14 +80,17 @@ export class IdentityService {
   }
   async register(
     name: string,
-    email: string,
+    email: string | undefined,
     phone: string,
     password: string,
     channel: "web" | "native",
     req: ApiRequest,
   ) {
     trustedOrigin(req, this.config, channel === "web");
-    await this.throttle("register:" + email, req.ip ?? req.socket.remoteAddress ?? "unknown");
+    const normalizedPhone = normalizeGhanaPhone(phone);
+    if (!normalizedPhone)
+      throw new ApiProblem(400, "VALIDATION_FAILED", "Enter a valid Ghana phone number.");
+    await this.throttle("register:" + normalizedPhone, req.ip ?? req.socket.remoteAddress ?? "unknown");
     const passwordHash = await hashPassword(password);
     const expiresAt = new Date(
       Date.now() + (channel === "web" ? 8 * 60 * 60 : 30 * 24 * 60 * 60) * 1000,
@@ -98,7 +102,14 @@ export class IdentityService {
     try {
       return await this.db.$transaction(async (tx) => {
         const user = await tx.user.create({
-          data: { name, email, phone, passwordHash, role: "customer", active: true },
+          data: {
+            name,
+            email: email ?? null,
+            phone: normalizedPhone,
+            passwordHash,
+            role: "customer",
+            active: true,
+          },
           include: { locations: true },
         });
         const session = await tx.session.create({
@@ -156,24 +167,35 @@ export class IdentityService {
       });
     } catch (error) {
       if ((error as { code?: string })?.code === "P2002") {
-        throw new ApiProblem(409, "ACCOUNT_EXISTS", "An account already exists for this email address.");
+        throw new ApiProblem(409, "ACCOUNT_EXISTS", "An account already exists for this phone number or email address.");
       }
       throw error;
     }
   }
 
   async login(
-    email: string,
+    identifier: string,
     password: string,
     channel: "web" | "native",
     req: ApiRequest,
   ) {
     trustedOrigin(req, this.config, channel === "web");
-    await this.throttle(email, req.ip ?? req.socket.remoteAddress ?? "unknown");
-    const user = await this.db.user.findUnique({
-      where: { email },
-      include: { locations: true },
-    });
+    const normalized = normalizeLoginIdentifier(identifier);
+    const throttleIdentity = normalized.kind === "invalid"
+      ? identifier.trim().toLowerCase()
+      : normalized.value;
+    await this.throttle(throttleIdentity, req.ip ?? req.socket.remoteAddress ?? "unknown");
+    const user = normalized.kind === "email"
+      ? await this.db.user.findFirst({
+          where: { email: normalized.value },
+          include: { locations: true },
+        })
+      : normalized.kind === "phone"
+        ? await this.db.user.findFirst({
+            where: { phone: normalized.value },
+            include: { locations: true },
+          })
+        : null;
     const verified = await verifyPassword(
       password,
       user?.passwordHash ?? dummyHash,

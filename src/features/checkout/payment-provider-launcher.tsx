@@ -54,20 +54,20 @@ export function PaymentProviderLauncher({
   useEffect(() => {
     if (finalized) {
       localStorage.removeItem(storageKey(orderId));
-      setAction(null);
-      setWaiting(false);
       return;
     }
     if (!active || started.current) return;
     const record = loadRecord(orderId);
     if (record.launched) {
-      setWaiting(true);
+      queueMicrotask(() => setWaiting(true));
       return;
     }
 
     started.current = true;
-    setWorking(true);
-    setError(null);
+    queueMicrotask(() => {
+      setWorking(true);
+      setError(null);
+    });
     sessionStorage.setItem("vg_payment_order_id", orderId);
     apiOps.paymentInitiate(orderId, record.key)
       .then((result) => {

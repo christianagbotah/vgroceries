@@ -117,6 +117,7 @@ test("Hubtel factory supplies collection only and deliberately no refund adapter
   });
   const adapters = createConfiguredProviderAdapters(cfg, fakeFetch().fetcher);
   assert.deepEqual(adapters.paymentAdapters.map((adapter) => adapter.id), ["hubtel"]);
+  assert.ok(adapters.paymentAdapters[0].capabilities().methods.includes("card_hosted"), "Hubtel factory must select the hosted paylink adapter used by high-level electronic checkout");
   assert.deepEqual(adapters.refundAdapters, []);
 });
 

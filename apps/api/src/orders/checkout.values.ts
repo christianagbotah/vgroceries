@@ -44,6 +44,10 @@ export function validateCheckoutLines(
 const ghPhone = /^\+233(?:2\d|5\d)\d{7}$/;
 const email = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 const gps = /^[A-Z]{2}-\d{3,4}-\d{3,4}$/;
+export function validCoordinates(latitude: unknown, longitude: unknown): latitude is number {
+  return typeof latitude === "number" && Number.isFinite(latitude) && latitude >= -90 && latitude <= 90
+    && typeof longitude === "number" && Number.isFinite(longitude) && longitude >= -180 && longitude <= 180;
+}
 export function normalizeGhanaPhone(value: string) {
   return value.replace(/[\s-]/g, "");
 }
@@ -55,12 +59,23 @@ export function validateCheckoutContact(input: CompleteOrderRequest): void {
     throw validation("Customer email is invalid.");
   const a = input.guestAddress;
   if (a) {
-    if (![a.recipientName, a.locality, a.street].every((v) => v?.trim()))
-      throw validation("Delivery address fields are required.");
+    if (!a.recipientName?.trim()) throw validation("Delivery recipient name is required.");
     if (!ghPhone.test(normalizeGhanaPhone(a.phone ?? "")))
       throw validation("Delivery phone is invalid.");
-    if (a.ghanaPostGps && !gps.test(a.ghanaPostGps.trim().toUpperCase()))
+    const hasAnyCoordinate = a.latitude !== undefined || a.longitude !== undefined;
+    const hasCoordinates = validCoordinates(a.latitude, a.longitude);
+    if (hasAnyCoordinate && !hasCoordinates)
+      throw validation("Delivery coordinates are invalid.");
+    if (a.locationSource && !["device_gps", "map_pin"].includes(a.locationSource))
+      throw validation("Delivery location source is invalid.");
+    if (a.locationSource && !hasCoordinates)
+      throw validation("Delivery coordinates are required for this location source.");
+    const hasGhanaPostGps = Boolean(a.ghanaPostGps?.trim());
+    if (hasGhanaPostGps && !gps.test(a.ghanaPostGps!.trim().toUpperCase()))
       throw validation("GhanaPostGPS address is invalid.");
+    const hasDescriptiveAddress = Boolean(a.locality?.trim() && a.street?.trim());
+    if (!hasCoordinates && !hasGhanaPostGps && !hasDescriptiveAddress)
+      throw validation("A delivery location or descriptive address is required.");
   }
 }
 
@@ -92,10 +107,13 @@ export function canonicalCheckoutRequest(input: CompleteOrderRequest): Record<st
           label: input.guestAddress.label?.trim(),
           recipientName: input.guestAddress.recipientName.trim(),
           phone: normalizeGhanaPhone(input.guestAddress.phone),
-          locality: input.guestAddress.locality.trim(),
-          street: input.guestAddress.street.trim(),
+          locality: input.guestAddress.locality?.trim(),
+          street: input.guestAddress.street?.trim(),
           landmark: input.guestAddress.landmark?.trim(),
           ghanaPostGps: input.guestAddress.ghanaPostGps?.trim().toUpperCase(),
+          latitude: input.guestAddress.latitude,
+          longitude: input.guestAddress.longitude,
+          locationSource: input.guestAddress.locationSource,
         }
       : undefined,
     fulfilment: input.fulfilment,

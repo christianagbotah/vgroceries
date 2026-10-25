@@ -7,6 +7,7 @@ import { randomUUID } from "node:crypto";
 import { API_CONFIG, ApiConfig, readConfig } from "./config";
 import { CatalogModule } from "./catalog/catalog.controller";
 import { CatalogAdminModule } from "./catalog-admin/catalog-admin.module";
+import { GhanaMealAssistantModule } from "./ai/ghana-meal-assistant.controller";
 import { ProductMediaModule } from "./product-media/product-media.module";
 import { InventoryModule } from "./inventory/inventory.controller";
 import { OrdersModule } from "./orders/orders.module";
@@ -58,6 +59,7 @@ export async function createApplication(
       HealthModule,
       IdentityModule,
       CatalogModule,
+      GhanaMealAssistantModule,
       CatalogAdminModule,
       ProductMediaModule,
       InventoryModule,

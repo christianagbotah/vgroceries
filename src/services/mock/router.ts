@@ -375,6 +375,9 @@ export async function handleApi(req: ApiRequest): Promise<ApiResult> {
       }
 
       /* ---------------- Checkout ---------------- */
+      case "checkout.capabilities": {
+        return ok({ electronicPaymentAvailable: true });
+      }
       case "checkout.quote": {
         sweepExpiredReservations(store);
         const lines = (body.lines ?? []) as { variantId: string; quantity: string }[];

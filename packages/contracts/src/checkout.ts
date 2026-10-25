@@ -32,6 +32,10 @@ export interface SlotView {
   booked: number;
 }
 
+export interface CheckoutCapabilitiesResponse {
+  electronicPaymentAvailable: boolean;
+}
+
 /* ---------------- quote ---------------- */
 
 /** One cart line as the client sends it (and the quote echoes back). */
@@ -87,10 +91,13 @@ export interface GuestAddressInput {
   label?: string;
   recipientName: string;
   phone: string;
-  locality: string;
-  street: string;
+  locality?: string;
+  street?: string;
   landmark?: string;
   ghanaPostGps?: string;
+  latitude?: number;
+  longitude?: number;
+  locationSource?: "device_gps" | "map_pin";
 }
 
 export interface CompleteOrderRequest {

@@ -45,7 +45,7 @@ export default function CustomerSignupPage() {
     }
     setBusy(true);
     try {
-      const session = await apiOps.accountSignup(name, email, phone, password);
+      const session = await apiOps.accountSignup(name, phone, password, email);
       if (session.actor.role !== "customer") {
         await apiOps.accountLogout().catch(() => undefined);
         setError("Could not create a customer account.");
@@ -77,8 +77,8 @@ export default function CustomerSignupPage() {
             </div>
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-1.5">
-                <Label htmlFor="signup-email">Email address</Label>
-                <div className="relative"><Mail className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden /><Input id="signup-email" type="email" autoComplete="email" className="h-11 pl-9" value={email} onChange={(e) => setEmail(e.target.value)} required /></div>
+                <Label htmlFor="signup-email">Email address (optional)</Label>
+                <div className="relative"><Mail className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden /><Input id="signup-email" type="email" autoComplete="email" className="h-11 pl-9" value={email} onChange={(e) => setEmail(e.target.value)} /></div>
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="signup-phone">Phone number</Label>

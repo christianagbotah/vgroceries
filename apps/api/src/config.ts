@@ -84,6 +84,13 @@ export interface ImageGenerationConfig {
   workerPollIntervalMs: number;
 }
 
+export interface AssistantAiConfig {
+  providerId: "openai";
+  model: string;
+  openAiApiKey: string;
+  timeoutMs: number;
+}
+
 export interface ApiConfig {
   databaseUrl: string;
   webOrigins: string[];
@@ -97,6 +104,7 @@ export interface ApiConfig {
   hubtelRefund: HubtelRefundConfig | null;
   productMedia: ProductMediaConfig | null;
   imageGeneration: ImageGenerationConfig | null;
+  assistantAi: AssistantAiConfig | null;
 }
 
 export const API_CONFIG = Symbol("API_CONFIG");
@@ -287,7 +295,7 @@ export function readConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
       };
     } else if (providerId === "hubtel") {
       if (!env.HUBTEL_CLIENT_ID || !env.HUBTEL_CLIENT_SECRET)
-        throw new Error("HUBTEL_CLIENT_ID and HUBTEL_CLIENT_SECRET are required when PAYMENT_PROVIDER_ID=hubtel");
+        throw new Error("Hubtel payment configuration requires HUBTEL_CLIENT_ID and HUBTEL_CLIENT_SECRET when PAYMENT_PROVIDER_ID=hubtel");
       provider = {
         kind: "hubtel",
         clientId: env.HUBTEL_CLIENT_ID,
@@ -476,7 +484,7 @@ export function readConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
     } else throw new Error("PRODUCT_MEDIA_STORAGE must be filesystem or s3");
   }
 
-  const aiAuxNames = ["AI_IMAGE_MODEL", "OPENAI_API_KEY", "AI_IMAGE_TIMEOUT_MS", "AI_IMAGE_MAX_CANDIDATES", "AI_IMAGE_WORKER_POLL_MS"] as const;
+  const aiAuxNames = ["AI_IMAGE_MODEL", "AI_IMAGE_TIMEOUT_MS", "AI_IMAGE_MAX_CANDIDATES", "AI_IMAGE_WORKER_POLL_MS"] as const;
   if (!env.AI_IMAGE_PROVIDER && aiAuxNames.some((name) => Boolean(env[name])))
     throw new Error("AI_IMAGE_PROVIDER is required when AI image configuration is supplied");
   let imageGeneration: ImageGenerationConfig | null = null;
@@ -499,6 +507,27 @@ export function readConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
     };
   }
 
+  const assistantAuxNames = ["AI_ASSISTANT_MODEL", "AI_ASSISTANT_TIMEOUT_MS"] as const;
+  if (!env.AI_ASSISTANT_PROVIDER && assistantAuxNames.some((name) => Boolean(env[name])))
+    throw new Error("AI_ASSISTANT_PROVIDER is required when AI assistant configuration is supplied");
+  let assistantAi: AssistantAiConfig | null = null;
+  if (env.AI_ASSISTANT_PROVIDER) {
+    if (env.AI_ASSISTANT_PROVIDER !== "openai") throw new Error("AI_ASSISTANT_PROVIDER must be openai");
+    if (!env.OPENAI_API_KEY) throw new Error("OPENAI_API_KEY is required when AI_ASSISTANT_PROVIDER=openai");
+    if (!env.AI_ASSISTANT_MODEL?.trim()) throw new Error("AI_ASSISTANT_MODEL is required when AI_ASSISTANT_PROVIDER=openai");
+    const timeoutMs = env.AI_ASSISTANT_TIMEOUT_MS === undefined || env.AI_ASSISTANT_TIMEOUT_MS === ""
+      ? 20_000
+      : Number(env.AI_ASSISTANT_TIMEOUT_MS);
+    if (!Number.isInteger(timeoutMs) || timeoutMs < 1_000 || timeoutMs > 60_000)
+      throw new Error("AI_ASSISTANT_TIMEOUT_MS must be an integer between 1000 and 60000");
+    assistantAi = {
+      providerId: "openai",
+      model: env.AI_ASSISTANT_MODEL!.trim(),
+      openAiApiKey: env.OPENAI_API_KEY,
+      timeoutMs,
+    };
+  }
+
   return {
     databaseUrl: env.DATABASE_URL,
     webOrigins,
@@ -512,5 +541,6 @@ export function readConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
     hubtelRefund,
     productMedia,
     imageGeneration,
+    assistantAi,
   };
 }

@@ -40,6 +40,7 @@ import {
   refundListResponseSchema,
   adminOrderFinancialActionRequestSchema,
   adminOrderFinancialActionResponseSchema,
+  ghanaMealPlanRequestSchema,
 } from "@variety/contracts";
 import { z } from "zod";
 
@@ -92,13 +93,14 @@ export function foundationOpenApi(app: INestApplication) {
     ZoneListResponse: { type: "array", items: ref("ZoneView") },
     SlotView: json(slotViewSchema),
     SlotListResponse: { type: "array", items: ref("SlotView") },
+    CheckoutCapabilitiesResponse: json(z.object({ electronicPaymentAvailable: z.boolean() })),
     QuoteResponse: json(quoteResponseSchema),
     CheckoutQuoteRequest: json(checkoutQuoteRequestSchema),
     CheckoutCompleteRequest: json(checkoutCompleteRestRequestSchema),
     CompleteOrderResponse: json(z.object({ orderId:z.string(), reference:z.string(), verificationCode:z.string(), paymentRequired:z.boolean() })),
     PublicOrder: json(publicOrderSchema),
     AccountCustomer: json(z.object({ id:z.string(), name:z.string(), phone:z.string(), email:z.string().email().optional(), addressIds:z.array(z.string()), isDemo:z.boolean(), supportNotes:z.array(z.string()), createdAt:z.iso.datetime() })),
-    AccountAddress: json(z.object({ id:z.string(), label:z.string(), recipientName:z.string(), phone:z.string(), locality:z.string(), street:z.string(), landmark:z.string().optional(), ghanaPostGps:z.string().optional(), isDefault:z.boolean().optional() })),
+    AccountAddress: json(z.object({ id:z.string(), label:z.string(), recipientName:z.string(), phone:z.string(), locality:z.string(), street:z.string(), landmark:z.string().optional(), ghanaPostGps:z.string().optional(), latitude:z.number().min(-90).max(90).optional(), longitude:z.number().min(-180).max(180).optional(), locationSource:z.enum(["device_gps","map_pin"]).optional(), isDefault:z.boolean().optional() })),
     AccountRecentOrder: json(z.object({ id:z.string(), reference:z.string(), totalLabel:z.string(), fulfilmentStatus:z.string(), paymentStatus:z.string(), createdAtLabel:z.string() })),
     AccountSummaryResponse: { type:"object", required:["customer","addresses","ordersCount","openOrders","returnsCount","recentOrders"], additionalProperties:false, properties:{ customer:ref("AccountCustomer"), addresses:{type:"array",items:ref("AccountAddress")}, ordersCount:{type:"integer",minimum:0}, openOrders:{type:"integer",minimum:0}, returnsCount:{type:"integer",minimum:0}, recentOrders:{type:"array",items:ref("AccountRecentOrder")} } },
     AccountProfileResponse: { type:"object", required:["customer"], additionalProperties:false, properties:{ customer:ref("AccountCustomer") } },
@@ -125,6 +127,29 @@ export function foundationOpenApi(app: INestApplication) {
     })),
     AdminOrderFinancialActionRequest: json(adminOrderFinancialActionRequestSchema),
     AdminOrderFinancialActionResponse: json(adminOrderFinancialActionResponseSchema),
+    GhanaMealPlanRequest: json(ghanaMealPlanRequestSchema),
+    GhanaMealPlanResponse: json(z.object({
+      requestText: z.string(),
+      detectedLanguage: z.enum(["english", "twi", "ga", "ewe", "mixed", "unknown"]),
+      servings: z.number().int().min(1).max(20),
+      dishId: z.string().optional(),
+      dishLabel: z.string().optional(),
+      interpretation: z.enum(["template", "lexicon", "model"]),
+      summary: z.string(),
+      lines: z.array(z.object({
+        conceptId: z.string(), conceptLabel: z.string(), matchedAlias: z.string().optional(),
+        productId: z.string(), productName: z.string(), variantId: z.string(), variantName: z.string(), image: z.string(),
+        unit: z.string(), unitSize: z.string(), quantity: z.string(), unitPriceMinor: z.number().int(), lineTotalMinor: z.number().int(),
+        availableToSell: z.string(), availableNow: z.boolean(), note: z.string().optional(),
+      })),
+      unresolved: z.array(z.object({
+        conceptId: z.string().optional(), term: z.string(), reason: z.enum(["not_in_catalogue", "out_of_stock", "not_understood"]), alternatives: z.array(z.string()).optional(),
+      })),
+      subtotalMinor: z.number().int().nonnegative(),
+      confidence: z.number().min(0).max(1),
+      warnings: z.array(z.string()),
+      lexiconVersion: z.string(),
+    })),
     LoginRequest: json(loginRequestSchema),
     RegisterRequest: json(registerRequestSchema),
     RefreshRequest: json(refreshRequestSchema),
@@ -194,10 +219,12 @@ export function foundationOpenApi(app: INestApplication) {
     "/catalog/products": "CatalogProductsResponse",
     "/catalog/products/{slug}": "ProductDetailResponse",
     "/catalog/products:by-variants": "ByVariantsResponse",
+    "/ai/meal-plan": "GhanaMealPlanResponse",
     "/inventory/overview": "InventoryOverviewResponse",
     "/inventory/receive": "ReceiveResponse",
     "/checkout/zones": "ZoneListResponse",
     "/checkout/zones/{zoneId}/slots": "SlotListResponse",
+    "/checkout/capabilities": "CheckoutCapabilitiesResponse",
     "/checkout/quote": "QuoteResponse",
     "/checkout/complete": "CompleteOrderResponse",
     "/orders/{orderId}": "PublicOrder",
@@ -228,6 +255,7 @@ export function foundationOpenApi(app: INestApplication) {
     "/auth/register": "RegisterRequest",
     "/auth/refresh": "RefreshRequest",
     "/catalog/products:by-variants": "ByVariantsRequest",
+    "/ai/meal-plan": "GhanaMealPlanRequest",
     "/inventory/receive": "ReceiveRequest",
     "/checkout/quote": "CheckoutQuoteRequest",
     "/checkout/complete": "CheckoutCompleteRequest",
@@ -362,6 +390,10 @@ export function foundationOpenApi(app: INestApplication) {
       schema: { type: "string", pattern: "^[a-f0-9]{64}$" },
     },
   ];
+
+  doc.paths["/api/v1/checkout/capabilities"]!.get!.security = [];
+  doc.paths["/api/v1/checkout/capabilities"]!.get!.description =
+    "Public checkout capability projection. Exposes only whether a fully configured, server-authorized hosted electronic payment path is currently available; provider identity, rails and credentials remain private.";
 
   doc.paths["/api/v1/checkout/complete"]!.post!.parameters = [
     {

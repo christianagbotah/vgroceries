@@ -27,6 +27,15 @@ async function post(body: unknown, requestOrigin: string | null = origin) {
   return { response, body: await response.json() };
 }
 
+async function login(body: unknown, requestOrigin: string | null = origin) {
+  const headers: Record<string, string> = { "content-type": "application/json" };
+  if (requestOrigin) headers.origin = requestOrigin;
+  const response = await fetch(base + "/api/v1/auth/sessions", {
+    method: "POST", headers, body: JSON.stringify(body),
+  });
+  return { response, body: await response.json() };
+}
+
 before(async () => {
   if (!new URL(process.env.DATABASE_URL!).pathname.endsWith("variety_foundation_test")) throw Error("isolated database required");
   app = await createApplication(config());
@@ -57,10 +66,49 @@ test("customer registration creates only a customer and signs the new web accoun
   assert.match(result.response.headers.get("set-cookie") ?? "", /vg_session=.*HttpOnly/i);
   const user = await db.user.findUniqueOrThrow({ where: { email: "ama.mensah@example.test" } });
   assert.equal(user.role, "customer");
-  assert.equal(user.phone, "+233 24 123 4567");
+  assert.equal(user.phone, "+233241234567");
   assert.notEqual(user.passwordHash, valid().password);
   assert.equal(await db.session.count({ where: { userId: user.id } }), 1);
   assert.equal(await db.auditEvent.count({ where: { actorId: user.id, action: "identity.customer_registered" } }), 1);
+});
+
+test("phone-only customer registration succeeds and stores the canonical Ghana number", async () => {
+  const request = valid();
+  const { email: _email, ...phoneOnly } = request;
+  phoneOnly.phone = "024-123-4567";
+  const result = await post(phoneOnly);
+  assert.equal(result.response.status, 201);
+  const user = await db.user.findUniqueOrThrow({ where: { phone: "+233241234567" } });
+  assert.equal(user.email, null);
+  assert.equal(user.role, "customer");
+});
+
+test("duplicate phone formats resolve to one customer identity", async () => {
+  const request = valid();
+  const { email: _email, ...phoneOnly } = request;
+  assert.equal((await post({ ...phoneOnly, phone: "024 123 4567" })).response.status, 201);
+  const duplicate = await post({ ...phoneOnly, phone: "+233241234567", name: "Another Name" });
+  assert.equal(duplicate.response.status, 409);
+  assert.equal(duplicate.body.error.code, "ACCOUNT_EXISTS");
+  assert.equal(await db.user.count(), 1);
+});
+
+test("phone-only customer can sign in with another common Ghana phone format", async () => {
+  const request = valid();
+  const { email: _email, ...phoneOnly } = request;
+  assert.equal((await post({ ...phoneOnly, phone: "024 123 4567" })).response.status, 201);
+  const result = await login({ identifier: "233241234567", password: phoneOnly.password, client: "web" });
+  assert.equal(result.response.status, 201);
+  assert.equal(result.body.data.actor.role, "customer");
+  assert.equal(result.body.data.actor.name, phoneOnly.name);
+});
+
+test("customer can still sign in with an optional email address", async () => {
+  const request = valid();
+  assert.equal((await post(request)).response.status, 201);
+  const result = await login({ identifier: "AMA.MENSAH@EXAMPLE.TEST", password: request.password, client: "web" });
+  assert.equal(result.response.status, 201);
+  assert.equal(result.body.data.actor.role, "customer");
 });
 
 test("customer registration is strict, origin-protected and cannot choose a privileged role", async () => {

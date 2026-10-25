@@ -140,3 +140,35 @@ test("checkout contact and address boundaries reject whitespace and malformed Gh
   ]) expectValidation(() => validateCheckoutContact(bad));
   assert.doesNotThrow(() => validateCheckoutContact(request()));
 });
+
+test("delivery contact accepts a coordinate pin or GhanaPostGPS without forcing typed street fields", () => {
+  const delivery = (guestAddress: NonNullable<CompleteOrderRequest["guestAddress"]>) => request({
+    fulfilment: "delivery",
+    paymentMethod: "cash_on_delivery",
+    zoneId: "zone_a",
+    guestAddress,
+  });
+  assert.doesNotThrow(() => validateCheckoutContact(delivery({
+    recipientName: "Ama",
+    phone: "+233241234567",
+    latitude: 5.603717,
+    longitude: -0.186964,
+    locationSource: "device_gps",
+  })));
+  assert.doesNotThrow(() => validateCheckoutContact(delivery({
+    recipientName: "Ama",
+    phone: "+233241234567",
+    ghanaPostGps: "GA-457-2029",
+  })));
+  expectValidation(() => validateCheckoutContact(delivery({
+    recipientName: "Ama",
+    phone: "+233241234567",
+    latitude: 5.603717,
+    locationSource: "device_gps",
+  })));
+  expectValidation(() => validateCheckoutContact(delivery({
+    recipientName: "Ama",
+    phone: "+233241234567",
+    locality: "Labone",
+  })));
+});

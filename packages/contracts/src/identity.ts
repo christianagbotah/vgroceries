@@ -1,18 +1,32 @@
 import { z } from "zod";
 
-export const loginRequestSchema = z.strictObject({
-  email: z.string().trim().toLowerCase().email().max(254),
+const emailSchema = z.string().trim().toLowerCase().email().max(254);
+const phoneSchema = z.string().trim().regex(/^\+?[0-9][0-9\s-]{7,19}$/);
+const clientSchema = z.enum(["web", "native"]).default("web");
+export const loginIdentifierSchema = z.string().trim().min(3).max(254);
+
+const identifierLoginSchema = z.strictObject({
+  identifier: loginIdentifierSchema,
   password: z.string().min(1).max(256),
-  client: z.enum(["web", "native"]).default("web"),
+  client: clientSchema,
 });
+export const legacyEmailLoginSchema = z.strictObject({
+  email: emailSchema,
+  password: z.string().min(1).max(256),
+  client: clientSchema,
+});
+export const loginRequestSchema = z.union([identifierLoginSchema, legacyEmailLoginSchema]);
+
 export const registerRequestSchema = z.strictObject({
   name: z.string().trim().min(2).max(120),
-  email: z.string().trim().toLowerCase().email().max(254),
-  phone: z.string().trim().regex(/^\+?[0-9][0-9\s-]{7,19}$/),
+  email: emailSchema.optional(),
+  phone: phoneSchema,
   password: z.string().min(12).max(256),
-  client: z.enum(["web", "native"]).default("web"),
+  client: clientSchema,
 });
 export type RegisterRequest = z.infer<typeof registerRequestSchema>;
+export type LoginRequest = z.infer<typeof loginRequestSchema>;
+
 export const refreshRequestSchema = z.strictObject({
   refreshToken: z.string().regex(/^[a-f0-9]{64}$/),
 });

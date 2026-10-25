@@ -23,6 +23,20 @@ describe("real storefront payment initiation", () => {
     expect(client).toContain('api<PaymentInitiationResult>("payments.initiate"');
   });
 
+  test("storefront gates the single high-level electronic choice on server capability", () => {
+    const endpoints = read("packages/contracts/src/endpoints.ts");
+    const client = read("src/services/client.ts");
+    const checkout = read("src/app/(storefront)/checkout/page.tsx");
+    expect(endpoints).toContain('"checkout.capabilities": {"method": "GET", "path": "/checkout/capabilities"}');
+    expect(client).toContain('api<CheckoutCapabilitiesResponse>("checkout.capabilities")');
+    expect(checkout).toContain("electronicPaymentAvailable");
+    expect(checkout).toContain('useState<PaymentChoice>("offline")');
+    expect(checkout).toContain("Electronic payment is temporarily unavailable");
+    expect(checkout).not.toContain("Choose mobile money");
+    expect(checkout).not.toContain("Choose card");
+    expect(checkout).not.toContain("Choose bank");
+  });
+
   test("payment launcher persists one replay key, remembers navigation, and handles server actions", () => {
     expect(existsSync("src/features/checkout/payment-provider-launcher.tsx")).toBe(true);
     const launcher = read("src/features/checkout/payment-provider-launcher.tsx");
@@ -32,6 +46,14 @@ describe("real storefront payment initiation", () => {
     expect(launcher).toContain("apiOps.paymentInitiate");
     expect(launcher).toContain("window.location.assign");
     expect(launcher).toContain("ProviderActionForm");
+  });
+
+  test("finalized payment cleanup does not synchronously mutate React state inside the effect", () => {
+    const launcher = read("src/features/checkout/payment-provider-launcher.tsx");
+    const finalizedBranch = launcher.match(/if \(finalized\) \{([\s\S]*?)\n    \}/)?.[1] ?? "";
+    expect(finalizedBranch).toContain("localStorage.removeItem");
+    expect(finalizedBranch).not.toContain("setAction(");
+    expect(finalizedBranch).not.toContain("setWaiting(");
   });
 
   test("checkout status uses the real launcher and contains no customer-authored payment outcome controls", () => {

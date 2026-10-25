@@ -8,12 +8,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { LockKeyhole, Mail, ShoppingBag } from "lucide-react";
+import { LockKeyhole, Phone, ShoppingBag } from "lucide-react";
 
 export default function CustomerLoginPage() {
   const router = useRouter();
   const [returnPath, setReturnPath] = useState("/account");
-  const [email, setEmail] = useState("");
+  const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -34,7 +34,7 @@ export default function CustomerLoginPage() {
     setBusy(true);
     setError(null);
     try {
-      const session = await apiOps.accountLogin(email, password);
+      const session = await apiOps.accountLogin(identifier, password);
       if (session.actor.role !== "customer") {
         await apiOps.accountLogout().catch(() => undefined);
         setError("This sign-in is not a customer account.");
@@ -61,8 +61,8 @@ export default function CustomerLoginPage() {
         <CardContent>
           <form className="space-y-4" onSubmit={submit}>
             <div className="space-y-1.5">
-              <Label htmlFor="customer-email">Email address</Label>
-              <div className="relative"><Mail className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden /><Input id="customer-email" type="email" autoComplete="email" className="h-11 pl-9" value={email} onChange={(e) => setEmail(e.target.value)} required /></div>
+              <Label htmlFor="customer-identifier">Phone number or email</Label>
+              <div className="relative"><Phone className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden /><Input id="customer-identifier" type="text" autoComplete="username" className="h-11 pl-9" value={identifier} onChange={(e) => setIdentifier(e.target.value)} placeholder="024 123 4567 or you@example.com" required /></div>
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="customer-password">Password</Label>

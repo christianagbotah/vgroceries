@@ -16,9 +16,9 @@ enum Role {
 
 model User {
   id String @id @default(uuid())
-  email String @unique
+  email String? @unique
   name String
-  phone String @default("")
+  phone String? @unique
   passwordHash String
   role Role
   active Boolean @default(true)
@@ -318,6 +318,9 @@ model CustomerAddress {
   street String
   landmark String?
   ghanaPostGps String?
+  latitude Decimal? @db.Decimal(9, 6)
+  longitude Decimal? @db.Decimal(9, 6)
+  locationSource String?
   isDefault Boolean @default(false)
   createdAt DateTime @default(now()) @db.Timestamptz(3)
   updatedAt DateTime @updatedAt @db.Timestamptz(3)
@@ -413,6 +416,9 @@ model OrderDeliveryAddress {
   street String
   landmark String?
   ghanaPostGps String?
+  latitude Decimal? @db.Decimal(9, 6)
+  longitude Decimal? @db.Decimal(9, 6)
+  locationSource String?
   createdAt DateTime @default(now()) @db.Timestamptz(3)
 }
 

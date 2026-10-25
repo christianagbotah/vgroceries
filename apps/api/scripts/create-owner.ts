@@ -1,10 +1,10 @@
 import { Database } from "../src/database/database";
 import { readConfig } from "../src/config";
 import { hashPassword } from "../src/identity/crypto";
-import { loginRequestSchema } from "@variety/contracts";
+import { legacyEmailLoginSchema } from "@variety/contracts";
 async function main() {
   const config = readConfig();
-  const { email, password } = loginRequestSchema.parse({
+  const { email, password } = legacyEmailLoginSchema.parse({
     email: process.env.OWNER_EMAIL,
     password: process.env.OWNER_PASSWORD,
     client: "web",

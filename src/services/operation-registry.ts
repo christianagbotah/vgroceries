@@ -48,6 +48,7 @@ export const operationMeta: Record<string, OperationMeta> = {
   "catalog.by-variants": { tags: CAT },
 
   /* checkout (public) */
+  "checkout.capabilities": { tags: CONF },
   "checkout.quote": { tags: [...CAT, ...CONF] },
   "checkout.complete": { invalidates: [...CAT, ...STOCK, ...ORD] },
   "payments.initiate": { invalidates: [...ORD, ...PAY] },

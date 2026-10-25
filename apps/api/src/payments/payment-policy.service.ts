@@ -42,6 +42,16 @@ export class PaymentPolicyService {
     for (const method of payment.enabledMethods) this.assertElectronicMethodAvailable(method);
   }
 
+  isElectronicMethodAvailable(method: ElectronicPaymentMethod): boolean {
+    try {
+      this.assertElectronicMethodAvailable(method);
+      return true;
+    } catch (error) {
+      if (error instanceof ApiProblem && error.getStatus() === 503) return false;
+      throw error;
+    }
+  }
+
   async assertCancellationSafe(
     tx: Prisma.TransactionClient,
     orderId: string,

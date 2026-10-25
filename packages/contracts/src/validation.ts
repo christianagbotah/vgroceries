@@ -17,6 +17,7 @@
 import { z } from "zod";
 import { loginRequestSchema, registerRequestSchema } from "./identity";
 import { paymentInitiationRequestSchema } from "./payments";
+import { ghanaMealPlanRequestSchema } from "./ai";
 import {
   createLogisticsNodeRequestSchema, updateLogisticsNodeRequestSchema,
   createLogisticsLaneRequestSchema, updateLogisticsLaneRequestSchema,
@@ -83,10 +84,34 @@ export const guestAddressInputSchema = z.object({
   label: z.string().optional(),
   recipientName: z.string().min(1),
   phone: z.string().min(1),
-  locality: z.string().min(1),
-  street: z.string().min(1),
+  locality: z.string().optional(),
+  street: z.string().optional(),
   landmark: z.string().optional(),
   ghanaPostGps: z.string().optional(),
+  latitude: z.number().finite().min(-90).max(90).optional(),
+  longitude: z.number().finite().min(-180).max(180).optional(),
+  locationSource: z.enum(["device_gps", "map_pin"]).optional(),
+}).superRefine((address, ctx) => {
+  const hasLatitude = address.latitude !== undefined;
+  const hasLongitude = address.longitude !== undefined;
+  const hasCoordinates = hasLatitude && hasLongitude;
+  const hasGhanaPostGps = Boolean(address.ghanaPostGps?.trim());
+  const hasLocality = Boolean(address.locality?.trim());
+  const hasStreet = Boolean(address.street?.trim());
+  const hasDescriptiveAddress = hasLocality && hasStreet;
+
+  if (hasLatitude !== hasLongitude) {
+    ctx.addIssue({ code: "custom", message: "Latitude and longitude must be provided together.", path: [hasLatitude ? "longitude" : "latitude"] });
+  }
+  if (address.locationSource && !hasCoordinates) {
+    ctx.addIssue({ code: "custom", message: "Coordinates are required when a location source is provided.", path: ["locationSource"] });
+  }
+  if (hasLocality !== hasStreet) {
+    ctx.addIssue({ code: "custom", message: "Locality and street must be provided together.", path: [hasLocality ? "street" : "locality"] });
+  }
+  if (!hasCoordinates && !hasGhanaPostGps && !hasDescriptiveAddress) {
+    ctx.addIssue({ code: "custom", message: "Use coordinates, a GhanaPostGPS address, or locality and street directions." });
+  }
 });
 
 const checkoutCompleteBaseSchema = z.object({
@@ -551,6 +576,7 @@ function withoutTransportReplay(schema: z.ZodTypeAny): z.ZodTypeAny {
 export const requestSchemas: Record<string, z.ZodTypeAny> = {
   "auth.login": loginRequestSchema,
   "auth.signup": registerRequestSchema,
+  "ai.meal-plan": ghanaMealPlanRequestSchema,
   "checkout.quote": checkoutQuoteRequestSchema,
   "checkout.complete": checkoutCompleteRequestSchema,
   "payments.initiate": paymentInitiationRequestSchema,

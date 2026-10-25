@@ -52,8 +52,13 @@ export default function CheckoutPage() {
   const [street, setStreet] = useState("");
   const [landmark, setLandmark] = useState("");
   const [ghanaPostGps, setGhanaPostGps] = useState("");
+  const [latitude, setLatitude] = useState<number | null>(null);
+  const [longitude, setLongitude] = useState<number | null>(null);
+  const [locating, setLocating] = useState(false);
+  const [locationMessage, setLocationMessage] = useState<string | null>(null);
 
-  const [paymentChoice, setPaymentChoice] = useState<PaymentChoice>("electronic");
+  const [electronicPaymentAvailable, setElectronicPaymentAvailable] = useState(false);
+  const [paymentChoice, setPaymentChoice] = useState<PaymentChoice>("offline");
   const [placing, setPlacing] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [orderError, setOrderError] = useState<string | null>(null);
@@ -64,12 +69,15 @@ export default function CheckoutPage() {
       setLoading(true);
       setLoadError(null);
       try {
-        const [z, acct] = await Promise.all([
+        const [z, acct, capabilities] = await Promise.all([
           apiOps.zones(),
           apiOps.accountSummary().catch(() => null),
+          apiOps.checkoutCapabilities().catch(() => ({ electronicPaymentAvailable: false })),
         ]);
         setZones(z);
         setAccount(acct);
+        setElectronicPaymentAvailable(capabilities.electronicPaymentAvailable);
+        setPaymentChoice(capabilities.electronicPaymentAvailable ? "electronic" : "offline");
         if (z[0]) setZoneId(z[0].id);
         if (acct) {
           setCustomerName(acct.customer.name.replace(" (demo)", ""));
@@ -84,6 +92,8 @@ export default function CheckoutPage() {
             setStreet(defaultAddr.street);
             setLandmark(defaultAddr.landmark ?? "");
             setGhanaPostGps(defaultAddr.ghanaPostGps ?? "");
+            setLatitude(defaultAddr.latitude ?? null);
+            setLongitude(defaultAddr.longitude ?? null);
             const zid = z.find((zz) => zz.id === (defaultAddr as { zoneId?: string }).zoneId);
             if (zid) setZoneId(zid.id);
           }
@@ -135,6 +145,38 @@ export default function CheckoutPage() {
     if (!zone && zones.length) setZoneId(zones[0].id);
   }, [zone, zones]);
 
+  const useCurrentLocation = () => {
+    setLocationMessage(null);
+    if (!("geolocation" in navigator)) {
+      setLocationMessage("This device cannot share its current location. You can enter a GhanaPostGPS address or delivery directions instead.");
+      return;
+    }
+    setLocating(true);
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        setLatitude(Number(position.coords.latitude.toFixed(6)));
+        setLongitude(Number(position.coords.longitude.toFixed(6)));
+        setLocationMessage("Current location captured. Add a landmark or directions if that will help the rider find you faster.");
+        setFieldErrors((current) => {
+          const next = { ...current };
+          delete next.location;
+          delete next.locality;
+          delete next.street;
+          return next;
+        });
+        setLocating(false);
+      },
+      (error) => {
+        const denied = error.code === error.PERMISSION_DENIED;
+        setLocationMessage(denied
+          ? "Location permission was not granted. You can still enter a GhanaPostGPS address or delivery directions."
+          : "We could not capture your location. Try again, or enter a GhanaPostGPS address or delivery directions.");
+        setLocating(false);
+      },
+      { enableHighAccuracy: true, timeout: 12000, maximumAge: 60000 },
+    );
+  };
+
   const validate = (): boolean => {
     const errs: Record<string, string> = {};
     if (!customerName.trim()) errs.customerName = "Enter the contact name for this order.";
@@ -146,8 +188,13 @@ export default function CheckoutPage() {
       if (addressId === "new") {
         if (!recipientName.trim()) errs.recipientName = "Who should receive the order?";
         if (!isValidGhanaPhone(phone)) errs.phone = "Recipient phone must be a +233 number.";
-        if (!locality.trim()) errs.locality = "Enter the locality (e.g. Labone).";
-        if (!street.trim()) errs.street = "Enter the street or a descriptive address.";
+        const hasCoordinates = latitude !== null && longitude !== null;
+        const hasGhanaPostGps = Boolean(ghanaPostGps.trim());
+        const hasDescriptiveAddress = Boolean(locality.trim() && street.trim());
+        if (!hasCoordinates && !hasGhanaPostGps && !hasDescriptiveAddress)
+          errs.location = "Use your current location, enter a GhanaPostGPS address, or provide locality and street directions.";
+        if (!hasCoordinates && !hasGhanaPostGps && Boolean(locality.trim()) !== Boolean(street.trim()))
+          errs.location = "If you use written directions, enter both the locality and street/descriptive address.";
         if (ghanaPostGps && !isValidGhanaPostGps(ghanaPostGps)) errs.ghanaPostGps = "GhanaPostGPS addresses look like GA-457-2029.";
       }
     }
@@ -181,10 +228,13 @@ export default function CheckoutPage() {
                 label: "Delivery address",
                 recipientName: recipientName.trim(),
                 phone: phone.replace(/[\s-]/g, ""),
-                locality: locality.trim(),
-                street: street.trim(),
+                locality: locality.trim() || undefined,
+                street: street.trim() || undefined,
                 landmark: landmark.trim() || undefined,
                 ghanaPostGps: ghanaPostGps.trim().toUpperCase() || undefined,
+                latitude: latitude ?? undefined,
+                longitude: longitude ?? undefined,
+                locationSource: latitude !== null && longitude !== null ? "device_gps" : undefined,
               }
             : undefined,
         idempotencyKey: `co_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
@@ -419,6 +469,23 @@ export default function CheckoutPage() {
 
                   {addressId === "new" ? (
                     <div className="grid gap-4 sm:grid-cols-2">
+                      <div className="sm:col-span-2 rounded-lg border bg-muted/30 p-3">
+                        <div className="flex flex-wrap items-center justify-between gap-3">
+                          <div>
+                            <p className="text-sm font-semibold">Pin your delivery location</p>
+                            <p className="mt-0.5 text-xs text-muted-foreground">Share your device location once, or use GhanaPostGPS / written directions below.</p>
+                          </div>
+                          <Button type="button" variant="outline" className="h-10" onClick={useCurrentLocation} disabled={locating}>
+                            {locating ? <Loader2 className="size-4 animate-spin" aria-hidden /> : <MapPin className="size-4" aria-hidden />}
+                            {locating ? "Getting location…" : "Use my current location"}
+                          </Button>
+                        </div>
+                        {latitude !== null && longitude !== null ? (
+                          <p className="mt-2 text-xs font-medium text-primary">Location captured · {latitude.toFixed(5)}, {longitude.toFixed(5)}</p>
+                        ) : null}
+                        {locationMessage ? <p role="status" className="mt-2 text-xs text-muted-foreground">{locationMessage}</p> : null}
+                        {field("location")}
+                      </div>
                       <div>
                         <Label htmlFor="co-recipient">Recipient name</Label>
                         <Input id="co-recipient" className="h-11" value={recipientName} onChange={(e) => setRecipientName(e.target.value)} autoComplete="name" />
@@ -430,12 +497,12 @@ export default function CheckoutPage() {
                         {field("phone")}
                       </div>
                       <div>
-                        <Label htmlFor="co-locality">Locality / area</Label>
+                        <Label htmlFor="co-locality">Locality / area (optional with location pin)</Label>
                         <Input id="co-locality" className="h-11" value={locality} onChange={(e) => setLocality(e.target.value)} placeholder="e.g. Labone" />
                         {field("locality")}
                       </div>
                       <div>
-                        <Label htmlFor="co-street">Street or descriptive address</Label>
+                        <Label htmlFor="co-street">Street / directions (optional with location pin)</Label>
                         <Input id="co-street" className="h-11" value={street} onChange={(e) => setStreet(e.target.value)} placeholder="e.g. 12 Labone Crescent" />
                         {field("street")}
                       </div>
@@ -448,8 +515,7 @@ export default function CheckoutPage() {
                         <Input id="co-gps" className="h-11 font-mono" value={ghanaPostGps} onChange={(e) => setGhanaPostGps(e.target.value)} placeholder="e.g. GA-457-2029" />
                         {field("ghanaPostGps")}
                         <p className="mt-1 text-xs text-muted-foreground">
-                          A digital address helps riders find you. We store it as text — map
-                          integration is a future backend feature.
+                          A location pin, GhanaPostGPS address, landmark or written directions can all help the rider reach you quickly.
                         </p>
                       </div>
                     </div>
@@ -472,13 +538,15 @@ export default function CheckoutPage() {
               Payment
             </h2>
             <RadioGroup value={paymentChoice} onValueChange={(value) => setPaymentChoice(value as PaymentChoice)} className="grid gap-2 sm:grid-cols-2" aria-label="Payment choice">
-              <Label data-clickable htmlFor="pay-electronic" className={cn("flex cursor-pointer items-start gap-3 rounded-lg border p-3 font-normal", paymentChoice === "electronic" && "border-primary bg-primary/5")}>
-                <RadioGroupItem value="electronic" id="pay-electronic" className="mt-1" />
-                <span>
-                  <span className="block text-sm font-semibold">Electronic payment</span>
-                  <span className="mt-0.5 block text-xs text-muted-foreground">Continue to our secure payment partner and choose any available payment option there.</span>
-                </span>
-              </Label>
+              {electronicPaymentAvailable ? (
+                <Label data-clickable htmlFor="pay-electronic" className={cn("flex cursor-pointer items-start gap-3 rounded-lg border p-3 font-normal", paymentChoice === "electronic" && "border-primary bg-primary/5")}>
+                  <RadioGroupItem value="electronic" id="pay-electronic" className="mt-1" />
+                  <span>
+                    <span className="block text-sm font-semibold">Electronic payment</span>
+                    <span className="mt-0.5 block text-xs text-muted-foreground">Continue to our secure payment partner and choose any available payment option there.</span>
+                  </span>
+                </Label>
+              ) : null}
               <Label data-clickable htmlFor="pay-offline" className={cn("flex cursor-pointer items-start gap-3 rounded-lg border p-3 font-normal", paymentChoice === "offline" && "border-primary bg-primary/5")}>
                 <RadioGroupItem value="offline" id="pay-offline" className="mt-1" />
                 <span>
@@ -488,9 +556,11 @@ export default function CheckoutPage() {
               </Label>
             </RadioGroup>
             <p className="text-xs text-muted-foreground">
-              {paymentChoice === "electronic"
-                ? "You will continue to the secure payment provider after placing the order. The provider shows the payment options available to you; only a verified provider outcome can confirm payment."
-                : fulfilment === "delivery"
+              {!electronicPaymentAvailable
+                ? "Electronic payment is temporarily unavailable. You can still place your order and pay on delivery or at pickup."
+                : paymentChoice === "electronic"
+                  ? "You will continue to the secure payment provider after placing the order. The provider shows the payment options available to you; only a verified provider outcome can confirm payment."
+                  : fulfilment === "delivery"
                   ? "Payment and delivery completion are recorded separately for your protection."
                   : "Your order can be prepared before you pay at pickup."}
             </p>

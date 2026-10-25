@@ -1,12 +1,10 @@
 /**
- * Shared API contracts — AI assistance (deterministic demo today).
- * Provider adapters, grounding, permissions and cost tracking are specified
- * in docs/AI_ARCHITECTURE.md. Every AI response MUST carry evidence that
- * traces back to verified catalogue/stock/pricing/operational records;
- * insufficient data is reported explicitly, never papered over.
- * Proposed REST rendering: /api/v1/ai/* (see docs/openapi.yaml).
+ * Shared API contracts — catalogue-grounded AI assistance.
+ * Language/model output may interpret intent, but commerce truth (products,
+ * stock, prices and totals) must always come from authoritative services.
  */
 
+import { z } from "zod";
 import type { AISuggestion } from "./domain";
 
 export interface AssistantSuggestion {
@@ -17,10 +15,8 @@ export interface AssistantSuggestion {
   available: string;
 }
 
-/** Catalogue-grounded shopping assistance. */
 export interface AssistantResponse {
   answer: string;
-  /** Verified facts the answer was derived from (product names, prices, stock). */
   evidence: string[];
   suggestions: AssistantSuggestion[];
 }
@@ -29,7 +25,6 @@ export interface AssistantRequest {
   question: string;
 }
 
-/** Budget basket: best achievable basket within a pesewa budget. */
 export interface BudgetBasketResponse {
   items: AssistantSuggestion[];
   totalMinor: number;
@@ -37,8 +32,66 @@ export interface BudgetBasketResponse {
 }
 
 export interface BudgetBasketRequest {
-  /** Budget in GHS minor units (pesewas). */
   budgetMinor: number;
+}
+
+export const ghanaAssistantLanguageSchema = z.enum([
+  "auto",
+  "english",
+  "twi",
+  "ga",
+  "ewe",
+]);
+export type GhanaAssistantLanguage = z.infer<typeof ghanaAssistantLanguageSchema>;
+
+export const ghanaMealPlanRequestSchema = z.strictObject({
+  text: z.string().trim().min(2).max(1_000),
+  language: ghanaAssistantLanguageSchema.default("auto"),
+  servings: z.number().int().min(1).max(20).optional(),
+});
+export type GhanaMealPlanRequest = z.infer<typeof ghanaMealPlanRequestSchema>;
+
+export interface GhanaMealPlanLine {
+  conceptId: string;
+  conceptLabel: string;
+  matchedAlias?: string;
+  productId: string;
+  productName: string;
+  variantId: string;
+  variantName: string;
+  image: string;
+  unit: string;
+  unitSize: string;
+  /** Cart quantity in the catalogue variant's sellable unit. */
+  quantity: string;
+  unitPriceMinor: number;
+  lineTotalMinor: number;
+  availableToSell: string;
+  availableNow: boolean;
+  note?: string;
+}
+
+export interface GhanaMealPlanUnresolved {
+  conceptId?: string;
+  term: string;
+  reason: "not_in_catalogue" | "out_of_stock" | "not_understood";
+  alternatives?: string[];
+}
+
+export interface GhanaMealPlanResponse {
+  requestText: string;
+  detectedLanguage: Exclude<GhanaAssistantLanguage, "auto"> | "mixed" | "unknown";
+  servings: number;
+  dishId?: string;
+  dishLabel?: string;
+  interpretation: "template" | "lexicon" | "model";
+  summary: string;
+  lines: GhanaMealPlanLine[];
+  unresolved: GhanaMealPlanUnresolved[];
+  subtotalMinor: number;
+  confidence: number;
+  warnings: string[];
+  lexiconVersion: string;
 }
 
 /** Staff reviewable AI suggestion (pricing, replenishment, promos). */
@@ -57,7 +110,6 @@ export interface AiReviewResponse {
   status: string;
 }
 
-/** Business question answered strictly from actual records. */
 export interface BusinessQuestionResponse {
   answer: string;
   evidence: string[];

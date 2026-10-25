@@ -38,9 +38,12 @@ import type {
   AssistantResponse,
   BudgetBasketResponse,
   BusinessQuestionResponse,
+  GhanaMealPlanRequest,
+  GhanaMealPlanResponse,
   ByVariantsResponse,
   CompleteOrderRequest,
   CompleteOrderResponse,
+  CheckoutCapabilitiesResponse,
   DashboardView,
   DoneResponse,
   DispatchQueueResponse,
@@ -173,6 +176,7 @@ export const apiOps = {
   byVariants: (variantIds: string[]) => api<ByVariantsResponse>("catalog.by-variants", { body: { variantIds } }),
 
   /* checkout */
+  checkoutCapabilities: () => api<CheckoutCapabilitiesResponse>("checkout.capabilities"),
   quote: (lines: { variantId: string; quantity: string }[], zoneId?: string) =>
     api<QuoteResponse>("checkout.quote", { body: { lines, zoneId } }),
   complete: (body: CompleteOrderRequest) =>
@@ -191,13 +195,16 @@ export const apiOps = {
   slots: (zoneId: string) => api<SlotView[]>("checkout.slots", { query: { zoneId } }),
 
   /* account */
-  accountLogin: async (email: string, password: string) => {
-    const session = await api<WebSessionResponse>("auth.login", { body: { email, password, client: "web" } });
+  accountLogin: async (identifier: string, password: string) => {
+    const session = await api<WebSessionResponse>("auth.login", { body: { identifier, password, client: "web" } });
     setBrowserCsrfToken(session.csrfToken);
     return session;
   },
-  accountSignup: async (name: string, email: string, phone: string, password: string) => {
-    const session = await api<WebSessionResponse>("auth.signup", { body: { name, email, phone, password, client: "web" } });
+  accountSignup: async (name: string, phone: string, password: string, email?: string) => {
+    const cleanEmail = email?.trim();
+    const session = await api<WebSessionResponse>("auth.signup", {
+      body: { name, phone, password, ...(cleanEmail ? { email: cleanEmail } : {}), client: "web" },
+    });
     setBrowserCsrfToken(session.csrfToken);
     return session;
   },
@@ -226,6 +233,8 @@ export const apiOps = {
   /* AI (customer) */
   assistant: (question: string) => api<AssistantResponse>("ai.assistant", { body: { question } }),
   budgetBasket: (budgetMinor: number) => api<BudgetBasketResponse>("ai.budget-basket", { body: { budgetMinor } }),
+  mealPlan: (body: GhanaMealPlanRequest) =>
+    api<GhanaMealPlanResponse>("ai.meal-plan", { body: body as unknown as Record<string, unknown> }),
 
   /* staff */
   dashboard: () => api<DashboardView>("admin.dashboard"),
