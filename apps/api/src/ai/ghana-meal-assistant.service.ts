@@ -14,6 +14,7 @@ import {
   type GhanaFoodConcept,
 } from "./ghana-food-lexicon";
 import { matchMealTemplate, mealTemplateById, type GhanaMealIngredientTemplate } from "./ghana-meal-templates";
+import { ingredientSellableQuantity, productMatchesFoodConceptForm } from "./ghana-catalogue-match";
 import { GhanaModelInterpreter } from "./ghana-model-interpreter";
 
 const numberWords: Record<string, number> = {
@@ -66,13 +67,6 @@ function detectedLanguage(text: string, requested: GhanaAssistantLanguage): Ghan
   return /[a-z]/i.test(text) ? "english" : "unknown";
 }
 
-function quantityFor(baseQuantity: number, servings: number, baseServings: number, variant: CatalogVariant) {
-  const raw = Math.max(0.001, baseQuantity * servings / baseServings);
-  const fractionalUnit = /^(kg|g|gram|grams|l|litre|liter|ml)$/i.test(variant.unit.trim());
-  const value = fractionalUnit ? Math.max(0.25, Math.ceil(raw * 4) / 4) : Math.max(1, Math.ceil(raw));
-  return Number.isInteger(value) ? String(value) : value.toFixed(2).replace(/0+$/, "").replace(/\.$/, "");
-}
-
 function catalogueScore(product: CatalogProduct, term: string) {
   const needle = term.toLocaleLowerCase();
   const name = product.name.toLocaleLowerCase();
@@ -96,6 +90,7 @@ export class GhanaMealAssistantService {
     for (const term of concept.searchTerms) {
       const result = await this.catalog.list({ q: term, page: 1, perPage: 12, sort: "name" });
       for (const product of result.items) {
+        if (!productMatchesFoodConceptForm(product, concept)) continue;
         const score = catalogueScore(product, term);
         const previous = byId.get(product.id);
         if (!previous || score > previous.score) byId.set(product.id, { product, score, matchedAlias: term });
@@ -114,7 +109,7 @@ export class GhanaMealAssistantService {
     let best: { product: CatalogProduct; variant: CatalogVariant; quantity: string; enough: boolean } | undefined;
     for (const candidate of candidates) {
       for (const variant of candidate.product.variants.filter((item) => item.isAvailable)) {
-        const quantity = quantityFor(ingredient.baseQuantity, servings, baseServings, variant);
+        const quantity = ingredientSellableQuantity(ingredient.baseQuantity, servings, baseServings, variant, concept);
         const enough = Number(variant.availableToSell) >= Number(quantity);
         const proposal = { product: candidate.product, variant, quantity, enough };
         if (!best || (proposal.enough && !best.enough) || (proposal.enough === best.enough && proposal.variant.priceMinor < best.variant.priceMinor)) best = proposal;
