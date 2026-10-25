@@ -150,6 +150,41 @@ export function foundationOpenApi(app: INestApplication) {
       warnings: z.array(z.string()),
       lexiconVersion: z.string(),
     })),
+    AdminDashboardResponse: json(z.object({
+      today: z.object({ date: z.string(), onlineMinor: z.number().int(), posMinor: z.number().int(), orders: z.number().int().nonnegative() }),
+      actionable: z.object({
+        awaitingConfirmation: z.number().int().nonnegative(), readyToPick: z.number().int().nonnegative(), picking: z.number().int().nonnegative(),
+        readyToDispatch: z.number().int().nonnegative(), pendingPayments: z.number().int().nonnegative(), returnsPending: z.number().int().nonnegative(),
+        refundsAttention: z.number().int().nonnegative(), lowStock: z.number().int().nonnegative(), expiringSoon: z.number().int().nonnegative(),
+        unassignedJobs: z.number().int().nonnegative(), openSessions: z.number().int().nonnegative(),
+      }),
+      recentOrders: z.array(z.object({
+        id: z.string(), reference: z.string(), customer: z.string(), channel: z.string(), total: z.number().int(),
+        paymentStatus: z.string(), fulfilmentStatus: z.string(), at: z.string(), atLabel: z.string(), totalLabel: z.string(),
+      })),
+      reports: z.object({
+        salesByDay: z.array(z.object({ date: z.string(), onlineMinor: z.number().int(), posMinor: z.number().int(), orders: z.number().int().nonnegative() })),
+        topProducts: z.array(z.object({ name: z.string(), variant: z.string(), qty: z.number(), revenueMinor: z.number().int() })),
+        fulfilmentCounts: z.record(z.string(), z.number().int().nonnegative()),
+        deliveryCounts: z.record(z.string(), z.number().int().nonnegative()),
+        returnsSummary: z.object({ total: z.number().int().nonnegative(), pending: z.number().int().nonnegative(), resolved: z.number().int().nonnegative(), refundedMinor: z.number().int().nonnegative() }),
+        cashSummary: z.object({ openSessions: z.number().int().nonnegative(), expectedMinor: z.number().int(), lastClosedDiffMinor: z.number().int() }),
+        stockValue: z.object({ costBasisMinor: z.number().int().nonnegative(), sellableUnits: z.number().nonnegative(), zeroVariants: z.number().int().nonnegative(), lowVariants: z.number().int().nonnegative() }),
+        paymentsReconciliation: z.object({ settled: z.number().int().nonnegative(), unsettled: z.number().int().nonnegative(), exceptions: z.number().int().nonnegative() }),
+      }),
+    })),
+    AdminAiSuggestionsResponse: json(z.array(z.object({
+      id: z.string(), kind: z.enum(["shopping_answer","budget_basket","alternative","replenishment","expiry_promotion","dispatch_grouping","operations_explanation","business_answer","exception_flag"]),
+      title: z.string(), detail: z.string(), evidence: z.array(z.string()), dataPeriod: z.string(),
+      status: z.enum(["suggested","reviewed","dismissed"]),
+      requiresRole: z.array(z.enum(["owner_admin","operations_manager","inventory_officer","cashier","picker_packer","dispatcher","finance_reviewer","rider"])),
+      createdAt: z.string(), createdAtLabel: z.string(), source: z.literal("deterministic_demo"), proposedAction: z.string().optional(),
+    }))),
+    AiGenerateResponse: json(z.object({ generated: z.number().int().nonnegative() })),
+    AiReviewRequest: json(z.strictObject({ suggestionId: z.string().min(1).max(128), decision: z.enum(["reviewed","dismissed"]) })),
+    AiReviewResponse: json(z.object({ status: z.enum(["reviewed","dismissed"]) })),
+    BusinessQuestionRequest: json(z.strictObject({ question: z.string().trim().min(2).max(1000) })),
+    BusinessQuestionResponse: json(z.object({ answer: z.string(), evidence: z.array(z.string()) })),
     LoginRequest: json(loginRequestSchema),
     RegisterRequest: json(registerRequestSchema),
     RefreshRequest: json(refreshRequestSchema),
@@ -220,6 +255,11 @@ export function foundationOpenApi(app: INestApplication) {
     "/catalog/products/{slug}": "ProductDetailResponse",
     "/catalog/products:by-variants": "ByVariantsResponse",
     "/ai/meal-plan": "GhanaMealPlanResponse",
+    "/admin/dashboard": "AdminDashboardResponse",
+    "/admin/ai/suggestions": "AdminAiSuggestionsResponse",
+    "/admin/ai/generate": "AiGenerateResponse",
+    "/admin/ai/review": "AiReviewResponse",
+    "/admin/ai/business-question": "BusinessQuestionResponse",
     "/inventory/overview": "InventoryOverviewResponse",
     "/inventory/receive": "ReceiveResponse",
     "/checkout/zones": "ZoneListResponse",
@@ -256,6 +296,8 @@ export function foundationOpenApi(app: INestApplication) {
     "/auth/refresh": "RefreshRequest",
     "/catalog/products:by-variants": "ByVariantsRequest",
     "/ai/meal-plan": "GhanaMealPlanRequest",
+    "/admin/ai/review": "AiReviewRequest",
+    "/admin/ai/business-question": "BusinessQuestionRequest",
     "/inventory/receive": "ReceiveRequest",
     "/checkout/quote": "CheckoutQuoteRequest",
     "/checkout/complete": "CheckoutCompleteRequest",
@@ -292,13 +334,15 @@ export function foundationOpenApi(app: INestApplication) {
         suffix === "/payments/{attemptId}/reconcile" ||
         suffix === "/refunds" ||
         suffix === "/refunds/{refundId}/actions" ||
-        suffix === "/admin/orders/{orderId}/actions"
+        suffix === "/admin/orders/{orderId}/actions" ||
+        suffix === "/admin/dashboard" ||
+        suffix.startsWith("/admin/ai/")
       ) operation.security = [{ cookieAuth: [] }, { bearerAuth: [] }];
       if (suffix === "/refunds/providers/hubtel/callback/{secret}")
         operation.security = [];
       if (suffix === "/checkout/complete" || suffix === "/orders/{orderId}" || suffix === "/orders/{orderId}/payment-attempts")
         operation.security = [{ cookieAuth: [] }, { bearerAuth: [] }, { guestAuth: [] }];
-      const successCode = method === "post" && !["/checkout/quote","/orders/track","/account/profile","/account/orders/{orderId}/cancel","/payments/providers/{provider}/events","/payments/{attemptId}/reconcile","/refunds/{refundId}/actions","/refunds/providers/hubtel/callback/{secret}","/admin/orders/{orderId}/actions"].includes(suffix) ? "201" : "200";
+      const successCode = method === "post" && !["/checkout/quote","/orders/track","/account/profile","/account/orders/{orderId}/cancel","/payments/providers/{provider}/events","/payments/{attemptId}/reconcile","/refunds/{refundId}/actions","/refunds/providers/hubtel/callback/{secret}","/admin/orders/{orderId}/actions","/admin/ai/generate","/admin/ai/review","/admin/ai/business-question"].includes(suffix) ? "201" : "200";
       operation.responses[successCode] = {
         description: "Successful response",
         content: { "application/json": { schema: ref(name + "Envelope") } },
@@ -394,6 +438,17 @@ export function foundationOpenApi(app: INestApplication) {
   doc.paths["/api/v1/checkout/capabilities"]!.get!.security = [];
   doc.paths["/api/v1/checkout/capabilities"]!.get!.description =
     "Public checkout capability projection. Exposes only whether a fully configured, server-authorized hosted electronic payment path is currently available; provider identity, rails and credentials remain private.";
+
+  doc.paths["/api/v1/admin/dashboard"]!.get!.description =
+    "Administrator-only operations dashboard derived from live order, inventory, payment, refund and dispatch authority. Unsupported POS/physical-returns metrics remain explicitly zero rather than being fabricated.";
+  doc.paths["/api/v1/admin/ai/suggestions"]!.get!.description =
+    "Administrator-only reviewable operational suggestions grounded in current authority data. Suggestions never execute stock, payment, refund, pricing, purchasing or dispatch changes.";
+  doc.paths["/api/v1/admin/ai/generate"]!.post!.description =
+    "Re-evaluates deterministic live-data signals and records an audit event. It does not execute the proposed actions.";
+  doc.paths["/api/v1/admin/ai/review"]!.post!.description =
+    "Records a durable human review/dismissal decision for a currently applicable suggestion in the audit trail.";
+  doc.paths["/api/v1/admin/ai/business-question"]!.post!.description =
+    "Answers a bounded operations question from server evidence; when the optional model is configured it may phrase the answer, but it cannot create authority facts or execute actions.";
 
   doc.paths["/api/v1/checkout/complete"]!.post!.parameters = [
     {

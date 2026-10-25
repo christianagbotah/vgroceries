@@ -8,6 +8,7 @@ import { API_CONFIG, ApiConfig, readConfig } from "./config";
 import { CatalogModule } from "./catalog/catalog.controller";
 import { CatalogAdminModule } from "./catalog-admin/catalog-admin.module";
 import { GhanaMealAssistantModule } from "./ai/ghana-meal-assistant.controller";
+import { AdminIntelligenceModule } from "./admin-intelligence/admin-intelligence.controller";
 import { ProductMediaModule } from "./product-media/product-media.module";
 import { InventoryModule } from "./inventory/inventory.controller";
 import { OrdersModule } from "./orders/orders.module";
@@ -60,6 +61,7 @@ export async function createApplication(
       IdentityModule,
       CatalogModule,
       GhanaMealAssistantModule,
+      AdminIntelligenceModule,
       CatalogAdminModule,
       ProductMediaModule,
       InventoryModule,

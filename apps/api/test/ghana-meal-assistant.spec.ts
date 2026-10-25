@@ -74,6 +74,24 @@ test("meal planning resolves Ghana food language only to live catalogue stock an
   );
 });
 
+
+test("natural-language cedi budget builds an available catalogue basket within budget", async () => {
+  const response = await fetch(base + "/api/v1/ai/meal-plan", {
+    method: "POST",
+    headers: { "content-type": "application/json", origin },
+    body: JSON.stringify({ text: "I have 30 cedis. What can I cook for 2 people?", language: "english", servings: 2 }),
+  });
+  assert.equal(response.status, 201);
+  const payload = await response.json();
+  const plan = payload.data;
+  assert.equal(plan.servings, 2);
+  assert.ok(plan.lines.length > 0, "budget request should return catalogue-backed items");
+  assert.ok(plan.lines.every((line: { availableNow: boolean }) => line.availableNow));
+  assert.ok(plan.subtotalMinor <= 3000, `subtotal ${plan.subtotalMinor} must stay within ₵30.00`);
+  assert.match(plan.summary, /budget|₵30\.00/i);
+  assert.ok(plan.warnings.some((warning: string) => /budget/i.test(warning)));
+});
+
 test("OpenAPI documents the catalogue-grounded Ghana meal planner", async () => {
   const document = await (await fetch(base + "/api/v1/openapi.json")).json();
   const operation = document.paths["/api/v1/ai/meal-plan"]?.post;

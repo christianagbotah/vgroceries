@@ -41,7 +41,7 @@ export default function AdminAiPage() {
     try {
       const r = await apiOps.aiGenerate();
       await reload();
-      toast({ title: `${r.generated} suggestion(s) generated`, description: "Deterministic rules over live demo data — no model connected." });
+      toast({ title: `${r.generated} suggestion(s) generated`, description: "Re-evaluated from current server-authoritative operations data." });
     } catch (e) {
       toast({ title: "Generation failed", description: e instanceof ApiError ? e.message : undefined, variant: "destructive" });
     } finally {
@@ -83,8 +83,8 @@ export default function AdminAiPage() {
         <div>
           <h1 className="font-serif text-2xl font-bold">AI assistant</h1>
           <p className="text-sm text-muted-foreground">
-            Deterministic, clearly labelled demo suggestions with evidence and data period. No live
-            model is connected — nothing sensitive executes automatically.
+            Live operations intelligence grounded in current sales, stock, payment, refund and dispatch authority.
+            AI can explain the evidence, but sensitive actions always require a human decision.
           </p>
         </div>
         {can("ai.view") ? (
@@ -99,9 +99,40 @@ export default function AdminAiPage() {
         <p>
           <strong>Human-in-the-loop:</strong> suggestions never issue refunds, modify stock, change
           prices, publish promotions, substitute products or pay suppliers. Every proposal requires
-          an explicit staff action. Demo — deterministic rules, no live model connected.
+          an explicit staff action, and review decisions are retained in the audit trail.
         </p>
       </div>
+
+      <section aria-labelledby="operations-briefing-heading" className="rounded-2xl border bg-card p-4 sm:p-5">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-[0.12em] text-primary">AI operations briefing</p>
+            <h2 id="operations-briefing-heading" className="mt-1 text-lg font-semibold">What needs attention now</h2>
+            <p className="mt-1 max-w-2xl text-sm leading-relaxed text-muted-foreground">
+              A live snapshot of reviewable signals. These are proposals with evidence, not automatic changes.
+            </p>
+          </div>
+          <Badge variant="outline" className="px-2.5 py-1 text-xs">{suggestions.length} open · {reviewed.length} reviewed</Badge>
+        </div>
+        {suggestions.length ? (
+          <div className="mt-4 grid gap-3 md:grid-cols-3">
+            {suggestions.slice(0, 3).map((item) => (
+              <article key={item.id} className="min-w-0 rounded-xl border bg-muted/30 p-3.5">
+                <div className="flex items-start justify-between gap-2">
+                  <Badge variant="secondary" className="max-w-full whitespace-normal px-2 py-1 text-[10px] leading-tight">{KIND_LABELS[item.kind]}</Badge>
+                  <StatusBadge kind="generic" status="pending" label="Review" />
+                </div>
+                <p className="mt-3 text-sm font-semibold leading-snug">{item.title}</p>
+                <p className="mt-2 text-xs leading-relaxed text-muted-foreground">{item.proposedAction ?? item.detail}</p>
+              </article>
+            ))}
+          </div>
+        ) : (
+          <p className="mt-4 rounded-xl border border-dashed p-4 text-sm text-muted-foreground">
+            No open operational signals right now. Refresh suggestions to re-evaluate current authority data.
+          </p>
+        )}
+      </section>
 
       <Tabs value={tab} onValueChange={setTab}>
         <TabsList className="h-12 w-full justify-start overflow-x-auto sm:w-auto">
@@ -153,7 +184,7 @@ export default function AdminAiPage() {
                     {answer.evidence.map((e, i) => <li key={i}>• {e}</li>)}
                   </ul>
                 ) : null}
-                <p className="text-xs text-muted-foreground">Not connected to a live AI model · no accuracy scores shown</p>
+                <p className="text-xs text-muted-foreground">Evidence comes from live authority data · no automatic operational action is taken</p>
               </div>
             ) : null}
           </div>

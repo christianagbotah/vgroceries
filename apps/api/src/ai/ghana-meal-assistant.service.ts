@@ -36,6 +36,22 @@ function textServings(text: string) {
   return undefined;
 }
 
+
+function textBudgetMinor(text: string) {
+  const normalized = text.toLocaleLowerCase().replace(/,/g, "");
+  const currency = normalized.match(/(?:₵|ghs\s*)?(\d+(?:\.\d{1,2})?)\s*(?:cedis?|ghs)\b/i);
+  const budget = normalized.match(/\b(?:budget(?:\s+of)?|i\s+have|with)\s*(?:₵|ghs\s*)?(\d+(?:\.\d{1,2})?)\b/i);
+  const raw = currency?.[1] ?? budget?.[1];
+  if (!raw) return undefined;
+  const major = Number(raw);
+  if (!Number.isFinite(major) || major < 1 || major > 100_000) return undefined;
+  return Math.round(major * 100);
+}
+
+function money(minor: number) {
+  return `₵${(minor / 100).toFixed(2)}`;
+}
+
 function detectedLanguage(text: string, requested: GhanaAssistantLanguage): GhanaMealPlanResponse["detectedLanguage"] {
   if (requested !== "auto") return requested;
   const matched = conceptsMentionedIn(text);
@@ -130,6 +146,77 @@ export class GhanaMealAssistantService {
     };
   }
 
+  private async budgetPlan(
+    input: GhanaMealPlanRequest,
+    requestText: string,
+    budgetMinor: number,
+    servings: number,
+    language: GhanaMealPlanResponse["detectedLanguage"],
+  ): Promise<GhanaMealPlanResponse> {
+    const result = await this.catalog.list({ q: "", page: 1, perPage: 100, sort: "price-asc" });
+    const stapleTerms = ["rice", "gari", "beans", "yam", "plantain", "tomato", "onion", "egg", "oil", "fish", "meat", "flour", "milk"];
+    const candidates = result.items
+      .flatMap((product) => {
+        const variants = product.variants.filter((variant) => variant.isAvailable && Number(variant.availableToSell) >= 1);
+        if (!variants.length) return [];
+        const variant = [...variants].sort((a, b) => a.priceMinor - b.priceMinor)[0];
+        const haystack = `${product.name} ${product.tags.join(" ")}`.toLocaleLowerCase();
+        const rank = stapleTerms.findIndex((term) => haystack.includes(term));
+        return [{ product, variant, rank: rank < 0 ? 999 : rank }];
+      })
+      .sort((a, b) => a.rank - b.rank || a.variant.priceMinor - b.variant.priceMinor || a.product.name.localeCompare(b.product.name));
+
+    const lines: GhanaMealPlanResponse["lines"] = [];
+    let subtotalMinor = 0;
+    const usedCategories = new Set<string>();
+    for (const candidate of candidates) {
+      const next = subtotalMinor + candidate.variant.priceMinor;
+      if (next > budgetMinor) continue;
+      // Prefer breadth across grocery categories before adding several items from one category.
+      if (usedCategories.has(candidate.product.categoryId) && candidates.some((item) => !usedCategories.has(item.product.categoryId) && subtotalMinor + item.variant.priceMinor <= budgetMinor)) continue;
+      lines.push({
+        conceptId: `budget_${candidate.product.slug}`,
+        conceptLabel: candidate.product.name,
+        productId: candidate.product.id,
+        productName: candidate.product.name,
+        variantId: candidate.variant.id,
+        variantName: candidate.variant.name,
+        image: candidate.product.image,
+        unit: candidate.variant.unit,
+        unitSize: candidate.variant.unitSize,
+        quantity: "1",
+        unitPriceMinor: candidate.variant.priceMinor,
+        lineTotalMinor: candidate.variant.priceMinor,
+        availableToSell: candidate.variant.availableToSell,
+        availableNow: true,
+        note: "Budget basket suggestion — edit quantities before adding to cart.",
+      });
+      subtotalMinor = next;
+      usedCategories.add(candidate.product.categoryId);
+      if (lines.length >= 8) break;
+    }
+
+    return {
+      requestText,
+      detectedLanguage: language,
+      servings,
+      interpretation: "lexicon",
+      summary: lines.length
+        ? `With a ${money(budgetMinor)} budget, I found ${lines.length} available catalogue items totalling ${money(subtotalMinor)} for you to review for ${servings} ${servings === 1 ? "person" : "people"}.`
+        : `I could not build a safe basket within your ${money(budgetMinor)} budget from currently available catalogue items.`,
+      lines,
+      unresolved: lines.length ? [] : [{ term: requestText, reason: "not_understood" }],
+      subtotalMinor,
+      confidence: lines.length ? 0.9 : 0.05,
+      warnings: [
+        `Budget ceiling detected: ${money(budgetMinor)}. The suggested subtotal will not exceed it.`,
+        "This is a grocery basket suggestion, not a guarantee that it forms a complete recipe; you can ask for a specific Ghanaian dish for a recipe-style market list.",
+        "Prices and availability come from the live Variety Groceries catalogue and are rechecked at checkout.",
+      ],
+      lexiconVersion: GHANA_FOOD_LEXICON_VERSION,
+    };
+  }
+
   async plan(input: GhanaMealPlanRequest): Promise<GhanaMealPlanResponse> {
     const requestText = input.text.trim();
     const modelIntent = await this.modelInterpreter.interpret(input);
@@ -139,6 +226,10 @@ export class GhanaMealAssistantService {
       : detectedLanguage(requestText, input.language);
     const template = (modelIntent?.dishId ? mealTemplateById(modelIntent.dishId) : undefined) ?? matchMealTemplate(requestText);
     const mentions = conceptsMentionedIn(requestText);
+    const budgetMinor = textBudgetMinor(requestText);
+    if (budgetMinor && !template && mentions.length === 0 && !(modelIntent?.conceptIds.length)) {
+      return this.budgetPlan(input, requestText, budgetMinor, servings, language);
+    }
     const mentionedById = new Map<string, string | undefined>(mentions.map((item) => [item.concept.id, item.matchedAlias]));
     const mentionedConcepts = new Map(mentions.map((item) => [item.concept.id, item.concept]));
     for (const conceptId of modelIntent?.conceptIds ?? []) {

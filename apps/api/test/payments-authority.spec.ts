@@ -27,7 +27,7 @@ test("production OpenAPI exposes exactly the four Payments Authority routes plus
   assert.ok(document.paths["/api/v1/checkout/capabilities"]?.get);
   assert.equal(document.paths["/api/v1/orders/{orderId}/payment-outcome"], undefined);
   assert.equal(document.paths["/api/v1/payments/fake/events"], undefined);
-  assert.equal(Object.keys(document.paths).length, 88);
+  assert.equal(Object.keys(document.paths).length, 93);
 });
 
 test("payment initiation documents owner security, replay and CSRF without client money authority", () => {
