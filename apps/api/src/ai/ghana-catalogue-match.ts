@@ -16,8 +16,89 @@ export function productMatchesFoodConceptForm(product: CatalogProduct, concept: 
 
 export function productMatchesFoodConcept(product: CatalogProduct, concept: GhanaFoodConcept) {
   if (!productMatchesFoodConceptForm(product, concept)) return false;
+  return productMentionsFoodConcept(product, concept);
+}
+
+function escapeRegex(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+export function productMentionsFoodConcept(product: CatalogProduct, concept: GhanaFoodConcept) {
   const text = `${product.name} ${product.tags.join(" ")} ${product.shortDescription}`.trim().toLocaleLowerCase();
-  return concept.searchTerms.some((term) => text.includes(term.toLocaleLowerCase()));
+  return concept.searchTerms.some((term) => {
+    const normalized = term.trim().toLocaleLowerCase();
+    if (!normalized) return false;
+    return new RegExp(`(^|[^\\p{L}\\p{N}])${escapeRegex(normalized)}(?=$|[^\\p{L}\\p{N}])`, "u").test(text);
+  });
+}
+
+export type GhanaMealCatalogueCoverageStatus = "available" | "out_of_stock" | "wrong_form_only" | "missing";
+
+export type GhanaMealCatalogueCoverageProduct = {
+  productId: string;
+  productName: string;
+  anyAvailable: boolean;
+  minPriceLabel: string;
+};
+
+export type GhanaMealCatalogueCoverageRow = {
+  conceptId: string;
+  label: string;
+  mealIds: string[];
+  mealLabels: string[];
+  mealCount: number;
+  status: GhanaMealCatalogueCoverageStatus;
+  matchingProducts: GhanaMealCatalogueCoverageProduct[];
+  wrongFormProducts: GhanaMealCatalogueCoverageProduct[];
+  suggestedProductName: string;
+};
+
+export function ghanaMealCatalogueCoverage(products: CatalogProduct[]): GhanaMealCatalogueCoverageRow[] {
+  const usage = new Map<string, { mealIds: Set<string>; mealLabels: Set<string> }>();
+  for (const template of GHANA_MEAL_TEMPLATES) {
+    for (const ingredient of template.ingredients) {
+      if (ingredient.optional) continue;
+      const item = usage.get(ingredient.conceptId) ?? { mealIds: new Set<string>(), mealLabels: new Set<string>() };
+      item.mealIds.add(template.id);
+      item.mealLabels.add(template.label);
+      usage.set(ingredient.conceptId, item);
+    }
+  }
+
+  const productView = (product: CatalogProduct): GhanaMealCatalogueCoverageProduct => ({
+    productId: product.id,
+    productName: product.name,
+    anyAvailable: product.anyAvailable,
+    minPriceLabel: product.minPriceLabel,
+  });
+  const rank: Record<GhanaMealCatalogueCoverageStatus, number> = { missing: 0, wrong_form_only: 1, out_of_stock: 2, available: 3 };
+
+  return [...usage.entries()].flatMap(([conceptId, meals]) => {
+    const concept = foodConceptById(conceptId);
+    if (!concept) return [];
+    const matching = products.filter((product) => productMatchesFoodConcept(product, concept));
+    const wrongForm = products.filter((product) => productMentionsFoodConcept(product, concept) && !productMatchesFoodConceptForm(product, concept));
+    const status: GhanaMealCatalogueCoverageStatus = matching.some((product) => product.anyAvailable)
+      ? "available"
+      : matching.length
+        ? "out_of_stock"
+        : wrongForm.length
+          ? "wrong_form_only"
+          : "missing";
+    const mealIds = [...meals.mealIds].sort();
+    const mealLabels = [...meals.mealLabels].sort();
+    return [{
+      conceptId,
+      label: concept.label,
+      mealIds,
+      mealLabels,
+      mealCount: mealIds.length,
+      status,
+      matchingProducts: matching.map(productView).sort((a, b) => a.productName.localeCompare(b.productName)),
+      wrongFormProducts: wrongForm.map(productView).sort((a, b) => a.productName.localeCompare(b.productName)),
+      suggestedProductName: concept.label,
+    }];
+  }).sort((a, b) => rank[a.status] - rank[b.status] || b.mealCount - a.mealCount || a.label.localeCompare(b.label));
 }
 
 export function ghanaMealCatalogueGaps(products: CatalogProduct[]) {

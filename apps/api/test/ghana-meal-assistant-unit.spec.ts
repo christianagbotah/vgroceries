@@ -27,7 +27,7 @@ function product(input: {
     gallery: [],
     minPriceMinor: input.priceMinor,
     minPriceLabel: `₵${(input.priceMinor / 100).toFixed(2)}`,
-    anyAvailable: true,
+    anyAvailable: Number(input.availableToSell ?? "50") > 0,
     variants: [{
       id: `${input.id}-variant`,
       name: input.unitSize ?? "Standard",
@@ -36,7 +36,7 @@ function product(input: {
       priceMinor: input.priceMinor,
       priceLabel: `₵${(input.priceMinor / 100).toFixed(2)}`,
       availableToSell: input.availableToSell ?? "50",
-      isAvailable: true,
+      isAvailable: Number(input.availableToSell ?? "50") > 0,
     }],
   } as CatalogProduct;
 }
@@ -195,4 +195,39 @@ test("meal recipe measurement intent converts packaged kg gram and litre require
   assert.equal(eight.lines.find((line) => line.conceptId === "rice")?.quantity, "1", "2 kg requirement still needs one 5 kg bag");
   assert.equal(eight.lines.find((line) => line.conceptId === "tomato_paste")?.quantity, "2", "800 g requirement needs two 400 g tins");
   assert.equal(eight.lines.find((line) => line.conceptId === "vegetable_oil")?.quantity, "1");
+});
+
+
+test("Ghana catalogue coverage distinguishes available, out-of-stock, wrong-form-only and missing concepts", () => {
+  const coverage = (catalogueMatch as unknown as {
+    ghanaMealCatalogueCoverage?: (products: CatalogProduct[]) => Array<{
+      conceptId: string;
+      status: "available" | "out_of_stock" | "wrong_form_only" | "missing";
+      mealLabels: string[];
+      mealCount: number;
+      matchingProducts: Array<{ productId: string; productName: string; anyAvailable: boolean }>;
+      wrongFormProducts: Array<{ productId: string; productName: string }>;
+    }>;
+  }).ghanaMealCatalogueCoverage;
+
+  assert.equal(typeof coverage, "function", "coverage projection should exist");
+  const rows = coverage!([
+    product({ id: "coverage-live-rice", name: "Perfumed Local Rice", tags: ["rice", "staple"], priceMinor: 12000 }),
+    product({ id: "coverage-oos-beans", name: "Black-eyed Beans", tags: ["beans", "staple"], priceMinor: 2800, unit: "kg", unitSize: "1 kg", availableToSell: "0" }),
+    product({ id: "coverage-plantain-chips", name: "Plantain Chips", tags: ["plantain", "snack"], priceMinor: 500 }),
+  ]);
+
+  const byId = new Map(rows.map((row) => [row.conceptId, row]));
+  assert.equal(byId.get("rice")?.status, "available");
+  assert.equal(byId.get("rice")?.matchingProducts[0]?.productId, "coverage-live-rice");
+  assert.equal(byId.get("beans")?.status, "out_of_stock");
+  assert.equal(byId.get("beans")?.matchingProducts[0]?.anyAvailable, false);
+  assert.equal(byId.get("plantain")?.status, "wrong_form_only");
+  assert.equal(byId.get("plantain")?.matchingProducts.length, 0);
+  assert.equal(byId.get("plantain")?.wrongFormProducts[0]?.productId, "coverage-plantain-chips");
+  assert.equal(byId.get("yam")?.status, "missing");
+  assert.equal(byId.get("yam")?.matchingProducts.length, 0);
+  assert.equal(byId.get("yam")?.wrongFormProducts.length, 0);
+  assert.equal(byId.get("tomato")?.mealCount, byId.get("tomato")?.mealLabels.length);
+  assert.ok((byId.get("tomato")?.mealCount ?? 0) > 1, "shared ingredients should expose multi-meal impact");
 });
