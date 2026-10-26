@@ -62,12 +62,49 @@ export function matchFoodConcept(term: string) {
   );
 }
 
+function termSpans(haystack: string, term: string) {
+  const needle = term.toLocaleLowerCase();
+  const spans: Array<{ start: number; end: number }> = [];
+  if (!needle) return spans;
+  const isWordChar = (value: string | undefined) => Boolean(value && /[\p{L}\p{N}]/u.test(value));
+  let cursor = 0;
+  while (cursor <= haystack.length - needle.length) {
+    const index = haystack.indexOf(needle, cursor);
+    if (index < 0) break;
+    const end = index + needle.length;
+    const before = index > 0 ? haystack[index - 1] : undefined;
+    const after = end < haystack.length ? haystack[end] : undefined;
+    if (!isWordChar(before) && !isWordChar(after)) spans.push({ start: index, end });
+    cursor = index + Math.max(needle.length, 1);
+  }
+  return spans;
+}
+
 export function conceptsMentionedIn(text: string) {
-  const haystack = ` ${text.toLocaleLowerCase()} `;
+  const haystack = text.toLocaleLowerCase();
+  const matches = GHANA_FOOD_CONCEPTS.flatMap((concept) => {
+    const terms = [...new Set([...concept.aliases.map((alias) => alias.term), ...concept.searchTerms])]
+      .sort((a, b) => b.length - a.length);
+    return terms.flatMap((term) => termSpans(haystack, term).map((span) => ({
+      concept, matchedAlias: term, ...span,
+    })));
+  });
+
+  const surviving = matches.filter((match) => !matches.some((other) =>
+    other.concept.id !== match.concept.id
+    && other.start <= match.start
+    && other.end >= match.end
+    && (other.end - other.start) > (match.end - match.start),
+  ));
+
+  const bestByConcept = new Map<string, (typeof surviving)[number]>();
+  for (const match of surviving) {
+    const current = bestByConcept.get(match.concept.id);
+    if (!current || match.matchedAlias.length > current.matchedAlias.length) bestByConcept.set(match.concept.id, match);
+  }
+
   return GHANA_FOOD_CONCEPTS.flatMap((concept) => {
-    const matched = [...concept.aliases.map((alias) => alias.term), ...concept.searchTerms]
-      .sort((a, b) => b.length - a.length)
-      .find((term) => haystack.includes(` ${term.toLocaleLowerCase()} `) || haystack.includes(term.toLocaleLowerCase()));
-    return matched ? [{ concept, matchedAlias: matched }] : [];
+    const match = bestByConcept.get(concept.id);
+    return match ? [{ concept, matchedAlias: match.matchedAlias }] : [];
   });
 }

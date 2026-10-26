@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import type { CatalogProduct } from "@variety/contracts";
 import { GhanaMealAssistantService } from "../src/ai/ghana-meal-assistant.service";
 import * as catalogueMatch from "../src/ai/ghana-catalogue-match";
+import { conceptsMentionedIn } from "../src/ai/ghana-food-lexicon";
 
 function product(input: {
   id: string;
@@ -149,4 +150,13 @@ test("Ghana meal catalogue coverage reports missing required concepts and reject
   assert.equal(ids.has("yam"), true);
   assert.equal(ids.has("pepper"), true);
   assert.ok(result.find((gap) => gap.conceptId === "yam")?.mealLabels.some((label) => /ampesi/i.test(label)));
+});
+
+
+test("food concept matching uses word boundaries and prefers a specific longer phrase at the same span", () => {
+  assert.deepEqual(conceptsMentionedIn("I need tomato paste").map((item) => item.concept.id), ["tomato_paste"]);
+  assert.equal(conceptsMentionedIn("what is the price?").some((item) => item.concept.id === "rice"), false);
+  const mixed = new Set(conceptsMentionedIn("tomato and tomato paste").map((item) => item.concept.id));
+  assert.equal(mixed.has("tomato"), true);
+  assert.equal(mixed.has("tomato_paste"), true);
 });
