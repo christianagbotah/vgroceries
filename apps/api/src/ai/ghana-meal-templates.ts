@@ -1,7 +1,11 @@
+export type GhanaMealQuantityUnit = "sellable" | "count" | "g" | "kg" | "ml" | "l";
+
 export interface GhanaMealIngredientTemplate {
   conceptId: string;
-  /** Approximate sellable-unit quantity for four servings; final cart quantity is editable. */
+  /** Approximate shopping amount for the template's base servings. */
   baseQuantity: number;
+  /** Unit for baseQuantity. Omit/sellable to preserve legacy catalogue-unit behavior. */
+  quantityUnit?: GhanaMealQuantityUnit;
   optional?: boolean;
 }
 
@@ -22,12 +26,12 @@ export const GHANA_MEAL_TEMPLATES: GhanaMealTemplate[] = [
     ingredients: [
       { conceptId: "yam", baseQuantity: 2 },
       { conceptId: "kontomire", baseQuantity: 1 },
-      { conceptId: "onion", baseQuantity: 2 },
-      { conceptId: "tomato", baseQuantity: 3 },
-      { conceptId: "pepper", baseQuantity: 2 },
-      { conceptId: "palm_oil", baseQuantity: 1 },
+      { conceptId: "onion", baseQuantity: 0.25, quantityUnit: "kg" },
+      { conceptId: "tomato", baseQuantity: 0.5, quantityUnit: "kg" },
+      { conceptId: "pepper", baseQuantity: 0.25, quantityUnit: "kg" },
+      { conceptId: "palm_oil", baseQuantity: 0.25, quantityUnit: "l" },
       { conceptId: "salted_fish", baseQuantity: 1, optional: true },
-      { conceptId: "egg", baseQuantity: 4, optional: true },
+      { conceptId: "egg", baseQuantity: 4, quantityUnit: "count", optional: true },
     ],
   },
   {
@@ -39,11 +43,11 @@ export const GHANA_MEAL_TEMPLATES: GhanaMealTemplate[] = [
       { conceptId: "cassava", baseQuantity: 2.5 },
       { conceptId: "plantain", baseQuantity: 1.5 },
       { conceptId: "goat_meat", baseQuantity: 1.5 },
-      { conceptId: "tomato", baseQuantity: 4 },
-      { conceptId: "pepper", baseQuantity: 3 },
-      { conceptId: "onion", baseQuantity: 2 },
-      { conceptId: "ginger", baseQuantity: 1, optional: true },
-      { conceptId: "garlic", baseQuantity: 1, optional: true },
+      { conceptId: "tomato", baseQuantity: 0.5, quantityUnit: "kg" },
+      { conceptId: "pepper", baseQuantity: 0.25, quantityUnit: "kg" },
+      { conceptId: "onion", baseQuantity: 0.25, quantityUnit: "kg" },
+      { conceptId: "ginger", baseQuantity: 0.25, quantityUnit: "kg", optional: true },
+      { conceptId: "garlic", baseQuantity: 0.25, quantityUnit: "kg", optional: true },
     ],
   },
   {
@@ -56,9 +60,9 @@ export const GHANA_MEAL_TEMPLATES: GhanaMealTemplate[] = [
       { conceptId: "plantain", baseQuantity: 1.5 },
       { conceptId: "groundnut_paste", baseQuantity: 1 },
       { conceptId: "goat_meat", baseQuantity: 1.5 },
-      { conceptId: "tomato", baseQuantity: 3 },
-      { conceptId: "pepper", baseQuantity: 3 },
-      { conceptId: "onion", baseQuantity: 2 },
+      { conceptId: "tomato", baseQuantity: 0.5, quantityUnit: "kg" },
+      { conceptId: "pepper", baseQuantity: 0.25, quantityUnit: "kg" },
+      { conceptId: "onion", baseQuantity: 0.25, quantityUnit: "kg" },
     ],
   },
   {
@@ -67,12 +71,12 @@ export const GHANA_MEAL_TEMPLATES: GhanaMealTemplate[] = [
     aliases: ["ghana jollof", "jollof rice", "jollof"],
     baseServings: 4,
     ingredients: [
-      { conceptId: "rice", baseQuantity: 1 },
-      { conceptId: "tomato", baseQuantity: 1 },
-      { conceptId: "tomato_paste", baseQuantity: 1 },
-      { conceptId: "onion", baseQuantity: 1 },
-      { conceptId: "pepper", baseQuantity: 1 },
-      { conceptId: "vegetable_oil", baseQuantity: 1 },
+      { conceptId: "rice", baseQuantity: 1, quantityUnit: "kg" },
+      { conceptId: "tomato", baseQuantity: 0.5, quantityUnit: "kg" },
+      { conceptId: "tomato_paste", baseQuantity: 400, quantityUnit: "g" },
+      { conceptId: "onion", baseQuantity: 0.25, quantityUnit: "kg" },
+      { conceptId: "pepper", baseQuantity: 0.25, quantityUnit: "kg" },
+      { conceptId: "vegetable_oil", baseQuantity: 0.5, quantityUnit: "l" },
     ],
   },
   {
@@ -81,8 +85,8 @@ export const GHANA_MEAL_TEMPLATES: GhanaMealTemplate[] = [
     aliases: ["waakye", "waache"],
     baseServings: 4,
     ingredients: [
-      { conceptId: "rice", baseQuantity: 1 },
-      { conceptId: "beans", baseQuantity: 1 },
+      { conceptId: "rice", baseQuantity: 1, quantityUnit: "kg" },
+      { conceptId: "beans", baseQuantity: 0.5, quantityUnit: "kg" },
     ],
   },
   {
@@ -91,12 +95,12 @@ export const GHANA_MEAL_TEMPLATES: GhanaMealTemplate[] = [
     aliases: ["red-red", "red red", "beans with plantain", "plantain with beans"],
     baseServings: 4,
     ingredients: [
-      { conceptId: "beans", baseQuantity: 1 },
+      { conceptId: "beans", baseQuantity: 0.5, quantityUnit: "kg" },
       { conceptId: "plantain", baseQuantity: 1 },
-      { conceptId: "palm_oil", baseQuantity: 1 },
-      { conceptId: "onion", baseQuantity: 1 },
-      { conceptId: "tomato", baseQuantity: 1 },
-      { conceptId: "pepper", baseQuantity: 1 },
+      { conceptId: "palm_oil", baseQuantity: 0.25, quantityUnit: "l" },
+      { conceptId: "onion", baseQuantity: 0.25, quantityUnit: "kg" },
+      { conceptId: "tomato", baseQuantity: 0.25, quantityUnit: "kg" },
+      { conceptId: "pepper", baseQuantity: 0.25, quantityUnit: "kg" },
     ],
   },
 ];

@@ -109,7 +109,8 @@ export class GhanaMealAssistantService {
     let best: { product: CatalogProduct; variant: CatalogVariant; quantity: string; enough: boolean } | undefined;
     for (const candidate of candidates) {
       for (const variant of candidate.product.variants.filter((item) => item.isAvailable)) {
-        const quantity = ingredientSellableQuantity(ingredient.baseQuantity, servings, baseServings, variant, concept);
+        const quantity = ingredientSellableQuantity(ingredient.baseQuantity, servings, baseServings, variant, concept, ingredient.quantityUnit);
+        if (!quantity) continue;
         const enough = Number(variant.availableToSell) >= Number(quantity);
         const proposal = { product: candidate.product, variant, quantity, enough };
         if (!best || (proposal.enough && !best.enough) || (proposal.enough === best.enough && proposal.variant.priceMinor < best.variant.priceMinor)) best = proposal;

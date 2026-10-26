@@ -68,6 +68,7 @@ test("meal assistant keeps raw plantain and fresh tomato instead of cheaper tran
   const tomato = plan.lines.find((line) => line.conceptId === "tomato");
 
   assert.equal(plantain?.productName, "Ripe Plantain");
+  assert.equal(plantain?.quantity, "2", "legacy sellable-unit recipe quantities remain unchanged");
   assert.equal(tomato?.productName, "Fresh Tomatoes");
   assert.ok(plan.lines.every((line) => line.productName !== "Plantain Chips"));
   assert.ok(plan.lines.every((line) => line.productName !== "Tomato Paste"));
@@ -159,4 +160,39 @@ test("food concept matching uses word boundaries and prefers a specific longer p
   const mixed = new Set(conceptsMentionedIn("tomato and tomato paste").map((item) => item.concept.id));
   assert.equal(mixed.has("tomato"), true);
   assert.equal(mixed.has("tomato_paste"), true);
+});
+
+test("meal recipe weight intent converts fresh produce to fractional kg instead of treating counts as kilograms", async () => {
+  const service = assistant([
+    product({ id: "weight-tomatoes", name: "Fresh Tomatoes", tags: ["fresh", "vegetable", "tomato"], priceMinor: 1800, unit: "kg", unitSize: "1 kg" }),
+    product({ id: "weight-onions", name: "Red Onions", tags: ["fresh", "vegetable", "onion"], priceMinor: 2200, unit: "kg", unitSize: "1 kg" }),
+  ]);
+
+  const four = await service.plan({ text: "fufu with light soup for 4 people", language: "english" });
+  assert.equal(four.lines.find((line) => line.conceptId === "tomato")?.quantity, "0.5");
+  assert.equal(four.lines.find((line) => line.conceptId === "onion")?.quantity, "0.25");
+  assert.equal(four.lines.find((line) => line.conceptId === "tomato")?.lineTotalMinor, 900);
+  assert.equal(four.lines.find((line) => line.conceptId === "onion")?.lineTotalMinor, 550);
+
+  const eight = await service.plan({ text: "fufu with light soup for 8 people", language: "english" });
+  assert.equal(eight.lines.find((line) => line.conceptId === "tomato")?.quantity, "1");
+  assert.equal(eight.lines.find((line) => line.conceptId === "onion")?.quantity, "0.5");
+});
+
+test("meal recipe measurement intent converts packaged kg gram and litre requirements to whole packs or fractional direct units", async () => {
+  const service = assistant([
+    product({ id: "measure-rice", name: "Perfumed Local Rice", tags: ["rice", "staple"], priceMinor: 12000, unit: "bag", unitSize: "5 kg" }),
+    product({ id: "measure-paste", name: "Tomato Paste", tags: ["tomato", "paste", "sauce"], priceMinor: 800, unit: "piece", unitSize: "400 g" }),
+    product({ id: "measure-oil", name: "Sunflower Cooking Oil", tags: ["oil", "cooking"], priceMinor: 4200, unit: "litre", unitSize: "1 L" }),
+  ]);
+
+  const four = await service.plan({ text: "jollof rice for 4 people", language: "english" });
+  assert.equal(four.lines.find((line) => line.conceptId === "rice")?.quantity, "1");
+  assert.equal(four.lines.find((line) => line.conceptId === "tomato_paste")?.quantity, "1");
+  assert.equal(four.lines.find((line) => line.conceptId === "vegetable_oil")?.quantity, "0.5");
+
+  const eight = await service.plan({ text: "jollof rice for 8 people", language: "english" });
+  assert.equal(eight.lines.find((line) => line.conceptId === "rice")?.quantity, "1", "2 kg requirement still needs one 5 kg bag");
+  assert.equal(eight.lines.find((line) => line.conceptId === "tomato_paste")?.quantity, "2", "800 g requirement needs two 400 g tins");
+  assert.equal(eight.lines.find((line) => line.conceptId === "vegetable_oil")?.quantity, "1");
 });
