@@ -46,6 +46,8 @@ export const operationMeta: Record<string, OperationMeta> = {
   "catalog.product": { tags: CAT },
   "catalog.home": { tags: CAT },
   "catalog.by-variants": { tags: CAT },
+  "content.homepage": { tags: CONF },
+  "content.page": { tags: CONF },
 
   /* checkout (public) */
   "checkout.quote": { tags: [...CAT, ...CONF] },
@@ -185,6 +187,13 @@ export const operationMeta: Record<string, OperationMeta> = {
   "admin.reports": { tags: [...ORD, ...STOCK, ...RET, ...PAY, ...DEL, ...SESS] },
   "admin.team": { tags: CONF },
   "admin.audit": { tags: ORD },
+  "admin.content.overview": { tags: CONF },
+  "admin.content.homepage": { tags: CONF },
+  "admin.content.homepage.update": { invalidates: CONF },
+  "admin.content.homepage.publish": { invalidates: CONF },
+  "admin.content.page": { tags: CONF },
+  "admin.content.page.update": { invalidates: CONF },
+  "admin.content.page.publish": { invalidates: CONF },
   "admin.settings": { tags: CONF },
   "admin.settings.update": { invalidates: CONF },
 

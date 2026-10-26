@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useStaff, DEMO_ROLE_OPTIONS } from "@/features/staff/role-context";
 import { ROLE_LABELS } from "@/types/domain";
 import type { Permission } from "@/lib/perms";
-import { LayoutDashboard, Menu, ShoppingCart, Store, Boxes, Package, ClipboardList, Truck, Users, RotateCcw, CreditCard, UserRound, BarChart3, Sparkles, ShieldCheck, ScrollText, Settings2, FlaskConical, LogOut, Warehouse, ClipboardCheck, TriangleAlert, ReceiptText, Landmark, Network } from "lucide-react";
+import { LayoutDashboard, Menu, ShoppingCart, Store, Boxes, Package, ClipboardList, Truck, Users, RotateCcw, CreditCard, UserRound, BarChart3, Sparkles, ShieldCheck, ScrollText, Settings2, FlaskConical, LogOut, Warehouse, ClipboardCheck, TriangleAlert, ReceiptText, Landmark, Network, FileText, Home, ExternalLink } from "lucide-react";
 
 interface NavItem {
   href: string;
@@ -37,6 +37,13 @@ const GROUPS: NavGroup[] = [
       { href: "/admin/fulfilment", label: "Fulfilment", permission: "orders.view", icon: Package },
       { href: "/admin/pos", label: "Counter sales (POS)", permission: "pos.use", icon: Store },
       { href: "/admin/cashier-sessions", label: "Cashier sessions", permission: "cash.session.manage", icon: ReceiptText },
+    ],
+  },
+  {
+    title: "Storefront CMS",
+    items: [
+      { href: "/admin/content", label: "Content studio", permission: "settings.manage", icon: FileText },
+      { href: "/admin/content/homepage", label: "Homepage", permission: "settings.manage", icon: Home },
     ],
   },
   {
@@ -185,7 +192,10 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
           </div>
 
           <div className="ml-auto flex items-center gap-2">
-            <span className="hidden rounded-full border border-dashed px-2.5 py-1 text-[11px] text-muted-foreground sm:inline">
+            <Button asChild variant="outline" size="sm" className="hidden h-10 lg:inline-flex">
+              <Link href="/" target="_blank"><ExternalLink className="size-4" aria-hidden /> View storefront</Link>
+            </Button>
+            <span className="hidden rounded-full border border-dashed px-2.5 py-1 text-[11px] text-muted-foreground xl:inline">
               Demo mode · role selector enabled
             </span>
             <label className="sr-only" htmlFor="role-select">Acting role</label>

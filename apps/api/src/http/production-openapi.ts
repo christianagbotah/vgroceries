@@ -62,6 +62,13 @@ import {
   deliveryRouteRuleViewSchema,
   routeSimulationRequestSchema,
   routeSimulationResponseSchema,
+  cmsHomepageContentSchema,
+  cmsHomepageDraftSchema,
+  cmsHomepageAdminViewSchema,
+  cmsContentPageViewSchema,
+  cmsContentPageDraftRequestSchema,
+  cmsContentPageAdminViewSchema,
+  cmsOverviewViewSchema,
 } from "@variety/contracts";
 import { z } from "zod";
 import { foundationOpenApi } from "./openapi";
@@ -278,6 +285,14 @@ export function productionOpenApi(app: INestApplication): OpenAPIObject {
     DeliveryRouteRuleList: json(z.array(deliveryRouteRuleViewSchema)),
     RouteSimulationRequest: json(routeSimulationRequestSchema),
     RouteSimulationResponse: json(routeSimulationResponseSchema),
+    CmsHomepage: json(cmsHomepageContentSchema),
+    CmsHomepageDraft: json(cmsHomepageDraftSchema),
+    CmsHomepageAdminView: json(cmsHomepageAdminViewSchema),
+    CmsContentPage: json(cmsContentPageViewSchema),
+    CmsContentPageDraftRequest: json(cmsContentPageDraftRequestSchema),
+    CmsContentPageAdminView: json(cmsContentPageAdminViewSchema),
+    CmsOverviewView: json(cmsOverviewViewSchema),
+    CmsEmptyRequest: json(z.strictObject({})),
     ArchiveProductMediaRequest: json(z.strictObject({ replacementFeaturedMediaId: z.string().min(1).nullable().optional() })),
     ProductDraftResponse: {
       type: "object", required: ["productId", "editorPath"], additionalProperties: false,
@@ -329,6 +344,7 @@ export function productionOpenApi(app: INestApplication): OpenAPIObject {
     "LogisticsNodeView", "LogisticsNodeList", "LogisticsLaneView", "LogisticsLaneList",
     "DeliveryWorkflowView", "DeliveryWorkflowVersionView", "DeliveryWorkflowList",
     "DeliveryRouteRuleView", "DeliveryRouteRuleList", "RouteSimulationResponse",
+    "CmsHomepage", "CmsHomepageAdminView", "CmsContentPage", "CmsContentPageAdminView", "CmsOverviewView",
   ])
     schemas[name + "Envelope"] = {
       type: "object",
@@ -338,7 +354,41 @@ export function productionOpenApi(app: INestApplication): OpenAPIObject {
     };
 
   doc.info.description =
-    "Implemented production subset: identity, catalogue, Product Media upload/review plus queued image-generation authority, inventory receiving, delivery configuration, authoritative checkout/orders, provider-neutral Payments Authority, provider-neutral Refunds Authority, Fulfilment + Stock Handover Authority, Dispatch + Rider Authority, and Logistics L1 network/workflow/route configuration authority. L1 configuration does not prove or record shipment movement, customer tracking milestones, courier-provider connectivity or notification delivery. COD cash collection/remittance, physical returns/restocking, POS cash authority, live courier providers, GPS/ETA/route optimization, notifications and complete public storefront cutover remain closed.";
+    "Implemented production subset: identity, catalogue, Product Media upload/review plus queued image-generation authority, inventory receiving, delivery configuration, authoritative checkout/orders, provider-neutral Payments Authority, provider-neutral Refunds Authority, Fulfilment + Stock Handover Authority, Dispatch + Rider Authority, Logistics L1 network/workflow/route configuration authority, and PostgreSQL-backed Storefront CMS draft/publish authority. L1 configuration does not prove or record shipment movement, customer tracking milestones, courier-provider connectivity or notification delivery. COD cash collection/remittance, physical returns/restocking, POS cash authority, live courier providers, GPS/ETA/route optimization, notifications and complete public storefront cutover remain closed.";
+
+  const cmsSlug: ParameterObject = { name: "slug", in: "path", required: true, schema: { type: "string", enum: ["help", "returns-policy", "privacy", "terms"] } };
+  const cmsMutation = (description: string, requestSchema: string, responseSchema: string, parameters: ParameterObject[] = []): OperationObject => ({
+    security, description, parameters: [...parameters, csrf],
+    requestBody: { required: true, content: { "application/json": { schema: ref(requestSchema) } } },
+    responses: authorityResponses(responseSchema),
+  });
+  doc.paths["/api/v1/content/homepage"] = {
+    get: { security: [], description: "Public read of the currently published storefront homepage content. Draft content is never exposed here.", responses: { "200": response("CmsHomepageEnvelope"), "500": errorResponse, "503": errorResponse } },
+  };
+  doc.paths["/api/v1/content/pages/{slug}"] = {
+    get: { security: [], description: "Public read of one published structured support/policy page. Draft content is never exposed here.", parameters: [cmsSlug], responses: { "200": response("CmsContentPageEnvelope"), "404": errorResponse, "500": errorResponse, "503": errorResponse } },
+  };
+  doc.paths["/api/v1/admin/content"] = {
+    get: readOperation("Administrator-only CMS overview of draft/publication status.", "CmsOverviewViewEnvelope"),
+  };
+  doc.paths["/api/v1/admin/content/homepage"] = {
+    get: readOperation("Administrator-only homepage CMS record containing separate published and draft versions.", "CmsHomepageAdminViewEnvelope"),
+  };
+  doc.paths["/api/v1/admin/content/homepage/draft"] = {
+    post: cmsMutation("Administrator-only audited homepage draft save. Actor identity comes from the authenticated session and this command does not publish.", "CmsHomepageDraft", "CmsHomepageAdminViewEnvelope"),
+  };
+  doc.paths["/api/v1/admin/content/homepage/publish"] = {
+    post: cmsMutation("Administrator-only atomic homepage publish after server validation of the current draft.", "CmsEmptyRequest", "CmsHomepageAdminViewEnvelope"),
+  };
+  doc.paths["/api/v1/admin/content/pages/{slug}"] = {
+    get: readOperation("Administrator-only structured page CMS record containing separate published and draft versions.", "CmsContentPageAdminViewEnvelope", [cmsSlug]),
+  };
+  doc.paths["/api/v1/admin/content/pages/{slug}/draft"] = {
+    post: cmsMutation("Administrator-only audited structured page draft save. Incomplete drafts are allowed and remain private.", "CmsContentPageDraftRequest", "CmsContentPageAdminViewEnvelope", [cmsSlug]),
+  };
+  doc.paths["/api/v1/admin/content/pages/{slug}/publish"] = {
+    post: cmsMutation("Administrator-only atomic structured page publish. Required title and section content are validated before promotion.", "CmsEmptyRequest", "CmsContentPageAdminViewEnvelope", [cmsSlug]),
+  };
 
   const productId: ParameterObject = { name: "productId", in: "path", required: true, schema: { type: "string", minLength: 1 } };
   const mediaId: ParameterObject = { name: "mediaId", in: "path", required: true, schema: { type: "string", minLength: 1 } };

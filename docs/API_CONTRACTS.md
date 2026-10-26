@@ -274,6 +274,22 @@ Every inspection records all credited `{lotId, quantity}` entries in `dispositio
 | `demo.flags` | `POST /demo/flags` | Development only. |
 | `demo.scenario` | `POST /demo/scenario` | Development only. |
 
+### 3.12 Storefront CMS — published public reads + administrator authority
+
+| Mock operation | REST endpoint | Notes |
+| --- | --- | --- |
+| `content.homepage` | `GET /content/homepage` | Public **published** homepage hero only. |
+| `content.page` | `GET /content/pages/{slug}` | Public published structured page for `help`, `returns-policy`, `privacy`, `terms`. |
+| `admin.content.overview` | `GET /admin/content` | Administrator-only draft/publication summary. |
+| `admin.content.homepage` | `GET /admin/content/homepage` | Administrator-only published + draft homepage record. |
+| `admin.content.homepage.update` | `POST /admin/content/homepage/draft` | Saves structured draft only; server derives actor; audited. |
+| `admin.content.homepage.publish` | `POST /admin/content/homepage/publish` | Validates and atomically promotes draft; audited. |
+| `admin.content.page` | `GET /admin/content/pages/{slug}` | Administrator-only published + draft page record. |
+| `admin.content.page.update` | `POST /admin/content/pages/{slug}/draft` | Saves structured draft only; server derives actor; audited. |
+| `admin.content.page.publish` | `POST /admin/content/pages/{slug}/publish` | Validates required title/sections then atomically promotes draft; audited. |
+
+Production authority is PostgreSQL-backed by `CmsContent`; drafts and published content are separate JSON records. Arbitrary HTML is not accepted. Public storefront routes never read drafts.
+
 ---
 
 ## 4. Authentication, permissions, ownership

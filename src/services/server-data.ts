@@ -17,6 +17,9 @@ import type { ServiceRequest } from "./adapters/types";
 import type {
   CatalogProduct,
   CategoryRow,
+  CmsContentPageSlug,
+  CmsContentPageView,
+  CmsHomepageView,
   HomeData,
   ProductPageData,
   ShopPageData,
@@ -82,3 +85,13 @@ export async function getDeliveryZones(): Promise<ZoneView[]> {
 export async function getDeliverySlots(zoneId: string): Promise<SlotView[]> {
   return call<SlotView[]>("checkout.slots", { query: { zoneId } });
 }
+/** Published storefront homepage content. */
+export async function getCmsHomepage(): Promise<CmsHomepageView> {
+  return call<CmsHomepageView>("content.homepage");
+}
+
+/** Published owner-editable support/policy content. */
+export async function getCmsContentPage(slug: CmsContentPageSlug): Promise<CmsContentPageView> {
+  return call<CmsContentPageView>("content.page", { query: { slug } });
+}
+

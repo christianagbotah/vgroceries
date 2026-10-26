@@ -34,6 +34,7 @@ L1 is configuration authority only. It cannot establish that a parcel departed, 
 - `/admin/logistics` is production configuration UX, but its simulated/planned routes do not prove parcel movement.
 - Returns and POS screens remain non-authoritative until their backend authorities land.
 - Product Media UAT is not identical to final production object-storage/provider hosting.
+- Storefront CMS now has PostgreSQL/NestJS draft/publish authority and public published reads. The remaining boundary is deployment/UAT cutover: the migration and API/web builds must be deployed together before the live portal can rely on persistent CMS edits.
 - Reports and AI are derivative and may not become hidden writers of stock/payment/refund/return/media/dispatch/logistics truth.
 
 ## 4. Operational follow-ups

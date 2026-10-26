@@ -289,3 +289,27 @@ Recorded frontend evidence from that wave includes:
 The successful gates above do **not** claim that these future authorities/integrations are live: courier/dispatch/rider backend, COD cash collection and remittance, physical Returns/restocking, POS cashier authority, production Hubtel credentials/webhooks, SMS/email/push, live AI execution, or complete public-storefront backend cutover.
 
 Those boundaries are tracked in `docs/KNOWN_ISSUES.md`; the implementation order is in `docs/HANDOFF.md`.
+
+## Admin + Storefront CMS modernization — 26 October 2026
+
+**Branch:** `feat/admin-cms-modernization-20261026`
+
+This wave adds an owner/admin-only Storefront CMS inside the existing staff workspace. It provides `/admin/content`, `/admin/content/homepage`, and `/admin/content/pages/[slug]`, with structured text fields, draft isolation, explicit publishing, audit events, storefront preview links, and published-content reads for the homepage hero plus Help/Returns/Privacy/Terms pages. Product Media remains under catalogue authority rather than being duplicated in the CMS.
+
+Observed verification in the isolated worktree:
+
+| Check | Result |
+|---|---:|
+| Production CMS authority integration suite | **5/5 passed** |
+| Complete NestJS API integration/security suite | **457/457 passed — 0 failed** |
+| Root web/script regression sweep | **146/146 passed — 1,224 expectations across 22 files** |
+| Production REST operation mapping | **101/101 mapped against OpenAPI** |
+| Generated production OpenAPI | **95 implemented paths, including all 9 CMS paths** |
+| ESLint | **PASS** |
+| Next.js production build | **PASS** |
+| Static-page generation | **55/55 generated** |
+| `git diff --check` | **PASS** |
+
+The production CMS authority proves: public reads return only the published homepage or structured support/policy page; invalid page slugs fail closed; admin reads/mutations require authenticated administrator authority; browser-supplied actor identity is rejected; draft writes remain private; publish validates required content and atomically canonicalizes draft + published state; and all draft/publish mutations are audit logged with the server-derived actor. The PostgreSQL migration seeds `homepage`, `help`, `returns-policy`, `privacy`, and `terms` records while Product Media remains under catalogue authority.
+
+The web regression/build evidence proves the CMS routes are present in the admin shell, the editors expose separate Save draft and Publish actions, the public storefront consumes published content through the service boundary, and the app still builds in prototype mode when `API_BASE_URL` is intentionally unset. The live UAT deployment remains a separate cutover step: migration, API and web release must be deployed together before persistent CMS edits are available on the production-connected portal.

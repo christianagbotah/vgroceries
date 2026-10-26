@@ -63,6 +63,9 @@ are client components over the same mock API.
 | `/admin/ai` | AI suggestions with evidence/data period, review history, business questions |
 | `/admin/team` | Demo staff + permission matrix |
 | `/admin/audit` | Audit events with actor/reason/before/after |
+| `/admin/content` | Storefront CMS overview: homepage + owner-editable support/policy pages, draft/publish state, catalogue-content shortcuts |
+| `/admin/content/homepage` | Homepage hero editor with draft preview, explicit Save draft and Publish actions |
+| `/admin/content/pages/[slug]` | Structured CMS editor for `help`, `returns-policy`, `privacy`, and `terms`; arbitrary HTML is not accepted |
 | `/admin/settings` | Business configuration (fulfilment toggles, reservation window, approval controls) |
 | `/admin/demo` | Demo controls: reset, latency, offline, failures, scenarios |
 

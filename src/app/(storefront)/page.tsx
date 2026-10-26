@@ -1,7 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
-import { getHomeData, getShopData } from "@/services/server-data";
-import type { CatalogProduct } from "@/services/contracts";
+import { getCmsHomepage, getHomeData, getShopData } from "@/services/server-data";
+import type { CatalogProduct, CmsHomepageView } from "@/services/contracts";
 import { ProductTile } from "@/features/catalog/product-tile";
 import { AdSenseSlot } from "@/components/ads/adsense-slot";
 import { Button } from "@/components/ui/button";
@@ -30,6 +30,17 @@ import {
 } from "@/lib/product-image-map";
 
 export const dynamic = "force-dynamic";
+
+const CMS_HOMEPAGE_FALLBACK: CmsHomepageView = {
+  badge: "Fresh selection · live availability",
+  headline: "Fresh Groceries",
+  emphasis: "Delivered to Your Door",
+  body: "Shop fresh produce, Ghanaian staples, proteins, dairy, drinks and household essentials in one stock-aware store. Choose configured delivery or collection and follow your order from checkout to handover.",
+  primaryCtaLabel: "Start shopping",
+  primaryCtaHref: "/shop",
+  secondaryCtaLabel: "Ask shopping assistant",
+  secondaryCtaHref: "/assistant",
+};
 
 function unique(products: CatalogProduct[]) {
   return products.filter((product, index, all) => all.findIndex((candidate) => candidate.id === product.id) === index);
@@ -77,9 +88,10 @@ function ProductSection({
 }
 
 export default async function HomePage() {
-  const [{ categories, offers, popular, trendingNew, demoTrack }, catalogue] = await Promise.all([
+  const [{ categories, offers, popular, trendingNew, demoTrack }, catalogue, homepageContent] = await Promise.all([
     getHomeData(),
     getShopData({ sort: "name", page: 1, perPage: 48 }),
+    getCmsHomepage().catch(() => CMS_HOMEPAGE_FALLBACK),
   ]);
 
   const allProducts = catalogue.items;
@@ -103,12 +115,12 @@ export default async function HomePage() {
         <Image src={storefrontHeroImage} alt="Abundant fresh groceries ready for shopping" fill priority sizes="100vw" className="object-cover object-center" />
         <div className="absolute inset-0 bg-gradient-to-r from-[#f9fbee] via-[#f9fbee]/95 to-[#f9fbee]/10 lg:via-[#f9fbee]/72" />
         <div className="relative z-10 max-w-[760px] px-5 py-8 sm:px-10 sm:py-11 lg:px-12 lg:py-14">
-          <span className="inline-flex items-center gap-2 rounded-full bg-white/85 px-3 py-1.5 text-xs font-bold text-primary shadow-sm backdrop-blur"><Leaf className="size-3.5" /> Fresh selection · live availability</span>
+          <span className="inline-flex items-center gap-2 rounded-full bg-white/85 px-3 py-1.5 text-xs font-bold text-primary shadow-sm backdrop-blur"><Leaf className="size-3.5" /> {homepageContent.badge}</span>
           <h1 id="home-hero-title" className="mt-4 max-w-[700px] font-serif text-[42px] font-black leading-[0.95] tracking-[-0.045em] text-[color:var(--brand-green-deep)] sm:text-6xl lg:text-[70px]">
-            Fresh Groceries <span className="text-brand-amber">Delivered to Your Door</span>
+            {homepageContent.headline} <span className="text-brand-amber">{homepageContent.emphasis}</span>
           </h1>
           <p className="mt-4 max-w-xl text-sm font-medium leading-relaxed text-foreground/80 sm:text-base">
-            Shop fresh produce, Ghanaian staples, proteins, dairy, drinks and household essentials in one stock-aware store. Choose configured delivery or collection and follow your order from checkout to handover.
+            {homepageContent.body}
           </p>
           <div className="mt-5 grid max-w-2xl grid-cols-2 gap-2 text-[11px] font-bold sm:grid-cols-4">
             <div className="flex items-center gap-2"><span className="grid size-8 place-items-center rounded-full bg-[#e3eed1] text-primary"><Leaf className="size-4" /></span>Fresh everyday picks</div>
@@ -117,8 +129,8 @@ export default async function HomePage() {
             <div className="flex items-center gap-2"><span className="grid size-8 place-items-center rounded-full bg-[#e3eed1] text-primary"><Tags className="size-4" /></span>Prices in Ghana cedis</div>
           </div>
           <div className="mt-6 flex flex-wrap gap-2.5">
-            <Button asChild size="lg" className="h-12 rounded-xl px-6 shadow-lg shadow-primary/15"><Link href="/shop">Start shopping <ArrowRight className="size-4" /></Link></Button>
-            <Button asChild size="lg" variant="outline" className="h-12 rounded-xl border-primary/25 bg-white/85 px-5"><Link href="/assistant"><Sparkles className="size-4 text-brand-amber" /> Ask shopping assistant</Link></Button>
+            <Button asChild size="lg" className="h-12 rounded-xl px-6 shadow-lg shadow-primary/15"><Link href={homepageContent.primaryCtaHref}>{homepageContent.primaryCtaLabel} <ArrowRight className="size-4" /></Link></Button>
+            <Button asChild size="lg" variant="outline" className="h-12 rounded-xl border-primary/25 bg-white/85 px-5"><Link href={homepageContent.secondaryCtaHref}><Sparkles className="size-4 text-brand-amber" /> {homepageContent.secondaryCtaLabel}</Link></Button>
           </div>
         </div>
         <div className="absolute right-5 top-5 hidden rotate-[-2deg] rounded-[28px_8px_28px_10px] bg-brand-amber/95 px-7 py-5 text-center shadow-xl lg:block">

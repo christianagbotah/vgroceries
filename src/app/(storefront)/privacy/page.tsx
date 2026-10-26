@@ -1,40 +1,23 @@
-import { InfoPageShell, InfoSection } from "@/components/shared/info-page-shell";
+import { CmsInfoPage } from "@/components/shared/cms-info-page";
+import { getCmsContentPage } from "@/services/server-data";
+import type { CmsContentPageView } from "@/services/contracts";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = { title: "Privacy" };
 
-export default function PrivacyPage() {
-  return (
-    <InfoPageShell
-      title="Privacy notice"
-      intro="Draft wording for the owner to review with their advisors before launch. Demo data only — no real personal data is collected by this prototype."
-    >
-      <InfoSection title="What we would collect">
-        <p>
-          Contact details (name, phone, email), delivery addresses including optional GhanaPostGPS
-          codes, order history and support notes — only as needed to fulfil orders and provide
-          support. Payment card details are never stored by our storefront; payment providers
-          handle them on their own secure pages.
-        </p>
-      </InfoSection>
-      <InfoSection title="How it is used">
-        <p>
-          Order fulfilment, delivery, returns and refunds, service notifications, and fraud
-          prevention. Marketing messages only with your consent, with opt-out at any time.
-        </p>
-      </InfoSection>
-      <InfoSection title="Sharing">
-        <p>
-          Delivery partners receive only what they need to deliver (name, address, phone). Payment
-          providers receive transaction data under their own terms. We do not sell personal data.
-        </p>
-      </InfoSection>
-      <InfoSection title="Your rights">
-        <p>
-          Access, correction, deletion, and portability of your data, subject to legal retention
-          duties (for example tax records). Contact the owner once live channels are published.
-        </p>
-      </InfoSection>
-    </InfoPageShell>
-  );
+const fallback: CmsContentPageView = {
+  slug: "privacy",
+  title: "Privacy notice",
+  intro: "How Variety Groceries handles customer and order information.",
+  sections: [
+    { heading: "What we collect", body: "Contact details, delivery addresses, order history and support information are collected only as needed to operate orders and support. Card details are not stored by the storefront." },
+    { heading: "How it is used", body: "Information supports order fulfilment, delivery, returns, refunds, service notifications and legitimate fraud prevention." },
+    { heading: "Sharing", body: "Delivery and payment providers receive only the information needed for their role. Variety Groceries does not sell customer personal data." },
+    { heading: "Your choices", body: "Customers can request appropriate access or correction once production support channels and retention rules are finalized." },
+  ],
+};
+
+export default async function PrivacyPage() {
+  const page = await getCmsContentPage("privacy").catch(() => fallback);
+  return <CmsInfoPage page={page} />;
 }

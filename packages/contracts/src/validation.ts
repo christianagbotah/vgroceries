@@ -17,6 +17,7 @@
 import { z } from "zod";
 import { loginRequestSchema, registerRequestSchema } from "./identity";
 import { paymentInitiationRequestSchema } from "./payments";
+import { cmsContentPageDraftRequestSchema, cmsHomepageDraftSchema } from "./cms";
 import {
   createLogisticsNodeRequestSchema, updateLogisticsNodeRequestSchema,
   createLogisticsLaneRequestSchema, updateLogisticsLaneRequestSchema,
@@ -586,6 +587,10 @@ export const requestSchemas: Record<string, z.ZodTypeAny> = {
   "admin.product-media.featured": setFeaturedMediaRequestSchema,
   "admin.product-media.reorder": reorderGalleryRequestSchema,
   "admin.product-media.brand-mode": setProductBrandModeRequestSchema,
+  "admin.content.homepage.update": cmsHomepageDraftSchema,
+  "admin.content.homepage.publish": z.strictObject({}),
+  "admin.content.page.update": cmsContentPageDraftRequestSchema,
+  "admin.content.page.publish": z.strictObject({}),
 };
 
 /** Validate a request body against its declared schema, if any. */
