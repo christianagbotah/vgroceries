@@ -216,7 +216,7 @@ export class AdminIntelligenceService {
     }
 
 
-    const catalogueGaps = ghanaMealCatalogueGaps(await this.purchasableCatalogue()).slice(0, 12);
+    const catalogueGaps = ghanaMealCatalogueGaps(await this.purchasableCatalogue());
     for (const gap of catalogueGaps) {
       suggestions.push({
         id: stableId("ghana_catalogue_gap", gap.conceptId),

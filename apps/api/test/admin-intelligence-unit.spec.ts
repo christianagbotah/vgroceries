@@ -23,7 +23,6 @@ test("admin AI suggestions surface Ghana meal catalogue gaps from currently purc
     async list(input: { page: number }) {
       const items = input.page === 1 ? [
         catalogProduct("rice", "Perfumed Local Rice", ["rice", "staple"]),
-        catalogProduct("beans", "Black-eyed Beans", ["beans", "staple"]),
         catalogProduct("chips", "Plantain Chips", ["plantain", "snack"]),
       ] : [];
       return { items, total: items.length, page: input.page, perPage: 100, pages: 1 };
