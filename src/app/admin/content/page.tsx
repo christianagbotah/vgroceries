@@ -19,9 +19,14 @@ export default function AdminCmsOverviewPage() {
     try { setView(await apiOps.cmsOverview()); setError(null); }
     catch (e) { setError(e instanceof ApiError ? e.message : "Could not load the CMS workspace."); }
   }, []);
-  useEffect(() => { if (can("settings.manage")) load(); }, [can, load]);
+  const allowed = can("settings.manage");
+  useEffect(() => {
+    if (!allowed) return;
+    const timer = window.setTimeout(() => { void load(); }, 0);
+    return () => window.clearTimeout(timer);
+  }, [allowed, load]);
 
-  if (!can("settings.manage")) return <ErrorState message="Your current role cannot manage storefront content." />;
+  if (!allowed) return <ErrorState message="Your current role cannot manage storefront content." />;
   if (error) return <ErrorState message={error} onRetry={load} />;
   if (!view) return <LoadingState rows={5} label="Loading Storefront CMS" />;
 

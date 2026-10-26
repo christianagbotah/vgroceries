@@ -274,6 +274,12 @@ Every inspection records all credited `{lotId, quantity}` entries in `dispositio
 | `demo.flags` | `POST /demo/flags` | Development only. |
 | `demo.scenario` | `POST /demo/scenario` | Development only. |
 
+### 3.12 Frontend/mock Storefront CMS contract — not production REST authority
+
+The following operation names are implemented by the root application's development mock/service boundary only in this wave: `content.homepage`, `content.page`, `admin.content.overview`, `admin.content.homepage`, `admin.content.homepage.update`, `admin.content.homepage.publish`, `admin.content.page`, `admin.content.page.update`, and `admin.content.page.publish`.
+
+They deliberately do **not** appear in the production REST/OpenAPI mapping table above. When `API_BASE_URL` is unset, they provide shared in-process draft/published behavior for UAT. A future production CMS authority must add PostgreSQL persistence, authenticated REST endpoints, OpenAPI definitions, server-side `settings.manage` enforcement, and migration/rollback evidence before these operations can be promoted into the production mapping table.
+
 ---
 
 ## 4. Authentication, permissions, ownership

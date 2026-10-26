@@ -289,3 +289,25 @@ Recorded frontend evidence from that wave includes:
 The successful gates above do **not** claim that these future authorities/integrations are live: courier/dispatch/rider backend, COD cash collection and remittance, physical Returns/restocking, POS cashier authority, production Hubtel credentials/webhooks, SMS/email/push, live AI execution, or complete public-storefront backend cutover.
 
 Those boundaries are tracked in `docs/KNOWN_ISSUES.md`; the implementation order is in `docs/HANDOFF.md`.
+
+## Admin + Storefront CMS modernization — 26 October 2026
+
+**Branch:** `feat/admin-cms-modernization-20261026`
+
+This wave adds an owner/admin-only Storefront CMS inside the existing staff workspace. It provides `/admin/content`, `/admin/content/homepage`, and `/admin/content/pages/[slug]`, with structured text fields, draft isolation, explicit publishing, audit events, storefront preview links, and published-content reads for the homepage hero plus Help/Returns/Privacy/Terms pages. Product Media remains under catalogue authority rather than being duplicated in the CMS.
+
+Observed local verification in the isolated worktree:
+
+| Check | Result |
+|---|---:|
+| CMS regression suite | **8/8 passed — 47 expectations** |
+| CMS + storefront-category/AdSense regressions | **13/13 passed — 90 expectations** |
+| Root script regression sweep | **146/146 passed — 1197 expectations across 22 files** |
+| ESLint | **PASS** |
+| Next.js production build | **PASS** |
+| Static-page generation | **55/55 generated** |
+| New CMS routes in production route table | **`/admin/content`, `/admin/content/homepage`, `/admin/content/pages/[slug]` present** |
+
+The CMS regression suite proves: homepage and content-page drafts remain private until publish; invalid slugs fail closed; blank required content cannot publish; draft/publish mutations create audit events; CMS navigation is gated by `settings.manage`; the editors expose separate Save draft and Publish actions; and storefront pages obtain published content through `server-data.ts`. Public content pages retain seeded fallback copy so a CMS-read failure does not render a blank customer page.
+
+The successful build ran in prototype mode because `API_BASE_URL` was intentionally unset. Therefore this evidence verifies the web UI/mock contract, **not** a production PostgreSQL CMS backend or live deployment.

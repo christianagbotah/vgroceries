@@ -9,10 +9,10 @@ describe("rich storefront home, stable category filters and AdSense readiness", 
     for (const legacy of ["cat_fp", "cat_gs", "cat_os", "cat_de", "cat_bv", "cat_sn", "cat_mf"]) {
       expect(shell).not.toContain(`category=${legacy}`);
     }
-    expect(shell).toContain("category=fresh-produce");
-    expect(shell).toContain("category=grains-staples");
-    expect(shell).toContain("category=dairy-eggs");
-    expect(shell).toContain("category=beverages");
+    for (const slug of ["fresh-produce", "grains-staples", "dairy-eggs", "beverages"]) {
+      expect(shell).toContain(`slug: "${slug}"`);
+    }
+    expect(shell).toContain("href: `/shop?category=${category.slug}`");
   });
 
   test("shop category select emits stable slugs", () => {

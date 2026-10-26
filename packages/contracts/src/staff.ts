@@ -342,7 +342,7 @@ export interface CmsHomepageContent {
   secondaryCtaHref: string;
 }
 
-export interface CmsHomepageView extends CmsHomepageContent {}
+export type CmsHomepageView = CmsHomepageContent;
 
 export interface CmsContentPageView {
   slug: CmsContentPageSlug;

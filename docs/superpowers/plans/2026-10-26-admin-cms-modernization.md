@@ -1,6 +1,6 @@
 # Admin + CMS Modernization Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Add a coherent CMS inside the existing Variety Groceries admin portal, wire published CMS content into the server-rendered storefront, and improve admin navigation around content work.
 
@@ -45,12 +45,12 @@
 - Produces: `CmsHomepageView`, `CmsContentPageView`, `CmsOverviewView`; ops `content.homepage`, `content.page`, `admin.content.overview`, `admin.content.homepage`, `admin.content.homepage.update`, `admin.content.homepage.publish`, `admin.content.page`, `admin.content.page.update`, `admin.content.page.publish`.
 - Consumes: existing `apiOps`, mock `VgStore`, adapter `call<T>()`, `settings.manage` at UI layer.
 
-- [ ] Write failing Bun tests for seeded published content, draft isolation, publish promotion, invalid slug, blank required content and audit mutations.
-- [ ] Run `bun test scripts/admin-cms-regressions.test.ts`; expect feature-missing failures.
-- [ ] Implement typed CMS records and mock operations with validation/audit.
-- [ ] Add client/server adapter methods and operation cache metadata.
-- [ ] Re-run focused test and existing script suite; expect green.
-- [ ] Commit `feat(cms): add typed content authority`.
+- [x] Write failing Bun tests for seeded published content, draft isolation, publish promotion, invalid slug, blank required content and audit mutations.
+- [x] Run `bun test scripts/admin-cms-regressions.test.ts`; expect feature-missing failures.
+- [x] Implement typed CMS records and mock operations with validation/audit.
+- [x] Add client/server adapter methods and operation cache metadata.
+- [x] Re-run focused test and existing script suite; expect green.
+- [x] Commit `feat(cms): add typed content authority`.
 
 ### Task 2: CMS portal and admin shell
 
@@ -67,12 +67,12 @@
 - Consumes: Task 1 `apiOps` CMS methods and view types.
 - Produces: owner/admin CMS routes with draft/save/publish UI and storefront preview links.
 
-- [ ] Extend the failing regression test with route/nav/permission/editor acceptance markers.
-- [ ] Run focused test; expect missing-route/navigation failures.
-- [ ] Build CMS overview and responsive editors using existing shared UI/state components.
-- [ ] Add Storefront CMS navigation and `View storefront` action without changing longest-match active logic.
-- [ ] Run focused test; expect green.
-- [ ] Commit `feat(admin): add storefront CMS workspace`.
+- [x] Extend the failing regression test with route/nav/permission/editor acceptance markers.
+- [x] Run focused test; expect missing-route/navigation failures.
+- [x] Build CMS overview and responsive editors using existing shared UI/state components.
+- [x] Add Storefront CMS navigation and `View storefront` action without changing longest-match active logic.
+- [x] Run focused test; expect green.
+- [x] Commit `feat(admin): add storefront CMS workspace`.
 
 ### Task 3: Published storefront content
 
@@ -89,11 +89,11 @@
 - Consumes: Task 1 public CMS reads.
 - Produces: server-rendered homepage hero and support/policy pages sourced from published CMS content with seeded fallback.
 
-- [ ] Add failing tests proving storefront pages call the public CMS read boundary and render structured content.
-- [ ] Run focused test; expect failure.
-- [ ] Wire homepage hero and four editorial pages to public CMS data; keep accessible structured rendering and safe fallback copy.
-- [ ] Run focused test and storefront regression suite; expect green.
-- [ ] Commit `feat(storefront): render published CMS content`.
+- [x] Add failing tests proving storefront pages call the public CMS read boundary and render structured content.
+- [x] Run focused test; expect failure.
+- [x] Wire homepage hero and four editorial pages to public CMS data; keep accessible structured rendering and safe fallback copy.
+- [x] Run focused test and storefront regression suite; expect green.
+- [x] Commit `feat(storefront): render published CMS content`.
 
 ### Task 4: Documentation and full verification
 
@@ -108,9 +108,9 @@
 - Consumes: completed Tasks 1-3.
 - Produces: handoff documentation accurately separating mock CMS authority from future production persistence.
 
-- [ ] Update routes/API/permissions/known-issues docs.
-- [ ] Run `bun test scripts/admin-cms-regressions.test.ts scripts/storefront-home-category-ads-regressions.test.ts`.
-- [ ] Run `bun run lint`.
-- [ ] Run `bun run build`.
-- [ ] Record exact verification results; do not claim unrun checks.
-- [ ] Commit `docs: document admin cms handoff`.
+- [x] Update routes/API/permissions/known-issues docs.
+- [x] Run `bun test scripts/admin-cms-regressions.test.ts scripts/storefront-home-category-ads-regressions.test.ts`.
+- [x] Run `bun run lint`.
+- [x] Run `bun run build`.
+- [x] Record exact verification results; do not claim unrun checks.
+- [x] Commit `docs: document admin cms handoff`.
