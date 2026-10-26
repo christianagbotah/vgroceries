@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
+import { apiOps } from "@/services/client";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
@@ -103,8 +104,21 @@ const GROUPS: NavGroup[] = [
 
 export function AdminShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const router = useRouter();
   const { role, setRole, user, can } = useStaff();
   const [open, setOpen] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
+
+  const signOut = async () => {
+    setLoggingOut(true);
+    try {
+      await apiOps.staffLogout();
+      router.replace("/staff/login");
+      router.refresh();
+    } finally {
+      setLoggingOut(false);
+    }
+  };
 
   // The most specific matching nav item wins, so nested routes (e.g.
   // /admin/inventory/receiving) highlight exactly one item — the parent
@@ -211,10 +225,8 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
                 ))}
               </SelectContent>
             </Select>
-            <Button asChild variant="ghost" size="icon" className="size-10" aria-label="Sign out of staff area">
-              <Link href="/staff/login">
-                <LogOut className="size-5" aria-hidden />
-              </Link>
+            <Button variant="ghost" size="icon" className="size-10" aria-label="Sign out of staff area" onClick={signOut} disabled={loggingOut}>
+              <LogOut className="size-5" aria-hidden />
             </Button>
           </div>
         </header>
