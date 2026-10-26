@@ -95,6 +95,7 @@ import { nextId, nowIso, orderReference } from "@/lib/id";
 import { addQty, cmpQty, subQty } from "@/lib/quantity";
 import { productImageFor } from "@/lib/product-image-map";
 import type { Order, OrderLine } from "@/types/domain";
+import type { CmsContentPageSlug, CmsContentSection } from "../contracts";
 
 /**
  * Permitted fulfilment actions per order state, mirroring the mock state
@@ -108,6 +109,24 @@ const mediaStates = new WeakMap<VgStore, MockMediaState>();
 function mediaState(store: VgStore): MockMediaState { let state=mediaStates.get(store); if(!state){state={media:[],generations:[],featured:new Map(),brandMode:new Map(),generationKeys:new Map()};mediaStates.set(store,state);} return state; }
 function mockPreview(productSlug:string, seed:string){ const photo=productImageFor(productSlug); return photo || `data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="800" height="800"><rect width="100%" height="100%" fill="#eef5e8"/><text x="50%" y="50%" text-anchor="middle" font-size="42" fill="#0b5d3b">Variety Groceries ${seed}</text></svg>`)}`; }
 function mockMediaView(store:VgStore, productId:string){ const state=mediaState(store); const product=store.products.find(p=>p.id===productId); if(!product) throw new OpError("VALIDATION_FAILED","Product not found."); const active=state.media.filter(m=>m.productId===productId && m.status!=="archived"); const featuredId=state.featured.get(productId); return { productId, brandMode:state.brandMode.get(productId)??"auto", resolvedBrandMode:(state.brandMode.get(productId)==="branded"?"branded":"unbranded"), featuredMedia:active.find(m=>m.id===featuredId && m.status==="approved"), approvedGallery:active.filter(m=>m.status==="approved").sort((a,b)=>(a.galleryOrder??999)-(b.galleryOrder??999)), reviewCandidates:active.filter(m=>m.status==="ready_for_review"), generationJobs:state.generations.filter(j=>j.productId===productId).slice(-10).reverse() }; }
+
+const CMS_PAGE_SLUGS = new Set<CmsContentPageSlug>(["help", "returns-policy", "privacy", "terms"]);
+function cmsPageSlug(value: string): CmsContentPageSlug {
+  if (!CMS_PAGE_SLUGS.has(value as CmsContentPageSlug)) throw new OpError("VALIDATION_FAILED", "Unknown CMS page.");
+  return value as CmsContentPageSlug;
+}
+function cloneCms<T>(value: T): T { return JSON.parse(JSON.stringify(value)) as T; }
+function cmsChanged<T>(published: T, draft: T): boolean { return JSON.stringify(published) !== JSON.stringify(draft); }
+function cmsSections(value: unknown): CmsContentSection[] | undefined {
+  if (value === undefined) return undefined;
+  if (!Array.isArray(value)) throw new OpError("VALIDATION_FAILED", "Sections must be an array.");
+  return value.map((section) => {
+    if (!section || typeof section !== "object") throw new OpError("VALIDATION_FAILED", "Each section must contain a heading and body.");
+    const row = section as Record<string, unknown>;
+    if (typeof row.heading !== "string" || typeof row.body !== "string") throw new OpError("VALIDATION_FAILED", "Each section must contain a heading and body.");
+    return { heading: row.heading, body: row.body };
+  });
+}
 
 const FULFILMENT_ACTIONS: Record<string, string[]> = {
   awaiting_confirmation: ["confirm", "cancel", "note"],
@@ -372,6 +391,15 @@ export async function handleApi(req: ApiRequest): Promise<ApiResult> {
           if (p) out.push(catalogEntry(store, p.id));
         }
         return ok(out);
+      }
+
+      /* ---------------- Public CMS ---------------- */
+      case "content.homepage": {
+        return ok(cloneCms(store.cms.homepage.published));
+      }
+      case "content.page": {
+        const slug = cmsPageSlug(q("slug"));
+        return ok(cloneCms(store.cms.pages[slug].published));
       }
 
       /* ---------------- Checkout ---------------- */
@@ -1560,6 +1588,66 @@ export async function handleApi(req: ApiRequest): Promise<ApiResult> {
         const filtered = search ? events.filter((e) => `${e.action} ${e.entity} ${e.entityId} ${e.actorName}`.toLowerCase().includes(search)) : events;
         return ok(filtered);
       }
+      case "admin.content.overview": {
+        return ok({
+          homepage: {
+            title: "Homepage", href: "/admin/content/homepage", previewHref: "/",
+            hasUnpublishedChanges: cmsChanged(store.cms.homepage.published, store.cms.homepage.draft),
+            updatedAt: store.cms.homepage.updatedAt, publishedAt: store.cms.homepage.publishedAt,
+          },
+          pages: (Array.from(CMS_PAGE_SLUGS) as CmsContentPageSlug[]).map((slug) => {
+            const record = store.cms.pages[slug];
+            return { slug, title: record.draft.title, href: `/admin/content/pages/${slug}`, previewHref: `/${slug}`, hasUnpublishedChanges: cmsChanged(record.published, record.draft), updatedAt: record.updatedAt, publishedAt: record.publishedAt };
+          }),
+        });
+      }
+      case "admin.content.homepage": {
+        const record = store.cms.homepage;
+        return ok({ published: cloneCms(record.published), draft: cloneCms(record.draft), hasUnpublishedChanges: cmsChanged(record.published, record.draft), updatedAt: record.updatedAt, publishedAt: record.publishedAt });
+      }
+      case "admin.content.homepage.update": {
+        const record = store.cms.homepage;
+        const keys = ["badge", "headline", "emphasis", "body", "primaryCtaLabel", "primaryCtaHref", "secondaryCtaLabel", "secondaryCtaHref"] as const;
+        for (const key of keys) if (typeof body[key] === "string") record.draft[key] = body[key] as string;
+        record.updatedAt = nowIso();
+        audit(store, b("actor") || "stf_ama", "cms.homepage_draft_saved", "CmsHomepage", "homepage", { after: JSON.stringify(record.draft) });
+        return ok({ published: cloneCms(record.published), draft: cloneCms(record.draft), hasUnpublishedChanges: cmsChanged(record.published, record.draft), updatedAt: record.updatedAt, publishedAt: record.publishedAt });
+      }
+      case "admin.content.homepage.publish": {
+        const record = store.cms.homepage;
+        if (!record.draft.headline.trim()) throw new OpError("VALIDATION_FAILED", "Homepage headline is required before publishing.");
+        record.published = cloneCms(record.draft);
+        record.publishedAt = record.updatedAt = nowIso();
+        audit(store, b("actor") || "stf_ama", "cms.homepage_published", "CmsHomepage", "homepage", { after: JSON.stringify(record.published) });
+        return ok({ published: cloneCms(record.published), draft: cloneCms(record.draft), hasUnpublishedChanges: false, updatedAt: record.updatedAt, publishedAt: record.publishedAt });
+      }
+      case "admin.content.page": {
+        const slug = cmsPageSlug(q("slug"));
+        const record = store.cms.pages[slug];
+        return ok({ published: cloneCms(record.published), draft: cloneCms(record.draft), hasUnpublishedChanges: cmsChanged(record.published, record.draft), updatedAt: record.updatedAt, publishedAt: record.publishedAt });
+      }
+      case "admin.content.page.update": {
+        const slug = cmsPageSlug(b("slug"));
+        const record = store.cms.pages[slug];
+        if (typeof body.title === "string") record.draft.title = body.title;
+        if (typeof body.intro === "string") record.draft.intro = body.intro;
+        const sections = cmsSections(body.sections);
+        if (sections) record.draft.sections = sections;
+        record.updatedAt = nowIso();
+        audit(store, b("actor") || "stf_ama", "cms.page_draft_saved", "CmsContentPage", slug, { after: JSON.stringify(record.draft) });
+        return ok({ published: cloneCms(record.published), draft: cloneCms(record.draft), hasUnpublishedChanges: cmsChanged(record.published, record.draft), updatedAt: record.updatedAt, publishedAt: record.publishedAt });
+      }
+      case "admin.content.page.publish": {
+        const slug = cmsPageSlug(b("slug"));
+        const record = store.cms.pages[slug];
+        if (!record.draft.title.trim()) throw new OpError("VALIDATION_FAILED", "Page title is required before publishing.");
+        if (!record.draft.sections.every((section) => section.heading.trim() && section.body.trim())) throw new OpError("VALIDATION_FAILED", "Every content section needs a heading and body before publishing.");
+        record.published = cloneCms(record.draft);
+        record.publishedAt = record.updatedAt = nowIso();
+        audit(store, b("actor") || "stf_ama", "cms.page_published", "CmsContentPage", slug, { after: JSON.stringify(record.published) });
+        return ok({ published: cloneCms(record.published), draft: cloneCms(record.draft), hasUnpublishedChanges: false, updatedAt: record.updatedAt, publishedAt: record.publishedAt });
+      }
+
       case "admin.settings": {
         return ok(store.settings);
       }

@@ -322,6 +322,71 @@ export interface SettingsView {
   codEnabled: boolean;
 }
 
+/* ---------------- storefront CMS ---------------- */
+
+export type CmsContentPageSlug = "help" | "returns-policy" | "privacy" | "terms";
+
+export interface CmsContentSection {
+  heading: string;
+  body: string;
+}
+
+export interface CmsHomepageContent {
+  badge: string;
+  headline: string;
+  emphasis: string;
+  body: string;
+  primaryCtaLabel: string;
+  primaryCtaHref: string;
+  secondaryCtaLabel: string;
+  secondaryCtaHref: string;
+}
+
+export interface CmsHomepageView extends CmsHomepageContent {}
+
+export interface CmsContentPageView {
+  slug: CmsContentPageSlug;
+  title: string;
+  intro: string;
+  sections: CmsContentSection[];
+}
+
+export interface CmsHomepageAdminView {
+  published: CmsHomepageContent;
+  draft: CmsHomepageContent;
+  hasUnpublishedChanges: boolean;
+  updatedAt: string;
+  publishedAt: string;
+}
+
+export interface CmsContentPageAdminView {
+  published: CmsContentPageView;
+  draft: CmsContentPageView;
+  hasUnpublishedChanges: boolean;
+  updatedAt: string;
+  publishedAt: string;
+}
+
+export interface CmsOverviewView {
+  homepage: {
+    title: string;
+    href: string;
+    previewHref: string;
+    hasUnpublishedChanges: boolean;
+    updatedAt: string;
+    publishedAt: string;
+  };
+  pages: {
+    slug: CmsContentPageSlug;
+    title: string;
+    href: string;
+    previewHref: string;
+    hasUnpublishedChanges: boolean;
+    updatedAt: string;
+    publishedAt: string;
+  }[];
+}
+
 /* ---------------- suppliers & purchasing ---------------- */
 
 export interface SupplierRow {

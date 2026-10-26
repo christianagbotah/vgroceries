@@ -44,6 +44,9 @@ import type {
   StaffUser,
 } from "@/types/domain";
 import type {
+  CmsContentPageSlug,
+  CmsContentPageView,
+  CmsHomepageContent,
   LogisticsNodeView, LogisticsLaneView, DeliveryWorkflowView, DeliveryRouteRuleView,
 } from "../contracts";
 import { buildCatalog, seedCategories, seedSuppliers } from "./seed-catalog";
@@ -74,6 +77,18 @@ export interface IdempotencyRecord {
   requestHash: string;
   orderId: string;
   createdAt: string;
+}
+
+interface CmsVersioned<T> {
+  published: T;
+  draft: T;
+  updatedAt: string;
+  publishedAt: string;
+}
+
+export interface CmsStoreState {
+  homepage: CmsVersioned<CmsHomepageContent>;
+  pages: Record<CmsContentPageSlug, CmsVersioned<CmsContentPageView>>;
 }
 
 export interface VgStore {
@@ -114,6 +129,7 @@ export interface VgStore {
   staff: StaffUser[];
   audit: AuditEvent[];
   aiSuggestions: AISuggestion[];
+  cms: CmsStoreState;
   settings: {
     businessName: string;
     supportPhone: string;
@@ -128,6 +144,75 @@ export interface VgStore {
   };
   demoFlags: { latencyMs: number; forcePaymentFailure: boolean; offlineMode: boolean };
   sequences: { receipt: number; po: number; rtn: number; stk: number };
+}
+
+function cloneCmsValue<T>(value: T): T {
+  return JSON.parse(JSON.stringify(value)) as T;
+}
+
+function seedCms(now: Date): CmsStoreState {
+  const at = now.toISOString();
+  const homepage: CmsHomepageContent = {
+    badge: "Fresh selection · live availability",
+    headline: "Fresh Groceries",
+    emphasis: "Delivered to Your Door",
+    body: "Shop fresh produce, Ghanaian staples, proteins, dairy, drinks and household essentials in one stock-aware store. Choose configured delivery or collection and follow your order from checkout to handover.",
+    primaryCtaLabel: "Start shopping",
+    primaryCtaHref: "/shop",
+    secondaryCtaLabel: "Ask shopping assistant",
+    secondaryCtaHref: "/assistant",
+  };
+  const pages: Record<CmsContentPageSlug, CmsContentPageView> = {
+    help: {
+      slug: "help",
+      title: "Help centre",
+      intro: "Answers to common questions about shopping, delivery, returns and payments.",
+      sections: [
+        { heading: "Which payment methods can I use?", body: "Electronic checkout and payment on delivery are supported by the configured payment flow. Provider outcomes must be verified before an order is marked paid." },
+        { heading: "Why are some items hidden?", body: "We only show goods that are available to sell right now. Sold-out or fully reserved items stay unavailable until sellable stock returns." },
+        { heading: "How does stock reservation work?", body: "Adding to your cart does not reserve stock. Checkout creates a time-limited reservation which is released if the order is cancelled or the reservation expires." },
+        { heading: "Do I need an account?", body: "No. Guest checkout is supported. An account helps with repeat shopping, saved addresses and return tracking." },
+      ],
+    },
+    "returns-policy": {
+      slug: "returns-policy",
+      title: "Returns & refunds policy",
+      intro: "A draft framework for returns, inspection, refunds and exchanges.",
+      sections: [
+        { heading: "What can be returned", body: "Eligible online and counter-order items can be returned in part or in full. Returned quantities can never exceed the quantities originally purchased." },
+        { heading: "Condition and inspection", body: "Returned goods are inspected before restock. Damaged, expired or unsafe items remain unsaleable, while uncertain items stay quarantined until a disposition is recorded." },
+        { heading: "Refunds", body: "Refund previews use the original paid amounts. Approval is not the same as completed money movement; the final status follows the payment-provider or controlled manual-refund outcome." },
+        { heading: "Exchanges", body: "An exchange is recorded as a traceable return plus a new linked sale so the original transaction history is preserved." },
+        { heading: "Policy limits", body: "Final return windows, exclusions and delivery-fee treatment remain owner-configured policy decisions before launch." },
+      ],
+    },
+    privacy: {
+      slug: "privacy",
+      title: "Privacy notice",
+      intro: "How Variety Groceries handles customer and order information.",
+      sections: [
+        { heading: "What we collect", body: "Contact details, delivery addresses, order history and support information are collected only as needed to operate orders and support. Card details are handled on provider-hosted payment pages and are not stored by the storefront." },
+        { heading: "How it is used", body: "Information supports order fulfilment, delivery, returns, refunds, service notifications and legitimate fraud prevention." },
+        { heading: "Sharing", body: "Delivery and payment providers receive only the information needed for their role. Variety Groceries does not sell customer personal data." },
+        { heading: "Your choices", body: "Customers can request appropriate access or correction once production support channels and retention rules are finalized." },
+      ],
+    },
+    terms: {
+      slug: "terms",
+      title: "Terms of service",
+      intro: "Core shopping, payment and fulfilment terms for the Variety Groceries service.",
+      sections: [
+        { heading: "Orders and stock", body: "Orders are subject to current availability and price verification. Substitutions require recorded customer permission." },
+        { heading: "Prices and totals", body: "Prices are displayed in Ghana cedis. Authoritative totals, fees, discounts and configured tax treatment are calculated by the service at checkout." },
+        { heading: "Payment", body: "Electronic payment is confirmed only after a verified provider outcome. Unknown outcomes remain pending or require review rather than being charged again blindly." },
+        { heading: "Delivery and collection", body: "Delivery and collection follow configured zones, fees, operating windows and capacity. Failed deliveries may be rescheduled or returned to store under the recorded workflow." },
+      ],
+    },
+  };
+  return {
+    homepage: { published: cloneCmsValue(homepage), draft: cloneCmsValue(homepage), updatedAt: at, publishedAt: at },
+    pages: Object.fromEntries(Object.entries(pages).map(([slug, page]) => [slug, { published: cloneCmsValue(page), draft: cloneCmsValue(page), updatedAt: at, publishedAt: at }])) as CmsStoreState["pages"],
+  };
 }
 
 function seedStore(): VgStore {
@@ -204,6 +289,7 @@ function seedStore(): VgStore {
     staff: seedStaff,
     audit: buildAudit(now),
     aiSuggestions: buildAiSuggestions(now),
+    cms: seedCms(now),
     settings: {
       businessName: "Variety Groceries",
       supportPhone: "+233 30 000 0000 (demo)",
