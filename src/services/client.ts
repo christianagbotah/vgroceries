@@ -232,6 +232,20 @@ export const apiOps = {
   budgetBasket: (budgetMinor: number) => api<BudgetBasketResponse>("ai.budget-basket", { body: { budgetMinor } }),
 
   /* staff */
+  staffLogin: async (email: string, password: string) => {
+    const session = await api<WebSessionResponse>("auth.login", { body: { email, password, client: "web" } });
+    setBrowserCsrfToken(session.csrfToken);
+    return session;
+  },
+  staffSession: async () => {
+    const session = await api<SessionLookupResponse>("auth.me");
+    if (session.csrfToken) setBrowserCsrfToken(session.csrfToken);
+    return session;
+  },
+  staffLogout: async () => {
+    try { return await api<DoneResponse>("account.logout", { body: {} }); }
+    finally { clearBrowserCsrfToken(); }
+  },
   dashboard: () => api<DashboardView>("admin.dashboard"),
   orders: (f: { channel?: string; status?: string; payment?: string; q?: string }) =>
     api<AdminOrderRow[]>("admin.orders", { query: f as Record<string, QueryValue> }),
