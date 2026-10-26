@@ -69,5 +69,5 @@ job belongs to the acting rider.
   (documented simplification); production must use `inventory.adjust`-scoped approval.
 - Customer contact actions: Owner/Ops only; channels are placeholders pending owner configuration
   and consent rules.
-- Storefront CMS draft/edit/publish actions reuse `settings.manage`, so only Owner/Admin sees the CMS navigation or can edit/publish in this wave. Production backend endpoints must enforce the same authorization; UI hiding is not security.
+- Storefront CMS draft/edit/publish actions reuse `settings.manage` in the web role matrix, so only Owner/Admin sees the CMS navigation. The production NestJS authority independently enforces authenticated `admin` role for every `/admin/content*` route; UI hiding is not security.
 - Rider menus contain only their jobs; staff menus hide sections the role cannot access.

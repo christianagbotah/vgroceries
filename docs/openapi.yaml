@@ -11,7 +11,7 @@ info:
     boundary in `src/services/adapters/`. This document defines the proposed
     production REST surface under `/api/v1` for the NestJS backend, together
     with the error, pagination, idempotency and cache conventions the
-    adapters already implement. The complete mapping from the 92 existing
+    adapters already implement. The complete mapping from the 101 existing
     mock operations to these endpoints is in `docs/API_CONTRACTS.md`.
 
     **Conventions.**
@@ -54,6 +54,7 @@ tags:
   - { name: Rider, description: Rider workspace (mobile-first) }
   - { name: AI, description: Grounded assistance (demo until backend lands) }
   - { name: Admin, description: Staff back-office surfaces }
+  - { name: CMS, description: Published storefront content and administrator draft/publish authority }
   - { name: Demo, description: Development-only demo controls }
 
 paths:
@@ -1689,6 +1690,85 @@ paths:
               schema:
                 type: array
                 items: { $ref: "#/components/schemas/AuditRow" }
+  /content/homepage:
+    get:
+      tags: [CMS]
+      summary: Read published homepage content
+      operationId: getPublishedHomepageContent
+      security: []
+      responses:
+        "200": { description: Published homepage content, content: { application/json: { schema: { $ref: "#/components/schemas/CmsHomepage" } } } }
+  /content/pages/{slug}:
+    get:
+      tags: [CMS]
+      summary: Read a published support or policy page
+      operationId: getPublishedCmsPage
+      security: []
+      parameters:
+        - { name: slug, in: path, required: true, schema: { type: string, enum: [help, returns-policy, privacy, terms] } }
+      responses:
+        "200": { description: Published page, content: { application/json: { schema: { $ref: "#/components/schemas/CmsContentPage" } } } }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /admin/content:
+    get:
+      tags: [CMS, Admin]
+      summary: CMS overview
+      operationId: adminCmsOverview
+      responses:
+        "200": { description: CMS overview, content: { application/json: { schema: { $ref: "#/components/schemas/CmsOverview" } } } }
+  /admin/content/homepage:
+    get:
+      tags: [CMS, Admin]
+      summary: Homepage draft and published content
+      operationId: adminCmsHomepage
+      responses:
+        "200": { description: Homepage CMS record, content: { application/json: { schema: { $ref: "#/components/schemas/CmsHomepageAdmin" } } } }
+  /admin/content/homepage/draft:
+    post:
+      tags: [CMS, Admin]
+      summary: Save homepage draft
+      operationId: adminSaveCmsHomepageDraft
+      requestBody: { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/CmsHomepage" } } } }
+      responses:
+        "200": { description: Updated homepage CMS record, content: { application/json: { schema: { $ref: "#/components/schemas/CmsHomepageAdmin" } } } }
+  /admin/content/homepage/publish:
+    post:
+      tags: [CMS, Admin]
+      summary: Publish homepage draft
+      operationId: adminPublishCmsHomepage
+      requestBody: { required: true, content: { application/json: { schema: { type: object, additionalProperties: false } } } }
+      responses:
+        "200": { description: Published homepage CMS record, content: { application/json: { schema: { $ref: "#/components/schemas/CmsHomepageAdmin" } } } }
+  /admin/content/pages/{slug}:
+    get:
+      tags: [CMS, Admin]
+      summary: Page draft and published content
+      operationId: adminCmsPage
+      parameters:
+        - { name: slug, in: path, required: true, schema: { type: string, enum: [help, returns-policy, privacy, terms] } }
+      responses:
+        "200": { description: CMS page record, content: { application/json: { schema: { $ref: "#/components/schemas/CmsContentPageAdmin" } } } }
+  /admin/content/pages/{slug}/draft:
+    post:
+      tags: [CMS, Admin]
+      summary: Save structured page draft
+      operationId: adminSaveCmsPageDraft
+      parameters:
+        - { name: slug, in: path, required: true, schema: { type: string, enum: [help, returns-policy, privacy, terms] } }
+      requestBody: { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/CmsContentPageDraft" } } } }
+      responses:
+        "200": { description: Updated CMS page record, content: { application/json: { schema: { $ref: "#/components/schemas/CmsContentPageAdmin" } } } }
+  /admin/content/pages/{slug}/publish:
+    post:
+      tags: [CMS, Admin]
+      summary: Publish structured page draft
+      operationId: adminPublishCmsPage
+      parameters:
+        - { name: slug, in: path, required: true, schema: { type: string, enum: [help, returns-policy, privacy, terms] } }
+      requestBody: { required: true, content: { application/json: { schema: { type: object, additionalProperties: false } } } }
+      responses:
+        "200": { description: Published CMS page record, content: { application/json: { schema: { $ref: "#/components/schemas/CmsContentPageAdmin" } } } }
+
   /admin/settings:
     get:
       tags: [Admin]
@@ -3122,6 +3202,62 @@ components:
         reason: { type: string }
         before: { type: string }
         after: { type: string }
+
+    CmsContentSection:
+      type: object
+      additionalProperties: false
+      required: [heading, body]
+      properties:
+        heading: { type: string, maxLength: 160 }
+        body: { type: string, maxLength: 5000 }
+    CmsHomepage:
+      type: object
+      additionalProperties: false
+      required: [badge, headline, emphasis, body, primaryCtaLabel, primaryCtaHref, secondaryCtaLabel, secondaryCtaHref]
+      properties:
+        badge: { type: string, maxLength: 160 }
+        headline: { type: string, maxLength: 200 }
+        emphasis: { type: string, maxLength: 200 }
+        body: { type: string, maxLength: 2000 }
+        primaryCtaLabel: { type: string, maxLength: 120 }
+        primaryCtaHref: { type: string, maxLength: 300 }
+        secondaryCtaLabel: { type: string, maxLength: 120 }
+        secondaryCtaHref: { type: string, maxLength: 300 }
+    CmsContentPageDraft:
+      type: object
+      additionalProperties: false
+      required: [title, intro, sections]
+      properties:
+        title: { type: string, maxLength: 200 }
+        intro: { type: string, maxLength: 2000 }
+        sections: { type: array, minItems: 1, maxItems: 30, items: { $ref: "#/components/schemas/CmsContentSection" } }
+    CmsContentPage:
+      allOf:
+        - { $ref: "#/components/schemas/CmsContentPageDraft" }
+        - type: object
+          required: [slug]
+          properties: { slug: { type: string, enum: [help, returns-policy, privacy, terms] } }
+    CmsHomepageAdmin:
+      type: object
+      required: [published, draft, hasUnpublishedChanges, updatedAt, publishedAt]
+      properties:
+        published: { $ref: "#/components/schemas/CmsHomepage" }
+        draft: { $ref: "#/components/schemas/CmsHomepage" }
+        hasUnpublishedChanges: { type: boolean }
+        updatedAt: { type: string, format: date-time }
+        publishedAt: { type: string, format: date-time }
+    CmsContentPageAdmin:
+      type: object
+      required: [published, draft, hasUnpublishedChanges, updatedAt, publishedAt]
+      properties:
+        published: { $ref: "#/components/schemas/CmsContentPage" }
+        draft: { $ref: "#/components/schemas/CmsContentPage" }
+        hasUnpublishedChanges: { type: boolean }
+        updatedAt: { type: string, format: date-time }
+        publishedAt: { type: string, format: date-time }
+    CmsOverview:
+      type: object
+      additionalProperties: true
 
     Settings:
       type: object

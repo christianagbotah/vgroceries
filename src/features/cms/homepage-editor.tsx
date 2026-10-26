@@ -18,7 +18,7 @@ import { useToast } from "@/hooks/use-toast";
 const fieldClass = "min-h-11";
 
 export function HomepageEditor() {
-  const { user, can } = useStaff();
+  const { can } = useStaff();
   const { toast } = useToast();
   const [view, setView] = useState<CmsHomepageAdminView | null>(null);
   const [form, setForm] = useState<CmsHomepageContent | null>(null);
@@ -46,7 +46,7 @@ export function HomepageEditor() {
     if (!form) return;
     setBusy("save");
     try {
-      const result = await apiOps.cmsHomepageUpdate({ ...form, actor: user.id });
+      const result = await apiOps.cmsHomepageUpdate(form);
       setView(result);
       setForm(result.draft);
       toast({ title: "Homepage draft saved", description: "The public storefront has not changed yet." });
@@ -59,8 +59,8 @@ export function HomepageEditor() {
     if (!form) return;
     setBusy("publish");
     try {
-      await apiOps.cmsHomepageUpdate({ ...form, actor: user.id });
-      const result = await apiOps.cmsHomepagePublish(user.id);
+      await apiOps.cmsHomepageUpdate(form);
+      const result = await apiOps.cmsHomepagePublish();
       setView(result);
       setForm(result.draft);
       toast({ title: "Homepage published", description: "The storefront now uses this hero content." });

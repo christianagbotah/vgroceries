@@ -21,7 +21,7 @@ const PAGE_SLUGS: CmsContentPageSlug[] = ["help", "returns-policy", "privacy", "
 export function ContentPageEditor() {
   const params = useParams<{ slug: string }>();
   const slug = useMemo(() => PAGE_SLUGS.includes(params.slug as CmsContentPageSlug) ? params.slug as CmsContentPageSlug : null, [params.slug]);
-  const { user, can } = useStaff();
+  const { can } = useStaff();
   const { toast } = useToast();
   const [view, setView] = useState<CmsContentPageAdminView | null>(null);
   const [form, setForm] = useState<CmsContentPageView | null>(null);
@@ -52,7 +52,7 @@ export function ContentPageEditor() {
     if (!form || !slug) return;
     setBusy("save");
     try {
-      const result = await apiOps.cmsContentPageUpdate({ slug, title: form.title, intro: form.intro, sections: form.sections, actor: user.id });
+      const result = await apiOps.cmsContentPageUpdate(slug, { title: form.title, intro: form.intro, sections: form.sections });
       setView(result); setForm(result.draft);
       toast({ title: "Page draft saved", description: "Public content is unchanged until you publish." });
     } catch (e) {
@@ -64,8 +64,8 @@ export function ContentPageEditor() {
     if (!form || !slug) return;
     setBusy("publish");
     try {
-      await apiOps.cmsContentPageUpdate({ slug, title: form.title, intro: form.intro, sections: form.sections, actor: user.id });
-      const result = await apiOps.cmsContentPagePublish(slug, user.id);
+      await apiOps.cmsContentPageUpdate(slug, { title: form.title, intro: form.intro, sections: form.sections });
+      const result = await apiOps.cmsContentPagePublish(slug);
       setView(result); setForm(result.draft);
       toast({ title: "Page published", description: `/${slug} now uses this content.` });
     } catch (e) {

@@ -114,3 +114,16 @@
 - [x] Run `bun run build`.
 - [x] Record exact verification results; do not claim unrun checks.
 - [x] Commit `docs: document admin cms handoff`.
+
+### Task 5: Production CMS authority (integration hardening)
+
+**Ruling:** UAT uses the live NestJS API, so mock-only CMS behavior would fail on the real portal. Pull production persistence/API into this wave despite the original scope boundary.
+
+- [x] Add a RED production integration test for public published reads, administrator-only access, draft isolation, publish validation, and server-owned audit identity.
+- [x] Add shared strict CMS schemas and REST endpoint mappings.
+- [x] Add PostgreSQL `CmsContent` migration with seeded homepage/help/returns/privacy/terms records.
+- [x] Add NestJS public/admin CMS controllers and atomic draft/publish service.
+- [x] Remove browser-supplied actor authority from the web client.
+- [x] Add static and generated OpenAPI coverage.
+- [x] Run the complete API integration/security suite plus root web regression/lint/build gates.
+- [x] Update final verification evidence and prepare the hardened PR branch for push.

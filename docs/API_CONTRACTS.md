@@ -274,11 +274,21 @@ Every inspection records all credited `{lotId, quantity}` entries in `dispositio
 | `demo.flags` | `POST /demo/flags` | Development only. |
 | `demo.scenario` | `POST /demo/scenario` | Development only. |
 
-### 3.12 Frontend/mock Storefront CMS contract — not production REST authority
+### 3.12 Storefront CMS — published public reads + administrator authority
 
-The following operation names are implemented by the root application's development mock/service boundary only in this wave: `content.homepage`, `content.page`, `admin.content.overview`, `admin.content.homepage`, `admin.content.homepage.update`, `admin.content.homepage.publish`, `admin.content.page`, `admin.content.page.update`, and `admin.content.page.publish`.
+| Mock operation | REST endpoint | Notes |
+| --- | --- | --- |
+| `content.homepage` | `GET /content/homepage` | Public **published** homepage hero only. |
+| `content.page` | `GET /content/pages/{slug}` | Public published structured page for `help`, `returns-policy`, `privacy`, `terms`. |
+| `admin.content.overview` | `GET /admin/content` | Administrator-only draft/publication summary. |
+| `admin.content.homepage` | `GET /admin/content/homepage` | Administrator-only published + draft homepage record. |
+| `admin.content.homepage.update` | `POST /admin/content/homepage/draft` | Saves structured draft only; server derives actor; audited. |
+| `admin.content.homepage.publish` | `POST /admin/content/homepage/publish` | Validates and atomically promotes draft; audited. |
+| `admin.content.page` | `GET /admin/content/pages/{slug}` | Administrator-only published + draft page record. |
+| `admin.content.page.update` | `POST /admin/content/pages/{slug}/draft` | Saves structured draft only; server derives actor; audited. |
+| `admin.content.page.publish` | `POST /admin/content/pages/{slug}/publish` | Validates required title/sections then atomically promotes draft; audited. |
 
-They deliberately do **not** appear in the production REST/OpenAPI mapping table above. When `API_BASE_URL` is unset, they provide shared in-process draft/published behavior for UAT. A future production CMS authority must add PostgreSQL persistence, authenticated REST endpoints, OpenAPI definitions, server-side `settings.manage` enforcement, and migration/rollback evidence before these operations can be promoted into the production mapping table.
+Production authority is PostgreSQL-backed by `CmsContent`; drafts and published content are separate JSON records. Arbitrary HTML is not accepted. Public storefront routes never read drafts.
 
 ---
 

@@ -27,6 +27,7 @@ export * from "./logistics";
 export * from "./rider";
 export * from "./ai";
 export * from "./staff";
+export * from "./cms";
 export * from "./validation";
 
 export * from "./identity";

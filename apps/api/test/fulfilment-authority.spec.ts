@@ -51,9 +51,9 @@ function assertAdminMutation(op: any, requestSchema: string) {
   assert.equal(responseRef(op), "#/components/schemas/FulfilmentActionResponseEnvelope");
 }
 
-test("production OpenAPI exposes exactly seven Fulfilment Authority paths on a 84-path surface", () => {
+test("production OpenAPI exposes exactly seven Fulfilment Authority paths on a 95-path surface", () => {
   for (const path of Object.values(fulfilmentPaths)) assert.ok(document.paths[path], `missing ${path}`);
-  assert.equal(Object.keys(document.paths).length, 84);
+  assert.equal(Object.keys(document.paths).length, 95);
 
   assert.ok(document.paths[fulfilmentPaths.queue].get);
   assert.ok(document.paths[fulfilmentPaths.detail].get);

@@ -62,12 +62,15 @@ Make the existing staff back office easier to operate and introduce the missing 
 
 ## Out of scope
 
-- WYSIWYG/MDX editing.
-- Production PostgreSQL CMS tables/API endpoints.
+- WYSIWYG/MDX editing remains out of scope. PostgreSQL/NestJS CMS authority was pulled into this wave after integration review showed the UAT web app uses the live API and a mock-only CMS would fail there.
 - Image asset library outside the existing Product Media AI Studio.
 - Navigation/menu builder.
 - SEO metadata editor beyond existing page metadata.
 - Production deployment/merge.
+
+## Production hardening ruling
+
+During PR integration review, the current UAT topology was confirmed to use the live NestJS API. A mock-only CMS would therefore render the new admin editors unusable in UAT. This wave was extended to add a `CmsContent` PostgreSQL authority, seeded migration, authenticated administrator CRUD/publish endpoints, public published-only reads, strict shared schemas, OpenAPI mappings and API integration tests. Browser-supplied actor identifiers are rejected; audit actors come from the authenticated session.
 
 ## Acceptance
 

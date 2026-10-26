@@ -48,11 +48,11 @@ describe("production HTTP contract", () => {
       load: (source: string) => { paths: Record<string, Record<string, unknown>> };
     };
     const spec = load(readFileSync("docs/openapi.yaml", "utf8"));
-    const ids = { slug: "farm-eggs", orderId: "ord_1014", zoneId: "zone_accra", returnId: "ret_2002",
+    const ids = { slug: "privacy", orderId: "ord_1014", zoneId: "zone_accra", returnId: "ret_2002",
       productId: "prd_001", customerId: "cus_002", jobId: "job_5001", draftId: "draft_001",
       receiptNo: "R-00004", sessionId: "cash_02", lotId: "lot_001", riderId: "rid_2", refundId: "ref_3001" };
     const http = new HttpServiceAdapter(`${base}/api/v1`);
-    expect(mappings.length).toBe(92);
+    expect(mappings.length).toBe(101);
     for (const [, op, method, path] of mappings) {
       expect(spec.paths[path]?.[method.toLowerCase()]).toBeDefined();
       await http.request({ op, query: ids, body: method === "POST" ? ids : undefined, skipValidation: true });

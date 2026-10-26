@@ -395,10 +395,10 @@ export const apiOps = {
   cmsOverview: () => api<CmsOverviewView>("admin.content.overview"),
   cmsHomepage: () => api<CmsHomepageAdminView>("admin.content.homepage"),
   cmsHomepageUpdate: (body: Record<string, unknown>) => api<CmsHomepageAdminView>("admin.content.homepage.update", { body }),
-  cmsHomepagePublish: (actor: string) => api<CmsHomepageAdminView>("admin.content.homepage.publish", { body: { actor } }),
+  cmsHomepagePublish: () => api<CmsHomepageAdminView>("admin.content.homepage.publish", { body: {} }),
   cmsContentPage: (slug: CmsContentPageSlug) => api<CmsContentPageAdminView>("admin.content.page", { query: { slug } }),
-  cmsContentPageUpdate: (body: Record<string, unknown>) => api<CmsContentPageAdminView>("admin.content.page.update", { body }),
-  cmsContentPagePublish: (slug: CmsContentPageSlug, actor: string) => api<CmsContentPageAdminView>("admin.content.page.publish", { body: { slug, actor } }),
+  cmsContentPageUpdate: (slug: CmsContentPageSlug, body: Record<string, unknown>) => api<CmsContentPageAdminView>("admin.content.page.update", { query: { slug }, body }),
+  cmsContentPagePublish: (slug: CmsContentPageSlug) => api<CmsContentPageAdminView>("admin.content.page.publish", { query: { slug }, body: {} }),
   settings: () => api<SettingsView>("admin.settings"),
   settingsUpdate: (body: Record<string, unknown>) => api<SettingsView>("admin.settings.update", { body }),
 
