@@ -1,5 +1,6 @@
 import type { CatalogProduct, CatalogVariant } from "@variety/contracts";
-import type { GhanaFoodConcept } from "./ghana-food-lexicon";
+import { foodConceptById, type GhanaFoodConcept } from "./ghana-food-lexicon";
+import { GHANA_MEAL_TEMPLATES } from "./ghana-meal-templates";
 
 function normalizedProductFormText(product: CatalogProduct) {
   return `${product.name} ${product.tags.join(" ")}`.trim().toLocaleLowerCase();
@@ -11,6 +12,32 @@ export function productMatchesFoodConceptForm(product: CatalogProduct, concept: 
   if (concept.requiredProductTerms?.length
     && !concept.requiredProductTerms.some((term) => text.includes(term.toLocaleLowerCase()))) return false;
   return true;
+}
+
+
+export function productMatchesFoodConcept(product: CatalogProduct, concept: GhanaFoodConcept) {
+  if (!productMatchesFoodConceptForm(product, concept)) return false;
+  const text = `${product.name} ${product.tags.join(" ")} ${product.shortDescription}`.trim().toLocaleLowerCase();
+  return concept.searchTerms.some((term) => text.includes(term.toLocaleLowerCase()));
+}
+
+export function ghanaMealCatalogueGaps(products: CatalogProduct[]) {
+  const usage = new Map<string, Set<string>>();
+  for (const template of GHANA_MEAL_TEMPLATES) {
+    for (const ingredient of template.ingredients) {
+      if (ingredient.optional) continue;
+      const labels = usage.get(ingredient.conceptId) ?? new Set<string>();
+      labels.add(template.label);
+      usage.set(ingredient.conceptId, labels);
+    }
+  }
+
+  return [...usage.entries()].flatMap(([conceptId, mealLabels]) => {
+    const concept = foodConceptById(conceptId);
+    if (!concept) return [];
+    if (products.some((product) => productMatchesFoodConcept(product, concept))) return [];
+    return [{ conceptId, label: concept.label, mealLabels: [...mealLabels].sort() }];
+  }).sort((a, b) => a.label.localeCompare(b.label));
 }
 
 function explicitContainedCount(variant: CatalogVariant, concept: GhanaFoodConcept) {

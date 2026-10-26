@@ -18,7 +18,7 @@ export interface GhanaFoodConcept {
   countUnitTerms?: string[];
 }
 
-export const GHANA_FOOD_LEXICON_VERSION = "2026-10-25.1";
+export const GHANA_FOOD_LEXICON_VERSION = "2026-10-26.1";
 
 /**
  * Reviewable Ghana food vocabulary. Local names supplied by the product owner
@@ -41,6 +41,12 @@ export const GHANA_FOOD_CONCEPTS: GhanaFoodConcept[] = [
   { id: "palm_oil", label: "Palm oil", searchTerms: ["palm oil", "red oil"], aliases: [{ term: "palm oil", language: "english" }] },
   { id: "ginger", label: "Ginger", searchTerms: ["ginger"], aliases: [{ term: "ginger", language: "english" }] },
   { id: "garlic", label: "Garlic", searchTerms: ["garlic"], aliases: [{ term: "garlic", language: "english" }] },
+  { id: "rice", label: "Rice", searchTerms: ["rice"], aliases: [{ term: "rice", language: "english" }], excludedProductTerms: ["cereal"] },
+  { id: "beans", label: "Beans", searchTerms: ["beans", "black-eyed beans", "black eyed beans"], aliases: [{ term: "beans", language: "english" }] },
+  { id: "gari", label: "Gari", searchTerms: ["gari", "garri"], aliases: [{ term: "gari", language: "ghana" }, { term: "garri", language: "ghana" }] },
+  { id: "tomato_paste", label: "Tomato paste", searchTerms: ["tomato paste"], aliases: [{ term: "tomato paste", language: "english" }], requiredProductTerms: ["paste"] },
+  { id: "vegetable_oil", label: "Vegetable / cooking oil", searchTerms: ["cooking oil", "sunflower oil", "vegetable oil"], aliases: [{ term: "cooking oil", language: "english" }, { term: "vegetable oil", language: "english" }], requiredProductTerms: ["oil"], excludedProductTerms: ["palm"] },
+  { id: "chicken", label: "Chicken", searchTerms: ["chicken"], aliases: [{ term: "chicken", language: "english" }] },
 ];
 
 export function foodConceptById(id: string) {

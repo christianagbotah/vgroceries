@@ -8,6 +8,8 @@ import type { BusinessQuestionResponse, DashboardView, SuggestionRow } from "@va
 import { API_CONFIG, type ApiConfig } from "../config";
 import { Database } from "../database/database";
 import { ApiProblem } from "../http/errors";
+import { CatalogService } from "../catalog/catalog.service";
+import { ghanaMealCatalogueGaps } from "../ai/ghana-catalogue-match";
 
 const PAID_STATUSES = ["succeeded", "partially_refunded", "refunded"];
 const AI_REVIEW_ACTION = "ai_suggestion_review";
@@ -38,6 +40,7 @@ export class AdminIntelligenceService {
   constructor(
     private readonly db: Database,
     @Inject(API_CONFIG) private readonly config: ApiConfig,
+    private readonly catalog: CatalogService,
   ) {}
 
   private async availabilityRows() {
@@ -49,6 +52,17 @@ export class AdminIntelligenceService {
       WHERE a."locationId"=${this.config.stockLocationId} AND v.active AND p.published
       ORDER BY a."availableToSell" ASC, p.name ASC, v.name ASC
     `;
+  }
+
+
+  private async purchasableCatalogue() {
+    const first = await this.catalog.list({ q: "", page: 1, perPage: 100, sort: "name" });
+    const items = [...first.items];
+    for (let page = 2; page <= first.pages; page++) {
+      const next = await this.catalog.list({ q: "", page, perPage: 100, sort: "name" });
+      items.push(...next.items);
+    }
+    return items;
   }
 
   private async reports(): Promise<DashboardView["reports"]> {
@@ -198,6 +212,29 @@ export class AdminIntelligenceService {
         createdAtLabel: labelTime(createdAt),
         source: "deterministic_demo",
         proposedAction: "Open Inventory/Purchasing and review replenishment quantity before creating any supplier order.",
+      });
+    }
+
+
+    const catalogueGaps = ghanaMealCatalogueGaps(await this.purchasableCatalogue()).slice(0, 12);
+    for (const gap of catalogueGaps) {
+      suggestions.push({
+        id: stableId("ghana_catalogue_gap", gap.conceptId),
+        kind: "operations_explanation",
+        title: `${gap.label} is a Ghana meal catalogue coverage gap`,
+        detail: `No currently purchasable published catalogue product safely matches ${gap.label}. This ingredient is required by ${gap.mealLabels.join(", ")}. No product, price or stock record is created automatically.`,
+        evidence: [
+          `Ingredient: ${gap.label} (${gap.conceptId})`,
+          `Required by: ${gap.mealLabels.join(", ")}`,
+          `Catalogue basis: live published products with sellable stock at ${this.config.stockLocationId}`,
+        ],
+        dataPeriod: "Current live catalogue + deterministic Ghana meal templates",
+        status: "suggested",
+        requiresRole: ["owner_admin", "operations_manager", "inventory_officer"],
+        createdAt: createdAt.toISOString(),
+        createdAtLabel: labelTime(createdAt),
+        source: "deterministic_demo",
+        proposedAction: `Review sourcing for ${gap.label}; create or publish a catalogue product only after unit, price and physical stock are verified.`,
       });
     }
 

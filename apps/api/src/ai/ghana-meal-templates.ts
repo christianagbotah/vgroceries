@@ -61,6 +61,44 @@ export const GHANA_MEAL_TEMPLATES: GhanaMealTemplate[] = [
       { conceptId: "onion", baseQuantity: 2 },
     ],
   },
+  {
+    id: "ghana_jollof",
+    label: "Ghana jollof rice",
+    aliases: ["ghana jollof", "jollof rice", "jollof"],
+    baseServings: 4,
+    ingredients: [
+      { conceptId: "rice", baseQuantity: 1 },
+      { conceptId: "tomato", baseQuantity: 1 },
+      { conceptId: "tomato_paste", baseQuantity: 1 },
+      { conceptId: "onion", baseQuantity: 1 },
+      { conceptId: "pepper", baseQuantity: 1 },
+      { conceptId: "vegetable_oil", baseQuantity: 1 },
+    ],
+  },
+  {
+    id: "waakye",
+    label: "Waakye",
+    aliases: ["waakye", "waache"],
+    baseServings: 4,
+    ingredients: [
+      { conceptId: "rice", baseQuantity: 1 },
+      { conceptId: "beans", baseQuantity: 1 },
+    ],
+  },
+  {
+    id: "red_red",
+    label: "Red-red with plantain and beans",
+    aliases: ["red-red", "red red", "beans with plantain", "plantain with beans"],
+    baseServings: 4,
+    ingredients: [
+      { conceptId: "beans", baseQuantity: 1 },
+      { conceptId: "plantain", baseQuantity: 1 },
+      { conceptId: "palm_oil", baseQuantity: 1 },
+      { conceptId: "onion", baseQuantity: 1 },
+      { conceptId: "tomato", baseQuantity: 1 },
+      { conceptId: "pepper", baseQuantity: 1 },
+    ],
+  },
 ];
 
 export function mealTemplateById(id: string) {

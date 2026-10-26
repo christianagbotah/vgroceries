@@ -78,6 +78,10 @@ test("admin AI suggestions are live-data grounded and review state is durable", 
   assert.ok(suggestion.evidence.some((line: string) => /available/i.test(line)));
   assert.ok(suggestion.proposedAction);
 
+  const catalogueGap = listBody.data.find((item: { title: string }) => /Yam/.test(item.title) && /catalogue/i.test(item.title));
+  assert.ok(catalogueGap, "missing required Ghana meal ingredients should surface as catalogue-gap suggestions");
+  assert.ok(catalogueGap.evidence.some((line: string) => /ampesi/i.test(line)));
+
   const review = await fetch(base + "/api/v1/admin/ai/review", {
     method: "POST", headers,
     body: JSON.stringify({ suggestionId: suggestion.id, decision: "reviewed" }),

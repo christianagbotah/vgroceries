@@ -5,6 +5,7 @@ import { ApiProblem } from "../http/errors";
 import { AccessGuard } from "../identity/access.guard";
 import type { AuthRequest } from "../identity/identity.service";
 import { AdminIntelligenceService } from "./admin-intelligence.service";
+import { CatalogModule } from "../catalog/catalog.controller";
 
 const reviewSchema = z.strictObject({ suggestionId: z.string().min(1).max(128), decision: z.enum(["reviewed", "dismissed"]) });
 const questionSchema = z.strictObject({ question: z.string().trim().min(2).max(1000) });
@@ -54,6 +55,7 @@ export class AdminIntelligenceController {
 }
 
 @Module({
+  imports: [CatalogModule],
   controllers: [AdminIntelligenceController],
   providers: [AdminIntelligenceService],
 })

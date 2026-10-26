@@ -161,8 +161,8 @@ export default function AdminAiPage() {
           <div className="space-y-3 rounded-xl border bg-card p-4">
             <h2 className="font-semibold">Business question</h2>
             <p className="text-sm text-muted-foreground">
-              Answers come from recorded demo events only — sales, stock and delivery state. Ask
-              about today&apos;s sales, low stock or delivery status.
+              Answers come from live server-authoritative records — sales, stock, payments, refunds and delivery state. Ask
+              about today&apos;s sales, low stock, payment attention or delivery status.
             </p>
             <form
               className="flex flex-wrap gap-2"

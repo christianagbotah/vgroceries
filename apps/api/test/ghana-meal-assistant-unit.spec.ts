@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import type { CatalogProduct } from "@variety/contracts";
 import { GhanaMealAssistantService } from "../src/ai/ghana-meal-assistant.service";
+import * as catalogueMatch from "../src/ai/ghana-catalogue-match";
 
 function product(input: {
   id: string;
@@ -97,4 +98,55 @@ test("meal assistant converts an explicit ingredient count inside a pack to sell
   assert.equal(egg?.productName, "Farm Eggs");
   assert.equal(egg?.quantity, "1");
   assert.equal(egg?.lineTotalMinor, 4200);
+});
+
+test("meal assistant recognizes jollof, waakye and red-red from live catalogue products", async () => {
+  const service = assistant([
+    product({ id: "local-rice", name: "Perfumed Local Rice", tags: ["rice", "staple"], priceMinor: 12000, unit: "bag", unitSize: "5 kg" }),
+    product({ id: "black-eyed-beans", name: "Black-eyed Beans", tags: ["beans", "staple"], priceMinor: 2800, unit: "kg", unitSize: "1 kg" }),
+    product({ id: "fine-gari", name: "Fine Gari", tags: ["gari", "staple"], priceMinor: 1400, unit: "kg", unitSize: "1 kg" }),
+    product({ id: "fresh-tomatoes-ghana", name: "Fresh Tomatoes", tags: ["fresh", "vegetable"], priceMinor: 1800, unit: "kg", unitSize: "1 kg" }),
+    product({ id: "tomato-paste-ghana", name: "Tomato Paste", tags: ["tomato", "sauce"], priceMinor: 800, unit: "piece", unitSize: "400 g" }),
+    product({ id: "red-onions-ghana", name: "Red Onions", tags: ["fresh", "vegetable"], priceMinor: 2200, unit: "kg", unitSize: "1 kg" }),
+    product({ id: "sunflower-oil", name: "Sunflower Cooking Oil", tags: ["oil", "cooking"], priceMinor: 4200, unit: "litre", unitSize: "1 L" }),
+    product({ id: "ripe-plantain-ghana", name: "Ripe Plantain", tags: ["fresh", "plantain"], priceMinor: 2500, unit: "bunch", unitSize: "1 bunch" }),
+    product({ id: "red-palm-oil-ghana", name: "Red Palm Oil", tags: ["oil", "cooking"], priceMinor: 3500, unit: "litre", unitSize: "1 L" }),
+  ]);
+
+  const cases = [
+    { text: "jollof rice for 4 people", dishId: "ghana_jollof", concepts: ["rice", "tomato", "tomato_paste", "onion", "vegetable_oil"] },
+    { text: "waakye for 4 people", dishId: "waakye", concepts: ["rice", "beans"] },
+    { text: "red-red for 4 people", dishId: "red_red", concepts: ["beans", "plantain", "palm_oil", "onion", "tomato"] },
+  ];
+
+  for (const item of cases) {
+    const plan = await service.plan({ text: item.text, language: "english" });
+    assert.equal(plan.dishId, item.dishId, item.text);
+    for (const conceptId of item.concepts) {
+      assert.ok(plan.lines.some((line) => line.conceptId === conceptId), `${item.text}: missing ${conceptId}`);
+    }
+    assert.ok(plan.lines.every((line) => line.availableNow), `${item.text}: all returned lines must be live-available`);
+  }
+});
+
+
+test("Ghana meal catalogue coverage reports missing required concepts and rejects wrong culinary forms", () => {
+  const gaps = (catalogueMatch as unknown as {
+    ghanaMealCatalogueGaps: (products: CatalogProduct[]) => Array<{ conceptId: string; mealLabels: string[] }>;
+  }).ghanaMealCatalogueGaps;
+  assert.equal(typeof gaps, "function");
+
+  const result = gaps([
+    product({ id: "coverage-rice", name: "Perfumed Local Rice", tags: ["rice", "staple"], priceMinor: 12000 }),
+    product({ id: "coverage-beans", name: "Black-eyed Beans", tags: ["beans", "staple"], priceMinor: 2800, unit: "kg", unitSize: "1 kg" }),
+    product({ id: "coverage-chips", name: "Plantain Chips", tags: ["snack", "plantain"], priceMinor: 500 }),
+  ]);
+  const ids = new Set(result.map((gap) => gap.conceptId));
+
+  assert.equal(ids.has("rice"), false);
+  assert.equal(ids.has("beans"), false);
+  assert.equal(ids.has("plantain"), true, "plantain chips must not satisfy raw plantain coverage");
+  assert.equal(ids.has("yam"), true);
+  assert.equal(ids.has("pepper"), true);
+  assert.ok(result.find((gap) => gap.conceptId === "yam")?.mealLabels.some((label) => /ampesi/i.test(label)));
 });
