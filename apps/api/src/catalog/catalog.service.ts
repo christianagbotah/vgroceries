@@ -123,6 +123,15 @@ export class CatalogService {
     return ids.flatMap((id) => (index.has(id) ? [index.get(id)!] : []));
   }
 
+  async publishedForAnalysis(): Promise<CatalogProduct[]> {
+    const rows = await this.db.product.findMany({
+      where: { published: true, category: { active: true } },
+      include: productInclude,
+      orderBy: [{ name: "asc" }, { id: "asc" }],
+    });
+    return this.map(rows);
+  }
+
   async list(query: {
     q: string;
     category?: string;

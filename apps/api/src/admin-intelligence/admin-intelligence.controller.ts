@@ -31,6 +31,12 @@ export class AdminIntelligenceController {
     return { ok: true, data: await this.intelligence.suggestions() };
   }
 
+  @Get("ai/ghana-catalogue-coverage")
+  async ghanaCatalogueCoverage(@Req() req: AuthRequest) {
+    this.admin(req);
+    return { ok: true, data: await this.intelligence.ghanaCatalogueCoverage() };
+  }
+
   @Post("ai/generate") @HttpCode(200)
   async generate(@Req() req: AuthRequest) {
     this.admin(req);

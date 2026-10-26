@@ -48,8 +48,8 @@ function assertMutation(op: any) {
   assert.ok(parameter(op, "X-CSRF-Token"), "cookie mutation must document CSRF");
 }
 
-test("production OpenAPI exposes the 13-path Logistics L1 authority on an 93-path surface", () => {
-  assert.equal(Object.keys(document.paths).length, 93);
+test("production OpenAPI exposes the 13-path Logistics L1 authority on an 94-path surface", () => {
+  assert.equal(Object.keys(document.paths).length, 94);
   for (const path of Object.values(paths)) assert.ok(document.paths[path], `missing ${path}`);
 
   for (const absent of [

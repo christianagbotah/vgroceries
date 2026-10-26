@@ -180,6 +180,19 @@ export function foundationOpenApi(app: INestApplication) {
       requiresRole: z.array(z.enum(["owner_admin","operations_manager","inventory_officer","cashier","picker_packer","dispatcher","finance_reviewer","rider"])),
       createdAt: z.string(), createdAtLabel: z.string(), source: z.literal("deterministic_demo"), proposedAction: z.string().optional(),
     }))),
+    GhanaCatalogueCoverageResponse: json(z.object({
+      rows: z.array(z.object({
+        conceptId: z.string(), label: z.string(), mealIds: z.array(z.string()), mealLabels: z.array(z.string()),
+        mealCount: z.number().int().nonnegative(), status: z.enum(["available","out_of_stock","wrong_form_only","missing"]),
+        matchingProducts: z.array(z.object({ productId: z.string(), productName: z.string(), anyAvailable: z.boolean(), minPriceLabel: z.string() })),
+        wrongFormProducts: z.array(z.object({ productId: z.string(), productName: z.string(), anyAvailable: z.boolean(), minPriceLabel: z.string() })),
+        suggestedProductName: z.string(),
+      })),
+      summary: z.object({
+        total: z.number().int().nonnegative(), available: z.number().int().nonnegative(), outOfStock: z.number().int().nonnegative(),
+        wrongFormOnly: z.number().int().nonnegative(), missing: z.number().int().nonnegative(),
+      }),
+    })),
     AiGenerateResponse: json(z.object({ generated: z.number().int().nonnegative() })),
     AiReviewRequest: json(z.strictObject({ suggestionId: z.string().min(1).max(128), decision: z.enum(["reviewed","dismissed"]) })),
     AiReviewResponse: json(z.object({ status: z.enum(["reviewed","dismissed"]) })),
@@ -257,6 +270,7 @@ export function foundationOpenApi(app: INestApplication) {
     "/ai/meal-plan": "GhanaMealPlanResponse",
     "/admin/dashboard": "AdminDashboardResponse",
     "/admin/ai/suggestions": "AdminAiSuggestionsResponse",
+    "/admin/ai/ghana-catalogue-coverage": "GhanaCatalogueCoverageResponse",
     "/admin/ai/generate": "AiGenerateResponse",
     "/admin/ai/review": "AiReviewResponse",
     "/admin/ai/business-question": "BusinessQuestionResponse",
@@ -443,6 +457,8 @@ export function foundationOpenApi(app: INestApplication) {
     "Administrator-only operations dashboard derived from live order, inventory, payment, refund and dispatch authority. Unsupported POS/physical-returns metrics remain explicitly zero rather than being fabricated.";
   doc.paths["/api/v1/admin/ai/suggestions"]!.get!.description =
     "Administrator-only reviewable operational suggestions grounded in current authority data. Suggestions never execute stock, payment, refund, pricing, purchasing or dispatch changes.";
+  doc.paths["/api/v1/admin/ai/ghana-catalogue-coverage"]!.get!.description =
+    "Administrator-only Ghana meal catalogue coverage derived from published active-category products and live stock availability. Missing and wrong-form rows are sourcing evidence only; no product, price, stock, purchase or publication action is created automatically.";
   doc.paths["/api/v1/admin/ai/generate"]!.post!.description =
     "Re-evaluates deterministic live-data signals and records an audit event. It does not execute the proposed actions.";
   doc.paths["/api/v1/admin/ai/review"]!.post!.description =

@@ -4,12 +4,12 @@ import OpenAI from "openai";
 import { zodTextFormat } from "openai/helpers/zod";
 import { Prisma } from "@prisma/client";
 import { z } from "zod";
-import type { BusinessQuestionResponse, DashboardView, SuggestionRow } from "@variety/contracts";
+import type { BusinessQuestionResponse, DashboardView, GhanaCatalogueCoverageResponse, SuggestionRow } from "@variety/contracts";
 import { API_CONFIG, type ApiConfig } from "../config";
 import { Database } from "../database/database";
 import { ApiProblem } from "../http/errors";
 import { CatalogService } from "../catalog/catalog.service";
-import { ghanaMealCatalogueGaps } from "../ai/ghana-catalogue-match";
+import { ghanaMealCatalogueCoverage, ghanaMealCatalogueGaps } from "../ai/ghana-catalogue-match";
 
 const PAID_STATUSES = ["succeeded", "partially_refunded", "refunded"];
 const AI_REVIEW_ACTION = "ai_suggestion_review";
@@ -310,6 +310,20 @@ export class AdminIntelligenceService {
 
   async suggestions() {
     return this.generatedSuggestions();
+  }
+
+  async ghanaCatalogueCoverage(): Promise<GhanaCatalogueCoverageResponse> {
+    const rows = ghanaMealCatalogueCoverage(await this.catalog.publishedForAnalysis());
+    return {
+      rows,
+      summary: {
+        total: rows.length,
+        available: rows.filter((row) => row.status === "available").length,
+        outOfStock: rows.filter((row) => row.status === "out_of_stock").length,
+        wrongFormOnly: rows.filter((row) => row.status === "wrong_form_only").length,
+        missing: rows.filter((row) => row.status === "missing").length,
+      },
+    };
   }
 
   async generate(actorId: string, requestId: string) {

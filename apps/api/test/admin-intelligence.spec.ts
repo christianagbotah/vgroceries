@@ -114,3 +114,28 @@ test("admin business questions answer from current authority data and OpenAPI ex
     "/api/v1/admin/ai/business-question",
   ]) assert.ok(document.paths[path], `missing ${path}`);
 });
+
+
+test("admin Ghana catalogue coverage is authenticated and exposes sourcing evidence", async () => {
+  const anonymous = await fetch(base + "/api/v1/admin/ai/ghana-catalogue-coverage");
+  assert.equal(anonymous.status, 401);
+
+  const auth = await login();
+  const response = await fetch(base + "/api/v1/admin/ai/ghana-catalogue-coverage", { headers: { cookie: auth.cookie } });
+  assert.equal(response.status, 200);
+  const payload = await response.json();
+  assert.equal(payload.ok, true);
+  assert.ok(Array.isArray(payload.data.rows));
+  assert.equal(payload.data.summary.total, payload.data.rows.length);
+  assert.equal(
+    payload.data.summary.available + payload.data.summary.outOfStock + payload.data.summary.wrongFormOnly + payload.data.summary.missing,
+    payload.data.summary.total,
+  );
+  const yam = payload.data.rows.find((row: { conceptId: string }) => row.conceptId === "yam");
+  assert.ok(yam, "required Ghana meal concepts should be represented even when absent from catalogue");
+  assert.match(yam.status, /missing|wrong_form_only|out_of_stock|available/);
+  assert.ok(Array.isArray(yam.mealLabels));
+
+  const document = await (await fetch(base + "/api/v1/openapi.json")).json();
+  assert.ok(document.paths["/api/v1/admin/ai/ghana-catalogue-coverage"]);
+});

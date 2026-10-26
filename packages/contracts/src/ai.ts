@@ -94,6 +94,38 @@ export interface GhanaMealPlanResponse {
   lexiconVersion: string;
 }
 
+export type GhanaCatalogueCoverageStatus = "available" | "out_of_stock" | "wrong_form_only" | "missing";
+
+export interface GhanaCatalogueCoverageProduct {
+  productId: string;
+  productName: string;
+  anyAvailable: boolean;
+  minPriceLabel: string;
+}
+
+export interface GhanaCatalogueCoverageRow {
+  conceptId: string;
+  label: string;
+  mealIds: string[];
+  mealLabels: string[];
+  mealCount: number;
+  status: GhanaCatalogueCoverageStatus;
+  matchingProducts: GhanaCatalogueCoverageProduct[];
+  wrongFormProducts: GhanaCatalogueCoverageProduct[];
+  suggestedProductName: string;
+}
+
+export interface GhanaCatalogueCoverageResponse {
+  rows: GhanaCatalogueCoverageRow[];
+  summary: {
+    total: number;
+    available: number;
+    outOfStock: number;
+    wrongFormOnly: number;
+    missing: number;
+  };
+}
+
 /** Staff reviewable AI suggestion (pricing, replenishment, promos). */
 export type SuggestionRow = AISuggestion & { createdAtLabel: string };
 

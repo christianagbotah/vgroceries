@@ -37,6 +37,7 @@ export const restEndpoints: Record<string, RestEndpoint> = {
   "ai.budget-basket": {"method": "POST", "path": "/ai/budget-basket"},
   "ai.meal-plan": {"method": "POST", "path": "/ai/meal-plan"},
   "admin.ai.suggestions": {"method": "GET", "path": "/admin/ai/suggestions"},
+  "admin.ai.ghana-catalogue-coverage": {"method": "GET", "path": "/admin/ai/ghana-catalogue-coverage"},
   "admin.ai.generate": {"method": "POST", "path": "/admin/ai/generate"},
   "admin.ai.review": {"method": "POST", "path": "/admin/ai/review"},
   "admin.ai.business-question": {"method": "POST", "path": "/admin/ai/business-question"},
