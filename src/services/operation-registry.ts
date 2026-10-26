@@ -75,6 +75,7 @@ export const operationMeta: Record<string, OperationMeta> = {
   "ai.assistant": { tags: [...CAT, ...AI] },
   "ai.budget-basket": { tags: [...CAT, ...AI] },
   "admin.ai.suggestions": { tags: AI },
+  "admin.ai.ghana-catalogue-coverage": { tags: [...CAT, ...AI] },
   "admin.ai.generate": { invalidates: AI },
   "admin.ai.review": { invalidates: AI },
   "admin.ai.business-question": { tags: AI },

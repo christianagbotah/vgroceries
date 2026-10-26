@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 import { apiOps, ApiError } from "@/services/client";
 import { useApiData } from "@/features/staff/admin-data";
@@ -13,6 +14,7 @@ import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { Sparkles, RefreshCw, WandSparkles, MessageCircleQuestion, Check, X } from "lucide-react";
 import type { AISuggestion } from "@/types/domain";
+import type { GhanaCatalogueCoverageRow } from "@/services/contracts";
 
 const KIND_LABELS: Record<AISuggestion["kind"], string> = {
   shopping_answer: "Shopping answers",
@@ -25,11 +27,19 @@ const KIND_LABELS: Record<AISuggestion["kind"], string> = {
   business_answer: "Business questions",
   exception_flag: "Exception flags",
 };
+const COVERAGE_STATUS: Record<GhanaCatalogueCoverageRow["status"], { label: string; className: string }> = {
+  available: { label: "Available", className: "border-success/40 bg-success/10 text-success" },
+  out_of_stock: { label: "Out of stock", className: "border-warning/40 bg-warning/10 text-[color:var(--warning-foreground)]" },
+  wrong_form_only: { label: "Wrong form only", className: "border-warning/40 bg-warning/10 text-[color:var(--warning-foreground)]" },
+  missing: { label: "Missing", className: "border-destructive/40 bg-destructive/10 text-destructive" },
+};
+
 
 export default function AdminAiPage() {
   const { user, can } = useStaff();
   const { toast } = useToast();
   const { data, loading, error, reload } = useApiData(() => apiOps.aiSuggestions(), []);
+  const { data: coverage, loading: coverageLoading, error: coverageError, reload: reloadCoverage } = useApiData(() => apiOps.aiGhanaCatalogueCoverage(), []);
   const [generating, setGenerating] = useState(false);
   const [question, setQuestion] = useState("");
   const [answer, setAnswer] = useState<{ answer: string; evidence: string[] } | null>(null);
@@ -138,6 +148,7 @@ export default function AdminAiPage() {
         <TabsList className="h-12 w-full justify-start overflow-x-auto sm:w-auto">
           <TabsTrigger value="suggestions" className="gap-1.5 px-4"><Sparkles className="size-4" aria-hidden /> Suggestions ({suggestions.length})</TabsTrigger>
           <TabsTrigger value="reviewed" className="gap-1.5 px-4"><Check className="size-4" aria-hidden /> Reviewed ({reviewed.length})</TabsTrigger>
+          <TabsTrigger value="coverage" className="gap-1.5 px-4"><RefreshCw className="size-4" aria-hidden /> Catalogue coverage</TabsTrigger>
           <TabsTrigger value="ask" className="gap-1.5 px-4"><MessageCircleQuestion className="size-4" aria-hidden /> Ask a question</TabsTrigger>
         </TabsList>
 
@@ -155,6 +166,41 @@ export default function AdminAiPage() {
           ) : (
             reviewed.map((s) => <SuggestionCard key={s.id} s={s} onReview={review} canReview={false} />)
           )}
+        </TabsContent>
+
+
+        <TabsContent value="coverage" className="mt-4 space-y-4">
+          {coverageLoading ? (
+            <LoadingState rows={5} label="Loading Ghana catalogue coverage" />
+          ) : coverageError ? (
+            <ErrorState message={coverageError} onRetry={reloadCoverage} />
+          ) : coverage ? (
+            <>
+              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+                <CoverageSummary label="Missing" value={coverage.summary.missing} />
+                <CoverageSummary label="Wrong form only" value={coverage.summary.wrongFormOnly} />
+                <CoverageSummary label="Out of stock" value={coverage.summary.outOfStock} />
+                <CoverageSummary label="Available" value={coverage.summary.available} />
+              </div>
+              <div className="rounded-xl border bg-card p-4">
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                  <div>
+                    <h2 className="font-semibold">Ghana meal catalogue coverage</h2>
+                    <p className="mt-1 max-w-3xl text-sm text-muted-foreground">
+                      Required ingredients from the supported Ghana meal templates compared with published catalogue products and live sellable stock.
+                      Impact count means supported meals affected; it is not a demand forecast.
+                    </p>
+                  </div>
+                  <Badge variant="outline">{coverage.summary.total} required ingredients</Badge>
+                </div>
+                <div className="mt-4 space-y-3">
+                  {coverage.rows.map((row) => (
+                    <CoverageRow key={row.conceptId} row={row} canEdit={can("catalog.edit")} />
+                  ))}
+                </div>
+              </div>
+            </>
+          ) : null}
         </TabsContent>
 
         <TabsContent value="ask" className="mt-4 space-y-3">
@@ -191,6 +237,71 @@ export default function AdminAiPage() {
         </TabsContent>
       </Tabs>
     </div>
+  );
+}
+
+
+function CoverageSummary({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="rounded-xl border bg-card p-3">
+      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{label}</p>
+      <p className="mt-1 text-2xl font-bold tabular-nums">{value}</p>
+    </div>
+  );
+}
+
+function CoverageRow({ row, canEdit }: { row: GhanaCatalogueCoverageRow; canEdit: boolean }) {
+  const status = COVERAGE_STATUS[row.status];
+  const needsAction = row.status !== "available";
+  const addProductHref = `/admin/products?newProduct=1&name=${encodeURIComponent(row.suggestedProductName)}&source=ghana-ai`;
+  return (
+    <article className="rounded-xl border bg-muted/20 p-3.5">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <h3 className="font-semibold">{row.label}</h3>
+            <Badge variant="outline" className={status.className}>{status.label}</Badge>
+            <Badge variant="secondary">Impacts {row.mealCount} meal{row.mealCount === 1 ? "" : "s"}</Badge>
+          </div>
+          <p className="mt-1 text-xs text-muted-foreground">Required by: {row.mealLabels.join(", ")}</p>
+        </div>
+        {needsAction && canEdit ? (
+          <Button asChild size="sm" variant="outline" className="h-9">
+            <Link href={addProductHref}>Add product</Link>
+          </Button>
+        ) : null}
+      </div>
+
+      {row.matchingProducts.length ? (
+        <div className="mt-3">
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Correct catalogue match</p>
+          <ul className="mt-1 flex flex-wrap gap-1.5 text-xs">
+            {row.matchingProducts.map((product) => (
+              <li key={product.productId} className="rounded-md border bg-background px-2 py-1">
+                {product.productName} · {product.anyAvailable ? `sellable now · ${product.minPriceLabel}` : "published · no sellable stock"}
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+
+      {row.wrongFormProducts.length ? (
+        <div className="mt-3">
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Wrong-form candidates — not valid substitutes</p>
+          <ul className="mt-1 flex flex-wrap gap-1.5 text-xs">
+            {row.wrongFormProducts.map((product) => (
+              <li key={product.productId} className="rounded-md border bg-background px-2 py-1">{product.productName}</li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+
+      {needsAction ? (
+        <p className="mt-3 text-xs text-muted-foreground">
+          Staff must verify category, selling unit, pack size, price and physical stock before a draft is published or made purchasable.
+        </p>
+      ) : null}
+    </article>
   );
 }
 

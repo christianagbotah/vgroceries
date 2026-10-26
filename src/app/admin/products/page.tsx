@@ -45,6 +45,21 @@ export default function AdminProductsPage() {
   const [shortDescription, setShortDescription] = useState("");
   const [description, setDescription] = useState("");
   const [creating, setCreating] = useState(false);
+  const [prefillSource, setPrefillSource] = useState<"ghana-ai" | null>(null);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("newProduct") === "1" && params.get("source") === "ghana-ai") {
+      const prefillName = params.get("name")?.trim();
+      if (prefillName) {
+        setName(prefillName);
+        setSlug(slugify(prefillName));
+        setSlugTouched(false);
+        setPrefillSource("ghana-ai");
+        setAddOpen(true);
+      }
+    }
+  }, []);
 
   useEffect(() => {
     const t = setTimeout(() => setQ(searchInput.trim()), 300);
@@ -58,6 +73,7 @@ export default function AdminProductsPage() {
     setCategoryId("");
     setShortDescription("");
     setDescription("");
+    setPrefillSource(null);
   };
 
   const createDraft = async () => {
@@ -208,6 +224,12 @@ export default function AdminProductsPage() {
           </DialogHeader>
 
           <div className="space-y-4">
+            {prefillSource === "ghana-ai" ? (
+              <div className="rounded-lg border border-primary/30 bg-primary/5 p-3 text-sm">
+                <strong>AI coverage prefill:</strong> only the product name and suggested slug were filled in.
+                Verify the category, selling unit, pack size, price, variants and physical stock yourself before creating or publishing anything.
+              </div>
+            ) : null}
             <div>
               <Label htmlFor="new-product-name">Product name *</Label>
               <Input

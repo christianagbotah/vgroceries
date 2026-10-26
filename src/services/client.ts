@@ -40,6 +40,7 @@ import type {
   BusinessQuestionResponse,
   GhanaMealPlanRequest,
   GhanaMealPlanResponse,
+  GhanaCatalogueCoverageResponse,
   ByVariantsResponse,
   CompleteOrderRequest,
   CompleteOrderResponse,
@@ -391,6 +392,7 @@ export const apiOps = {
   /* reports, ai, team, audit, settings */
   reports: () => api<import("./contracts").ReportBundleView>("admin.reports"),
   aiSuggestions: () => api<SuggestionRow[]>("admin.ai.suggestions"),
+  aiGhanaCatalogueCoverage: () => api<GhanaCatalogueCoverageResponse>("admin.ai.ghana-catalogue-coverage"),
   aiGenerate: () => api<AiGenerateResponse>("admin.ai.generate", { body: {} }),
   aiReview: (suggestionId: string, decision: "reviewed" | "dismissed") =>
     api<AiReviewResponse>("admin.ai.review", { body: { suggestionId, decision } }),

@@ -1536,6 +1536,24 @@ export async function handleApi(req: ApiRequest): Promise<ApiResult> {
       case "admin.ai.suggestions": {
         return ok(store.aiSuggestions.map((s) => ({ ...s, createdAtLabel: formatDateTime(s.createdAt) })));
       }
+      case "admin.ai.ghana-catalogue-coverage": {
+        const rows = [
+          {
+            conceptId: "rice", label: "Rice", mealIds: ["ghana_jollof", "waakye"], mealLabels: ["Ghana jollof rice", "Waakye"], mealCount: 2, status: "available",
+            matchingProducts: [{ productId: "mock-rice", productName: "Perfumed Local Rice", anyAvailable: true, minPriceLabel: "₵120.00" }],
+            wrongFormProducts: [], suggestedProductName: "Rice",
+          },
+          {
+            conceptId: "plantain", label: "Plantain", mealIds: ["red_red"], mealLabels: ["Red-red"], mealCount: 1, status: "wrong_form_only",
+            matchingProducts: [], wrongFormProducts: [{ productId: "mock-chips", productName: "Plantain Chips", anyAvailable: true, minPriceLabel: "₵5.00" }], suggestedProductName: "Plantain",
+          },
+          {
+            conceptId: "yam", label: "Yam", mealIds: ["yam_ampesi_kontomire"], mealLabels: ["Yam ampesi with kontomire stew"], mealCount: 1, status: "missing",
+            matchingProducts: [], wrongFormProducts: [], suggestedProductName: "Yam",
+          },
+        ];
+        return ok({ rows, summary: { total: 3, available: 1, outOfStock: 0, wrongFormOnly: 1, missing: 1 } });
+      }
       case "admin.ai.generate": {
         const generated = [...refreshStaffSuggestions(store), ...refreshExceptionFlags(store)];
         // replace previous generated ones (keep seeded for stability)
