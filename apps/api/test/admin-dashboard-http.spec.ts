@@ -39,7 +39,10 @@ async function login(email: string) {
 
 before(async () => {
   const testUrl = new URL(process.env.DATABASE_URL!);
-  if (!testUrl.searchParams.get("schema")?.startsWith("vg_dashboard_test_")) throw Error("Dashboard tests require an isolated vg_dashboard_test_* PostgreSQL schema");
+  const databaseName = testUrl.pathname.replace(/^\//, "");
+  const isolatedSchema = testUrl.searchParams.get("schema")?.startsWith("vg_dashboard_test_") ?? false;
+  if (databaseName !== "variety_foundation_test" && !isolatedSchema)
+    throw Error("Dashboard tests require the foundation test database or an isolated vg_dashboard_test_* PostgreSQL schema");
   app = await createApplication(config());
   await app.listen(0, "127.0.0.1");
   base = await app.getUrl();
