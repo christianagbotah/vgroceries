@@ -40,6 +40,7 @@ import {
   refundListResponseSchema,
   adminOrderFinancialActionRequestSchema,
   adminOrderFinancialActionResponseSchema,
+  dashboardViewSchema,
 } from "@variety/contracts";
 import { z } from "zod";
 
@@ -125,6 +126,7 @@ export function foundationOpenApi(app: INestApplication) {
     })),
     AdminOrderFinancialActionRequest: json(adminOrderFinancialActionRequestSchema),
     AdminOrderFinancialActionResponse: json(adminOrderFinancialActionResponseSchema),
+    AdminDashboardResponse: json(dashboardViewSchema),
     LoginRequest: json(loginRequestSchema),
     RegisterRequest: json(registerRequestSchema),
     RefreshRequest: json(refreshRequestSchema),
@@ -214,6 +216,7 @@ export function foundationOpenApi(app: INestApplication) {
     "/refunds/{refundId}/actions": "RefundActionResponse",
     "/refunds/providers/hubtel/callback/{secret}": "HubtelRefundCallbackResponse",
     "/admin/orders/{orderId}/actions": "AdminOrderFinancialActionResponse",
+    "/admin/dashboard": "AdminDashboardResponse",
   };
   for (const name of new Set(Object.values(responses)))
     schemas[name + "Envelope"] = {
@@ -264,7 +267,8 @@ export function foundationOpenApi(app: INestApplication) {
         suffix === "/payments/{attemptId}/reconcile" ||
         suffix === "/refunds" ||
         suffix === "/refunds/{refundId}/actions" ||
-        suffix === "/admin/orders/{orderId}/actions"
+        suffix === "/admin/orders/{orderId}/actions" ||
+        suffix === "/admin/dashboard"
       ) operation.security = [{ cookieAuth: [] }, { bearerAuth: [] }];
       if (suffix === "/refunds/providers/hubtel/callback/{secret}")
         operation.security = [];
@@ -532,6 +536,9 @@ export function foundationOpenApi(app: INestApplication) {
     required: true,
     content: { "application/json": { schema: json(adminOrderFinancialActionRequestSchema) } },
   };
+
+  doc.paths["/api/v1/admin/dashboard"]!.get!.description =
+    "Administrator-only operational dashboard backed by production Order, Payment, Refund, Delivery and Inventory authorities. Physical-return and cashier-session counters remain zero until those production authorities exist; the API does not fabricate mock records.";
 
   doc.paths["/api/v1/inventory/receive"]!.post!.description =
     "Positive exact quantities with at most three decimal places; count-based units require whole quantities. Cookie authentication requires X-CSRF-Token and a trusted Origin. supplierId is refused until purchasing exists. Client actor is ignored. A replay key covers this actor and operation.";
