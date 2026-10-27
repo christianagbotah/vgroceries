@@ -108,7 +108,7 @@ export default function CheckoutStatusPage() {
 
   if (!order) return null;
 
-  const electronic = ["mobile_money", "card_hosted", "bank_transfer"].includes(order.paymentMethod);
+  const electronic = order.paymentMethod === "electronic" || ["mobile_money", "card_hosted", "bank_transfer"].includes(order.paymentMethod);
   const paid = ["succeeded", "partially_refunded", "refunded"].includes(order.paymentStatus);
   const needsAction = electronic && (order.paymentStatus === "pending" || order.paymentStatus === "unpaid") && order.fulfilmentStatus !== "cancelled";
 
@@ -150,11 +150,13 @@ export default function CheckoutStatusPage() {
             title="Complete your secure payment"
             tone="warning"
             copy={
-              order.paymentMethod === "mobile_money"
-                ? "Continue to the payment provider, then approve the Mobile Money request on your phone."
-                : order.paymentMethod === "card_hosted"
-                  ? "Continue to the payment provider's secure card checkout."
-                  : "Continue to the payment provider to receive the verified bank-payment instructions."
+              order.paymentMethod === "electronic"
+                ? "The secure payment provider will show the payment options available for this order."
+                : order.paymentMethod === "mobile_money"
+                  ? "Continue to the payment provider, then approve the Mobile Money request on your phone."
+                  : order.paymentMethod === "card_hosted"
+                    ? "Continue to the payment provider's secure card checkout."
+                    : "Continue to the payment provider to receive the verified bank-payment instructions."
             }
           />
         ) : (

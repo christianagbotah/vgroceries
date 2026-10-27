@@ -102,6 +102,7 @@ const checkoutCompleteBaseSchema = z.object({
   zoneId: idSchema.optional(),
   slotId: idSchema.optional(),
   paymentMethod: z.enum([
+    "electronic",
     "mobile_money",
     "card_hosted",
     "bank_transfer",

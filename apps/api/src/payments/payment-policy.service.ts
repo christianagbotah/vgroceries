@@ -20,6 +20,14 @@ export class PaymentPolicyService {
     private readonly captures: PaymentCaptureService,
   ) {}
 
+  resolveElectronicMethod(): { method: ElectronicPaymentMethod; adapter: PaymentProviderAdapter } {
+    const payment = this.config.payments;
+    const method = payment?.enabledMethods[0];
+    if (!method)
+      throw new ApiProblem(503, "UNAVAILABLE", "Electronic payments are not configured.");
+    return { method, adapter: this.assertElectronicMethodAvailable(method) };
+  }
+
   assertElectronicMethodAvailable(
     method: ElectronicPaymentMethod,
   ): PaymentProviderAdapter {

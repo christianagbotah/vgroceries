@@ -12,7 +12,7 @@ import { PaymentPolicyService } from "../payments/payment-policy.service";
 import { checkoutRequestHash, roundLineTotalMinor, validateCheckoutContact, validateCheckoutLines } from "./checkout.values";
 import { VerificationCodeService } from "./verification-code.service";
 
-const electronic = new Set(["mobile_money","card_hosted","bank_transfer"]);
+const electronic = new Set(["electronic","mobile_money","card_hosted","bank_transfer"]);
 @Injectable()
 export class CheckoutCommandService {
   constructor(private readonly db:Database,@Inject(API_CONFIG) private readonly config:ApiConfig,private readonly allocation:AllocationService,private readonly delivery:DeliveryConfigService,private readonly verification:VerificationCodeService,private readonly paymentPolicy:PaymentPolicyService) {}
@@ -54,7 +54,8 @@ export class CheckoutCommandService {
           address={label:saved.label,recipientName:saved.recipientName,phone:saved.phone,locality:saved.locality,street:saved.street,landmark:saved.landmark??undefined,ghanaPostGps:saved.ghanaPostGps??undefined};
         }else address=input.guestAddress!;
       }
-      if(electronic.has(input.paymentMethod)) this.paymentPolicy.assertElectronicMethodAvailable(input.paymentMethod as ElectronicPaymentMethod);
+      if(input.paymentMethod==="electronic") this.paymentPolicy.resolveElectronicMethod();
+      else if(electronic.has(input.paymentMethod)) this.paymentPolicy.assertElectronicMethodAvailable(input.paymentMethod as ElectronicPaymentMethod);
       const lines=input.lines.map(line=>{const v=byId.get(line.variantId)!;return {id:randomUUID(),variantId:v.id,productId:v.productId,productName:v.product.name,variantName:v.name,unit:v.unit,quantity:new Prisma.Decimal(line.quantity).toString(),unitPriceMinor:v.priceMinor,lineTotalMinor:roundLineTotalMinor(v.priceMinor,line.quantity)};});
       const subtotalMinor=lines.reduce((n,l)=>n+l.lineTotalMinor,0); const deliveryFeeMinor=zone?.feeMinor??0;
       if(zone&&subtotalMinor<zone.minimumOrderMinor)throw new ApiProblem(422,"RULE_VIOLATION","Delivery minimum order has not been met.",{minimumOrderMinor:zone.minimumOrderMinor,subtotalMinor});

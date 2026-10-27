@@ -21,7 +21,7 @@ import { AlertCircle, ArrowLeft, ArrowRight, Loader2, Lock, MapPin, Store, Truck
 import { cn } from "@/lib/utils";
 import type { PaymentMethod } from "@/types/domain";
 
-type Zone = { id: string; name: string; areas: string[]; feeMinor: number; minimumOrderMinor: number; serviceHours: string; cutoff: string };
+type Zone = { id: string; name: string; areas: string[]; feeMinor: number; minimumOrderMinor: number; serviceHours: string; cutoff: string; codEnabled?: boolean };
 type Slot = { id: string; zoneId: string; date: string; window: string; capacity: number; booked: number };
 type AccountSummary = Awaited<ReturnType<typeof apiOps.accountSummary>>;
 
@@ -54,7 +54,7 @@ export default function CheckoutPage() {
   const [landmark, setLandmark] = useState("");
   const [ghanaPostGps, setGhanaPostGps] = useState("");
 
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("mobile_money");
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("electronic");
   const [placing, setPlacing] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [orderError, setOrderError] = useState<string | null>(null);
@@ -73,7 +73,7 @@ export default function CheckoutPage() {
         setAccount(acct);
         if (z[0]) setZoneId(z[0].id);
         if (acct) {
-          setCustomerName(acct.customer.name.replace(" (demo)", ""));
+          setCustomerName(acct.customer.name);
           setCustomerPhone(acct.customer.phone);
           setCustomerEmail(acct.customer.email ?? "");
           const defaultAddr = acct.addresses.find((a) => a.isDefault) ?? acct.addresses[0];
@@ -134,6 +134,14 @@ export default function CheckoutPage() {
   useEffect(() => {
     if (!zone && zones.length) setZoneId(zones[0].id);
   }, [zone, zones]);
+
+  useEffect(() => {
+    const invalidOfflineChoice =
+      (fulfilment === "collection" && paymentMethod === "cash_on_delivery") ||
+      (fulfilment === "delivery" && paymentMethod === "cash_counter") ||
+      (fulfilment === "delivery" && paymentMethod === "cash_on_delivery" && zone && !zone.codEnabled);
+    if (invalidOfflineChoice) setPaymentMethod("electronic");
+  }, [fulfilment, paymentMethod, zone]);
 
   const validate = (): boolean => {
     const errs: Record<string, string> = {};
@@ -306,8 +314,8 @@ export default function CheckoutPage() {
             </h2>
             {account?.customer ? (
               <p className="rounded-lg bg-muted/60 p-2.5 text-sm text-muted-foreground">
-                Signed in as <strong className="text-foreground">{account.customer.name}</strong> (demo account —{" "}
-                <Link href="/account" className="text-primary hover:underline focus-visible:underline">account area</Link>)
+                Signed in as <strong className="text-foreground">{account.customer.name}</strong>.{" "}
+                <Link href="/account" className="text-primary hover:underline focus-visible:underline">Manage account</Link>
               </p>
             ) : null}
             <div className="grid gap-4 sm:grid-cols-2">
@@ -459,8 +467,8 @@ export default function CheckoutPage() {
             ) : (
               <p className="flex items-start gap-2 rounded-lg bg-muted/60 p-3 text-sm text-muted-foreground">
                 <MapPin className="mt-0.5 size-4 shrink-0" aria-hidden />
-                Collect from our store during opening hours (demo location). We will notify you when
-                your order is packed and waiting.
+                Collect from our store during opening hours. We will notify you when your order is
+                packed and waiting.
               </p>
             )}
           </section>
@@ -472,21 +480,31 @@ export default function CheckoutPage() {
               Payment
             </h2>
             <RadioGroup value={paymentMethod} onValueChange={(v) => setPaymentMethod(v as PaymentMethod)} className="grid gap-2 sm:grid-cols-2" aria-label="Payment method">
-              {(Object.keys(PAYMENT_METHOD_LABELS) as PaymentMethod[])
-                .filter((m) => (m === "cash_on_delivery" ? fulfilment === "delivery" : true))
-                .map((m) => (
-                  <Label key={m} data-clickable htmlFor={`pay-${m}`} className={cn("flex cursor-pointer items-center gap-3 rounded-lg border p-3 font-normal", paymentMethod === m && "border-primary bg-primary/5")}>
-                    <RadioGroupItem value={m} id={`pay-${m}`} />
-                    <span className="text-sm font-medium">{PAYMENT_METHOD_LABELS[m]}</span>
-                  </Label>
-                ))}
+              <Label data-clickable htmlFor="pay-electronic" className={cn("flex cursor-pointer items-center gap-3 rounded-lg border p-3 font-normal", paymentMethod === "electronic" && "border-primary bg-primary/5")}>
+                <RadioGroupItem value="electronic" id="pay-electronic" />
+                <span>
+                  <span className="block text-sm font-medium">Electronic payment</span>
+                  <span className="block text-xs text-muted-foreground">Continue securely with the configured payment provider</span>
+                </span>
+              </Label>
+              {fulfilment === "collection" ? (
+                <Label data-clickable htmlFor="pay-cash_counter" className={cn("flex cursor-pointer items-center gap-3 rounded-lg border p-3 font-normal", paymentMethod === "cash_counter" && "border-primary bg-primary/5")}>
+                  <RadioGroupItem value="cash_counter" id="pay-cash_counter" />
+                  <span className="text-sm font-medium">{PAYMENT_METHOD_LABELS.cash_counter}</span>
+                </Label>
+              ) : zone?.codEnabled ? (
+                <Label data-clickable htmlFor="pay-cash_on_delivery" className={cn("flex cursor-pointer items-center gap-3 rounded-lg border p-3 font-normal", paymentMethod === "cash_on_delivery" && "border-primary bg-primary/5")}>
+                  <RadioGroupItem value="cash_on_delivery" id="pay-cash_on_delivery" />
+                  <span className="text-sm font-medium">{PAYMENT_METHOD_LABELS.cash_on_delivery}</span>
+                </Label>
+              ) : null}
             </RadioGroup>
             <p className="text-xs text-muted-foreground">
-              {paymentMethod === "mobile_money" || paymentMethod === "card_hosted" || paymentMethod === "bank_transfer"
-                ? "You will continue to the secure payment provider after placing the order. A redirect alone never marks an order paid — only a verified provider outcome can confirm payment."
+              {paymentMethod === "electronic"
+                ? "After placing the order, the secure payment provider will show the payment options available for this order. Variety Groceries never asks you to choose a provider rail here."
                 : paymentMethod === "cash_counter"
-                  ? "Pay with cash at the counter when you collect. The order can be prepared before payment."
-                  : "Have the exact amount ready for the rider. Delivery completion and cash collection are recorded separately."}
+                  ? "Pay at the counter when you collect. The order can be prepared before payment."
+                  : "Pay the rider when your delivery arrives. Delivery completion and cash collection are recorded separately."}
             </p>
           </section>
 

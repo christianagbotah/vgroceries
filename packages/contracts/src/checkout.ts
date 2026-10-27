@@ -77,6 +77,7 @@ export interface QuoteResponse {
 
 export type CheckoutFulfilment = "delivery" | "collection";
 export type CheckoutPaymentMethod =
+  | "electronic"
   | "mobile_money"
   | "card_hosted"
   | "bank_transfer"

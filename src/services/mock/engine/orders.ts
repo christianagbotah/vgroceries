@@ -292,7 +292,7 @@ export function createOnlineOrder(store: VgStore, input: CheckoutInput): { order
         );
       }
       const original = mustOrder(store, record.orderId);
-      return { order: original, paymentRequired: ["mobile_money", "card_hosted", "bank_transfer"].includes(original.paymentMethod) };
+      return { order: original, paymentRequired: ["electronic", "mobile_money", "card_hosted", "bank_transfer"].includes(original.paymentMethod) };
     }
   }
 
@@ -395,7 +395,7 @@ export function createOnlineOrder(store: VgStore, input: CheckoutInput): { order
   orderEvent(order, "customer", "Order placed; stock reserved", { toStatus: "awaiting_confirmation" });
 
   // payment attempt for electronic methods
-  const paymentRequired = ["mobile_money", "card_hosted", "bank_transfer"].includes(input.paymentMethod);
+  const paymentRequired = ["electronic", "mobile_money", "card_hosted", "bank_transfer"].includes(input.paymentMethod);
   if (paymentRequired) {
     const attempt: PaymentAttempt = {
       id: nextId("pay"),
@@ -544,7 +544,7 @@ export function confirmOrder(store: VgStore, orderId: string, actor: string, not
   const order = mustOrder(store, orderId);
   requireTransition(order, "confirmed");
   // COD and cash-at-counter may be confirmed while payment remains unpaid
-  const payableNow = ["mobile_money", "card_hosted", "bank_transfer"].includes(order.paymentMethod);
+  const payableNow = ["electronic", "mobile_money", "card_hosted", "bank_transfer"].includes(order.paymentMethod);
   if (payableNow && !["succeeded", "partially_refunded", "refunded"].includes(order.paymentStatus)) {
     throw new OpError("PAYMENT_PENDING", "Electronic payment is not confirmed yet for this order.");
   }
@@ -747,7 +747,7 @@ export function resolveReviewOrder(store: VgStore, orderId: string, actor: strin
     // marked refunded here — only a confirmed refund outcome may do that. The
     // linked refund request below is executable through the refunds workflow
     // without requiring a fictitious physical return.
-    const electronic = ["mobile_money", "card_hosted", "bank_transfer"].includes(order.paymentMethod);
+    const electronic = ["electronic", "mobile_money", "card_hosted", "bank_transfer"].includes(order.paymentMethod);
     const refund: Refund = {
       id: nextId("ref"),
       returnId: undefined,
