@@ -196,6 +196,27 @@ export function foundationOpenApi(app: INestApplication) {
       properties:{id:{type:"string"},slug:{type:"string"},name:{type:"string"},description:{type:"string"},isActive:{type:"boolean"},sortOrder:{type:"integer"},productCount:{type:"integer",minimum:0},availableCount:{type:"integer",minimum:0}},
     },
     AdminCategoryListResponse: { type:"array", items:ref("AdminCategoryRow") },
+    AdminCustomerRow: {
+      type:"object", additionalProperties:false,
+      required:["id","name","phone","isDemo","supportNotes","createdAt","orderCount","spendLabel","returnCount","addressCount"],
+      properties:{ id:{type:"string"},name:{type:"string"},phone:{type:"string"},email:{type:"string"},isDemo:{type:"boolean"},supportNotes:{type:"array",items:{type:"string"}},createdAt:{type:"string"},orderCount:{type:"integer",minimum:0},spendLabel:{type:"string"},returnCount:{type:"integer",minimum:0},addressCount:{type:"integer",minimum:0} },
+    },
+    AdminCustomerListResponse: { type:"array", items:ref("AdminCustomerRow") },
+    AdminCustomerOrder: {
+      type:"object", additionalProperties:false,
+      required:["id","reference","totalLabel","channel","fulfilmentStatus","paymentStatus","createdAtLabel"],
+      properties:{ id:{type:"string"},reference:{type:"string"},totalLabel:{type:"string"},channel:{type:"string"},fulfilmentStatus:{type:"string"},paymentStatus:{type:"string"},createdAtLabel:{type:"string"} },
+    },
+    AdminCustomerReturn: {
+      type:"object", additionalProperties:false,
+      required:["id","reference","status"],
+      properties:{ id:{type:"string"},reference:{type:"string"},status:{type:"string"} },
+    },
+    AdminCustomerDetailResponse: {
+      type:"object", additionalProperties:false,
+      required:["customer","addresses","orders","returns"],
+      properties:{ customer:ref("AccountCustomer"),addresses:{type:"array",items:ref("AccountAddress")},orders:{type:"array",items:ref("AdminCustomerOrder")},returns:{type:"array",items:ref("AdminCustomerReturn")} },
+    },
     AdminDashboardResponse: json(dashboardViewSchema),
     LoginRequest: json(loginRequestSchema),
     RegisterRequest: json(registerRequestSchema),
@@ -291,6 +312,8 @@ export function foundationOpenApi(app: INestApplication) {
     "/admin/products": "AdminProductListResponse",
     "/admin/products/{productId}": "AdminProductDetailResponse",
     "/admin/categories": "AdminCategoryListResponse",
+    "/admin/customers": "AdminCustomerListResponse",
+    "/admin/customers/{customerId}": "AdminCustomerDetailResponse",
     "/admin/dashboard": "AdminDashboardResponse",
   };
   for (const name of new Set(Object.values(responses)))
@@ -348,6 +371,8 @@ export function foundationOpenApi(app: INestApplication) {
         suffix === "/admin/products" ||
         suffix === "/admin/products/{productId}" ||
         suffix === "/admin/categories" ||
+        suffix === "/admin/customers" ||
+        suffix === "/admin/customers/{customerId}" ||
         suffix === "/admin/dashboard"
       ) operation.security = [{ cookieAuth: [] }, { bearerAuth: [] }];
       if (suffix === "/refunds/providers/hubtel/callback/{secret}")
