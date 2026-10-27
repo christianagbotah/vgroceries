@@ -1,5 +1,5 @@
 import { Injectable } from "@nestjs/common";
-import type { AccountProfileResponse, AccountSummaryResponse } from "@variety/contracts";
+import { normalizeGhanaPhone, type AccountProfileResponse, type AccountSummaryResponse } from "@variety/contracts";
 import { Database } from "../database/database";
 import { ApiProblem } from "../http/errors";
 
@@ -24,7 +24,7 @@ export class AccountProfileService {
       id: user.id,
       name: user.name,
       phone: user.phone.trim() || user.customerAddresses[0]?.phone || user.orders[0]?.customerPhone || "",
-      email: user.email,
+      ...(user.email ? { email: user.email } : {}),
       addressIds: user.customerAddresses.map((address) => address.id),
       isDemo: false,
       supportNotes: [],
@@ -90,24 +90,43 @@ export class AccountProfileService {
     input: { name: string; phone: string; email?: string },
   ): Promise<AccountProfileResponse> {
     const name = input.name.trim().replace(/\s+/g, " ");
-    const phone = input.phone.trim().replace(/\s+/g, " ");
+    const phone = normalizeGhanaPhone(input.phone);
+    if (!phone)
+      throw new ApiProblem(400, "VALIDATION_FAILED", "Enter a valid Ghana mobile number.");
     const requestedEmail = (input.email ?? "").trim().toLowerCase();
-    await this.db.$transaction(async (tx) => {
-      await tx.$queryRaw`SELECT id FROM "User" WHERE id=${userId} FOR UPDATE`;
-      const user = await tx.user.findUnique({ where: { id: userId } });
-      if (!user || user.role !== "customer" || !user.active)
-        throw new ApiProblem(404, "NOT_FOUND", "Customer account not found.");
-      const email = requestedEmail || user.email;
-      const collision = await tx.user.findFirst({ where: { email, id: { not: userId } }, select: { id: true } });
-      if (collision) throw new ApiProblem(409, "CONFLICT", "That email address is already in use.");
-      await tx.user.update({ where: { id: userId }, data: { name, phone, email } });
-      await tx.auditEvent.create({
-        data: { actorId: userId, action: "account.profile_updated", entityId: userId, requestId, details: {} },
+    try {
+      await this.db.$transaction(async (tx) => {
+        await tx.$queryRaw`SELECT id FROM "User" WHERE id=${userId} FOR UPDATE`;
+        const user = await tx.user.findUnique({ where: { id: userId } });
+        if (!user || user.role !== "customer" || !user.active)
+          throw new ApiProblem(404, "NOT_FOUND", "Customer account not found.");
+        const email = input.email === undefined ? user.email : (requestedEmail || null);
+        const [phoneCollision, emailCollision] = await Promise.all([
+          tx.user.findFirst({
+            where: { phone, role: "customer", id: { not: userId } },
+            select: { id: true },
+          }),
+          email
+            ? tx.user.findFirst({ where: { email, id: { not: userId } }, select: { id: true } })
+            : Promise.resolve(null),
+        ]);
+        if (phoneCollision)
+          throw new ApiProblem(409, "CONFLICT", "That phone number is already in use.");
+        if (emailCollision)
+          throw new ApiProblem(409, "CONFLICT", "That email address is already in use.");
+        await tx.user.update({ where: { id: userId }, data: { name, phone, email } });
+        await tx.auditEvent.create({
+          data: { actorId: userId, action: "account.profile_updated", entityId: userId, requestId, details: {} },
+        });
+        await tx.outboxEvent.create({
+          data: { type: "account.profile_updated", aggregateId: userId, payload: { userId } },
+        });
       });
-      await tx.outboxEvent.create({
-        data: { type: "account.profile_updated", aggregateId: userId, payload: { userId } },
-      });
-    });
+    } catch (error) {
+      if ((error as { code?: string })?.code === "P2002")
+        throw new ApiProblem(409, "CONFLICT", "That customer identity is already in use.");
+      throw error;
+    }
     return this.profile(userId);
   }
 }

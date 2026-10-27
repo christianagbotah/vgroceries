@@ -27,6 +27,15 @@ async function post(body: unknown, requestOrigin: string | null = origin) {
   return { response, body: await response.json() };
 }
 
+async function login(body: unknown) {
+  const response = await fetch(base + "/api/v1/auth/sessions", {
+    method: "POST",
+    headers: { "content-type": "application/json", origin },
+    body: JSON.stringify(body),
+  });
+  return { response, body: await response.json() };
+}
+
 before(async () => {
   if (!new URL(process.env.DATABASE_URL!).pathname.endsWith("variety_foundation_test")) throw Error("isolated database required");
   app = await createApplication(config());
@@ -57,10 +66,21 @@ test("customer registration creates only a customer and signs the new web accoun
   assert.match(result.response.headers.get("set-cookie") ?? "", /vg_session=.*HttpOnly/i);
   const user = await db.user.findUniqueOrThrow({ where: { email: "ama.mensah@example.test" } });
   assert.equal(user.role, "customer");
-  assert.equal(user.phone, "+233 24 123 4567");
+  assert.equal(user.phone, "+233241234567");
   assert.notEqual(user.passwordHash, valid().password);
   assert.equal(await db.session.count({ where: { userId: user.id } }), 1);
   assert.equal(await db.auditEvent.count({ where: { actorId: user.id, action: "identity.customer_registered" } }), 1);
+});
+
+test("phone-only customer registration persists no fabricated email and signs in by local-format phone", async () => {
+  const registration = await post({ ...valid(), email: undefined, phone: "024 123 4567" });
+  assert.equal(registration.response.status, 201);
+  const user = await db.user.findFirstOrThrow({ where: { phone: "+233241234567", role: "customer" } });
+  assert.equal(user.email, null);
+  const session = await login({ phone: "0241234567", password: valid().password, client: "web" });
+  assert.equal(session.response.status, 201);
+  assert.equal(session.body.data.actor.id, user.id);
+  assert.equal(session.body.data.actor.role, "customer");
 });
 
 test("customer registration is strict, origin-protected and cannot choose a privileged role", async () => {
@@ -81,6 +101,30 @@ test("duplicate registration fails safely without creating another session or ch
   assert.equal(duplicate.body.error.code, "ACCOUNT_EXISTS");
   assert.equal((await db.user.findUniqueOrThrow({ where: { id: user.id } })).name, "Ama Mensah");
   assert.equal(await db.session.count({ where: { userId: user.id } }), sessions);
+});
+
+test("equivalent Ghana phone formats cannot create duplicate customer identities", async () => {
+  const first = await post({ ...valid(), email: undefined, phone: "+233 24 123 4567" });
+  assert.equal(first.response.status, 201);
+  const duplicate = await post({
+    ...valid(),
+    email: "other@example.test",
+    phone: "0241234567",
+  });
+  assert.equal(duplicate.response.status, 409);
+  assert.equal(duplicate.body.error.code, "ACCOUNT_EXISTS");
+  assert.equal(await db.user.count(), 1);
+});
+
+test("existing email identity remains a valid customer login fallback", async () => {
+  assert.equal((await post(valid())).response.status, 201);
+  const session = await login({
+    email: "ama.mensah@example.test",
+    password: valid().password,
+    client: "web",
+  });
+  assert.equal(session.response.status, 201);
+  assert.equal(session.body.data.actor.role, "customer");
 });
 
 
