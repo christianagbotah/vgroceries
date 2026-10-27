@@ -126,6 +126,97 @@ export function foundationOpenApi(app: INestApplication) {
     })),
     AdminOrderFinancialActionRequest: json(adminOrderFinancialActionRequestSchema),
     AdminOrderFinancialActionResponse: json(adminOrderFinancialActionResponseSchema),
+    AdminOrderRow: {
+      type: "object", additionalProperties: false,
+      required: ["id","reference","channel","customerName","customerPhone","fulfilment","totalLabel","paymentStatus","fulfilmentStatus","deliveryStatus","lineCount","createdAtLabel"],
+      properties: {
+        id:{type:"string"}, reference:{type:"string"}, channel:{type:"string"}, customerName:{type:"string"}, customerPhone:{type:"string"},
+        fulfilment:{type:"string"}, totalLabel:{type:"string"}, paymentStatus:{type:"string"}, fulfilmentStatus:{type:"string"}, deliveryStatus:{type:"string"},
+        lineCount:{type:"integer",minimum:0}, createdAtLabel:{type:"string"}, posReceiptNo:{type:"string"},
+      },
+    },
+    AdminOrderListResponse: { type: "array", items: ref("AdminOrderRow") },
+    AdminOrderReservation: {
+      type: "object", additionalProperties: false,
+      required: ["id","quantity","expiresAt","variantId"],
+      properties: { id:{type:"string"}, quantity:{type:"string"}, expiresAt:{type:"string"}, consumedAt:{type:"string"}, releasedAt:{type:"string"}, releasedReason:{type:"string"}, variantId:{type:"string"} },
+    },
+    AdminOrderInternal: {
+      type: "object", additionalProperties: false,
+      required: ["customerNotes","reservations","suggestions","refunds"],
+      properties: {
+        address: ref("AccountAddress"),
+        zone: { type:"object", additionalProperties:false, required:["id","name"], properties:{id:{type:"string"},name:{type:"string"}} },
+        customerId:{type:"string"},
+        customerNotes:{type:"array",items:{type:"object",additionalProperties:false,required:["at","by","text","internalOnly"],properties:{at:{type:"string"},by:{type:"string"},text:{type:"string"},internalOnly:{type:"boolean"}}}},
+        reservations:{type:"array",items:ref("AdminOrderReservation")},
+        suggestions:{type:"array",items:{type:"object",additionalProperties:false,required:["id","name","priceLabel","availableToSell"],properties:{id:{type:"string"},name:{type:"string"},priceLabel:{type:"string"},availableToSell:{type:"string"}}}},
+        refunds:{type:"array",items:{type:"object",additionalProperties:true,required:["id","orderId","amountMinor","amountLabel","status","method","reason","requestedBy","retryCount","createdAt"],properties:{id:{type:"string"},orderId:{type:"string"},amountMinor:{type:"integer"},amountLabel:{type:"string"},status:{type:"string"},method:{type:"string"},reason:{type:"string"},requestedBy:{type:"string"},retryCount:{type:"integer"},createdAt:{type:"string"}}}},
+      },
+    },
+    AdminOrderDetailResponse: { type:"object", additionalProperties:false, required:["order","internal"], properties:{ order:ref("PublicOrder"), internal:ref("AdminOrderInternal") } },
+    AdminVariantRow: {
+      type:"object", additionalProperties:false,
+      required:["id","name","priceLabel","priceMinor","unit","availableToSell","isAvailable","safetyStock","isActive"],
+      properties:{ id:{type:"string"},name:{type:"string"},priceLabel:{type:"string"},priceMinor:{type:"integer"},barcode:{type:"string"},unit:{type:"string"},availableToSell:{type:"string"},isAvailable:{type:"boolean"},safetyStock:{type:"string"},isActive:{type:"boolean"} },
+    },
+    AdminProductRow: {
+      type:"object", additionalProperties:false,
+      required:["id","name","slug","categoryId","isPublished","shortDescription","image","variants","anyAvailable"],
+      properties:{ id:{type:"string"},name:{type:"string"},slug:{type:"string"},categoryName:{type:"string"},categoryId:{type:"string"},isPublished:{type:"boolean"},shortDescription:{type:"string"},image:{type:"string"},variants:{type:"array",items:ref("AdminVariantRow")},anyAvailable:{type:"boolean"} },
+    },
+    AdminProductListResponse: { type:"array", items:ref("AdminProductRow") },
+    AdminVariantAvailability: {
+      type:"object", additionalProperties:false,
+      required:["sellablePhysical","reserved","availableToSell","isAvailable"],
+      properties:{ sellablePhysical:{type:"string"},reserved:{type:"string"},availableToSell:{type:"string"},isAvailable:{type:"boolean"} },
+    },
+    AdminVariantLot: {
+      type:"object", additionalProperties:false,
+      required:["lotId","lotNumber","quantity","quarantined","kind"],
+      properties:{ lotId:{type:"string"},lotNumber:{type:"string"},quantity:{type:"string"},expiryDate:{type:"string"},quarantined:{type:"boolean"},kind:{type:"string"} },
+    },
+    AdminVariantDetail: {
+      type:"object", additionalProperties:false,
+      required:["id","name","unit","unitSize","priceMinor","priceLabel","safetyStock","isActive","availability","lots"],
+      properties:{ id:{type:"string"},name:{type:"string"},unit:{type:"string"},unitSize:{type:"string"},priceMinor:{type:"integer"},priceLabel:{type:"string"},compareAtPriceMinor:{type:"integer"},barcode:{type:"string"},safetyStock:{type:"string"},isActive:{type:"boolean"},availability:ref("AdminVariantAvailability"),lots:{type:"array",items:ref("AdminVariantLot")} },
+    },
+    AdminProductDetailResponse: {
+      type:"object", additionalProperties:false,
+      required:["id","name","slug","description","shortDescription","tags","isPublished","image","variants","lots","movements"],
+      properties:{
+        id:{type:"string"},name:{type:"string"},slug:{type:"string"},description:{type:"string"},shortDescription:{type:"string"},tags:{type:"array",items:{type:"string"}},isPublished:{type:"boolean"},categoryName:{type:"string"},image:{type:"string"},variants:{type:"array",items:ref("AdminVariantDetail")},
+        lots:{type:"array",items:{type:"object",additionalProperties:false,required:["id","lotNumber","quantity","kind","isQuarantined"],properties:{id:{type:"string"},lotNumber:{type:"string"},quantity:{type:"string"},kind:{type:"string"},expiryDate:{type:"string"},isQuarantined:{type:"boolean"}}}},
+        movements:{type:"array",items:{type:"object",additionalProperties:false,required:["id","delta","reason","atLabel","resultingQty"],properties:{id:{type:"string"},delta:{type:"string"},reason:{type:"string"},atLabel:{type:"string"},note:{type:"string"},resultingQty:{type:"string"}}}},
+      },
+    },
+    AdminCategoryRow: {
+      type:"object", additionalProperties:false,
+      required:["id","slug","name","description","isActive","sortOrder","productCount","availableCount"],
+      properties:{id:{type:"string"},slug:{type:"string"},name:{type:"string"},description:{type:"string"},isActive:{type:"boolean"},sortOrder:{type:"integer"},productCount:{type:"integer",minimum:0},availableCount:{type:"integer",minimum:0}},
+    },
+    AdminCategoryListResponse: { type:"array", items:ref("AdminCategoryRow") },
+    AdminCustomerRow: {
+      type:"object", additionalProperties:false,
+      required:["id","name","phone","isDemo","supportNotes","createdAt","orderCount","spendLabel","returnCount","addressCount"],
+      properties:{ id:{type:"string"},name:{type:"string"},phone:{type:"string"},email:{type:"string"},isDemo:{type:"boolean"},supportNotes:{type:"array",items:{type:"string"}},createdAt:{type:"string"},orderCount:{type:"integer",minimum:0},spendLabel:{type:"string"},returnCount:{type:"integer",minimum:0},addressCount:{type:"integer",minimum:0} },
+    },
+    AdminCustomerListResponse: { type:"array", items:ref("AdminCustomerRow") },
+    AdminCustomerOrder: {
+      type:"object", additionalProperties:false,
+      required:["id","reference","totalLabel","channel","fulfilmentStatus","paymentStatus","createdAtLabel"],
+      properties:{ id:{type:"string"},reference:{type:"string"},totalLabel:{type:"string"},channel:{type:"string"},fulfilmentStatus:{type:"string"},paymentStatus:{type:"string"},createdAtLabel:{type:"string"} },
+    },
+    AdminCustomerReturn: {
+      type:"object", additionalProperties:false,
+      required:["id","reference","status"],
+      properties:{ id:{type:"string"},reference:{type:"string"},status:{type:"string"} },
+    },
+    AdminCustomerDetailResponse: {
+      type:"object", additionalProperties:false,
+      required:["customer","addresses","orders","returns"],
+      properties:{ customer:ref("AccountCustomer"),addresses:{type:"array",items:ref("AccountAddress")},orders:{type:"array",items:ref("AdminCustomerOrder")},returns:{type:"array",items:ref("AdminCustomerReturn")} },
+    },
     AdminDashboardResponse: json(dashboardViewSchema),
     LoginRequest: json(loginRequestSchema),
     RegisterRequest: json(registerRequestSchema),
@@ -215,7 +306,14 @@ export function foundationOpenApi(app: INestApplication) {
     "/refunds": "RefundListResponse",
     "/refunds/{refundId}/actions": "RefundActionResponse",
     "/refunds/providers/hubtel/callback/{secret}": "HubtelRefundCallbackResponse",
+    "/admin/orders": "AdminOrderListResponse",
+    "/admin/orders/{orderId}": "AdminOrderDetailResponse",
     "/admin/orders/{orderId}/actions": "AdminOrderFinancialActionResponse",
+    "/admin/products": "AdminProductListResponse",
+    "/admin/products/{productId}": "AdminProductDetailResponse",
+    "/admin/categories": "AdminCategoryListResponse",
+    "/admin/customers": "AdminCustomerListResponse",
+    "/admin/customers/{customerId}": "AdminCustomerDetailResponse",
     "/admin/dashboard": "AdminDashboardResponse",
   };
   for (const name of new Set(Object.values(responses)))
@@ -267,7 +365,14 @@ export function foundationOpenApi(app: INestApplication) {
         suffix === "/payments/{attemptId}/reconcile" ||
         suffix === "/refunds" ||
         suffix === "/refunds/{refundId}/actions" ||
+        suffix === "/admin/orders" ||
+        suffix === "/admin/orders/{orderId}" ||
         suffix === "/admin/orders/{orderId}/actions" ||
+        suffix === "/admin/products" ||
+        suffix === "/admin/products/{productId}" ||
+        suffix === "/admin/categories" ||
+        suffix === "/admin/customers" ||
+        suffix === "/admin/customers/{customerId}" ||
         suffix === "/admin/dashboard"
       ) operation.security = [{ cookieAuth: [] }, { bearerAuth: [] }];
       if (suffix === "/refunds/providers/hubtel/callback/{secret}")

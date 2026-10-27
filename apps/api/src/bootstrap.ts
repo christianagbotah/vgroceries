@@ -19,6 +19,7 @@ import { DatabaseModule } from "./database/database";
 import { HealthModule } from "./health/health.controller";
 import { CmsModule } from "./cms/cms.module";
 import { AdminDashboardModule } from "./admin-dashboard/admin-dashboard.module";
+import { AdminCustomersModule } from "./admin-customers/admin-customers.module";
 import { productionOpenApi } from "./http/production-openapi";
 import { ApiExceptionFilter, ApiRequest } from "./http/errors";
 import { PaymentsModule } from "./payments/payments.module";
@@ -63,6 +64,7 @@ export async function createApplication(
       CatalogAdminModule,
       CmsModule,
       AdminDashboardModule,
+      AdminCustomersModule,
       ProductMediaModule,
       InventoryModule,
       OrdersModule,

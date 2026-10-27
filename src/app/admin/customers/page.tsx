@@ -34,8 +34,8 @@ export default function AdminCustomersPage() {
       <div>
         <h1 className="font-serif text-2xl font-bold">Customers</h1>
         <p className="text-sm text-muted-foreground">
-          History, support notes and permitted contact actions. Demo contacts are fictional;
-          production contact channels and consent are configured by the owner.
+          Customer accounts, order history and permitted support actions. Contact actions remain
+          unavailable until the owner configures channels and consent rules.
         </p>
       </div>
 
@@ -100,7 +100,7 @@ export default function AdminCustomersPage() {
                 <DialogTitle className="flex items-center gap-2">
                   <UserRound className="size-5 text-primary" aria-hidden /> {detail.customer.name}
                 </DialogTitle>
-                <DialogDescription>Customer record (demo data)</DialogDescription>
+                <DialogDescription>Customer account and order history</DialogDescription>
               </DialogHeader>
               <div className="space-y-4">
                 <div className="grid gap-1 text-sm text-muted-foreground">
