@@ -65,7 +65,7 @@ before(async () => {
     ] },
   } });
   await db.product.create({ data: {
-    id: "product-cola", slug: "cola", name: "Cola Drink", categoryId: "cat-drinks", description: "Soft drink", shortDescription: "Chilled cola", image: "https://example.test/cola.jpg", tags: ["drink"], published: false,
+    id: "product-cola", slug: "cola", name: "Cola Drink", categoryId: "cat-drinks", description: "Soft drink", shortDescription: "Chilled cola", image: "", tags: ["drink"], published: false,
     variants: { create: [{ id: "variant-cola", sku: "COLA-500", name: "500 ml", unit: "bottle", unitSize: "500 ml", priceMinor: 900, active: true }] },
   } });
   await db.stockPosition.create({ data: { id: "pos-rice", variantId: "variant-rice-5kg", locationId: "loc_accra", safetyStock: "1" } });
@@ -105,6 +105,7 @@ test("admin product list uses production availability and supports search", asyn
 
   const search = await request("/admin/products?q=cola", headers);
   assert.deepEqual(search.body.data.map((row: { id: string }) => row.id), ["product-cola"]);
+  assert.equal(search.body.data[0].image, "/logo.svg");
 });
 
 test("admin product detail exposes all lots, movements and authoritative availability", async () => {

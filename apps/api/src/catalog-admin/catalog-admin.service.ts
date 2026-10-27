@@ -34,7 +34,7 @@ export class CatalogAdminService {
     const featured = product.featuredMedia;
     return featured?.status === "approved" && featured.archivedAt === null && featured.publicUrl
       ? featured.publicUrl
-      : product.image;
+      : product.image || "/logo.svg";
   }
 
   async listProducts(search = ""): Promise<AdminProductRow[]> {
