@@ -1,14 +1,35 @@
 import { z } from "zod";
 
-export const loginRequestSchema = z.strictObject({
-  email: z.string().trim().toLowerCase().email().max(254),
-  password: z.string().min(1).max(256),
-  client: z.enum(["web", "native"]).default("web"),
-});
+/** Canonical Ghana mobile identity format used for customer authentication. */
+export function normalizeGhanaPhone(value: string): string | null {
+  const compact = value.trim().replace(/[\s-]/g, "");
+  if (/^\+233(?:2\d|5\d)\d{7}$/.test(compact)) return compact;
+  if (/^233(?:2\d|5\d)\d{7}$/.test(compact)) return `+${compact}`;
+  if (/^0(?:2\d|5\d)\d{7}$/.test(compact)) return `+233${compact.slice(1)}`;
+  return null;
+}
+
+export const ghanaPhoneSchema = z
+  .string()
+  .trim()
+  .min(10)
+  .max(20)
+  .refine((value) => normalizeGhanaPhone(value) !== null, "Enter a valid Ghana mobile number");
+
+export const loginRequestSchema = z
+  .strictObject({
+    email: z.string().trim().toLowerCase().email().max(254).optional(),
+    phone: ghanaPhoneSchema.optional(),
+    password: z.string().min(1).max(256),
+    client: z.enum(["web", "native"]).default("web"),
+  })
+  .refine((value) => Number(Boolean(value.email)) + Number(Boolean(value.phone)) === 1, {
+    message: "Provide exactly one login identity: email or phone",
+  });
 export const registerRequestSchema = z.strictObject({
   name: z.string().trim().min(2).max(120),
-  email: z.string().trim().toLowerCase().email().max(254),
-  phone: z.string().trim().regex(/^\+?[0-9][0-9\s-]{7,19}$/),
+  email: z.string().trim().toLowerCase().email().max(254).optional(),
+  phone: ghanaPhoneSchema,
   password: z.string().min(12).max(256),
   client: z.enum(["web", "native"]).default("web"),
 });
