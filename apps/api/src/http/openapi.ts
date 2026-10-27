@@ -155,6 +155,47 @@ export function foundationOpenApi(app: INestApplication) {
       },
     },
     AdminOrderDetailResponse: { type:"object", additionalProperties:false, required:["order","internal"], properties:{ order:ref("PublicOrder"), internal:ref("AdminOrderInternal") } },
+    AdminVariantRow: {
+      type:"object", additionalProperties:false,
+      required:["id","name","priceLabel","priceMinor","unit","availableToSell","isAvailable","safetyStock","isActive"],
+      properties:{ id:{type:"string"},name:{type:"string"},priceLabel:{type:"string"},priceMinor:{type:"integer"},barcode:{type:"string"},unit:{type:"string"},availableToSell:{type:"string"},isAvailable:{type:"boolean"},safetyStock:{type:"string"},isActive:{type:"boolean"} },
+    },
+    AdminProductRow: {
+      type:"object", additionalProperties:false,
+      required:["id","name","slug","categoryId","isPublished","shortDescription","image","variants","anyAvailable"],
+      properties:{ id:{type:"string"},name:{type:"string"},slug:{type:"string"},categoryName:{type:"string"},categoryId:{type:"string"},isPublished:{type:"boolean"},shortDescription:{type:"string"},image:{type:"string"},variants:{type:"array",items:ref("AdminVariantRow")},anyAvailable:{type:"boolean"} },
+    },
+    AdminProductListResponse: { type:"array", items:ref("AdminProductRow") },
+    AdminVariantAvailability: {
+      type:"object", additionalProperties:false,
+      required:["sellablePhysical","reserved","availableToSell","isAvailable"],
+      properties:{ sellablePhysical:{type:"string"},reserved:{type:"string"},availableToSell:{type:"string"},isAvailable:{type:"boolean"} },
+    },
+    AdminVariantLot: {
+      type:"object", additionalProperties:false,
+      required:["lotId","lotNumber","quantity","quarantined","kind"],
+      properties:{ lotId:{type:"string"},lotNumber:{type:"string"},quantity:{type:"string"},expiryDate:{type:"string"},quarantined:{type:"boolean"},kind:{type:"string"} },
+    },
+    AdminVariantDetail: {
+      type:"object", additionalProperties:false,
+      required:["id","name","unit","unitSize","priceMinor","priceLabel","safetyStock","isActive","availability","lots"],
+      properties:{ id:{type:"string"},name:{type:"string"},unit:{type:"string"},unitSize:{type:"string"},priceMinor:{type:"integer"},priceLabel:{type:"string"},compareAtPriceMinor:{type:"integer"},barcode:{type:"string"},safetyStock:{type:"string"},isActive:{type:"boolean"},availability:ref("AdminVariantAvailability"),lots:{type:"array",items:ref("AdminVariantLot")} },
+    },
+    AdminProductDetailResponse: {
+      type:"object", additionalProperties:false,
+      required:["id","name","slug","description","shortDescription","tags","isPublished","image","variants","lots","movements"],
+      properties:{
+        id:{type:"string"},name:{type:"string"},slug:{type:"string"},description:{type:"string"},shortDescription:{type:"string"},tags:{type:"array",items:{type:"string"}},isPublished:{type:"boolean"},categoryName:{type:"string"},image:{type:"string"},variants:{type:"array",items:ref("AdminVariantDetail")},
+        lots:{type:"array",items:{type:"object",additionalProperties:false,required:["id","lotNumber","quantity","kind","isQuarantined"],properties:{id:{type:"string"},lotNumber:{type:"string"},quantity:{type:"string"},kind:{type:"string"},expiryDate:{type:"string"},isQuarantined:{type:"boolean"}}}},
+        movements:{type:"array",items:{type:"object",additionalProperties:false,required:["id","delta","reason","atLabel","resultingQty"],properties:{id:{type:"string"},delta:{type:"string"},reason:{type:"string"},atLabel:{type:"string"},note:{type:"string"},resultingQty:{type:"string"}}}},
+      },
+    },
+    AdminCategoryRow: {
+      type:"object", additionalProperties:false,
+      required:["id","slug","name","description","isActive","sortOrder","productCount","availableCount"],
+      properties:{id:{type:"string"},slug:{type:"string"},name:{type:"string"},description:{type:"string"},isActive:{type:"boolean"},sortOrder:{type:"integer"},productCount:{type:"integer",minimum:0},availableCount:{type:"integer",minimum:0}},
+    },
+    AdminCategoryListResponse: { type:"array", items:ref("AdminCategoryRow") },
     AdminDashboardResponse: json(dashboardViewSchema),
     LoginRequest: json(loginRequestSchema),
     RegisterRequest: json(registerRequestSchema),
@@ -247,6 +288,9 @@ export function foundationOpenApi(app: INestApplication) {
     "/admin/orders": "AdminOrderListResponse",
     "/admin/orders/{orderId}": "AdminOrderDetailResponse",
     "/admin/orders/{orderId}/actions": "AdminOrderFinancialActionResponse",
+    "/admin/products": "AdminProductListResponse",
+    "/admin/products/{productId}": "AdminProductDetailResponse",
+    "/admin/categories": "AdminCategoryListResponse",
     "/admin/dashboard": "AdminDashboardResponse",
   };
   for (const name of new Set(Object.values(responses)))
@@ -301,6 +345,9 @@ export function foundationOpenApi(app: INestApplication) {
         suffix === "/admin/orders" ||
         suffix === "/admin/orders/{orderId}" ||
         suffix === "/admin/orders/{orderId}/actions" ||
+        suffix === "/admin/products" ||
+        suffix === "/admin/products/{productId}" ||
+        suffix === "/admin/categories" ||
         suffix === "/admin/dashboard"
       ) operation.security = [{ cookieAuth: [] }, { bearerAuth: [] }];
       if (suffix === "/refunds/providers/hubtel/callback/{secret}")
