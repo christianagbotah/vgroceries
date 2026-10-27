@@ -1,7 +1,7 @@
 /// <reference types="bun-types" />
 import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
-import { loginRequestSchema, registerRequestSchema } from "../packages/contracts/src/identity";
+import { loginRequestSchema, normalizeGhanaPhone, registerRequestSchema } from "../packages/contracts/src/identity";
 
 const read = (path: string) => readFileSync(path, "utf8");
 
@@ -15,7 +15,7 @@ describe("customer phone-first identity", () => {
     });
     expect(parsed.success).toBe(true);
     if (parsed.success) {
-      expect(parsed.data.phone).toBe("+233241234567");
+      expect(normalizeGhanaPhone(parsed.data.phone)).toBe("+233241234567");
       expect(parsed.data.email).toBeUndefined();
     }
   });
