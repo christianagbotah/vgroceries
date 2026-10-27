@@ -41,4 +41,21 @@ describe("admin authentication boundary", () => {
     expect(shell).toContain("apiOps.staffLogout()");
     expect(shell).not.toContain('<Link href="/staff/login">');
   });
+
+  test("UAT demo selector prefills the real administrator identity without embedding a password", () => {
+    expect(existsSync("src/features/staff/uat-demo-accounts.ts")).toBe(true);
+    const demoAccounts = read("src/features/staff/uat-demo-accounts.ts");
+    const form = read("src/features/staff/staff-login-form.tsx");
+
+    expect(demoAccounts).toContain("NEXT_PUBLIC_UAT_DEMO_LOGIN");
+    expect(demoAccounts).toContain("NEXT_PUBLIC_UAT_DEMO_ADMIN_EMAIL");
+    expect(demoAccounts).not.toContain("NEXT_PUBLIC_UAT_DEMO_ADMIN_PASSWORD");
+    expect(demoAccounts).not.toContain("VarietyDemo@2026");
+    expect(form).toContain("UAT_DEMO_ACCOUNTS");
+    expect(form).toContain("Demo account (UAT)");
+    expect(form).toContain("Choose a demo user");
+    expect(form).toContain("setEmail(account.email)");
+    expect(form).not.toContain("setPassword(account.password)");
+    expect(form).toContain("apiOps.staffLogin(email, password)");
+  });
 });
