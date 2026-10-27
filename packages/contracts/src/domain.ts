@@ -261,6 +261,7 @@ export type RefundStatus =
   | "requires_review";
 
 export type PaymentMethod =
+  | "electronic"
   | "mobile_money"
   | "card_hosted"
   | "bank_transfer"
@@ -669,6 +670,7 @@ export const REFUND_LABELS: Record<RefundStatus, string> = {
 };
 
 export const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
+  electronic: "Electronic payment",
   mobile_money: "Mobile Money",
   card_hosted: "Card (hosted checkout)",
   bank_transfer: "Bank transfer (verified)",

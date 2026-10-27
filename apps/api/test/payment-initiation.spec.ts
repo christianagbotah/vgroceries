@@ -61,7 +61,7 @@ async function createOrder(token: string, key: string, quantity = "2") {
   const x = await request("/checkout/complete", {
     lines: [{ variantId: "var-salt", quantity }],
     customerName: "Ama Customer", customerPhone: "+233241111111",
-    fulfilment: "collection", paymentMethod: "mobile_money",
+    fulfilment: "collection", paymentMethod: "electronic",
   }, { authorization: `Bearer ${token}`, origin: "http://localhost:3000", "idempotency-key": key });
   assert.equal(x.response.status, 201);
   return x.body.data.orderId as string;
@@ -114,7 +114,8 @@ test("customer initiation derives money/provider authority server-side and repla
   const order = await db.order.findUniqueOrThrow({ where: { id: orderId } });
   assert.equal(row.orderId, orderId);
   assert.equal(row.provider, "fake");
-  assert.equal(row.method, order.paymentMethod);
+  assert.equal(order.paymentMethod, "electronic");
+  assert.equal(row.method, "mobile_money");
   assert.equal(row.currency, "GHS");
   assert.equal(row.amountMinor, order.totalMinor);
   assert.equal(fake.initiateCalls.length, 1);

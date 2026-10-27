@@ -66,11 +66,17 @@ export class PaymentInitiationService {
       : order.guestSessionId === principal.guestSessionId;
   }
 
-  private method(value: string): ElectronicPaymentMethod {
+  private attemptMethod(value: string): ElectronicPaymentMethod {
     const parsed = electronicPaymentMethodSchema.safeParse(value);
     if (!parsed.success)
-      throw new ApiProblem(422, "RULE_VIOLATION", "This order does not use an electronic payment method.");
+      throw new ApiProblem(422, "RULE_VIOLATION", "This payment attempt does not use a supported electronic method.");
     return parsed.data;
+  }
+
+  private orderMethod(value: string): { method: ElectronicPaymentMethod; adapter: PaymentProviderAdapter } {
+    if (value === "electronic") return this.policy.resolveElectronicMethod();
+    const method = this.attemptMethod(value);
+    return { method, adapter: this.policy.assertElectronicMethodAvailable(method) };
   }
 
   private async lockOrder(tx: Prisma.TransactionClient, orderId: string) {
@@ -108,8 +114,7 @@ export class PaymentInitiationService {
       const order = await this.lockOrder(tx, orderId);
       if (!order || !this.owns(principal, order))
         throw new ApiProblem(404, "NOT_FOUND", "Order not found.");
-      const method = this.method(order.paymentMethod);
-      const adapter = this.policy.assertElectronicMethodAvailable(method);
+      const { method, adapter } = this.orderMethod(order.paymentMethod);
       if (
         order.fulfilmentStatus === "cancelled" ||
         order.stockConsumedAt ||
@@ -184,7 +189,7 @@ export class PaymentInitiationService {
   ): PaymentInitiationResult {
     return {
       attemptId: attempt.id,
-      method: this.method(attempt.method),
+      method: this.attemptMethod(attempt.method),
       attemptStatus: attempt.status,
       paymentStatus: attempt.order.paymentStatus,
       action,
@@ -352,7 +357,7 @@ export class PaymentInitiationService {
         attemptId: attempt.id,
         merchantReference: attempt.merchantReference,
         orderReference: attempt.order.reference,
-        method: this.method(attempt.method),
+        method: this.attemptMethod(attempt.method),
         amountMinor: attempt.amountMinor,
         currency: "GHS",
         payerPhone: payerPhone ?? attempt.order.customerPhone,
@@ -380,7 +385,7 @@ export class PaymentInitiationService {
   ): Promise<PaymentInitiationResult> {
     const stage = await this.stageA(req, principal, orderId, input, key);
     let attempt = await this.snapshot(stage.attemptId);
-    const adapter = this.policy.assertElectronicMethodAvailable(this.method(attempt.method));
+    const adapter = this.policy.assertElectronicMethodAvailable(this.attemptMethod(attempt.method));
     if (adapter.id !== attempt.provider)
       throw new ApiProblem(503, "UNAVAILABLE", "The payment provider for this attempt is unavailable.");
 

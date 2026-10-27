@@ -430,7 +430,7 @@ export async function handleApi(req: ApiRequest): Promise<ApiResult> {
       case "payments.initiate": {
         const order = store.orders.find((candidate) => candidate.id === q("orderId"));
         if (!order) throw new OpError("NOT_FOUND", "Order not found.");
-        if (!["mobile_money", "card_hosted", "bank_transfer"].includes(order.paymentMethod))
+        if (!["electronic", "mobile_money", "card_hosted", "bank_transfer"].includes(order.paymentMethod))
           throw new OpError("RULE_VIOLATION", "This order does not require an electronic payment.");
         return ok({
           attemptId: nextId("pay"),

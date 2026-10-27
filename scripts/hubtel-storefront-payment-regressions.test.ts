@@ -39,6 +39,7 @@ describe("Hubtel storefront payment handoff", () => {
   test("checkout copy no longer claims that electronic payments are a prototype roleplay", () => {
     const checkout = read("src/app/(storefront)/checkout/page.tsx");
     expect(checkout).not.toContain("No real payment is taken in this prototype");
-    expect(checkout).toContain("verified provider outcome");
+    expect(checkout).toContain("secure payment provider");
+    expect(checkout).toContain("never asks you to choose a provider rail here");
   });
 });
