@@ -77,7 +77,7 @@ export class AdminCustomersService {
         id: user.id,
         name: user.name,
         phone: fallbackPhone,
-        email: user.email,
+        ...(user.email ? { email: user.email } : {}),
         addressIds: addresses.map((address) => address.id),
         isDemo: false,
         supportNotes: [],

@@ -195,13 +195,19 @@ export const apiOps = {
   slots: (zoneId: string) => api<SlotView[]>("checkout.slots", { query: { zoneId } }),
 
   /* account */
-  accountLogin: async (email: string, password: string) => {
-    const session = await api<WebSessionResponse>("auth.login", { body: { email, password, client: "web" } });
+  accountLogin: async (identifier: string, password: string) => {
+    const identity = identifier.includes("@")
+      ? { email: identifier.trim().toLowerCase() }
+      : { phone: identifier.trim() };
+    const session = await api<WebSessionResponse>("auth.login", { body: { ...identity, password, client: "web" } });
     setBrowserCsrfToken(session.csrfToken);
     return session;
   },
-  accountSignup: async (name: string, email: string, phone: string, password: string) => {
-    const session = await api<WebSessionResponse>("auth.signup", { body: { name, email, phone, password, client: "web" } });
+  accountSignup: async (name: string, phone: string, password: string, email?: string) => {
+    const optionalEmail = email?.trim();
+    const session = await api<WebSessionResponse>("auth.signup", {
+      body: { name, phone, password, ...(optionalEmail ? { email: optionalEmail } : {}), client: "web" },
+    });
     setBrowserCsrfToken(session.csrfToken);
     return session;
   },

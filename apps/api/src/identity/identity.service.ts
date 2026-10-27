@@ -1,7 +1,7 @@
 import { Inject, Injectable } from "@nestjs/common";
 import { Prisma, Role, User } from "@prisma/client";
 import type { Request } from "express";
-import type { SessionActor } from "@variety/contracts";
+import { normalizeGhanaPhone, type SessionActor } from "@variety/contracts";
 import { API_CONFIG, ApiConfig } from "../config";
 import { Database } from "../database/database";
 import { ApiProblem, ApiRequest } from "../http/errors";
@@ -53,9 +53,9 @@ export class IdentityService {
     private readonly db: Database,
     @Inject(API_CONFIG) private readonly config: ApiConfig,
   ) {}
-  private async throttle(email: string, ip: string) {
+  private async throttle(identity: string, ip: string) {
     const limits = [
-      { key: tokenHash("email:" + email), limit: 5 },
+      { key: tokenHash("identity:" + identity), limit: 5 },
       { key: tokenHash("ip:" + ip), limit: 100 },
     ].sort((a, b) => a.key.localeCompare(b.key));
     const exceeded = await this.db.$transaction(async (tx) => {
@@ -79,14 +79,18 @@ export class IdentityService {
   }
   async register(
     name: string,
-    email: string,
+    email: string | undefined,
     phone: string,
     password: string,
     channel: "web" | "native",
     req: ApiRequest,
   ) {
     trustedOrigin(req, this.config, channel === "web");
-    await this.throttle("register:" + email, req.ip ?? req.socket.remoteAddress ?? "unknown");
+    const canonicalPhone = normalizeGhanaPhone(phone);
+    if (!canonicalPhone)
+      throw new ApiProblem(400, "VALIDATION_FAILED", "Enter a valid Ghana mobile number.");
+    const canonicalEmail = email?.trim().toLowerCase() || null;
+    await this.throttle("register:" + canonicalPhone, req.ip ?? req.socket.remoteAddress ?? "unknown");
     const passwordHash = await hashPassword(password);
     const expiresAt = new Date(
       Date.now() + (channel === "web" ? 8 * 60 * 60 : 30 * 24 * 60 * 60) * 1000,
@@ -98,7 +102,7 @@ export class IdentityService {
     try {
       return await this.db.$transaction(async (tx) => {
         const user = await tx.user.create({
-          data: { name, email, phone, passwordHash, role: "customer", active: true },
+          data: { name, email: canonicalEmail, phone: canonicalPhone, passwordHash, role: "customer", active: true },
           include: { locations: true },
         });
         const session = await tx.session.create({
@@ -156,24 +160,34 @@ export class IdentityService {
       });
     } catch (error) {
       if ((error as { code?: string })?.code === "P2002") {
-        throw new ApiProblem(409, "ACCOUNT_EXISTS", "An account already exists for this email address.");
+        throw new ApiProblem(409, "ACCOUNT_EXISTS", "An account already exists with these details.");
       }
       throw error;
     }
   }
 
   async login(
-    email: string,
+    identity: { email?: string; phone?: string },
     password: string,
     channel: "web" | "native",
     req: ApiRequest,
   ) {
     trustedOrigin(req, this.config, channel === "web");
-    await this.throttle(email, req.ip ?? req.socket.remoteAddress ?? "unknown");
-    const user = await this.db.user.findUnique({
-      where: { email },
-      include: { locations: true },
-    });
+    const email = identity.email?.trim().toLowerCase();
+    const phone = identity.phone ? normalizeGhanaPhone(identity.phone) : null;
+    const loginKey = email ?? phone;
+    if (!loginKey)
+      throw new ApiProblem(400, "VALIDATION_FAILED", "Provide an email address or Ghana phone number.");
+    await this.throttle(loginKey, req.ip ?? req.socket.remoteAddress ?? "unknown");
+    const user = email
+      ? await this.db.user.findUnique({
+          where: { email },
+          include: { locations: true },
+        })
+      : await this.db.user.findFirst({
+          where: { phone: phone!, role: "customer" },
+          include: { locations: true },
+        });
     const verified = await verifyPassword(
       password,
       user?.passwordHash ?? dummyHash,
