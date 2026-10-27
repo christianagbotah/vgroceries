@@ -77,6 +77,9 @@ test("order persistence enforces exactly one owner, nonnegative money, supported
   await assert.rejects(() => db.order.create({ data: { ...orderData("VG-BAD-MONEY"), subtotalMinor: -1 } }));
   await assert.rejects(() => db.order.create({ data: { ...orderData("VG-BAD-STATUS"), paymentStatus: "invented" } }));
   await assert.rejects(() => db.order.create({ data: { ...orderData("VG-BAD-HASH"), verificationCodeHash: "plaintext" } }));
+  await assert.rejects(() => db.order.create({ data: { ...orderData("VG-BAD-METHOD"), paymentMethod: "invented" } }));
+  const electronic = await db.order.create({ data: { ...orderData("VG-ELECTRONIC"), paymentMethod: "electronic" } });
+  assert.equal(electronic.paymentMethod, "electronic");
   const valid = await db.order.create({ data: orderData("VG-VALID") });
   assert.equal(valid.version, 1);
 });
