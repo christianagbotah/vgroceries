@@ -9,10 +9,13 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { UAT_DEMO_ACCOUNTS } from "@/features/staff/uat-demo-accounts";
 
 export function StaffLoginForm() {
   const router = useRouter();
   const [returnPath, setReturnPath] = useState("/admin");
+  const [demoAccountId, setDemoAccountId] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
@@ -32,6 +35,15 @@ export function StaffLoginForm() {
     }).catch(() => undefined);
     return () => { active = false; };
   }, [router]);
+
+  const selectDemoAccount = (accountId: string) => {
+    setDemoAccountId(accountId);
+    const account = UAT_DEMO_ACCOUNTS.find((item) => item.id === accountId);
+    if (!account) return;
+    setEmail(account.email);
+    setPassword("");
+    setError(null);
+  };
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -66,6 +78,24 @@ export function StaffLoginForm() {
           <CardHeader><CardTitle className="text-lg">Staff sign in</CardTitle></CardHeader>
           <CardContent>
             <form className="space-y-4" onSubmit={submit}>
+              {UAT_DEMO_ACCOUNTS.length > 0 ? (
+                <div className="rounded-xl border border-primary/20 bg-primary/5 p-3">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="staff-demo-account">Demo account (UAT)</Label>
+                    <Select value={demoAccountId} onValueChange={selectDemoAccount}>
+                      <SelectTrigger id="staff-demo-account" className="h-11 w-full bg-background">
+                        <SelectValue placeholder="Choose a demo user" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {UAT_DEMO_ACCOUNTS.map((account) => (
+                          <SelectItem key={account.id} value={account.id}>{account.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs leading-5 text-muted-foreground">Selecting a UAT user fills the account email. For this administrator, use the same password as your existing UAT account. Sign-in still uses the real protected staff session.</p>
+                  </div>
+                </div>
+              ) : null}
               <div className="space-y-1.5">
                 <Label htmlFor="staff-email">Email address</Label>
                 <div className="relative">
