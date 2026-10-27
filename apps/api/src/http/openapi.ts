@@ -126,6 +126,35 @@ export function foundationOpenApi(app: INestApplication) {
     })),
     AdminOrderFinancialActionRequest: json(adminOrderFinancialActionRequestSchema),
     AdminOrderFinancialActionResponse: json(adminOrderFinancialActionResponseSchema),
+    AdminOrderRow: {
+      type: "object", additionalProperties: false,
+      required: ["id","reference","channel","customerName","customerPhone","fulfilment","totalLabel","paymentStatus","fulfilmentStatus","deliveryStatus","lineCount","createdAtLabel"],
+      properties: {
+        id:{type:"string"}, reference:{type:"string"}, channel:{type:"string"}, customerName:{type:"string"}, customerPhone:{type:"string"},
+        fulfilment:{type:"string"}, totalLabel:{type:"string"}, paymentStatus:{type:"string"}, fulfilmentStatus:{type:"string"}, deliveryStatus:{type:"string"},
+        lineCount:{type:"integer",minimum:0}, createdAtLabel:{type:"string"}, posReceiptNo:{type:"string"},
+      },
+    },
+    AdminOrderListResponse: { type: "array", items: ref("AdminOrderRow") },
+    AdminOrderReservation: {
+      type: "object", additionalProperties: false,
+      required: ["id","quantity","expiresAt","variantId"],
+      properties: { id:{type:"string"}, quantity:{type:"string"}, expiresAt:{type:"string"}, consumedAt:{type:"string"}, releasedAt:{type:"string"}, releasedReason:{type:"string"}, variantId:{type:"string"} },
+    },
+    AdminOrderInternal: {
+      type: "object", additionalProperties: false,
+      required: ["customerNotes","reservations","suggestions","refunds"],
+      properties: {
+        address: ref("AccountAddress"),
+        zone: { type:"object", additionalProperties:false, required:["id","name"], properties:{id:{type:"string"},name:{type:"string"}} },
+        customerId:{type:"string"},
+        customerNotes:{type:"array",items:{type:"object",additionalProperties:false,required:["at","by","text","internalOnly"],properties:{at:{type:"string"},by:{type:"string"},text:{type:"string"},internalOnly:{type:"boolean"}}}},
+        reservations:{type:"array",items:ref("AdminOrderReservation")},
+        suggestions:{type:"array",items:{type:"object",additionalProperties:false,required:["id","name","priceLabel","availableToSell"],properties:{id:{type:"string"},name:{type:"string"},priceLabel:{type:"string"},availableToSell:{type:"string"}}}},
+        refunds:{type:"array",items:{type:"object",additionalProperties:true,required:["id","orderId","amountMinor","amountLabel","status","method","reason","requestedBy","retryCount","createdAt"],properties:{id:{type:"string"},orderId:{type:"string"},amountMinor:{type:"integer"},amountLabel:{type:"string"},status:{type:"string"},method:{type:"string"},reason:{type:"string"},requestedBy:{type:"string"},retryCount:{type:"integer"},createdAt:{type:"string"}}}},
+      },
+    },
+    AdminOrderDetailResponse: { type:"object", additionalProperties:false, required:["order","internal"], properties:{ order:ref("PublicOrder"), internal:ref("AdminOrderInternal") } },
     AdminDashboardResponse: json(dashboardViewSchema),
     LoginRequest: json(loginRequestSchema),
     RegisterRequest: json(registerRequestSchema),
@@ -215,6 +244,8 @@ export function foundationOpenApi(app: INestApplication) {
     "/refunds": "RefundListResponse",
     "/refunds/{refundId}/actions": "RefundActionResponse",
     "/refunds/providers/hubtel/callback/{secret}": "HubtelRefundCallbackResponse",
+    "/admin/orders": "AdminOrderListResponse",
+    "/admin/orders/{orderId}": "AdminOrderDetailResponse",
     "/admin/orders/{orderId}/actions": "AdminOrderFinancialActionResponse",
     "/admin/dashboard": "AdminDashboardResponse",
   };
@@ -267,6 +298,8 @@ export function foundationOpenApi(app: INestApplication) {
         suffix === "/payments/{attemptId}/reconcile" ||
         suffix === "/refunds" ||
         suffix === "/refunds/{refundId}/actions" ||
+        suffix === "/admin/orders" ||
+        suffix === "/admin/orders/{orderId}" ||
         suffix === "/admin/orders/{orderId}/actions" ||
         suffix === "/admin/dashboard"
       ) operation.security = [{ cookieAuth: [] }, { bearerAuth: [] }];
