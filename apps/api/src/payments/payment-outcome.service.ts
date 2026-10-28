@@ -184,7 +184,7 @@ export class PaymentOutcomeService {
         if (!code || !coverageProblems.has(code)) throw error;
         await tx.paymentAttempt.update({
           where: { id: attempt.id },
-          data: { providerRef, status: "succeeded", initiationState: "accepted", settlementState: "exception", resolvedAt: new Date(), version: { increment: 1 } },
+          data: { providerRef, settledChannel: observation.settledChannel ?? attempt.settledChannel, status: "succeeded", initiationState: "accepted", settlementState: "exception", resolvedAt: new Date(), version: { increment: 1 } },
         });
         await tx.order.update({ where: { id: order.id }, data: { paymentStatus: "requires_review" } });
         await this.emit(tx, context, attempt.id, order.id, "payment.succeeded", { coverage: "failed", reason: code });
@@ -197,7 +197,7 @@ export class PaymentOutcomeService {
       const reason = hasNewerAttempt ? "stale_attempt_succeeded" : order.fulfilmentStatus === "cancelled" ? "succeeded_after_cancellation" : "succeeded_after_stock_handover";
       await tx.paymentAttempt.update({
         where: { id: attempt.id },
-        data: { providerRef, status: "succeeded", initiationState: "accepted", settlementState: "exception", resolvedAt: new Date(), version: { increment: 1 } },
+        data: { providerRef, settledChannel: observation.settledChannel ?? attempt.settledChannel, status: "succeeded", initiationState: "accepted", settlementState: "exception", resolvedAt: new Date(), version: { increment: 1 } },
       });
       await tx.order.update({ where: { id: order.id }, data: { paymentStatus: "requires_review" } });
       await this.emit(tx, context, attempt.id, order.id, "payment.succeeded", { coverage: "not_applied", reason });
@@ -207,7 +207,7 @@ export class PaymentOutcomeService {
 
     await tx.paymentAttempt.update({
       where: { id: attempt.id },
-      data: { providerRef, status: "succeeded", initiationState: "accepted", resolvedAt: new Date(), version: { increment: 1 } },
+      data: { providerRef, settledChannel: observation.settledChannel ?? attempt.settledChannel, status: "succeeded", initiationState: "accepted", resolvedAt: new Date(), version: { increment: 1 } },
     });
     await tx.order.update({ where: { id: order.id }, data: { paymentStatus: "succeeded" } });
     await tx.orderEvent.create({

@@ -487,6 +487,7 @@ model PaymentAttempt {
   amountMinor Int
   merchantReference String @unique
   providerRef String?
+  settledChannel String?
   status String @default("initiated")
   initiationState String @default("created")
   settlementState String @default("unsettled")

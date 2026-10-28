@@ -132,7 +132,7 @@ test("staff ledger is bounded, filterable and exposes no payment internals or ev
 
 test("authoritative matching lookup reconciles once and repeat reconciliation does not duplicate financial effects", async () => {
   const { order, attempt } = await createOrderAndAttempt();
-  fake.lookupResult = { providerId: "fake", merchantReference: attempt.merchantReference, providerReference: attempt.providerRef ?? undefined, state: "succeeded", amountMinor: attempt.amountMinor, currency: "GHS" };
+  fake.lookupResult = { providerId: "fake", merchantReference: attempt.merchantReference, providerReference: attempt.providerRef ?? undefined, state: "succeeded", amountMinor: attempt.amountMinor, currency: "GHS", settledChannel: "card" };
   const adminToken = await admin();
   const first = await reconcile(attempt.id, adminToken);
   assert.equal(first.response.status, 200);
@@ -143,6 +143,9 @@ test("authoritative matching lookup reconciles once and repeat reconciliation do
   assert.equal((await db.order.findUniqueOrThrow({ where: { id: order.id } })).paymentStatus, "succeeded");
   assert.equal(await db.outboxEvent.count({ where: { type: "payment.succeeded", aggregateId: attempt.id } }), 1);
   assert.equal(await db.outboxEvent.count({ where: { type: "payment.reconciled", aggregateId: attempt.id } }), 1);
+  const ledger = await getJson(`/payments?orderReference=${encodeURIComponent(order.reference)}`, { authorization: `Bearer ${adminToken}` });
+  assert.equal(ledger.response.status, 200);
+  assert.equal(ledger.body.data.items[0].settledChannel, "card");
 
   const repeat = await reconcile(attempt.id, adminToken);
   assert.equal(repeat.response.status, 200);

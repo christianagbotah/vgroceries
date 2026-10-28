@@ -102,7 +102,9 @@ export interface PaymentRow {
   id: string;
   orderReference?: string;
   channel?: string;
+  provider?: string;
   method: string;
+  settledChannel?: string;
   amountLabel: string;
   status: string;
   providerRef?: string;

@@ -89,7 +89,8 @@ export default function AdminPaymentsPage() {
                   <Link href={`/admin/orders/${p.orderId}`} className="font-semibold hover:underline focus-visible:underline">{p.orderReference}</Link>
                   <span className="font-semibold tabular-nums">{p.amountLabel}</span>
                 </div>
-                <p className="mt-0.5 text-xs capitalize text-muted-foreground">{p.channel} · {p.method.replace(/_/g, " ")} · {p.callbackCount} callback{p.callbackCount === 1 ? "" : "s"}</p>
+                <p className="mt-0.5 text-xs capitalize text-muted-foreground">{p.channel ? `${p.channel} · ` : ""}{p.provider ? `${p.provider} · ` : ""}{p.method.replace(/_/g, " ")} · {p.callbackCount} callback{p.callbackCount === 1 ? "" : "s"}</p>
+                {p.settledChannel ? <p className="mt-0.5 text-xs capitalize text-muted-foreground">Settled via {p.settledChannel.replace(/_/g, " ")}</p> : null}
                 <div className="mt-2 flex flex-wrap items-center gap-1.5">
                   <StatusBadge kind="generic" status={p.status} label={p.status} />
                   <StatusBadge kind="generic" status={p.settlementState === "exception" ? "failed" : p.settlementState === "reconciled" ? "approved" : p.settlementState === "settled" ? "sent" : "pending"} label={p.settlementState.replace(/_/g, " ")} />
@@ -121,7 +122,7 @@ export default function AdminPaymentsPage() {
                       <Link href={`/admin/orders/${p.orderId}`} className="hover:underline focus-visible:underline">{p.orderReference}</Link>
                       <p className="text-xs capitalize text-muted-foreground">{p.channel}</p>
                     </td>
-                    <td className="p-3 text-muted-foreground">{p.method.replace(/_/g, " ")}</td>
+                    <td className="p-3 text-muted-foreground"><span>{p.method.replace(/_/g, " ")}</span>{p.settledChannel ? <span className="block text-xs capitalize">Settled via {p.settledChannel.replace(/_/g, " ")}</span> : null}</td>
                     <td className="p-3 text-right font-medium tabular-nums">{p.amountLabel}</td>
                     <td className="p-3">
                       <StatusBadge kind="generic" status={p.status} label={p.status} />

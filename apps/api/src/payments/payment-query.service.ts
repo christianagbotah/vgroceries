@@ -87,6 +87,7 @@ export class PaymentQueryService {
         initiationState: row.initiationState,
         settlementState: row.settlementState,
         callbackCount: row.callbackCount,
+        ...(row.settledChannel ? { settledChannel: row.settledChannel } : {}),
         ...(row.providerRef ? { providerReference: row.providerRef } : {}),
         ...(row.failureReason ? { failureReason: row.failureReason } : {}),
         createdAt: row.createdAt.toISOString(),

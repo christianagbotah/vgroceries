@@ -43,13 +43,13 @@ before(async () => {
   await seedCommerceFixtures(db);
   const order = await db.order.create({ data: {
     reference: "VG-REFUND-SCHEMA", customerUserId: "customer-a", customerName: "Ama Customer",
-    customerPhone: "+233241111111", fulfilment: "collection", paymentMethod: "mobile_money",
+    customerPhone: "+233241111111", fulfilment: "collection", paymentMethod: "electronic",
     paymentStatus: "succeeded", fulfilmentStatus: "awaiting_confirmation", deliveryStatus: "unassigned",
     subtotalMinor: 1250, totalMinor: 1250, verificationKeyVersion: 1, verificationCodeHash: "e".repeat(64),
   } });
   orderId = order.id;
   paymentAttemptId = (await db.paymentAttempt.create({ data: {
-    orderId, provider: "fake", method: "mobile_money", currency: "GHS", amountMinor: 1250,
+    orderId, provider: "fake", method: "hosted_checkout", currency: "GHS", amountMinor: 1250,
     merchantReference: "PAY-REFUND-SCHEMA", providerRef: "PROV-REFUND-SCHEMA",
     status: "succeeded", initiationState: "accepted", settlementState: "unsettled", resolvedAt: new Date(),
   } })).id;
@@ -58,7 +58,7 @@ after(async () => { await app?.close(); });
 
 function refundData(overrides: Record<string, unknown> = {}) {
   return {
-    orderId, paymentAttemptId, provider: "fake", method: "mobile_money", currency: "GHS",
+    orderId, paymentAttemptId, provider: "fake", method: "hosted_checkout", currency: "GHS",
     amountMinor: 500, sourceType: "customer_cancellation", reason: "Customer cancellation",
     status: "awaiting_approval", requestedBy: "customer-a", ...overrides,
   };
@@ -84,7 +84,7 @@ test("refund models enforce money, vocabulary and execution uniqueness", async (
   ]) await assert.rejects(() => refund.create({ data }));
 
   const executionData = {
-    refundId: row.id, provider: "fake", method: "mobile_money", currency: "GHS", amountMinor: 500,
+    refundId: row.id, provider: "fake", method: "hosted_checkout", currency: "GHS", amountMinor: 500,
     merchantRefundReference: "VG-REF-SCHEMA-1", originalPaymentMerchantReference: "PAY-REFUND-SCHEMA",
     originalPaymentProviderReference: "PROV-REFUND-SCHEMA", providerRefundReference: "RPROV-1",
     status: "created", reconciliationState: "unreconciled", attemptCount: 0,
@@ -106,7 +106,7 @@ test("refund financial identity and execution identity cannot be rewritten or de
   const { refund, execution } = models();
   const row = await refund.create({ data: refundData({ amountMinor: 100, reason: "Immutable obligation" }) });
   const exec = await execution.create({ data: {
-    refundId: row.id, provider: "fake", method: "mobile_money", currency: "GHS", amountMinor: 100,
+    refundId: row.id, provider: "fake", method: "hosted_checkout", currency: "GHS", amountMinor: 100,
     merchantRefundReference: "VG-REF-IMMUTABLE", originalPaymentMerchantReference: "PAY-REFUND-SCHEMA",
     originalPaymentProviderReference: "PROV-REFUND-SCHEMA", status: "created", reconciliationState: "unreconciled",
   } });
@@ -127,7 +127,7 @@ test("refund reconciliation is append-only and validates normalized evidence", a
   const { refund, execution, reconciliation } = models();
   const row = await refund.create({ data: refundData({ amountMinor: 75, reason: "Reconcile obligation" }) });
   const exec = await execution.create({ data: {
-    refundId: row.id, provider: "fake", method: "mobile_money", currency: "GHS", amountMinor: 75,
+    refundId: row.id, provider: "fake", method: "hosted_checkout", currency: "GHS", amountMinor: 75,
     merchantRefundReference: "VG-REF-RECON", originalPaymentMerchantReference: "PAY-REFUND-SCHEMA",
     status: "pending", reconciliationState: "unreconciled",
   } });

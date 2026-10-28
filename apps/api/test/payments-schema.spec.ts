@@ -22,7 +22,7 @@ before(async () => {
   app = await createApplication(config()); db = app.get(Database); await seedCommerceFixtures(db);
   orderId = (await db.order.create({ data: {
     reference: "VG-PAY-SCHEMA", customerUserId: "customer-a", customerName: "Ama Customer",
-    customerPhone: "+233241111111", fulfilment: "collection", paymentMethod: "mobile_money",
+    customerPhone: "+233241111111", fulfilment: "collection", paymentMethod: "electronic",
     paymentStatus: "pending", fulfilmentStatus: "awaiting_confirmation", deliveryStatus: "unassigned",
     subtotalMinor: 1250, totalMinor: 1250, verificationKeyVersion: 1, verificationCodeHash: "a".repeat(64),
   } })).id;
@@ -30,13 +30,13 @@ before(async () => {
 after(async () => { await app?.close(); });
 
 const attempt = (merchantReference: string) => ({
-  orderId, provider: "fake", method: "mobile_money", currency: "GHS", amountMinor: 1250,
+  orderId, provider: "fake", method: "hosted_checkout", currency: "GHS", amountMinor: 1250,
   merchantReference, status: "initiated", initiationState: "created", settlementState: "unsettled",
 });
 
 test("payment attempts enforce money, state, uniqueness and immutable financial identity", async () => {
   const live = await db.paymentAttempt.create({ data: attempt("PAY-1") });
-  assert.equal(live.callbackCount, 0); assert.equal(live.version, 1);
+  assert.equal(live.callbackCount, 0); assert.equal(live.version, 1); assert.equal(live.method, "hosted_checkout");
   for (const data of [
     { ...attempt("BAD-A"), amountMinor: 0 }, { ...attempt("BAD-C"), currency: "USD" },
     { ...attempt("BAD-M"), method: "cash_counter" }, { ...attempt("BAD-S"), status: "invented" },
@@ -46,6 +46,7 @@ test("payment attempts enforce money, state, uniqueness and immutable financial 
   await assert.rejects(() => db.paymentAttempt.update({ where: { id: live.id }, data: { amountMinor: 1300 } }));
   await assert.rejects(() => db.paymentAttempt.update({ where: { id: live.id }, data: { method: "card_hosted" } }));
   await assert.rejects(() => db.paymentAttempt.update({ where: { id: live.id }, data: { callbackCount: -1 } }));
+  await assert.rejects(() => db.paymentAttempt.update({ where: { id: live.id }, data: { settledChannel: "Card Visa" } }));
   const pending = await db.paymentAttempt.update({ where: { id: live.id }, data: { status: "pending", initiationState: "accepted", version: { increment: 1 } } });
   assert.equal(pending.status, "pending"); assert.equal(pending.version, 2);
   await db.paymentAttempt.create({ data: { ...attempt("OLD"), status: "failed", initiationState: "rejected", providerRef: "PROV-OLD" } });
