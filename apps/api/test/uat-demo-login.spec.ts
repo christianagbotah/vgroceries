@@ -84,7 +84,7 @@ test("selecting a UAT demo account creates a real protected web session without 
   assert.equal(await db.auditEvent.count({ where: { actorId: user.id, action: "identity.uat_demo_session_created" } }), 1);
 });
 
-test("UAT demo session rejects unknown accounts and untrusted origins", async () => {
+test("UAT demo session rejects unsupported account ids and untrusted origins", async () => {
   const unknown = await fetch(base + "/api/v1/auth/demo-session", {
     method: "POST",
     headers: { "content-type": "application/json", origin },
