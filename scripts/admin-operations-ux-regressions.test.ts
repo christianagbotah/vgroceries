@@ -95,7 +95,7 @@ describe("supplier and purchase-order mutations", () => {
 
     const purchases = okData(await req<Array<{
       id: string; supplierId: string; expectedAt?: string; note?: string;
-      lines: Array<{ variantId: string; quantity: string; unitCostMinor: number }>;
+      lines: Array<{ variantId: string; productName: string; variantName: string; quantity: string; unitCostMinor: number; unitCostLabel: string }>;
     }>>("admin.purchases"));
     const purchase = purchases.find((row) => row.id === created.poId);
     expect(purchase).toMatchObject({ supplierId: "sup_03", expectedAt: "2026-11-07T00:00:00.000Z", note: "Revised draft" });
@@ -131,7 +131,7 @@ describe("report date filtering", () => {
 
   test("future range removes activity aggregates while preserving current stock snapshot", async () => {
     const report = okData(await req<{
-      salesByDay: Array<{ date: string; orders: number }>;
+      salesByDay: Array<{ date: string; onlineMinor: number; posMinor: number; orders: number }>;
       topProducts: unknown[];
       fulfilmentCounts: Record<string, number>;
       deliveryCounts: Record<string, number>;
