@@ -90,7 +90,7 @@ test("UAT demo session rejects unknown accounts and untrusted origins", async ()
     headers: { "content-type": "application/json", origin },
     body: JSON.stringify({ accountId: "cashier" }),
   });
-  assert.equal(unknown.status, 404);
+  assert.equal(unknown.status, 400);
 
   const hostile = await fetch(base + "/api/v1/auth/demo-session", {
     method: "POST",
