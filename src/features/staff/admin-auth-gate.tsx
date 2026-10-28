@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { ApiError, apiOps } from "@/services/client";
 import { ErrorState, LoadingState } from "@/components/shared/states";
+import { isDemoStaffSessionActive } from "./staff-demo-session";
 
 export function AdminAuthGate({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -13,6 +14,13 @@ export function AdminAuthGate({ children }: { children: React.ReactNode }) {
   const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
+    if (isDemoStaffSessionActive()) {
+      const timer = window.setTimeout(() => {
+        setError(null);
+        setChecking(false);
+      }, 0);
+      return () => window.clearTimeout(timer);
+    }
     let active = true;
 
     apiOps.staffSession().then((session) => {

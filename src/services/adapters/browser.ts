@@ -21,6 +21,7 @@ import { ApiError, normalizedRequestBody, type ServiceAdapter, type ServiceReque
 import { invalidatesTags, readTags } from "../operation-registry";
 import type { CacheInvalidationEvent, CacheTag } from "../contracts/common";
 import { restEndpoints } from "../contracts/endpoints";
+import { isDemoStaffSessionActive } from "@/features/staff/staff-demo-session";
 
 export const CACHE_INVALIDATED_EVENT = "vg:cache-invalidated";
 const CSRF_TOKEN_KEY = "vg-csrf-token-v1";
@@ -123,17 +124,29 @@ class CachingBrowserAdapter implements ServiceAdapter {
   }
 }
 
-let browserAdapter: ServiceAdapter | undefined;
+let productionBrowserAdapter: ServiceAdapter | undefined;
+let demoBrowserAdapter: ServiceAdapter | undefined;
 
-/**
- * The adapter used by client components (src/services/client.ts).
- * Single instance per browser tab.
- */
+function demoAdapter(): ServiceAdapter {
+  if (!demoBrowserAdapter) {
+    demoBrowserAdapter = new CachingBrowserAdapter(
+      new HttpServiceAdapter("/api/mock/v1", {
+        kind: "http:uat-demo",
+        protocol: "mock",
+        headers: () => ({ "X-Variety-Demo": "staff" }),
+      }),
+    );
+  }
+  return demoBrowserAdapter;
+}
+
+/** The adapter used by client components. Demo sessions are isolated to mock data. */
 export function resolveClientAdapter(): ServiceAdapter {
-  if (browserAdapter) return browserAdapter;
+  if (isDemoStaffSessionActive()) return demoAdapter();
+  if (productionBrowserAdapter) return productionBrowserAdapter;
   const base = process.env.NEXT_PUBLIC_API_BASE_URL;
   if (base) {
-    browserAdapter = new CachingBrowserAdapter(
+    productionBrowserAdapter = new CachingBrowserAdapter(
       new HttpServiceAdapter(base, {
         kind: "http:api",
         credentials: "include",
@@ -141,13 +154,12 @@ export function resolveClientAdapter(): ServiceAdapter {
           const csrf = getBrowserCsrfToken();
           return csrf ? { "X-CSRF-Token": csrf } : {};
         },
-      })
+      }),
     );
   } else {
-    // Development: this app's own versioned mock route.
-    browserAdapter = new CachingBrowserAdapter(new HttpServiceAdapter("/api/mock/v1", { kind: "http:mock-route", protocol: "mock" }));
+    productionBrowserAdapter = demoAdapter();
   }
-  return browserAdapter;
+  return productionBrowserAdapter;
 }
 
 export { ApiError };

@@ -76,6 +76,7 @@ install -d -o lightworld -g lightworld -m 0750 "$(dirname "$PORTAL_ENV_FILE")"
 cat > "$PORTAL_ENV_FILE" <<'ENV'
 API_BASE_URL=http://127.0.0.1:3027/api/v1
 NEXT_PUBLIC_API_BASE_URL=https://portal.varietygroceries.com/api/v1
+UAT_DEMO_LOGIN=1
 ENV
 if [[ -n "$ADSENSE_ENV_LINES" ]]; then printf '%s\n' "$ADSENSE_ENV_LINES" >> "$PORTAL_ENV_FILE"; fi
 chown lightworld:lightworld "$PORTAL_ENV_FILE"
