@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 export const electronicPaymentMethodSchema = z.enum([
+  "hosted_checkout",
   "mobile_money",
   "card_hosted",
   "bank_transfer",
@@ -90,6 +91,7 @@ export const paymentLedgerRowSchema = z
     initiationState: z.enum(["created", "accepted", "uncertain", "rejected"]),
     settlementState: z.enum(["unsettled", "settled", "reconciled", "exception"]),
     callbackCount: z.number().int().nonnegative(),
+    settledChannel: z.string().regex(/^[a-z0-9_]{1,64}$/).optional(),
     providerReference: z.string().min(1).optional(),
     failureReason: z.string().min(1).optional(),
     createdAt: isoTimestampSchema,

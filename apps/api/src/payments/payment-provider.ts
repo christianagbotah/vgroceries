@@ -19,6 +19,7 @@ export interface PaymentProviderInitiationInput {
   amountMinor: number;
   currency: "GHS";
   payerPhone?: string;
+  payerEmail?: string;
   signal: AbortSignal;
 }
 
@@ -51,6 +52,7 @@ export interface PaymentProviderObservation {
   providerEventId?: string;
   failureCode?: string;
   customerSafeMessage?: string;
+  settledChannel?: string;
   providerTimestamp?: Date;
 }
 

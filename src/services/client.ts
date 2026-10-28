@@ -14,6 +14,7 @@
  */
 
 import { clearBrowserCsrfToken, resolveClientAdapter, setBrowserCsrfToken } from "./adapters/browser";
+import { normalizePaymentLedgerResponse } from "./payment-ledger";
 import type { QueryValue, ServiceRequest } from "./adapters/types";
 import type {
   AccountCancelResponse,
@@ -399,7 +400,7 @@ export const apiOps = {
   refunds: () => api<RefundRow[]>("admin.refunds"),
   refundAction: (refundId: string, action: "approve" | "execute" | "retry", actor?: string) =>
     api<LegacyRefundActionResponse>("admin.refund.action", { body: { refundId, action, actor } }),
-  payments: () => api<import("./contracts").PaymentRow[]>("admin.payments"),
+  payments: async () => normalizePaymentLedgerResponse(await api<unknown>("admin.payments")),
   customers: () => api<import("./contracts").CustomerRow[]>("admin.customers"),
   customer: (customerId: string) => api<import("./contracts").CustomerDetailResponse>("admin.customer", { query: { customerId } }),
 

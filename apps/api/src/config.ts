@@ -40,6 +40,17 @@ export interface HubtelRefundConfig {
   callbackSecret: string;
 }
 
+export interface PaystackConfig {
+  secretKey: string;
+  initializeUrl: string;
+  verifyUrl: string;
+  refundUrl: string;
+  refundLookupUrl: string;
+  callbackUrl: string;
+  technicalEmailDomain: string;
+  identityHmacKey: Buffer;
+}
+
 export type ProductMediaConfig =
   | { kind: "filesystem"; root: string; publicBaseUrl: string }
   | {
@@ -72,6 +83,7 @@ export interface ApiConfig {
   payments: PaymentConfig | null;
   hubtelPayment: HubtelPaymentConfig | null;
   hubtelRefund: HubtelRefundConfig | null;
+  paystack: PaystackConfig | null;
   productMedia: ProductMediaConfig | null;
   imageGeneration: ImageGenerationConfig | null;
 }
@@ -192,7 +204,7 @@ export function readConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
       const parsed = electronicPaymentMethodSchema.safeParse(raw);
       if (!parsed.success)
         throw new Error(
-          "PAYMENT_ENABLED_METHODS may contain only mobile_money, card_hosted or bank_transfer",
+          "PAYMENT_ENABLED_METHODS may contain only hosted_checkout, mobile_money, card_hosted or bank_transfer",
         );
       if (enabledMethods.includes(parsed.data))
         throw new Error("PAYMENT_ENABLED_METHODS must not contain duplicates");
@@ -363,6 +375,66 @@ export function readConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
     };
   }
 
+  const paystackNames = [
+    "PAYSTACK_SECRET_KEY",
+    "PAYSTACK_INITIALIZE_URL",
+    "PAYSTACK_VERIFY_URL",
+    "PAYSTACK_REFUND_URL",
+    "PAYSTACK_REFUND_LOOKUP_URL",
+    "PAYSTACK_CALLBACK_URL",
+    "PAYSTACK_TECHNICAL_EMAIL_DOMAIN",
+    "PAYSTACK_IDENTITY_HMAC_KEY",
+  ] as const;
+  const paystackSupplied = paystackNames.filter(
+    (name) => env[name] !== undefined && env[name] !== "",
+  );
+  let paystack: PaystackConfig | null = null;
+  if (paystackSupplied.length || payments?.providerId === "paystack") {
+    if (!payments || payments.providerId !== "paystack")
+      throw new Error("Paystack configuration requires PAYMENT_PROVIDER_ID=paystack");
+    if (paystackSupplied.length !== paystackNames.length)
+      throw new Error("Paystack configuration must be supplied as a complete bundle");
+    const secretKey = env.PAYSTACK_SECRET_KEY!;
+    if (secretKey.length < 8 || secretKey.length > 256)
+      throw new Error("Paystack secret key length is invalid");
+    const paystackUrl = (name: (typeof paystackNames)[number], value: string) => {
+      let parsed: URL;
+      try {
+        parsed = new URL(value.replace(/\{[A-Za-z][A-Za-z0-9_]*\}/g, "value"));
+      } catch {
+        throw new Error(`${name} must be an absolute HTTP(S) URL`);
+      }
+      if (!["http:", "https:"].includes(parsed.protocol) || parsed.username || parsed.password)
+        throw new Error(`${name} must be an absolute HTTP(S) URL without embedded credentials`);
+      if (env.NODE_ENV === "production" && parsed.protocol !== "https:")
+        throw new Error(`${name} must use HTTPS in production`);
+      return value;
+    };
+    const verifyUrl = paystackUrl("PAYSTACK_VERIFY_URL", env.PAYSTACK_VERIFY_URL!);
+    if (!verifyUrl.includes("{reference}"))
+      throw new Error("PAYSTACK_VERIFY_URL must contain {reference}");
+    const refundLookupUrl = paystackUrl("PAYSTACK_REFUND_LOOKUP_URL", env.PAYSTACK_REFUND_LOOKUP_URL!);
+    if (!refundLookupUrl.includes("{id}"))
+      throw new Error("PAYSTACK_REFUND_LOOKUP_URL must contain {id}");
+    const technicalEmailDomain = env.PAYSTACK_TECHNICAL_EMAIL_DOMAIN!;
+    const hostnamePattern = /^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
+    if (technicalEmailDomain !== technicalEmailDomain.toLowerCase() || !hostnamePattern.test(technicalEmailDomain))
+      throw new Error("PAYSTACK_TECHNICAL_EMAIL_DOMAIN must be a lowercase hostname");
+    const rawIdentityKey = env.PAYSTACK_IDENTITY_HMAC_KEY!;
+    if (!/^[a-fA-F0-9]{64}$/.test(rawIdentityKey))
+      throw new Error("PAYSTACK_IDENTITY_HMAC_KEY must be a 32-byte hex key");
+    paystack = {
+      secretKey,
+      initializeUrl: paystackUrl("PAYSTACK_INITIALIZE_URL", env.PAYSTACK_INITIALIZE_URL!),
+      verifyUrl,
+      refundUrl: paystackUrl("PAYSTACK_REFUND_URL", env.PAYSTACK_REFUND_URL!),
+      refundLookupUrl,
+      callbackUrl: paystackUrl("PAYSTACK_CALLBACK_URL", env.PAYSTACK_CALLBACK_URL!),
+      technicalEmailDomain,
+      identityHmacKey: Buffer.from(rawIdentityKey, "hex"),
+    };
+  }
+
   const mediaAuxNames = [
     "PRODUCT_MEDIA_FILESYSTEM_ROOT",
     "PRODUCT_MEDIA_PUBLIC_BASE_URL",
@@ -435,6 +507,7 @@ export function readConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
     payments,
     hubtelPayment,
     hubtelRefund,
+    paystack,
     productMedia,
     imageGeneration,
   };

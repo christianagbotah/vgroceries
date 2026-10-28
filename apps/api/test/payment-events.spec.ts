@@ -214,12 +214,13 @@ test("lookup_required persists evidence first and settles only from authoritativ
     const payload = JSON.parse(rawBody.toString("utf8")) as { eventId: string };
     return { verification: "lookup_required", providerEventId: payload.eventId, merchantReference: attempt.merchantReference, providerReference: attempt.providerRef ?? undefined };
   };
-  fake.lookupResult = { providerId: "fake", merchantReference: attempt.merchantReference, providerReference: attempt.providerRef ?? undefined, state: "succeeded", amountMinor: attempt.amountMinor, currency: "GHS" };
+  fake.lookupResult = { providerId: "fake", merchantReference: attempt.merchantReference, providerReference: attempt.providerRef ?? undefined, state: "succeeded", amountMinor: attempt.amountMinor, currency: "GHS", settledChannel: "mobile_money" };
   const raw = JSON.stringify({ eventId: "evt-lookup", claimedStatus: "failed" });
   const response = await fetch(base + "/api/v1/payments/providers/fake/events", { method: "POST", headers: { "content-type": "application/json" }, body: raw });
   assert.equal(response.status, 200);
   assert.equal(fake.lookupCalls.length, 1);
   assert.equal((await db.order.findUniqueOrThrow({ where: { id: orderId } })).paymentStatus, "succeeded");
+  assert.equal((await db.paymentAttempt.findUniqueOrThrow({ where: { id: attempt.id } })).settledChannel, "mobile_money");
   const storedEvent = await db.paymentProviderEvent.findFirstOrThrow({ where: { providerEventId: "evt-lookup" } });
   assert.equal(storedEvent.verificationResult, "lookup_required");
   assert.equal(storedEvent.processingResult, "applied");

@@ -25,6 +25,8 @@ import { ApiExceptionFilter, ApiRequest } from "./http/errors";
 import { PaymentsModule } from "./payments/payments.module";
 import { HubtelRefundCallbackModule } from "./payments/hubtel-refund-callback.module";
 import { HubtelPaymentProvider } from "./payments/hubtel-payment-provider";
+import { PaystackPaymentProvider } from "./payments/paystack-payment-provider";
+import { PaystackRefundProvider } from "./payments/paystack-refund-provider";
 import type { PaymentProviderAdapter } from "./payments/payment-provider";
 import { PAYMENT_PROVIDER_ADAPTERS } from "./payments/payment-provider.registry";
 import type { RefundProviderAdapter } from "./payments/refund-provider";
@@ -39,10 +41,14 @@ export async function createApplication(
   const resolvedPaymentAdapters = [...paymentAdapters];
   if (config.hubtelPayment && !resolvedPaymentAdapters.some((adapter) => adapter.id === "hubtel"))
     resolvedPaymentAdapters.push(new HubtelPaymentProvider(config.hubtelPayment));
+  if (config.paystack && !resolvedPaymentAdapters.some((adapter) => adapter.id === "paystack"))
+    resolvedPaymentAdapters.push(new PaystackPaymentProvider(config.paystack));
 
   const resolvedRefundAdapters = [...refundAdapters];
   if (config.hubtelRefund && !resolvedRefundAdapters.some((adapter) => adapter.id === "hubtel"))
     resolvedRefundAdapters.push(new HubtelRefundProvider(config.hubtelRefund));
+  if (config.paystack && !resolvedRefundAdapters.some((adapter) => adapter.id === "paystack"))
+    resolvedRefundAdapters.push(new PaystackRefundProvider(config.paystack));
 
   @Global()
   @Module({
