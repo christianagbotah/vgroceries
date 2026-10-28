@@ -10,7 +10,10 @@ import { handleApi } from "@/services/mock/router";
 export const dynamic = "force-dynamic";
 
 async function handle(req: NextRequest, ctx: { params: Promise<{ path?: string[] }> }): Promise<NextResponse> {
-  if (process.env.API_BASE_URL || process.env.NEXT_PUBLIC_API_BASE_URL) {
+  const backendMode = Boolean(process.env.API_BASE_URL || process.env.NEXT_PUBLIC_API_BASE_URL);
+  const uatDemoEnabled = process.env.UAT_DEMO_LOGIN === "1";
+  const staffDemoRequest = req.headers.get("x-variety-demo") === "staff";
+  if (backendMode && !(uatDemoEnabled && staffDemoRequest)) {
     return NextResponse.json({ ok: false, error: { code: "NOT_FOUND", message: "Demo operations are unavailable in backend mode." } }, { status: 404 });
   }
   const { path } = await ctx.params;

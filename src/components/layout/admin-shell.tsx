@@ -2,13 +2,14 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { apiOps } from "@/services/client";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useStaff, DEMO_ROLE_OPTIONS } from "@/features/staff/role-context";
+import { clearDemoStaffSession, isDemoStaffSessionActive } from "@/features/staff/staff-demo-session";
 import { ROLE_LABELS } from "@/types/domain";
 import type { Permission } from "@/lib/perms";
 import { LayoutDashboard, Menu, ShoppingCart, Store, Boxes, Package, ClipboardList, Truck, Users, RotateCcw, CreditCard, UserRound, BarChart3, Sparkles, ShieldCheck, ScrollText, Settings2, FlaskConical, LogOut, Warehouse, ClipboardCheck, TriangleAlert, ReceiptText, Landmark, Network, FileText, Home, ExternalLink } from "lucide-react";
@@ -105,14 +106,21 @@ const GROUPS: NavGroup[] = [
 export function AdminShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { role, setRole, user, can } = useStaff();
+  const { role, setRole, can } = useStaff();
   const [open, setOpen] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
+  const [demoSessionActive, setDemoSessionActive] = useState(false);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => setDemoSessionActive(isDemoStaffSessionActive()), 0);
+    return () => window.clearTimeout(timer);
+  }, []);
 
   const signOut = async () => {
     setLoggingOut(true);
     try {
-      await apiOps.staffLogout();
+      if (isDemoStaffSessionActive()) clearDemoStaffSession();
+      else await apiOps.staffLogout();
       router.replace("/staff/login");
       router.refresh();
     } finally {
@@ -137,7 +145,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
         </span>
         <div className="leading-tight">
           <p className="font-serif font-bold text-sidebar-foreground">Variety Groceries</p>
-          <p className="text-[11px] text-sidebar-foreground/70">Back office · demo</p>
+          <p className="text-[11px] text-sidebar-foreground/70">{demoSessionActive ? "Back office · demo" : "Back office"}</p>
         </div>
       </div>
 
@@ -209,22 +217,26 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
             <Button asChild variant="outline" size="sm" className="hidden h-10 lg:inline-flex">
               <Link href="/" target="_blank"><ExternalLink className="size-4" aria-hidden /> View storefront</Link>
             </Button>
-            <span className="hidden rounded-full border border-dashed px-2.5 py-1 text-[11px] text-muted-foreground xl:inline">
-              Demo mode · role selector enabled
-            </span>
-            <label className="sr-only" htmlFor="role-select">Acting role</label>
-            <Select value={role} onValueChange={(v) => setRole(v as typeof role)}>
-              <SelectTrigger id="role-select" className="h-10 w-[190px] sm:w-[230px]" aria-label="Acting demo role">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {DEMO_ROLE_OPTIONS.map((o) => (
-                  <SelectItem key={o.value} value={o.value}>
-                    {o.user.name} — {ROLE_LABELS[o.value]}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            {demoSessionActive ? (
+              <>
+                <span className="hidden rounded-full border border-dashed px-2.5 py-1 text-[11px] text-muted-foreground xl:inline">
+                  Demo mode · mock data only
+                </span>
+                <label className="sr-only" htmlFor="role-select">Acting role</label>
+                <Select value={role} onValueChange={(v) => setRole(v as typeof role)}>
+                  <SelectTrigger id="role-select" className="h-10 w-[190px] sm:w-[230px]" aria-label="Acting demo role">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {DEMO_ROLE_OPTIONS.map((o) => (
+                      <SelectItem key={o.value} value={o.value}>
+                        {o.user.name} — {ROLE_LABELS[o.value]}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </>
+            ) : null}
             <Button variant="ghost" size="icon" className="size-10" aria-label="Sign out of staff area" onClick={signOut} disabled={loggingOut}>
               <LogOut className="size-5" aria-hidden />
             </Button>
