@@ -13,17 +13,28 @@ import type { ReportBundleView } from "@/services/views";
 /** Shared response contract — see src/services/views.ts (used by client.ts and pages). */
 export type ReportBundle = ReportBundleView;
 
-export function buildReports(store: VgStore): ReportBundle {
+export function buildReports(store: VgStore, range: { from?: string; to?: string } = {}): ReportBundle {
   const paid = (o: Order) => ["succeeded", "partially_refunded", "refunded"].includes(o.paymentStatus);
+  const explicitRange = Boolean(range.from || range.to);
+  const ymd = /^\d{4}-\d{2}-\d{2}$/;
+  const today = new Date().toISOString().slice(0, 10);
+  const defaultFrom = new Date(Date.now() - 13 * 86_400_000).toISOString().slice(0, 10);
+  let from = range.from && ymd.test(range.from) ? range.from : defaultFrom;
+  let to = range.to && ymd.test(range.to) ? range.to : today;
+  if (from > to) [from, to] = [to, from];
+  const maxDays = 366;
+  const span = Math.floor((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86_400_000);
+  if (!Number.isFinite(span) || span >= maxDays) from = new Date(Date.parse(`${to}T00:00:00Z`) - (maxDays - 1) * 86_400_000).toISOString().slice(0, 10);
+  const inRange = (iso?: string) => !!iso && iso.slice(0, 10) >= from && iso.slice(0, 10) <= to;
+  const activityInRange = (iso?: string) => !explicitRange || inRange(iso);
 
-  // sales by day, last 14 days
   const days: { date: string; onlineMinor: number; posMinor: number; orders: number }[] = [];
-  for (let i = 13; i >= 0; i--) {
-    const date = new Date(Date.now() - i * 86_400_000).toISOString().slice(0, 10);
-    days.push({ date, onlineMinor: 0, posMinor: 0, orders: 0 });
+  for (let at = Date.parse(`${from}T00:00:00Z`), stop = Date.parse(`${to}T00:00:00Z`); at <= stop; at += 86_400_000) {
+    days.push({ date: new Date(at).toISOString().slice(0, 10), onlineMinor: 0, posMinor: 0, orders: 0 });
   }
   const byDate = new Map(days.map((d) => [d.date, d]));
-  for (const o of store.orders) {
+  const rangedOrders = store.orders.filter((o) => activityInRange(o.createdAt));
+  for (const o of store.orders.filter((order) => inRange(order.createdAt))) {
     if (o.fulfilmentStatus === "cancelled") continue;
     const d = byDate.get(o.createdAt.slice(0, 10));
     if (!d) continue;
@@ -34,9 +45,8 @@ export function buildReports(store: VgStore): ReportBundle {
     }
   }
 
-  // top products by revenue
   const perVariant = new Map<string, { name: string; variant: string; qty: number; revenueMinor: number }>();
-  for (const o of store.orders) {
+  for (const o of rangedOrders) {
     if (o.fulfilmentStatus === "cancelled" || !paid(o)) continue;
     for (const lid of o.lines) {
       const l = store.orderLines.find((x) => x.id === lid);
@@ -51,26 +61,29 @@ export function buildReports(store: VgStore): ReportBundle {
   const topProducts = [...perVariant.values()].sort((a, b) => b.revenueMinor - a.revenueMinor).slice(0, 10);
 
   const fulfilmentCounts: Record<string, number> = {};
-  for (const o of store.orders) fulfilmentCounts[o.fulfilmentStatus] = (fulfilmentCounts[o.fulfilmentStatus] ?? 0) + 1;
+  for (const o of rangedOrders) fulfilmentCounts[o.fulfilmentStatus] = (fulfilmentCounts[o.fulfilmentStatus] ?? 0) + 1;
 
+  const rangedJobs = store.deliveryJobs.filter((j) => activityInRange(j.assignedAt ?? j.events[0]?.at));
   const deliveryCounts: Record<string, number> = {};
-  for (const j of store.deliveryJobs) deliveryCounts[j.status] = (deliveryCounts[j.status] ?? 0) + 1;
+  for (const j of rangedJobs) deliveryCounts[j.status] = (deliveryCounts[j.status] ?? 0) + 1;
 
-  const succeededRefunds = store.refunds.filter((r) => r.status === "succeeded");
+  const rangedReturns = store.returnRequests.filter((r) => activityInRange(r.createdAt));
+  const succeededRefunds = store.refunds.filter((r) => r.status === "succeeded" && activityInRange(r.createdAt));
   const returnsSummary = {
-    total: store.returnRequests.length,
-    pending: store.returnRequests.filter((r) => ["requested", "approved", "received", "inspected"].includes(r.status)).length,
-    resolved: store.returnRequests.filter((r) => r.status === "resolved").length,
+    total: rangedReturns.length,
+    pending: rangedReturns.filter((r) => ["requested", "approved", "received", "inspected"].includes(r.status)).length,
+    resolved: rangedReturns.filter((r) => r.status === "resolved").length,
     refundedMinor: succeededRefunds.reduce((a, r) => a + r.amountMinor, 0),
   };
 
-  const openSessions = store.cashierSessions.filter((s) => s.status === "open");
-  const lastClosed = store.cashierSessions.find((s) => s.status === "closed");
+  const rangedSessions = store.cashierSessions.filter((s) => activityInRange(s.openedAt));
+  const openSessions = rangedSessions.filter((s) => s.status === "open");
+  const lastClosed = rangedSessions.find((s) => s.status === "closed");
   const expectedMinor = openSessions.reduce((a, s) => {
-    const cashSales = store.orders
+    const cashSales = rangedOrders
       .filter((o) => o.posSessionId === s.id && o.paymentMethod === "cash_counter" && paid(o))
       .reduce((x, o) => x + o.totalMinor, 0);
-    const movements = s.movements.reduce((x, m) => x + (m.kind === "cash_in" ? m.amountMinor : -m.amountMinor), 0);
+    const movements = s.movements.filter((m) => activityInRange(m.at)).reduce((x, m) => x + (m.kind === "cash_in" ? m.amountMinor : -m.amountMinor), 0);
     return a + s.openingFloatMinor + cashSales + movements;
   }, 0);
 
@@ -90,6 +103,7 @@ export function buildReports(store: VgStore): ReportBundle {
     else if (available <= 3) lowVariants += 1;
   }
 
+  const rangedAttempts = store.paymentAttempts.filter((a) => activityInRange(a.createdAt));
   return {
     salesByDay: days,
     topProducts,
@@ -103,9 +117,9 @@ export function buildReports(store: VgStore): ReportBundle {
     },
     stockValue: { costBasisMinor: costBasis, sellableUnits, zeroVariants, lowVariants },
     paymentsReconciliation: {
-      settled: store.paymentAttempts.filter((a) => a.settlementState === "settled" || a.settlementState === "reconciled").length,
-      unsettled: store.paymentAttempts.filter((a) => a.settlementState === "unsettled").length,
-      exceptions: store.paymentAttempts.filter((a) => a.settlementState === "exception").length,
+      settled: rangedAttempts.filter((a) => a.settlementState === "settled" || a.settlementState === "reconciled").length,
+      unsettled: rangedAttempts.filter((a) => a.settlementState === "unsettled").length,
+      exceptions: rangedAttempts.filter((a) => a.settlementState === "exception").length,
     },
   };
 }

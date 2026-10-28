@@ -14,7 +14,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { Search, Boxes, Plus } from "lucide-react";
+import { Search, Boxes, Plus, Tags } from "lucide-react";
+import { CategoryManagerDialog } from "@/features/staff/category-manager-dialog";
 import { useApiData } from "@/features/staff/admin-data";
 
 type ProductRow = Awaited<ReturnType<typeof apiOps.adminProducts>>[number];
@@ -31,13 +32,14 @@ function slugify(value: string) {
 
 export default function AdminProductsPage() {
   const router = useRouter();
-  const { can } = useStaff();
+  const { can, user } = useStaff();
   const { toast } = useToast();
   const [q, setQ] = useState("");
   const { data, loading, error, reload } = useApiData(() => apiOps.adminProducts(q || undefined), [q]);
-  const { data: categories, loading: categoriesLoading, error: categoriesError } = useApiData(() => apiOps.categories(), []);
+  const { data: categories, loading: categoriesLoading, error: categoriesError, reload: reloadCategories } = useApiData(() => apiOps.categories(), []);
   const [searchInput, setSearchInput] = useState("");
   const [addOpen, setAddOpen] = useState(false);
+  const [categoriesOpen, setCategoriesOpen] = useState(false);
   const [name, setName] = useState("");
   const [slug, setSlug] = useState("");
   const [slugTouched, setSlugTouched] = useState(false);
@@ -116,7 +118,7 @@ export default function AdminProductsPage() {
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {can("catalog.view") ? (
-            <Link href="/admin/categories" className="text-sm font-medium text-primary hover:underline focus-visible:underline">Manage categories</Link>
+            <Button variant="outline" className="h-10" onClick={() => setCategoriesOpen(true)}><Tags className="size-4" aria-hidden /> Manage categories</Button>
           ) : null}
           {can("catalog.edit") ? (
             <Button className="h-10" onClick={() => setAddOpen(true)}>
@@ -197,6 +199,15 @@ export default function AdminProductsPage() {
         Zero-availability products stay published in the catalogue but are hidden from storefront
         lists, search, recommendations and offers; saved links show a clear unavailable state.
       </p>
+
+      <CategoryManagerDialog
+        open={categoriesOpen}
+        onOpenChange={setCategoriesOpen}
+        categories={categories ?? []}
+        canEdit={can("catalog.edit")}
+        actor={user.id}
+        onReload={reloadCategories}
+      />
 
       <Dialog open={addOpen} onOpenChange={(open) => { setAddOpen(open); if (!open && !creating) resetDraftForm(); }}>
         <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
