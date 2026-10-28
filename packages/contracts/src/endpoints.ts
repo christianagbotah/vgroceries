@@ -7,6 +7,8 @@ export interface RestEndpoint {
 export const restEndpoints: Record<string, RestEndpoint> = {
   "auth.login": {"method": "POST", "path": "/auth/sessions"},
   "auth.signup": {"method": "POST", "path": "/auth/register"},
+  "auth.demo-accounts": {"method": "GET", "path": "/auth/demo-accounts"},
+  "auth.demo-login": {"method": "POST", "path": "/auth/demo-session"},
   "auth.me": {"method": "GET", "path": "/auth/me"},
   "catalog.categories": {"method": "GET", "path": "/catalog/categories"},
   "catalog.list": {"method": "GET", "path": "/catalog/products", "queryAliases": {"query": "q"}},

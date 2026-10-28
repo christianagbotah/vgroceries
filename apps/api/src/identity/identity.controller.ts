@@ -10,11 +10,11 @@ import {
 } from "@nestjs/common";
 import { ApiBody, ApiCookieAuth, ApiTags } from "@nestjs/swagger";
 import type { Response } from "express";
-import { loginRequestSchema, refreshRequestSchema, registerRequestSchema } from "@variety/contracts";
+import { loginRequestSchema, refreshRequestSchema, registerRequestSchema, uatDemoSessionRequestSchema } from "@variety/contracts";
 import { API_CONFIG, ApiConfig } from "../config";
 import { ApiProblem, ApiRequest } from "../http/errors";
 import { AccessGuard } from "./access.guard";
-import { AuthRequest, IdentityService } from "./identity.service";
+import { AuthRequest, IdentityService, trustedOrigin } from "./identity.service";
 
 @ApiTags("identity")
 @Controller("auth")
@@ -56,6 +56,30 @@ export class IdentityController {
         path: "/api/v1",
         maxAge: 8 * 60 * 60 * 1000,
       });
+    return { ok: true, data: result.data };
+  }
+  @Get("demo-accounts")
+  demoAccounts(@Req() req: ApiRequest) {
+    trustedOrigin(req, this.config);
+    return { ok: true, data: this.identity.uatDemoAccounts() };
+  }
+  @Post("demo-session")
+  async demoLogin(
+    @Body() body: unknown,
+    @Req() req: ApiRequest,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const parsed = uatDemoSessionRequestSchema.safeParse(body);
+    if (!parsed.success)
+      throw new ApiProblem(400, "VALIDATION_FAILED", "Invalid demo account selection.");
+    const result = await this.identity.uatDemoLogin(parsed.data.accountId, req);
+    res.cookie("vg_session", result.secret, {
+      httpOnly: true,
+      secure: this.config.secureCookies,
+      sameSite: "lax",
+      path: "/api/v1",
+      maxAge: 8 * 60 * 60 * 1000,
+    });
     return { ok: true, data: result.data };
   }
   @Post("sessions")

@@ -16,6 +16,18 @@ export const ghanaPhoneSchema = z
   .max(20)
   .refine((value) => normalizeGhanaPhone(value) !== null, "Enter a valid Ghana mobile number");
 
+export const uatDemoAccountIdSchema = z.enum(["admin", "inventory_manager"]);
+export type UatDemoAccountId = z.infer<typeof uatDemoAccountIdSchema>;
+export const uatDemoSessionRequestSchema = z.strictObject({
+  accountId: uatDemoAccountIdSchema,
+});
+export type UatDemoSessionRequest = z.infer<typeof uatDemoSessionRequestSchema>;
+export interface UatDemoAccountView {
+  id: UatDemoAccountId;
+  label: string;
+  role: "admin" | "inventory_manager";
+}
+
 export const loginRequestSchema = z
   .strictObject({
     email: z.string().trim().toLowerCase().email().max(254).optional(),

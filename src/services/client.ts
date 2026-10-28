@@ -113,6 +113,7 @@ import type {
   ActivateDeliveryRouteRuleRequest,
   SessionLookupResponse,
   WebSessionResponse,
+  UatDemoAccountView,
 } from "./contracts";
 
 export { ApiError } from "./adapters/types";
@@ -239,6 +240,12 @@ export const apiOps = {
   budgetBasket: (budgetMinor: number) => api<BudgetBasketResponse>("ai.budget-basket", { body: { budgetMinor } }),
 
   /* staff */
+  staffDemoAccounts: () => api<UatDemoAccountView[]>("auth.demo-accounts"),
+  staffDemoLogin: async (accountId: UatDemoAccountView["id"]) => {
+    const session = await api<WebSessionResponse>("auth.demo-login", { body: { accountId } });
+    setBrowserCsrfToken(session.csrfToken);
+    return session;
+  },
   staffLogin: async (email: string, password: string) => {
     const session = await api<WebSessionResponse>("auth.login", { body: { email, password, client: "web" } });
     setBrowserCsrfToken(session.csrfToken);

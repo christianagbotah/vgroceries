@@ -18,7 +18,8 @@
     "media:import-legacy": "node --env-file-if-exists=.env dist/scripts/import-legacy-product-media.js",
     "media:coverage": "node --env-file-if-exists=.env dist/scripts/product-media-coverage.js",
     "seed:uat-storefront": "node --env-file-if-exists=.env dist/scripts/seed-uat-storefront.js",
-    "logistics:bootstrap-direct": "node --env-file-if-exists=.env dist/scripts/bootstrap-direct-logistics.js"
+    "logistics:bootstrap-direct": "node --env-file-if-exists=.env dist/scripts/bootstrap-direct-logistics.js",
+    "seed:uat-demo-users": "node --env-file-if-exists=.env dist/scripts/seed-uat-demo-users.js"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "3.1151.0",

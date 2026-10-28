@@ -77,6 +77,60 @@ export class IdentityService {
         "Too many attempts. Try again later.",
       );
   }
+  uatDemoAccounts() {
+    return (this.config.uatDemoLogin?.accounts ?? []).map(({ id, label, role }) => ({ id, label, role }));
+  }
+
+  async uatDemoLogin(accountId: "admin" | "inventory_manager", req: ApiRequest) {
+    trustedOrigin(req, this.config, true);
+    const demo = this.config.uatDemoLogin;
+    const selected = demo?.accounts.find((item) => item.id === accountId);
+    if (!demo || !selected)
+      throw new ApiProblem(404, "NOT_FOUND", "Demo account not found.");
+    const user = await this.db.user.findUnique({
+      where: { email: selected.email },
+      include: { locations: true },
+    });
+    if (!user || !user.active || user.role !== selected.role)
+      throw new ApiProblem(503, "UNAVAILABLE", "This demo account is not ready.");
+
+    const expiresAt = new Date(Date.now() + 8 * 60 * 60 * 1000);
+    const secret = randomToken();
+    const csrfToken = csrfTokenFor(secret);
+    await this.db.$transaction(async (tx) => {
+      await tx.session.updateMany({
+        where: { userId: user.id, channel: "web", revokedAt: null },
+        data: { revokedAt: new Date() },
+      });
+      const session = await tx.session.create({
+        data: {
+          userId: user.id,
+          channel: "web",
+          expiresAt,
+          tokenHash: tokenHash(secret),
+          csrfHash: tokenHash(csrfToken),
+        },
+      });
+      await tx.auditEvent.create({
+        data: {
+          actorId: user.id,
+          action: "identity.uat_demo_session_created",
+          entityId: session.id,
+          requestId: req.requestId,
+          details: { accountId },
+        },
+      });
+    });
+    return {
+      secret,
+      data: {
+        actor: actor(user),
+        csrfToken,
+        expiresAt: expiresAt.toISOString(),
+      },
+    };
+  }
+
   async register(
     name: string,
     email: string | undefined,

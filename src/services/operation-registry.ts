@@ -38,6 +38,8 @@ export const operationMeta: Record<string, OperationMeta> = {
   /* identity */
   "auth.login": { invalidates: ["*"] },
   "auth.signup": { invalidates: ["*"] },
+  "auth.demo-accounts": {},
+  "auth.demo-login": { invalidates: ["*"] },
   "auth.me": {},
 
   /* catalogue (public) */

@@ -72,6 +72,19 @@ export interface ImageGenerationConfig {
   workerPollIntervalMs: number;
 }
 
+export interface UatDemoLoginAccountConfig {
+  id: "admin" | "inventory_manager";
+  label: string;
+  name: string;
+  email: string;
+  role: "admin" | "inventory_manager";
+}
+
+export interface UatDemoLoginConfig {
+  databaseName: string;
+  accounts: UatDemoLoginAccountConfig[];
+}
+
 export interface ApiConfig {
   databaseUrl: string;
   webOrigins: string[];
@@ -86,6 +99,7 @@ export interface ApiConfig {
   paystack: PaystackConfig | null;
   productMedia: ProductMediaConfig | null;
   imageGeneration: ImageGenerationConfig | null;
+  uatDemoLogin: UatDemoLoginConfig | null;
 }
 
 export const API_CONFIG = Symbol("API_CONFIG");
@@ -116,6 +130,44 @@ export function readConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
   const port = Number(env.PORT ?? 3010);
   if (!Number.isInteger(port) || port < 1 || port > 65535)
     throw new Error("Invalid PORT");
+
+  const uatDemoAuxNames = [
+    "UAT_DEMO_DATABASE_NAME",
+    "UAT_DEMO_ADMIN_EMAIL",
+    "UAT_DEMO_INVENTORY_EMAIL",
+  ] as const;
+  const uatDemoEnabledRaw = env.UAT_DEMO_LOGIN_ENABLED;
+  if (uatDemoEnabledRaw !== undefined && !["true", "false"].includes(uatDemoEnabledRaw))
+    throw new Error("UAT_DEMO_LOGIN_ENABLED must be true or false");
+  const uatDemoAuxSupplied = uatDemoAuxNames.filter((name) => Boolean(env[name]));
+  let uatDemoLogin: UatDemoLoginConfig | null = null;
+  if (uatDemoEnabledRaw === "true") {
+    if (uatDemoAuxSupplied.length !== uatDemoAuxNames.length)
+      throw new Error("UAT demo login configuration must be supplied as a complete bundle");
+    const databaseName = env.UAT_DEMO_DATABASE_NAME!;
+    let selectedDatabase = "";
+    try {
+      selectedDatabase = new URL(env.DATABASE_URL).pathname.replace(/^\//, "").split("/")[0] ?? "";
+    } catch {
+      throw new Error("DATABASE_URL is invalid");
+    }
+    if (selectedDatabase !== databaseName)
+      throw new Error("UAT demo login database guard does not match DATABASE_URL");
+    const adminEmail = env.UAT_DEMO_ADMIN_EMAIL!.trim().toLowerCase();
+    const inventoryEmail = env.UAT_DEMO_INVENTORY_EMAIL!.trim().toLowerCase();
+    const validEmail = (value: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value) && value.length <= 254;
+    if (!validEmail(adminEmail) || !validEmail(inventoryEmail) || adminEmail === inventoryEmail)
+      throw new Error("UAT demo account emails must be distinct valid email addresses");
+    uatDemoLogin = {
+      databaseName,
+      accounts: [
+        { id: "admin", label: "Administrator", name: "Variety Demo Administrator", email: adminEmail, role: "admin" },
+        { id: "inventory_manager", label: "Inventory Manager", name: "Variety Demo Inventory Manager", email: inventoryEmail, role: "inventory_manager" },
+      ],
+    };
+  } else if (uatDemoAuxSupplied.length) {
+    throw new Error("UAT demo login fields require UAT_DEMO_LOGIN_ENABLED=true");
+  }
 
   const commerceNames = [
     "COMMERCE_LOCATION_ID",
@@ -510,5 +562,6 @@ export function readConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
     paystack,
     productMedia,
     imageGeneration,
+    uatDemoLogin,
   };
 }

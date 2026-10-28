@@ -19,6 +19,7 @@ import {
   loginRequestSchema,
   registerRequestSchema,
   refreshRequestSchema,
+  uatDemoSessionRequestSchema,
   byVariantsRequestSchema,
   stockReceiveRequestSchema,
   zoneViewSchema,
@@ -78,6 +79,20 @@ export function foundationOpenApi(app: INestApplication) {
       oneOf: [ref("WebSessionResponse"), ref("NativeSessionResponse")],
     },
     SessionLookupResponse: json(sessionLookupResponseSchema),
+    UatDemoAccountListResponse: {
+      type: "array",
+      items: {
+        type: "object",
+        required: ["id", "label", "role"],
+        additionalProperties: false,
+        properties: {
+          id: { type: "string", enum: ["admin", "inventory_manager"] },
+          label: { type: "string", minLength: 1 },
+          role: { type: "string", enum: ["admin", "inventory_manager"] },
+        },
+      },
+    },
+    UatDemoSessionRequest: json(uatDemoSessionRequestSchema),
     LogoutResponse: json(z.object({ done: z.literal(true) })),
     CatalogProduct: json(catalogProductSchema),
     CatalogProductsResponse: json(shopPageDataSchema),
@@ -279,6 +294,8 @@ export function foundationOpenApi(app: INestApplication) {
     "/health/ready": "ReadyResponse",
     "/auth/sessions": "SessionResponse",
     "/auth/register": "SessionResponse",
+    "/auth/demo-accounts": "UatDemoAccountListResponse",
+    "/auth/demo-session": "WebSessionResponse",
     "/auth/me": "SessionLookupResponse",
     "/auth/logout": "LogoutResponse",
     "/auth/refresh": "NativeSessionResponse",
@@ -327,6 +344,7 @@ export function foundationOpenApi(app: INestApplication) {
   const requests: Record<string, string> = {
     "/auth/sessions": "LoginRequest",
     "/auth/register": "RegisterRequest",
+    "/auth/demo-session": "UatDemoSessionRequest",
     "/auth/refresh": "RefreshRequest",
     "/catalog/products:by-variants": "ByVariantsRequest",
     "/inventory/receive": "ReceiveRequest",
@@ -459,6 +477,12 @@ export function foundationOpenApi(app: INestApplication) {
     "Web sign-in requires a trusted Origin and sets an HttpOnly cookie. Native sign-in returns opaque access and refresh credentials. The client field selects the response variant.";
   doc.paths["/api/v1/auth/register"]!.post!.description =
     "Public customer-only account registration. The server fixes role=customer, hashes the password with scrypt, creates the account and initial session atomically, and requires a trusted Origin for web registration.";
+  doc.paths["/api/v1/auth/demo-accounts"]!.get!.description =
+    "UAT-only safe demo staff choices. Returns an empty list when demo login is disabled and never exposes account email addresses or passwords.";
+  doc.paths["/api/v1/auth/demo-accounts"]!.get!.security = [];
+  doc.paths["/api/v1/auth/demo-session"]!.post!.description =
+    "UAT-only trusted-origin browser sign-in for one configured demo staff identity. The server creates the protected session without exposing a shared demo password to the browser.";
+  doc.paths["/api/v1/auth/demo-session"]!.post!.security = [];
   doc.paths["/api/v1/auth/me"]!.get!.description =
     "Cookie authentication returns csrfToken for subsequent mutations; native bearer authentication omits csrfToken.";
   doc.paths["/api/v1/auth/logout"]!.post!.parameters = [
