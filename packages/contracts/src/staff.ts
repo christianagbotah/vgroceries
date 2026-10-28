@@ -338,12 +338,14 @@ export interface SupplierRow {
 export interface PurchaseRow {
   id: string;
   reference: string;
+  supplierId: string;
   supplierName?: string;
   status: string;
+  expectedAt?: string;
   expectedLabel?: string;
   createdAtLabel: string;
   note?: string;
-  lines: { productName: string; variantName: string; quantity: string; unitCostLabel: string }[];
+  lines: { variantId: string; productName: string; variantName: string; quantity: string; unitCostMinor: number; unitCostLabel: string }[];
 }
 
 export interface PurchaseCreateRequest {

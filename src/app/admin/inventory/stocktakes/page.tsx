@@ -152,7 +152,7 @@ export default function AdminStocktakesPage() {
 
       {/* counting dialog */}
       <Dialog open={!!counting} onOpenChange={(o) => !o && setCounting(null)}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-4xl lg:max-w-5xl">
           <DialogHeader>
             <DialogTitle>Counting {counting?.reference}</DialogTitle>
             <DialogDescription>
@@ -161,8 +161,8 @@ export default function AdminStocktakesPage() {
           </DialogHeader>
           {counting ? (
             <>
-              <div className="scroll-soft max-h-96 overflow-y-auto rounded-lg border">
-                <table className="w-full text-sm">
+              <div className="scroll-soft max-h-[55vh] overflow-auto rounded-lg border">
+                <table className="min-w-[700px] w-full text-sm">
                   <thead className="sticky top-0 bg-muted/60 text-left">
                     <tr>
                       <th className="p-2.5 font-semibold">Item</th>

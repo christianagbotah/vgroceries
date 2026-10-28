@@ -10,6 +10,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import { ClipboardList } from "lucide-react";
 
@@ -22,13 +24,14 @@ export default function AdminCategoriesPage() {
   const [edit, setEdit] = useState<CategoryRow | null>(null);
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
+  const [active, setActive] = useState(true);
   const [busy, setBusy] = useState(false);
 
   const save = async () => {
     if (!edit) return;
     setBusy(true);
     try {
-      await apiOps.categoryUpdate({ categoryId: edit.id, name: name.trim() || undefined, description: description.trim() || undefined, actor: user.id });
+      await apiOps.categoryUpdate({ categoryId: edit.id, name: name.trim() || undefined, description: description.trim(), isActive: active, actor: user.id });
       await reload();
       setEdit(null);
       toast({ title: "Category updated" });
@@ -80,7 +83,7 @@ export default function AdminCategoriesPage() {
                   </td>
                   <td className="p-3 text-right">
                     {can("catalog.edit") ? (
-                      <Button size="sm" variant="outline" className="h-9" onClick={() => { setEdit(c); setName(c.name); setDescription(c.description); }}>
+                      <Button size="sm" variant="outline" className="h-9" onClick={() => { setEdit(c); setName(c.name); setDescription(c.description); setActive(c.isActive); }}>
                         Edit
                       </Button>
                     ) : null}
@@ -92,25 +95,20 @@ export default function AdminCategoriesPage() {
         </div>
       </div>
 
-      {edit ? (
-        <div className="space-y-3 rounded-xl border bg-card p-4">
-          <h2 className="flex items-center gap-2 font-semibold">
-            <ClipboardList className="size-5 text-primary" aria-hidden /> Edit “{edit.name}”
-          </h2>
-          <div>
-            <Label htmlFor="cat-name">Name</Label>
-            <Input id="cat-name" className="h-11" value={name} onChange={(e) => setName(e.target.value)} />
-          </div>
-          <div>
-            <Label htmlFor="cat-desc">Description</Label>
-            <Textarea id="cat-desc" rows={2} value={description} onChange={(e) => setDescription(e.target.value)} />
-          </div>
-          <div className="flex gap-2">
-            <Button className="h-11" onClick={save} disabled={busy}>{busy ? "Saving…" : "Save changes"}</Button>
-            <Button variant="outline" className="h-11" onClick={() => setEdit(null)}>Cancel</Button>
-          </div>
-        </div>
-      ) : null}
+      <Dialog open={!!edit} onOpenChange={(open) => !open && setEdit(null)}>
+        <DialogContent className="sm:max-w-xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2"><ClipboardList className="size-5 text-primary" aria-hidden /> Edit {edit?.name}</DialogTitle>
+            <DialogDescription>Update this category without leaving the category list.</DialogDescription>
+          </DialogHeader>
+          {edit ? <div className="space-y-4">
+            <div><Label htmlFor="cat-name">Name</Label><Input id="cat-name" className="h-11" value={name} onChange={(e) => setName(e.target.value)} /></div>
+            <div><Label htmlFor="cat-desc">Description</Label><Textarea id="cat-desc" rows={3} value={description} onChange={(e) => setDescription(e.target.value)} /></div>
+            <label className="flex items-center justify-between rounded-lg border p-3 text-sm"><span><strong>Storefront visibility</strong><span className="block text-xs text-muted-foreground">Inactive categories are hidden from customers.</span></span><span className="flex items-center gap-2"><Switch checked={active} onCheckedChange={setActive} /> {active ? "Active" : "Hidden"}</span></label>
+          </div> : null}
+          <DialogFooter><Button variant="outline" onClick={() => setEdit(null)} disabled={busy}>Cancel</Button><Button onClick={save} disabled={busy || !name.trim()}>{busy ? "Saving…" : "Save changes"}</Button></DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -1157,17 +1157,36 @@ export async function handleApi(req: ApiRequest): Promise<ApiResult> {
           openPoCount: store.purchaseOrders.filter((p) => p.supplierId === s.id && ["draft", "sent", "partially_received"].includes(p.status)).length,
         })));
       }
+      case "admin.suppliers.update": {
+        const supplier = store.suppliers.find((row) => row.id === b("supplierId"));
+        if (!supplier) throw new OpError("VALIDATION_FAILED", "Supplier not found.");
+        if (typeof body.name === "string") {
+          const value = body.name.trim();
+          if (!value) throw new OpError("VALIDATION_FAILED", "Supplier name is required.");
+          supplier.name = value;
+        }
+        if (typeof body.phone === "string") {
+          const value = body.phone.trim();
+          if (!value) throw new OpError("VALIDATION_FAILED", "Supplier phone is required.");
+          supplier.phone = value;
+        }
+        if (typeof body.email === "string") supplier.email = body.email.trim() || undefined;
+        if (typeof body.notes === "string") supplier.notes = body.notes.trim();
+        if (typeof body.isActive === "boolean") supplier.isActive = body.isActive;
+        audit(store, b("actor") || "stf_ama", "purchasing.supplier_updated", "Supplier", supplier.id);
+        return ok({ done: true });
+      }
       case "admin.purchases": {
         return ok(store.purchaseOrders.map((p) => {
           const supplier = store.suppliers.find((s) => s.id === p.supplierId);
           return {
-            id: p.id, reference: p.reference, supplierName: supplier?.name, status: p.status,
+            id: p.id, reference: p.reference, supplierId: p.supplierId, supplierName: supplier?.name, status: p.status,
             expectedAt: p.expectedAt, expectedLabel: p.expectedAt ? formatDateTime(p.expectedAt) : undefined,
             createdAt: p.createdAt, createdAtLabel: formatDateTime(p.createdAt), note: p.note,
             lines: p.lines.map((l) => {
               const v = store.variants.find((x) => x.id === l.variantId);
               const prod = v ? store.products.find((x) => x.id === v.productId) : undefined;
-              return { productName: prod?.name ?? "", variantName: v?.name ?? "", quantity: l.quantity, unitCostMinor: l.unitCostMinor, unitCostLabel: formatMoney(l.unitCostMinor) };
+              return { variantId: l.variantId, productName: prod?.name ?? "", variantName: v?.name ?? "", quantity: l.quantity, unitCostMinor: l.unitCostMinor, unitCostLabel: formatMoney(l.unitCostMinor) };
             }),
           };
         }));
@@ -1191,6 +1210,30 @@ export async function handleApi(req: ApiRequest): Promise<ApiResult> {
         store.purchaseOrders.unshift(po);
         audit(store, b("actor") || "stf_nana", "purchasing.po_created", "PurchaseOrder", po.id);
         return ok({ poId: po.id, reference: po.reference });
+      }
+      case "admin.purchases.update": {
+        const po = store.purchaseOrders.find((row) => row.id === b("poId"));
+        if (!po) throw new OpError("VALIDATION_FAILED", "Purchase order not found.");
+        if (po.status !== "draft") throw new OpError("VALIDATION_FAILED", "Only draft purchase orders can be edited.");
+        if (typeof body.supplierId === "string") {
+          const supplierId = b("supplierId");
+          if (!store.suppliers.some((supplier) => supplier.id === supplierId)) throw new OpError("VALIDATION_FAILED", "Unknown supplier.");
+          po.supplierId = supplierId;
+        }
+        if (Object.prototype.hasOwnProperty.call(body, "expectedAt")) po.expectedAt = b("expectedAt") || undefined;
+        if (typeof body.note === "string") po.note = body.note.trim() || undefined;
+        if (Array.isArray(body.lines)) {
+          const lines = body.lines as { variantId: string; quantity: string; unitCostMinor: number }[];
+          if (!lines.length) throw new OpError("VALIDATION_FAILED", "Add at least one purchase-order line.");
+          for (const line of lines) {
+            if (!store.variants.some((variant) => variant.id === line.variantId)) throw new OpError("VALIDATION_FAILED", "Unknown product variant.");
+            if (!/^\d+(\.\d+)?$/.test(line.quantity) || Number(line.quantity) <= 0) throw new OpError("VALIDATION_FAILED", "Purchase quantity must be positive.");
+            if (!Number.isFinite(line.unitCostMinor) || line.unitCostMinor < 0) throw new OpError("VALIDATION_FAILED", "Unit cost cannot be negative.");
+          }
+          po.lines = lines.map((line) => ({ ...line, unitCostMinor: Math.round(line.unitCostMinor) }));
+        }
+        audit(store, b("actor") || "stf_ama", "purchasing.po_updated", "PurchaseOrder", po.id);
+        return ok({ done: true });
       }
       case "admin.purchases.send": {
         const po = store.purchaseOrders.find((x) => x.id === b("poId"));
@@ -1556,7 +1599,7 @@ export async function handleApi(req: ApiRequest): Promise<ApiResult> {
 
       /* ---------------- Staff: reports, AI, team, audit, settings ---------------- */
       case "admin.reports": {
-        return ok(buildReports(store));
+        return ok(buildReports(store, { from: q("from") || undefined, to: q("to") || undefined }));
       }
       case "admin.ai.suggestions": {
         return ok(store.aiSuggestions.map((s) => ({ ...s, createdAtLabel: formatDateTime(s.createdAt) })));

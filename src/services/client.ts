@@ -335,8 +335,10 @@ export const apiOps = {
   categories: () => api<AdminCategoryRow[]>("admin.categories"),
   categoryUpdate: (body: Record<string, unknown>) => api<DoneResponse>("admin.categories.update", { body }),
   suppliers: () => api<SupplierRow[]>("admin.suppliers"),
+  supplierUpdate: (body: Record<string, unknown>) => api<DoneResponse>("admin.suppliers.update", { body }),
   purchases: () => api<PurchaseRow[]>("admin.purchases"),
   purchaseCreate: (body: Record<string, unknown>) => api<PurchaseCreateResponse>("admin.purchases.create", { body }),
+  purchaseUpdate: (body: Record<string, unknown>) => api<DoneResponse>("admin.purchases.update", { body }),
   purchaseSend: (poId: string) => api<PurchaseSendResponse>("admin.purchases.send", { body: { poId } }),
 
 
@@ -405,7 +407,8 @@ export const apiOps = {
   customer: (customerId: string) => api<import("./contracts").CustomerDetailResponse>("admin.customer", { query: { customerId } }),
 
   /* reports, ai, team, audit, settings */
-  reports: () => api<import("./contracts").ReportBundleView>("admin.reports"),
+  reports: (filters: { from?: string; to?: string } = {}) =>
+    api<import("./contracts").ReportBundleView>("admin.reports", { query: filters as Record<string, QueryValue> }),
   aiSuggestions: () => api<SuggestionRow[]>("admin.ai.suggestions"),
   aiGenerate: () => api<AiGenerateResponse>("admin.ai.generate", { body: {} }),
   aiReview: (suggestionId: string, decision: "reviewed" | "dismissed") =>

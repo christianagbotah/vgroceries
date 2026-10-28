@@ -150,8 +150,8 @@ export default function AdminReceivingPage() {
           <div className="space-y-3">
             {lines.map((line, i) => (
               <div key={i} className="space-y-2 rounded-lg border p-3">
-                <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-                  <div className="sm:col-span-2">
+                <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-[minmax(16rem,2fr)_minmax(9rem,1fr)_minmax(7rem,.7fr)_minmax(10rem,1fr)_auto] lg:items-end">
+                  <div className="sm:col-span-2 lg:col-span-1">
                     <Label htmlFor={`rc-item-${i}`}>Item</Label>
                     <Input
                       id={`rc-item-${i}`}
@@ -195,23 +195,13 @@ export default function AdminReceivingPage() {
                     <Label htmlFor={`rc-qty-${i}`}>Quantity</Label>
                     <Input id={`rc-qty-${i}`} className="h-11" inputMode="decimal" value={line.quantity} onChange={(e) => updateLine(i, { quantity: e.target.value })} placeholder="e.g. 25" />
                   </div>
-                </div>
-                <div className="flex flex-wrap items-end gap-2">
-                  <div className="flex-1">
-                    <Label htmlFor={`rc-exp-${i}`}>Expiry date (if applicable)</Label>
-                    <input
-                      id={`rc-exp-${i}`}
-                      type="date"
-                      className="h-11 w-full rounded-lg border bg-background px-3 text-sm"
-                      value={line.expiryDate}
-                      onChange={(e) => updateLine(i, { expiryDate: e.target.value })}
-                    />
+                  <div>
+                    <Label htmlFor={`rc-exp-${i}`}>Expiry date</Label>
+                    <input id={`rc-exp-${i}`} type="date" className="h-11 w-full rounded-lg border bg-background px-3 text-sm" value={line.expiryDate} onChange={(e) => updateLine(i, { expiryDate: e.target.value })} />
                   </div>
-                  {lines.length > 1 ? (
-                    <Button variant="ghost" size="icon" className="size-11 text-muted-foreground hover:text-destructive" aria-label={`Remove line ${i + 1}`} onClick={() => setLines((prev) => prev.filter((_, idx) => idx !== i))}>
-                      <Trash2 className="size-4" aria-hidden />
-                    </Button>
-                  ) : null}
+                  <div className="flex h-11 items-center justify-end">
+                    {lines.length > 1 ? <Button variant="ghost" size="icon" className="size-11 text-muted-foreground hover:text-destructive" aria-label={`Remove line ${i + 1}`} onClick={() => setLines((prev) => prev.filter((_, idx) => idx !== i))}><Trash2 className="size-4" aria-hidden /></Button> : <span className="hidden size-11 lg:block" aria-hidden />}
+                  </div>
                 </div>
               </div>
             ))}

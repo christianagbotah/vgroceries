@@ -139,8 +139,10 @@ export const operationMeta: Record<string, OperationMeta> = {
 
   /* staff: suppliers & purchasing */
   "admin.suppliers": { tags: STOCK },
+  "admin.suppliers.update": { invalidates: STOCK },
   "admin.purchases": { tags: STOCK },
   "admin.purchases.create": { invalidates: STOCK },
+  "admin.purchases.update": { invalidates: STOCK },
   "admin.purchases.send": { invalidates: STOCK },
 
 
