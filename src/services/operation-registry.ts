@@ -135,6 +135,7 @@ export const operationMeta: Record<string, OperationMeta> = {
   "admin.product-media.brand-mode": { invalidates: [...CAT, ...MEDIA] },
   "admin.variant.update": { invalidates: CAT },
   "admin.categories": { tags: CAT },
+  "admin.categories.create": { invalidates: CAT },
   "admin.categories.update": { invalidates: CAT },
 
   /* staff: suppliers & purchasing */

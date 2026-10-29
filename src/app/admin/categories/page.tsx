@@ -13,7 +13,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
-import { ClipboardList } from "lucide-react";
+import { ClipboardList, Plus } from "lucide-react";
+import { CategoryManagerDialog } from "@/features/staff/category-manager-dialog";
 
 type CategoryRow = Awaited<ReturnType<typeof apiOps.categories>>[number];
 
@@ -26,6 +27,7 @@ export default function AdminCategoriesPage() {
   const [description, setDescription] = useState("");
   const [active, setActive] = useState(true);
   const [busy, setBusy] = useState(false);
+  const [createOpen, setCreateOpen] = useState(false);
 
   const save = async () => {
     if (!edit) return;
@@ -47,11 +49,14 @@ export default function AdminCategoriesPage() {
 
   return (
     <div className="space-y-4">
-      <div>
-        <h1 className="font-serif text-2xl font-bold">Categories</h1>
-        <p className="text-sm text-muted-foreground">
-          Category management: names, descriptions and active state. Slugs are stable identifiers.
-        </p>
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h1 className="font-serif text-2xl font-bold">Categories</h1>
+          <p className="text-sm text-muted-foreground">
+            Category management: names, descriptions and active state. Slugs are stable identifiers.
+          </p>
+        </div>
+        {can("catalog.edit") ? <Button className="h-10" onClick={() => setCreateOpen(true)}><Plus className="size-4" aria-hidden /> Add category</Button> : null}
       </div>
 
       <div className="overflow-hidden rounded-xl border bg-card">
@@ -94,6 +99,16 @@ export default function AdminCategoriesPage() {
           </table>
         </div>
       </div>
+
+      <CategoryManagerDialog
+        open={createOpen}
+        onOpenChange={setCreateOpen}
+        categories={data ?? []}
+        canEdit={can("catalog.edit")}
+        actor={user.id}
+        onReload={reload}
+        initialMode="create"
+      />
 
       <Dialog open={!!edit} onOpenChange={(open) => !open && setEdit(null)}>
         <DialogContent className="sm:max-w-xl">
