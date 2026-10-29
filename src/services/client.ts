@@ -333,6 +333,7 @@ export const apiOps = {
     api<AdminProductMediaView>("admin.product-media.brand-mode", { query: { productId }, body: { brandMode } }),
   variantUpdate: (body: Record<string, unknown>) => api<DoneResponse>("admin.variant.update", { body }),
   categories: () => api<AdminCategoryRow[]>("admin.categories"),
+  categoryCreate: (body: Record<string, unknown>) => api<{ categoryId: string }>("admin.categories.create", { body }),
   categoryUpdate: (body: Record<string, unknown>) => api<DoneResponse>("admin.categories.update", { body }),
   suppliers: () => api<SupplierRow[]>("admin.suppliers"),
   supplierUpdate: (body: Record<string, unknown>) => api<DoneResponse>("admin.suppliers.update", { body }),

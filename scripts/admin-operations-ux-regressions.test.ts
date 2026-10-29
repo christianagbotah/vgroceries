@@ -23,6 +23,46 @@ function okData<T>(response: ApiEnvelope<T>): T {
   return (response as { ok: true; data: T }).data;
 }
 
+describe("category creation", () => {
+  test("creates a new category with a unique slug and next sort order", async () => {
+    const created = okData(await req<{ categoryId: string }>("admin.categories.create", {
+      body: {
+        name: "Breakfast & Cereals",
+        slug: "breakfast-cereals",
+        description: "Breakfast staples and cereals.",
+        isActive: true,
+        actor: "stf_ama",
+      },
+    }));
+
+    const categories = okData(await req<Array<{ id: string; slug: string; name: string; description: string; isActive: boolean; sortOrder: number; productCount: number; availableCount: number }>>("admin.categories"));
+    const category = categories.find((row) => row.id === created.categoryId);
+    expect(category).toMatchObject({
+      slug: "breakfast-cereals",
+      name: "Breakfast & Cereals",
+      description: "Breakfast staples and cereals.",
+      isActive: true,
+      productCount: 0,
+      availableCount: 0,
+    });
+    expect(category?.sortOrder).toBe(Math.max(...categories.filter((row) => row.id !== created.categoryId).map((row) => row.sortOrder)) + 1);
+  });
+
+  test("rejects duplicate and invalid category slugs without mutating categories", async () => {
+    const before = okData(await req<Array<{ id: string; slug: string }>>("admin.categories"));
+    const duplicate = await req("admin.categories.create", { body: { name: "Duplicate", slug: before[0].slug, description: "", isActive: true, actor: "stf_ama" } });
+    expect(duplicate.ok).toBe(false);
+    if (!duplicate.ok) expect(duplicate.error.message).toContain("slug");
+
+    const invalid = await req("admin.categories.create", { body: { name: "Invalid", slug: "Bad Slug!", description: "", isActive: true, actor: "stf_ama" } });
+    expect(invalid.ok).toBe(false);
+    if (!invalid.ok) expect(invalid.error.message).toContain("lowercase letters");
+
+    const after = okData(await req<Array<{ id: string; slug: string }>>("admin.categories"));
+    expect(after).toHaveLength(before.length);
+  });
+});
+
 describe("admin operations filters", () => {
   test("supplier filters combine search and active state", () => {
     const rows = [

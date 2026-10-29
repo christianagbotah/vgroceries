@@ -1141,6 +1141,30 @@ export async function handleApi(req: ApiRequest): Promise<ApiResult> {
           availableCount: store.products.filter((p) => p.categoryId === c.id && isProductPurchasable(store, p.id)).length,
         })));
       }
+      case "admin.categories.create": {
+        const name = b("name").trim();
+        const slug = b("slug").trim().toLowerCase();
+        if (!name) throw new OpError("VALIDATION_FAILED", "Category name is required.");
+        if (!slug) throw new OpError("VALIDATION_FAILED", "Category slug is required.");
+        if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug)) {
+          throw new OpError("VALIDATION_FAILED", "Category slug may contain lowercase letters, numbers and single hyphens only.");
+        }
+        if (store.categories.some((category) => category.slug.toLowerCase() === slug)) {
+          throw new OpError("VALIDATION_FAILED", "Category slug already exists.");
+        }
+        const category = {
+          id: nextId("cat"),
+          slug,
+          name,
+          description: typeof body.description === "string" ? body.description.trim() : "",
+          tint: "sage",
+          sortOrder: Math.max(0, ...store.categories.map((row) => row.sortOrder)) + 1,
+          isActive: body.isActive !== false,
+        };
+        store.categories.push(category);
+        audit(store, b("actor") || "stf_ama", "catalog.category_created", "Category", category.id);
+        return ok({ categoryId: category.id });
+      }
       case "admin.categories.update": {
         const c = store.categories.find((x) => x.id === b("categoryId"));
         if (!c) throw new OpError("VALIDATION_FAILED", "Category not found.");
