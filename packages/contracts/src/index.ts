@@ -13,6 +13,7 @@
 
 export * from "./common";
 export * from "./catalog";
+export * from "./categories";
 export * from "./catalog-media";
 export * from "./checkout";
 export * from "./payments";
