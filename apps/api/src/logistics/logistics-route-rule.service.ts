@@ -312,13 +312,13 @@ export class LogisticsRouteRuleService {
     };
   }
 
-  async simulate(input: RouteSimulationRequest): Promise<RouteSimulationResponse> {
+  private async simulateOn(client: Tx | Database, input: RouteSimulationRequest): Promise<RouteSimulationResponse> {
     const parsed = this.parse<any>(routeSimulationRequestSchema, input, "Route simulation body is invalid.");
     if (parsed.fulfilment === "delivery" && !parsed.deliveryZoneId) invalid("Delivery simulation requires a delivery zone.");
     if (parsed.fulfilment === "collection" && parsed.deliveryZoneId) invalid("Collection simulation cannot use a delivery zone.");
     const locality = normalizeMatchText(parsed.locality); const serviceLevel = normalizeMatchText(parsed.serviceLevel);
     const at = parsed.at ? new Date(parsed.at) : new Date();
-    const rows = await this.db.deliveryRouteRule.findMany({
+    const rows = await client.deliveryRouteRule.findMany({
       where: {
         active: true, originNodeId: parsed.originNodeId, fulfilment: parsed.fulfilment,
         deliveryZoneId: parsed.fulfilment === "delivery" ? parsed.deliveryZoneId : null,
@@ -340,10 +340,23 @@ export class LogisticsRouteRuleService {
     return routeSimulationResponseSchema.parse({ status: "matched", selectedRule: candidates[0]!, candidates });
   }
 
-  async resolve(context: Omit<RouteSimulationRequest,"at">, at: Date): Promise<RouteSimulationCandidate> {
-    const result = await this.simulate({ ...context, at: at.toISOString() });
+  async simulate(input: RouteSimulationRequest): Promise<RouteSimulationResponse> {
+    return this.simulateOn(this.db, input);
+  }
+
+  private async resolveOn(client: Tx | Database, context: Omit<RouteSimulationRequest,"at">, at: Date): Promise<RouteSimulationCandidate> {
+    const result = await this.simulateOn(client, { ...context, at: at.toISOString() });
     if (result.status === "no_match") throw new ApiProblem(422, "LOGISTICS_ROUTE_NOT_CONFIGURED", "No active logistics route matches this order context.");
     if (result.status === "ambiguous") throw new ApiProblem(409, "LOGISTICS_ROUTE_AMBIGUOUS", "Multiple active logistics routes have equal authority for this order context.");
     return result.selectedRule;
   }
+
+  async resolve(context: Omit<RouteSimulationRequest,"at">, at: Date): Promise<RouteSimulationCandidate> {
+    return this.resolveOn(this.db, context, at);
+  }
+
+  async resolveInTransaction(tx: Tx, context: Omit<RouteSimulationRequest,"at">, at: Date): Promise<RouteSimulationCandidate> {
+    return this.resolveOn(tx, context, at);
+  }
+
 }

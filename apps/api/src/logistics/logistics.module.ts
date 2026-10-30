@@ -3,14 +3,16 @@ import { AdminLogisticsNodesController } from "./admin-logistics-nodes.controlle
 import { AdminLogisticsLanesController } from "./admin-logistics-lanes.controller";
 import { AdminLogisticsWorkflowsController } from "./admin-logistics-workflows.controller";
 import { AdminLogisticsRouteRulesController } from "./admin-logistics-route-rules.controller";
+import { AdminLogisticsShipmentsController } from "./admin-logistics-shipments.controller";
 import { LogisticsNodeService } from "./logistics-node.service";
 import { LogisticsLaneService } from "./logistics-lane.service";
 import { LogisticsWorkflowService } from "./logistics-workflow.service";
 import { LogisticsRouteRuleService } from "./logistics-route-rule.service";
 import { LogisticsBootstrapService } from "./logistics-bootstrap.service";
+import { ShipmentPlanningService } from "./shipment-planning.service";
 @Module({
-  controllers:[AdminLogisticsNodesController,AdminLogisticsLanesController,AdminLogisticsWorkflowsController,AdminLogisticsRouteRulesController],
-  providers:[LogisticsNodeService,LogisticsLaneService,LogisticsWorkflowService,LogisticsRouteRuleService,LogisticsBootstrapService],
-  exports:[LogisticsNodeService,LogisticsLaneService,LogisticsWorkflowService,LogisticsRouteRuleService,LogisticsBootstrapService],
+  controllers:[AdminLogisticsNodesController,AdminLogisticsLanesController,AdminLogisticsWorkflowsController,AdminLogisticsRouteRulesController,AdminLogisticsShipmentsController],
+  providers:[LogisticsNodeService,LogisticsLaneService,LogisticsWorkflowService,LogisticsRouteRuleService,LogisticsBootstrapService,ShipmentPlanningService],
+  exports:[LogisticsNodeService,LogisticsLaneService,LogisticsWorkflowService,LogisticsRouteRuleService,LogisticsBootstrapService,ShipmentPlanningService],
 })
 export class LogisticsModule {}
