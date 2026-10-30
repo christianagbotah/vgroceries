@@ -51,6 +51,18 @@ export interface PaystackConfig {
   identityHmacKey: Buffer;
 }
 
+export interface EtranzactConfig {
+  terminalId: string;
+  secretKey: string;
+  initializeUrl: string;
+  queryUrl: string;
+  responseUrl: string;
+  customerReturnUrl: string;
+  logoUrl: string;
+  technicalEmailDomain: string;
+  identityHmacKey: Buffer;
+}
+
 export type ProductMediaConfig =
   | { kind: "filesystem"; root: string; publicBaseUrl: string }
   | {
@@ -84,6 +96,7 @@ export interface ApiConfig {
   hubtelPayment: HubtelPaymentConfig | null;
   hubtelRefund: HubtelRefundConfig | null;
   paystack: PaystackConfig | null;
+  etranzact: EtranzactConfig | null;
   productMedia: ProductMediaConfig | null;
   imageGeneration: ImageGenerationConfig | null;
 }
@@ -435,6 +448,73 @@ export function readConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
     };
   }
 
+  const etranzactNames = [
+    "ETRANZACT_TERMINAL_ID",
+    "ETRANZACT_SECRET_KEY",
+    "ETRANZACT_INITIALIZE_URL",
+    "ETRANZACT_QUERY_URL",
+    "ETRANZACT_RESPONSE_URL",
+    "ETRANZACT_CUSTOMER_RETURN_URL",
+    "ETRANZACT_LOGO_URL",
+    "ETRANZACT_TECHNICAL_EMAIL_DOMAIN",
+    "ETRANZACT_IDENTITY_HMAC_KEY",
+  ] as const;
+  const etranzactSupplied = etranzactNames.filter(
+    (name) => env[name] !== undefined && env[name] !== "",
+  );
+  let etranzact: EtranzactConfig | null = null;
+  if (etranzactSupplied.length || payments?.providerId === "etranzact") {
+    if (!payments || payments.providerId !== "etranzact")
+      throw new Error("eTranzact configuration requires PAYMENT_PROVIDER_ID=etranzact");
+    if (etranzactSupplied.length !== etranzactNames.length)
+      throw new Error("eTranzact configuration must be supplied as a complete bundle");
+    const terminalId = env.ETRANZACT_TERMINAL_ID!;
+    if (!/^\d{10}$/.test(terminalId))
+      throw new Error("ETRANZACT_TERMINAL_ID must contain exactly 10 digits");
+    const secretKey = env.ETRANZACT_SECRET_KEY!;
+    if (secretKey.length < 4 || secretKey.length > 256)
+      throw new Error("eTranzact secret key length is invalid");
+    const etranzactUrl = (name: (typeof etranzactNames)[number], value: string) => {
+      let parsed: URL;
+      try {
+        parsed = new URL(value);
+      } catch {
+        throw new Error(`${name} must be an absolute HTTP(S) URL`);
+      }
+      if (!["http:", "https:"].includes(parsed.protocol) || parsed.username || parsed.password)
+        throw new Error(`${name} must be an absolute HTTP(S) URL without embedded credentials`);
+      if (env.NODE_ENV === "production" && parsed.protocol !== "https:")
+        throw new Error(`${name} must use HTTPS in production`);
+      return value;
+    };
+    const technicalEmailDomain = env.ETRANZACT_TECHNICAL_EMAIL_DOMAIN!;
+    const etranzactHostnamePattern = /^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
+    if (
+      technicalEmailDomain !== technicalEmailDomain.toLowerCase() ||
+      !etranzactHostnamePattern.test(technicalEmailDomain)
+    ) throw new Error("ETRANZACT_TECHNICAL_EMAIL_DOMAIN must be a lowercase hostname");
+    const rawIdentityKey = env.ETRANZACT_IDENTITY_HMAC_KEY!;
+    if (!/^[a-fA-F0-9]{64}$/.test(rawIdentityKey))
+      throw new Error("ETRANZACT_IDENTITY_HMAC_KEY must be a 32-byte hex key");
+    const customerReturnUrl = etranzactUrl(
+      "ETRANZACT_CUSTOMER_RETURN_URL",
+      env.ETRANZACT_CUSTOMER_RETURN_URL!,
+    );
+    if (!customerReturnUrl.includes("{orderId}"))
+      throw new Error("ETRANZACT_CUSTOMER_RETURN_URL must contain {orderId}");
+    etranzact = {
+      terminalId,
+      secretKey,
+      initializeUrl: etranzactUrl("ETRANZACT_INITIALIZE_URL", env.ETRANZACT_INITIALIZE_URL!),
+      queryUrl: etranzactUrl("ETRANZACT_QUERY_URL", env.ETRANZACT_QUERY_URL!),
+      responseUrl: etranzactUrl("ETRANZACT_RESPONSE_URL", env.ETRANZACT_RESPONSE_URL!),
+      customerReturnUrl,
+      logoUrl: etranzactUrl("ETRANZACT_LOGO_URL", env.ETRANZACT_LOGO_URL!),
+      technicalEmailDomain,
+      identityHmacKey: Buffer.from(rawIdentityKey, "hex"),
+    };
+  }
+
   const mediaAuxNames = [
     "PRODUCT_MEDIA_FILESYSTEM_ROOT",
     "PRODUCT_MEDIA_PUBLIC_BASE_URL",
@@ -508,6 +588,7 @@ export function readConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
     hubtelPayment,
     hubtelRefund,
     paystack,
+    etranzact,
     productMedia,
     imageGeneration,
   };

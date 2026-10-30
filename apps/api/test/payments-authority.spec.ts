@@ -18,15 +18,27 @@ after(async () => { await app.close(); });
 const paymentPaths = [
   "/api/v1/orders/{orderId}/payment-attempts",
   "/api/v1/payments/providers/{provider}/events",
+  "/api/v1/payments/providers/etranzact/return",
   "/api/v1/payments",
   "/api/v1/payments/{attemptId}/reconcile",
 ] as const;
 
-test("production OpenAPI exposes exactly the four Payments Authority routes and no browser payment-outcome", () => {
+test("production OpenAPI exposes exactly the five Payments Authority routes and no browser payment-outcome", () => {
   for (const path of paymentPaths) assert.ok(document.paths[path], `missing ${path}`);
   assert.equal(document.paths["/api/v1/orders/{orderId}/payment-outcome"], undefined);
   assert.equal(document.paths["/api/v1/payments/fake/events"], undefined);
-  assert.equal(Object.keys(document.paths).length, 103);
+  assert.equal(Object.keys(document.paths).length, 104);
+});
+
+test("eTranzact hosted return is public provider evidence and redirects only after server processing", () => {
+  const op = document.paths["/api/v1/payments/providers/etranzact/return"].post;
+  assert.deepEqual(op.security, []);
+  assert.ok(String(op.description).toLowerCase().includes("etranzact"));
+  assert.ok(String(op.description).toLowerCase().includes("checksum"));
+  assert.ok(op.requestBody.content["application/x-www-form-urlencoded"]);
+  assert.ok(op.responses["303"]);
+  assert.ok(op.responses["303"].headers.Location);
+  assert.equal(op.responses["201"], undefined);
 });
 
 test("payment initiation documents owner security, replay and CSRF without client money authority", () => {
