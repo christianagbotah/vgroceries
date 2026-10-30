@@ -408,6 +408,7 @@ model Order {
   fulfilmentRun FulfilmentRun?
   deliveryJob DeliveryJob?
   deliveryEvents DeliveryEvent[]
+  shipments Shipment[]
   @@index([customerUserId, createdAt])
   @@index([guestSessionId, createdAt])
   @@index([zoneId, createdAt])
@@ -808,6 +809,11 @@ model LogisticsNode {
   originRouteRules DeliveryRouteRule[] @relation("DeliveryRouteRuleOrigin")
   finalPickupRouteRules DeliveryRouteRule[] @relation("DeliveryRouteRuleFinalPickup")
   routeRuleStops DeliveryRouteRuleStop[]
+  originShipments Shipment[] @relation("ShipmentOriginNode")
+  finalPickupShipments Shipment[] @relation("ShipmentFinalPickupNode")
+  currentShipments Shipment[] @relation("ShipmentCurrentNode")
+  shipmentStops ShipmentStop[] @relation("ShipmentStopNode")
+  shipmentEvents ShipmentEvent[] @relation("ShipmentEventNode")
   @@index([active, kind, name])
   @@index([parentNodeId])
 }
@@ -828,6 +834,7 @@ model LogisticsLane {
   createdAt DateTime @default(now()) @db.Timestamptz(3)
   updatedAt DateTime @updatedAt @db.Timestamptz(3)
   routeRuleLegs DeliveryRouteRuleLeg[]
+  shipmentLegs ShipmentLeg[]
   @@index([originNodeId, active])
   @@index([destinationNodeId, active])
 }
@@ -859,6 +866,7 @@ model DeliveryWorkflowVersion {
   publishedAt DateTime? @db.Timestamptz(3)
   stages WorkflowStageDefinition[]
   routeRules DeliveryRouteRule[]
+  shipments Shipment[]
   currentForTemplate DeliveryWorkflowTemplate? @relation("WorkflowCurrentPublished")
   @@unique([templateId, versionNumber])
   @@index([templateId, status, versionNumber])
@@ -910,6 +918,7 @@ model DeliveryRouteRule {
   updatedAt DateTime @updatedAt @db.Timestamptz(3)
   stops DeliveryRouteRuleStop[]
   legs DeliveryRouteRuleLeg[]
+  shipments Shipment[]
   @@index([originNodeId, deliveryZoneId, active, priority])
   @@index([workflowVersionId, active])
   @@index([finalPickupNodeId, active])
@@ -944,4 +953,123 @@ model DeliveryRouteRuleLeg {
   @@index([originStopId])
   @@index([destinationStopId])
   @@index([laneId])
+}
+
+model Shipment {
+  id                 String                  @id @default(uuid())
+  orderId            String
+  order              Order                   @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  sequence           Int
+  workflowVersionId  String
+  workflowVersion    DeliveryWorkflowVersion @relation(fields: [workflowVersionId], references: [id], onDelete: Restrict)
+  routeRuleId        String
+  routeRule          DeliveryRouteRule       @relation(fields: [routeRuleId], references: [id], onDelete: Restrict)
+  routeRevision      Int                     @default(1)
+  status             String                  @default("planned")
+  originNodeId       String
+  originNode         LogisticsNode           @relation("ShipmentOriginNode", fields: [originNodeId], references: [id], onDelete: Restrict)
+  destinationKind    String
+  finalPickupNodeId  String?
+  finalPickupNode    LogisticsNode?          @relation("ShipmentFinalPickupNode", fields: [finalPickupNodeId], references: [id], onDelete: Restrict)
+  destinationAddress Json?
+  currentNodeId      String?
+  currentNode        LogisticsNode?          @relation("ShipmentCurrentNode", fields: [currentNodeId], references: [id], onDelete: Restrict)
+  currentLegId       String?                 @unique
+  currentLeg         ShipmentLeg?            @relation("ShipmentCurrentLeg", fields: [currentLegId], references: [id], onDelete: Restrict)
+  custody            String?
+  activatedAt        DateTime?               @db.Timestamptz(3)
+  completedAt        DateTime?               @db.Timestamptz(3)
+  version            Int                     @default(1)
+  createdAt          DateTime                @default(now()) @db.Timestamptz(3)
+  updatedAt          DateTime                @updatedAt @db.Timestamptz(3)
+  stops              ShipmentStop[]
+  legs               ShipmentLeg[]           @relation("ShipmentLegOwner")
+  events             ShipmentEvent[]
+
+  @@unique([orderId, sequence])
+  @@index([status, updatedAt])
+  @@index([originNodeId, status])
+  @@index([currentNodeId, status])
+  @@index([routeRuleId, routeRevision])
+}
+
+model ShipmentStop {
+  id                 String        @id @default(uuid())
+  shipmentId         String
+  shipment           Shipment      @relation(fields: [shipmentId], references: [id], onDelete: Restrict)
+  routeRevision      Int
+  position           Int
+  nodeId             String
+  node               LogisticsNode @relation("ShipmentStopNode", fields: [nodeId], references: [id], onDelete: Restrict)
+  nodeCode           String
+  nodePublicName     String
+  nodeKind           String
+  nodeKindLabel      String?
+  terminalRole       String
+  plannedArrivalAt   DateTime?     @db.Timestamptz(3)
+  plannedDepartureAt DateTime?     @db.Timestamptz(3)
+  originLegs         ShipmentLeg[] @relation("ShipmentLegOriginStop")
+  destinationLegs    ShipmentLeg[] @relation("ShipmentLegDestinationStop")
+
+  @@unique([shipmentId, routeRevision, position])
+  @@index([nodeId])
+}
+
+model ShipmentLeg {
+  id                 String          @id @default(uuid())
+  shipmentId         String
+  shipment           Shipment        @relation("ShipmentLegOwner", fields: [shipmentId], references: [id], onDelete: Restrict)
+  routeRevision      Int
+  position           Int
+  originStopId       String
+  originStop         ShipmentStop    @relation("ShipmentLegOriginStop", fields: [originStopId], references: [id], onDelete: Restrict)
+  destinationStopId  String
+  destinationStop    ShipmentStop    @relation("ShipmentLegDestinationStop", fields: [destinationStopId], references: [id], onDelete: Restrict)
+  laneId             String
+  lane               LogisticsLane   @relation(fields: [laneId], references: [id], onDelete: Restrict)
+  mode               String
+  providerKey        String?
+  typicalMinutes     Int
+  status             String          @default("planned")
+  departedAt         DateTime?       @db.Timestamptz(3)
+  arrivedAt          DateTime?       @db.Timestamptz(3)
+  slaDeadline        DateTime?       @db.Timestamptz(3)
+  version            Int             @default(1)
+  createdAt          DateTime        @default(now()) @db.Timestamptz(3)
+  updatedAt          DateTime        @updatedAt @db.Timestamptz(3)
+  events             ShipmentEvent[]
+  currentForShipment Shipment?       @relation("ShipmentCurrentLeg")
+
+  @@unique([shipmentId, routeRevision, position])
+  @@index([originStopId])
+  @@index([destinationStopId])
+  @@index([laneId])
+  @@index([status, updatedAt])
+}
+
+model ShipmentEvent {
+  id             String         @id @default(uuid())
+  shipmentId     String
+  shipment       Shipment       @relation(fields: [shipmentId], references: [id], onDelete: Restrict)
+  routeRevision  Int
+  legId          String?
+  leg            ShipmentLeg?   @relation(fields: [legId], references: [id], onDelete: Restrict)
+  nodeId         String?
+  node           LogisticsNode? @relation("ShipmentEventNode", fields: [nodeId], references: [id], onDelete: Restrict)
+  eventKind      String
+  actorKind      String
+  actorId        String?
+  fromCustody    String?
+  toCustody      String?
+  customerTitle  String?
+  customerDetail String?
+  safeMetadata   Json
+  requestId      String
+  occurredAt     DateTime       @db.Timestamptz(3)
+  createdAt      DateTime       @default(now()) @db.Timestamptz(3)
+
+  @@index([shipmentId, occurredAt, id])
+  @@index([legId, occurredAt])
+  @@index([nodeId, occurredAt])
+  @@index([requestId])
 }
