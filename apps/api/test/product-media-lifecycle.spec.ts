@@ -300,7 +300,7 @@ test("production OpenAPI documents the complete product-media lifecycle authorit
     "/api/v1/admin/catalog/products/{productId}/media/reorder",
     "/api/v1/admin/catalog/products/{productId}/media/brand-mode",
   ];
-  assert.equal(Object.keys(document.paths).length, 103);
+  assert.equal(Object.keys(document.paths).length, 104);
   for (const path of paths) {
     const operation = document.paths[path]?.post;
     assert.ok(operation, `missing ${path}`);

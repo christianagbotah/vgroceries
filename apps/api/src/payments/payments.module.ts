@@ -3,6 +3,7 @@ import { CommerceIdentityModule } from "../commerce-identity/commerce-identity.m
 import { AllocationService } from "../inventory/allocation.service";
 import { PaymentAttemptsController } from "./payment-attempts.controller";
 import { PaymentEventsController } from "./payment-events.controller";
+import { EtranzactReturnController } from "./etranzact-return.controller";
 import { PaymentsController } from "./payments.controller";
 import { PaymentEventService } from "./payment-event.service";
 import { PaymentInitiationService } from "./payment-initiation.service";
@@ -17,7 +18,7 @@ import { RefundProviderRegistry } from "./refund-provider.registry";
 
 @Module({
   imports: [CommerceIdentityModule],
-  controllers: [PaymentAttemptsController, PaymentEventsController, PaymentsController],
+  controllers: [PaymentAttemptsController, PaymentEventsController, EtranzactReturnController, PaymentsController],
   providers: [
     // Reuse Inventory's allocation authority class directly. Importing the
     // controller-bearing InventoryModule would blur the module boundary and

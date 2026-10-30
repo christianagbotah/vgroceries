@@ -26,6 +26,7 @@ import { PaymentsModule } from "./payments/payments.module";
 import { HubtelRefundCallbackModule } from "./payments/hubtel-refund-callback.module";
 import { HubtelPaymentProvider } from "./payments/hubtel-payment-provider";
 import { PaystackPaymentProvider } from "./payments/paystack-payment-provider";
+import { EtranzactPaymentProvider } from "./payments/etranzact-payment-provider";
 import { PaystackRefundProvider } from "./payments/paystack-refund-provider";
 import type { PaymentProviderAdapter } from "./payments/payment-provider";
 import { PAYMENT_PROVIDER_ADAPTERS } from "./payments/payment-provider.registry";
@@ -43,6 +44,8 @@ export async function createApplication(
     resolvedPaymentAdapters.push(new HubtelPaymentProvider(config.hubtelPayment));
   if (config.paystack && !resolvedPaymentAdapters.some((adapter) => adapter.id === "paystack"))
     resolvedPaymentAdapters.push(new PaystackPaymentProvider(config.paystack));
+  if (config.etranzact && !resolvedPaymentAdapters.some((adapter) => adapter.id === "etranzact"))
+    resolvedPaymentAdapters.push(new EtranzactPaymentProvider(config.etranzact));
 
   const resolvedRefundAdapters = [...refundAdapters];
   if (config.hubtelRefund && !resolvedRefundAdapters.some((adapter) => adapter.id === "hubtel"))
@@ -105,6 +108,10 @@ export async function createApplication(
   app.use(
     "/api/v1/payments/providers/:provider/events",
     raw({ type: "application/json", limit: "64kb" }),
+  );
+  app.use(
+    "/api/v1/payments/providers/etranzact/return",
+    raw({ type: "application/x-www-form-urlencoded", limit: "64kb" }),
   );
   app.use(json({ limit: "64kb" }));
   app.enableCors({

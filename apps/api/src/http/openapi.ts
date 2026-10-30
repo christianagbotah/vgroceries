@@ -348,7 +348,8 @@ export function foundationOpenApi(app: INestApplication) {
         suffix === "/admin/catalog/products" ||
         suffix.startsWith("/admin/catalog/products/") ||
         suffix.startsWith("/admin/catalog/media/");
-      if (productionExtension) continue;
+      const documentedProviderReturn = suffix === "/payments/providers/etranzact/return";
+      if (productionExtension || documentedProviderReturn) continue;
       throw new Error(`Undocumented foundation endpoint: ${path}`);
     }
     for (const method of ["get", "post"] as const) {
@@ -539,6 +540,58 @@ export function foundationOpenApi(app: INestApplication) {
   };
   providerEvent.description =
     "Provider callback authenticated by the configured payment adapter using exact raw bytes and provider-specific verification/lookup. This route does not use customer authentication and callback fields alone never establish paid state.";
+
+  const etranzactReturn = doc.paths["/api/v1/payments/providers/etranzact/return"]!.post!;
+  etranzactReturn.security = [];
+  etranzactReturn.description =
+    "eTranzact WebConnect hosted-return endpoint. Variety preserves the exact URL-encoded provider response, validates FINAL_CHECKSUM and server-owned payment identity through the eTranzact adapter, applies any verified observation through the central payment authority, and only then redirects the shopper to the owned order-status page. A browser return alone never establishes paid state.";
+  etranzactReturn.requestBody = {
+    required: true,
+    description: "Provider-defined WebConnect form response. Fields remain untrusted until the configured eTranzact adapter validates the checksum and payment identity.",
+    content: {
+      "application/x-www-form-urlencoded": {
+        schema: {
+          type: "object",
+          additionalProperties: true,
+          required: ["TRANSACTION_ID", "AMOUNT", "SUCCESS", "FINAL_CHECKSUM"],
+          properties: {
+            TERMINAL_ID: { type: "string", maxLength: 64 },
+            TRANSACTION_ID: { type: "string", minLength: 8, maxLength: 128 },
+            AMOUNT: { type: "string", maxLength: 64 },
+            CURRENCY_CODE: { type: "string", enum: ["GHS"] },
+            SUCCESS: { type: "string", maxLength: 32 },
+            RESPONSE_CODE: { type: "string", maxLength: 32 },
+            TRANS_NUM: { type: "string", maxLength: 128 },
+            CARD_TYPE: { type: "string", maxLength: 64 },
+            FINAL_CHECKSUM: { type: "string", pattern: "^[A-Fa-f0-9]{32}$" },
+          },
+        },
+      },
+    },
+  };
+  const etranzactReturnError = {
+    description: "Safe error envelope",
+    content: { "application/json": { schema: ref("ApiError") } },
+  };
+  etranzactReturn.responses = {
+    "303": {
+      description: "Verified provider response processed; redirect to the customer-safe order status page.",
+      headers: {
+        Location: {
+          description: "Customer-safe checkout status URL for the server-resolved order.",
+          schema: { type: "string", format: "uri" },
+        },
+      },
+    },
+    "400": etranzactReturnError,
+    "404": etranzactReturnError,
+    "409": etranzactReturnError,
+    "413": etranzactReturnError,
+    "422": etranzactReturnError,
+    "429": etranzactReturnError,
+    "500": etranzactReturnError,
+    "503": etranzactReturnError,
+  };
 
   const paymentList = doc.paths["/api/v1/payments"]!.get!;
   paymentList.description =

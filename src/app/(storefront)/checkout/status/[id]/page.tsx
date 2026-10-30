@@ -77,6 +77,22 @@ export default function CheckoutStatusPage() {
         window.location.assign(result.action.url);
         return;
       }
+      if (result.action.kind === "form_post") {
+        const form = document.createElement("form");
+        form.method = "POST";
+        form.action = result.action.url;
+        form.hidden = true;
+        for (const [name, value] of Object.entries(result.action.fields)) {
+          const input = document.createElement("input");
+          input.type = "hidden";
+          input.name = name;
+          input.value = value;
+          form.appendChild(input);
+        }
+        document.body.appendChild(form);
+        form.submit();
+        return;
+      }
       if (result.action.kind === "prompt" || result.action.kind === "instructions") {
         setPaymentMessage(result.action.message);
       } else {

@@ -21,6 +21,7 @@ export interface PaymentInitiationRequest {
 
 export type PaymentProviderAction =
   | { kind: "redirect"; url: string }
+  | { kind: "form_post"; url: string; fields: Record<string, string> }
   | { kind: "prompt"; message: string; reference?: string }
   | { kind: "instructions"; message: string; reference?: string }
   | { kind: "none" };
@@ -33,8 +34,15 @@ export interface PaymentInitiationResult {
   action: PaymentProviderAction;
 }
 
+const paymentFormFieldsSchema = z
+  .record(z.string().regex(/^[A-Za-z0-9_]{1,64}$/), z.string().max(2048))
+  .refine((fields) => Object.keys(fields).length > 0 && Object.keys(fields).length <= 32, {
+    message: "Provider form actions must contain between 1 and 32 bounded fields",
+  });
+
 export const paymentProviderActionSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("redirect"), url: z.string().url() }).strict(),
+  z.object({ kind: z.literal("form_post"), url: z.string().url(), fields: paymentFormFieldsSchema }).strict(),
   z.object({ kind: z.literal("prompt"), message: z.string().min(1), reference: z.string().min(1).optional() }).strict(),
   z.object({ kind: z.literal("instructions"), message: z.string().min(1), reference: z.string().min(1).optional() }).strict(),
   z.object({ kind: z.literal("none") }).strict(),

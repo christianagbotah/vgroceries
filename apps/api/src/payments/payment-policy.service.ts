@@ -71,7 +71,7 @@ export class PaymentPolicyService {
   }
 
   validateProviderAction(action: PaymentProviderAction): PaymentProviderAction {
-    if (action.kind !== "redirect") return action;
+    if (action.kind !== "redirect" && action.kind !== "form_post") return action;
     const payment = this.config.payments;
     if (!payment)
       throw new ApiProblem(503, "UNAVAILABLE", "Electronic payments are not configured.");
