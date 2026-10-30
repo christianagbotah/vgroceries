@@ -13,6 +13,21 @@ import {
   routeTerminalRoleSchema,
   workflowEventKindSchema,
   workflowVersionStatusSchema,
+  shipmentStatusSchema,
+  shipmentLegStatusSchema,
+  shipmentCustodySchema,
+  shipmentEventKindSchema,
+  planShipmentRequestSchema,
+  shipmentDepartRequestSchema,
+  shipmentArriveRequestSchema,
+  shipmentRerouteRequestSchema,
+  shipmentCheckpointRequestSchema,
+  shipmentStopViewSchema,
+  shipmentLegViewSchema,
+  shipmentEventViewSchema,
+  shipmentListItemSchema,
+  shipmentDetailViewSchema,
+  shipmentActionResponseSchema,
   restEndpoints,
 } from "@variety/contracts";
 
@@ -237,4 +252,82 @@ test("route simulation contract distinguishes matched no-match ambiguous", () =>
   assert.equal(routeSimulationResponseSchema.safeParse({ status: "matched", candidates: [candidate] }).success, false);
   assert.equal(routeSimulationResponseSchema.safeParse({ status: "no_match", selectedRule: candidate, candidates: [candidate] }).success, false);
   assert.equal(routeSimulationResponseSchema.safeParse({ status: "ambiguous", candidates: [candidate] }).success, false);
+});
+
+
+test("shipment execution contracts pin production states and server-owned reroute input", () => {
+  assert.deepEqual(shipmentStatusSchema.options, [
+    "planned", "at_node", "in_transit", "final_mile_ready", "final_mile", "ready_for_pickup", "completed", "exception",
+  ]);
+  assert.deepEqual(shipmentLegStatusSchema.options, ["planned", "ready", "in_transit", "arrived", "exception", "superseded"]);
+  assert.deepEqual(shipmentCustodySchema.options, ["source_staff", "node_staff", "linehaul_internal", "provider", "rider", "customer", "return_transit"]);
+  assert.deepEqual(shipmentEventKindSchema.options, [
+    "fulfilment_handed_over", "shipment_departed", "shipment_arrived", "shipment_handover", "shipment_rerouted",
+    "shipment_delayed", "ready_for_pickup", "customer_collected", "rider_assigned", "rider_accepted", "rider_picked_up",
+    "out_for_delivery", "delivery_failed", "delivery_rescheduled", "delivered", "returned_toward_store", "custom_checkpoint",
+  ]);
+
+  assert.equal(planShipmentRequestSchema.safeParse({ destinationKind: "doorstep" }).success, true);
+  assert.equal(planShipmentRequestSchema.safeParse({ destinationKind: "pickup_point", finalPickupNodeId: "node_pickup", serviceLevel: "priority" }).success, true);
+  assert.equal(planShipmentRequestSchema.safeParse({ destinationKind: "pickup_point" }).success, false);
+  assert.equal(planShipmentRequestSchema.safeParse({ destinationKind: "doorstep", finalPickupNodeId: "node_pickup" }).success, false);
+
+  assert.equal(shipmentDepartRequestSchema.safeParse({ note: "sealed handover" }).success, true);
+  assert.equal(shipmentArriveRequestSchema.safeParse({ note: "received at hub" }).success, true);
+  assert.equal(shipmentCheckpointRequestSchema.safeParse({ title: "Held at hub", detail: "Awaiting the next scheduled lane." }).success, true);
+  assert.equal(shipmentCheckpointRequestSchema.safeParse({ title: "Held", paymentStatus: "succeeded" }).success, false);
+
+  assert.equal(shipmentRerouteRequestSchema.safeParse({ reason: "Primary lane unavailable", serviceLevel: "priority" }).success, true);
+  for (const forbidden of [
+    { reason: "Primary lane unavailable", routeRuleId: "rule-browser-choice" },
+    { reason: "Primary lane unavailable", stops: [{ nodeId: "forged" }] },
+    { reason: "Primary lane unavailable", legs: [{ laneId: "forged" }] },
+  ]) assert.equal(shipmentRerouteRequestSchema.safeParse(forbidden).success, false);
+});
+
+test("shipment execution views are strict snapshots without financial authority", () => {
+  const stop = {
+    id: "stop_1", routeRevision: 1, position: 1, nodeId: "node_hq", nodeCode: "ACC_HQ",
+    nodePublicName: "Accra Head Office", nodeKind: "fulfilment_center", nodeKindLabel: null,
+    terminalRole: "final_mile_dispatch", plannedArrivalAt: null, plannedDepartureAt: null,
+  };
+  const leg = {
+    id: "leg_1", routeRevision: 1, position: 1, laneId: "lane_1", originStopId: "stop_1", destinationStopId: "stop_2",
+    mode: "linehaul", providerKey: null, typicalMinutes: 240, status: "ready", departedAt: null, arrivedAt: null,
+    slaDeadline: null, version: 1,
+  };
+  const event = {
+    id: "event_1", eventKind: "fulfilment_handed_over", routeRevision: 1, legId: null, nodeId: "node_hq",
+    actorKind: "staff", actorId: "admin-commerce", fromCustody: null, toCustody: "source_staff",
+    customerTitle: "Handed over", customerDetail: null, safeMetadata: {}, requestId: "req-1",
+    occurredAt: "2026-10-30T20:00:00Z", createdAt: "2026-10-30T20:00:00Z",
+  };
+  assert.equal(shipmentStopViewSchema.safeParse(stop).success, true);
+  assert.equal(shipmentLegViewSchema.safeParse(leg).success, true);
+  assert.equal(shipmentEventViewSchema.safeParse(event).success, true);
+  assert.equal(shipmentEventViewSchema.safeParse({ ...event, paymentStatus: "succeeded" }).success, false);
+
+  const listItem = {
+    id: "shipment_1", orderId: "order_1", orderReference: "VG-ABC123", sequence: 1,
+    workflowVersionId: "wf_v1", routeRuleId: "rule_1", routeRevision: 1, status: "final_mile_ready",
+    originNodeId: "node_hq", destinationKind: "doorstep", finalPickupNodeId: null,
+    currentNodeId: "node_hq", currentLegId: null, custody: "source_staff",
+    activatedAt: "2026-10-30T20:00:00Z", completedAt: null, version: 2,
+    createdAt: "2026-10-30T19:00:00Z", updatedAt: "2026-10-30T20:00:00Z",
+    allowedActions: ["checkpoint"], blockers: [],
+  };
+  assert.equal(shipmentListItemSchema.safeParse(listItem).success, true);
+  assert.equal(shipmentActionResponseSchema.safeParse({
+    shipmentId: "shipment_1", orderId: "order_1", status: "final_mile_ready", custody: "source_staff",
+    currentNodeId: "node_hq", currentLegId: null, routeRevision: 1, allowedActions: ["checkpoint"], blockers: [],
+  }).success, true);
+  assert.equal(shipmentDetailViewSchema.safeParse({
+    ...listItem,
+    destinationAddress: { recipientName: "Ama", locality: "Osu", street: "Oxford Street", landmark: null, ghanaPostGps: "GA-123-4567" },
+    stops: [stop], legs: [], events: [event],
+  }).success, true);
+  assert.equal(shipmentDetailViewSchema.safeParse({
+    ...listItem,
+    destinationAddress: null, stops: [stop], legs: [], events: [event], providerSecret: "leak",
+  }).success, false);
 });
