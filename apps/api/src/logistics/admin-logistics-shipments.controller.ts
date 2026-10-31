@@ -1,6 +1,6 @@
 import { Body, Controller, HttpCode, Param, Post, Req, UseGuards } from "@nestjs/common";
 import { ApiExcludeController } from "@nestjs/swagger";
-import { planShipmentRequestSchema, replayKeySchema, shipmentArriveRequestSchema, shipmentCheckpointRequestSchema, shipmentDepartRequestSchema, type PlanShipmentRequest, type ShipmentArriveRequest, type ShipmentCheckpointRequest, type ShipmentDepartRequest } from "@variety/contracts";
+import { planShipmentRequestSchema, replayKeySchema, shipmentArriveRequestSchema, shipmentCheckpointRequestSchema, shipmentDepartRequestSchema, shipmentRerouteRequestSchema, type PlanShipmentRequest, type ShipmentArriveRequest, type ShipmentCheckpointRequest, type ShipmentDepartRequest, type ShipmentRerouteRequest } from "@variety/contracts";
 import { ApiProblem } from "../http/errors";
 import { AccessGuard } from "../identity/access.guard";
 import type { AuthRequest } from "../identity/identity.service";
@@ -39,5 +39,10 @@ export class AdminLogisticsShipmentsController {
   @Post("shipments/:shipmentId/checkpoints")
   @HttpCode(200)
   async checkpoint(@Req() req:AuthRequest,@Param("shipmentId") shipmentId:string,@Body() body:unknown){this.requireAdmin(req);const input=this.parse<ShipmentCheckpointRequest>(shipmentCheckpointRequestSchema,body,"Shipment checkpoint body is invalid.");return {ok:true,data:await this.execution.checkpoint(shipmentId,req.actor.id,this.key(req),input,req.requestId)};}
+
+  @Post("shipments/:shipmentId/reroute")
+  @HttpCode(200)
+  async reroute(@Req() req:AuthRequest,@Param("shipmentId") shipmentId:string,@Body() body:unknown){this.requireAdmin(req);const input=this.parse<ShipmentRerouteRequest>(shipmentRerouteRequestSchema,body,"Shipment reroute body is invalid.");return {ok:true,data:await this.execution.reroute(shipmentId,req.actor.id,this.key(req),input,req.requestId)};}
+
 
 }

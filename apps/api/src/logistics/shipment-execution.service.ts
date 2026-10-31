@@ -1,13 +1,14 @@
 import { Inject, Injectable } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
 import {
-  shipmentActionResponseSchema, shipmentArriveRequestSchema, shipmentCheckpointRequestSchema, shipmentDepartRequestSchema,
-  type ShipmentActionResponse, type ShipmentArriveRequest, type ShipmentCheckpointRequest, type ShipmentDepartRequest,
+  shipmentActionResponseSchema, shipmentArriveRequestSchema, shipmentCheckpointRequestSchema, shipmentDepartRequestSchema, shipmentRerouteRequestSchema,
+  type ShipmentActionResponse, type ShipmentArriveRequest, type ShipmentCheckpointRequest, type ShipmentDepartRequest, type ShipmentRerouteRequest,
 } from "@variety/contracts";
 import { API_CONFIG, type ApiConfig } from "../config";
 import { Database } from "../database/database";
 import { ApiProblem } from "../http/errors";
 import { logisticsCommandHash } from "./logistics.values";
+import { ShipmentPlanningService } from "./shipment-planning.service";
 
 type Tx = Prisma.TransactionClient;
 
@@ -23,7 +24,7 @@ function rule(message: string, code = "SHIPMENT_INVALID_STATE"): never {
 
 @Injectable()
 export class ShipmentExecutionService {
-  constructor(private readonly db: Database, @Inject(API_CONFIG) private readonly config: ApiConfig) {}
+  constructor(private readonly db: Database, @Inject(API_CONFIG) private readonly config: ApiConfig, private readonly planning: ShipmentPlanningService) {}
 
   private assertEnabled() {
     if (!this.config.shipmentExecutionEnabled) throw new ApiProblem(503, "UNAVAILABLE", "Shipment route execution is not enabled.");
@@ -232,6 +233,37 @@ export class ShipmentExecutionService {
       await tx.auditEvent.create({data:{actorId,action:"logistics.shipment.checkpoint",entityId:shipmentId,requestId,details:{orderId:shipment.orderId,routeRevision:shipment.routeRevision,title:input.title}}});
       await tx.outboxEvent.create({data:{type:"logistics.shipment.checkpoint",aggregateId:shipmentId,payload:{shipmentId,orderId:shipment.orderId,routeRevision:shipment.routeRevision,title:input.title}}});
       const outcome=this.action(shipment); await tx.idempotency.create({data:{actorId,operation,key:idempotencyKey,requestHash,outcome:outcome as Prisma.InputJsonValue}}); return outcome;
+    },{timeout:15_000});
+  }
+
+
+  async reroute(shipmentId:string, actorId:string, idempotencyKey:string, raw:ShipmentRerouteRequest, requestId:string):Promise<ShipmentActionResponse> {
+    this.assertEnabled();
+    const input=this.parse<ShipmentRerouteRequest>(shipmentRerouteRequestSchema,raw,"Shipment reroute body is invalid.");
+    const operation=`logistics.shipment.reroute:${shipmentId}`; const requestHash=logisticsCommandHash({shipmentId,...input});
+    return this.db.$transaction(async tx=>{
+      const replay=await this.replayOrLock(tx,actorId,operation,idempotencyKey,requestHash); if(replay)return replay;
+      const shipment=await this.lockShipment(tx,shipmentId);
+      if(!shipment.activatedAt||shipment.status!=="at_node"||!shipment.currentNodeId||shipment.currentLegId||shipment.completedAt)
+        rule("Shipment can be rerouted only while physically at a node with no active leg before completion.");
+      await tx.$queryRaw`SELECT id FROM "ShipmentLeg" WHERE "shipmentId"=${shipmentId} AND "routeRevision"=${shipment.routeRevision} ORDER BY position FOR UPDATE`;
+      const currentRule=await tx.deliveryRouteRule.findUnique({where:{id:shipment.routeRuleId},select:{serviceLevel:true}});
+      if(!currentRule) rule("Shipment current route configuration is unavailable.","LOGISTICS_ROUTE_NOT_CONFIGURED");
+      const newRevision=shipment.routeRevision+1;
+      const snapshot=await this.planning.snapshotRerouteRevisionInTransaction(tx,{shipmentId,orderId:shipment.orderId,currentNodeId:shipment.currentNodeId,workflowVersionId:shipment.workflowVersionId,destinationKind:shipment.destinationKind,finalPickupNodeId:shipment.finalPickupNodeId,destinationAddress:shipment.destinationAddress,newRevision,serviceLevel:input.serviceLevel===undefined?currentRule.serviceLevel:input.serviceLevel});
+      await tx.shipmentLeg.updateMany({where:{shipmentId,routeRevision:shipment.routeRevision,status:{in:["planned","ready"]}},data:{status:"superseded",version:{increment:1}}});
+      let status:string;
+      if(snapshot.firstLegId){await tx.shipmentLeg.update({where:{id:snapshot.firstLegId},data:{status:"ready",version:{increment:1}}});status="at_node";}
+      else if(snapshot.terminalRole==="final_mile_dispatch")status="final_mile_ready";
+      else if(snapshot.terminalRole==="customer_pickup")status="ready_for_pickup";
+      else rule("Replacement one-stop route has no supported terminal handoff.","LOGISTICS_ROUTE_INVALID");
+      const oldRouteRuleId=shipment.routeRuleId,oldRouteRevision=shipment.routeRevision;
+      const updated=await tx.shipment.update({where:{id:shipmentId},data:{routeRuleId:snapshot.routeRuleId,routeRevision:newRevision,status,version:{increment:1}}});
+      const now=new Date(); const metadata={oldRouteRuleId,newRouteRuleId:snapshot.routeRuleId,oldRouteRevision,newRouteRevision:newRevision};
+      await tx.shipmentEvent.create({data:{shipmentId,routeRevision:newRevision,nodeId:shipment.currentNodeId,eventKind:"shipment_rerouted",actorKind:"staff",actorId,safeMetadata:metadata,requestId,occurredAt:now}});
+      await tx.auditEvent.create({data:{actorId,action:"logistics.shipment.rerouted",entityId:shipmentId,requestId,details:{orderId:shipment.orderId,...metadata,reason:input.reason,serviceLevel:input.serviceLevel??null}}});
+      await tx.outboxEvent.create({data:{type:"logistics.shipment.rerouted",aggregateId:shipmentId,payload:{shipmentId,orderId:shipment.orderId,...metadata,status}}});
+      const outcome=this.action(updated); await tx.idempotency.create({data:{actorId,operation,key:idempotencyKey,requestHash,outcome:outcome as Prisma.InputJsonValue}}); return outcome;
     },{timeout:15_000});
   }
 

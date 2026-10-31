@@ -182,4 +182,35 @@ export class ShipmentPlanningService {
       return outcome;
     }, { timeout: 15_000 });
   }
+
+  async snapshotRerouteRevisionInTransaction(tx: Tx, input: {
+    shipmentId: string; orderId: string; currentNodeId: string; workflowVersionId: string; destinationKind: string;
+    finalPickupNodeId: string | null; destinationAddress: Prisma.JsonValue | null; newRevision: number; serviceLevel?: string | null;
+  }): Promise<{ routeRuleId:string; routeRevision:number; firstLegId:string|null; terminalRole:string; legCount:number }> {
+    this.assertEnabled();
+    const order=await tx.order.findUnique({where:{id:input.orderId},select:{zoneId:true}});
+    if(!order?.zoneId) rule("Shipment order is missing its delivery zone.");
+    const address=input.destinationAddress && typeof input.destinationAddress === "object" && !Array.isArray(input.destinationAddress)
+      ? input.destinationAddress as Record<string, Prisma.JsonValue> : null;
+    const locality=typeof address?.locality === "string" ? address.locality : undefined;
+    const selected=await this.routes.resolveInTransaction(tx,{
+      originNodeId:input.currentNodeId,fulfilment:"delivery",deliveryZoneId:order.zoneId,locality,
+      destinationKind:input.destinationKind as "doorstep"|"pickup_point",
+      finalPickupNodeId:input.destinationKind==="pickup_point"?input.finalPickupNodeId:null,serviceLevel:input.serviceLevel??null,
+    },new Date());
+    const locked=await tx.$queryRaw<Array<{id:string}>>`SELECT id FROM "DeliveryRouteRule" WHERE id=${selected.ruleId} AND active=true FOR SHARE`;
+    if(!locked[0]) rule("Selected reroute is no longer active.","LOGISTICS_ROUTE_NOT_CONFIGURED");
+    const graph=await tx.deliveryRouteRule.findUnique({where:{id:selected.ruleId},include:{stops:{include:{node:true},orderBy:{position:"asc"}},legs:{include:{lane:true},orderBy:{position:"asc"}}}});
+    if(!graph?.active) rule("Selected reroute is no longer active.","LOGISTICS_ROUTE_NOT_CONFIGURED");
+    if(graph.workflowVersionId!==input.workflowVersionId) rule("Replacement route must use the shipment's frozen workflow version.","LOGISTICS_ROUTE_INCOMPATIBLE");
+    if(graph.originNodeId!==input.currentNodeId||graph.destinationKind!==input.destinationKind||graph.finalPickupNodeId!==input.finalPickupNodeId)
+      rule("Replacement route does not preserve shipment destination authority.","LOGISTICS_ROUTE_INCOMPATIBLE");
+    if(!graph.stops.length||graph.stops[0]!.nodeId!==input.currentNodeId) rule("Replacement route does not begin at the current shipment node.","LOGISTICS_ROUTE_INVALID");
+    const stopIds=new Map<number,string>();
+    for(const stop of graph.stops){const created=await tx.shipmentStop.create({data:{shipmentId:input.shipmentId,routeRevision:input.newRevision,position:stop.position,nodeId:stop.nodeId,nodeCode:stop.node.code,nodePublicName:stop.node.publicName,nodeKind:stop.node.kind,nodeKindLabel:stop.node.kindLabel,terminalRole:stop.terminalRole}});stopIds.set(stop.position,created.id);}
+    let firstLegId:string|null=null;
+    for(const leg of graph.legs){const originStopId=stopIds.get(leg.position),destinationStopId=stopIds.get(leg.position+1);if(!originStopId||!destinationStopId)rule("Replacement route graph is incomplete.","LOGISTICS_ROUTE_INVALID");const created=await tx.shipmentLeg.create({data:{shipmentId:input.shipmentId,routeRevision:input.newRevision,position:leg.position,originStopId,destinationStopId,laneId:leg.laneId,mode:leg.lane.mode,providerKey:leg.lane.providerKey,typicalMinutes:leg.lane.typicalMinutes,status:"planned",version:1}});if(leg.position===1)firstLegId=created.id;}
+    return {routeRuleId:graph.id,routeRevision:input.newRevision,firstLegId,terminalRole:graph.stops.at(-1)!.terminalRole,legCount:graph.legs.length};
+  }
+
 }
