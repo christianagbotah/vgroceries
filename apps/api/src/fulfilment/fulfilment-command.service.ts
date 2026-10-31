@@ -1,4 +1,4 @@
-import { Injectable } from "@nestjs/common";
+import { Injectable, Optional } from "@nestjs/common";
 import {
   fulfilmentActionResponseSchema,
   type FulfilmentActionResponse,
@@ -11,6 +11,7 @@ import { ClaimCoverageService } from "../inventory/claim-coverage.service";
 import type { LockedClaimCoverage } from "../inventory/depletion.types";
 import { StockDepletionService } from "../inventory/stock-depletion.service";
 import { PaymentCaptureService } from "../payments/payment-capture.service";
+import { ShipmentExecutionService } from "../logistics/shipment-execution.service";
 import { FulfilmentPolicyService } from "./fulfilment-policy.service";
 import {
   commandHash,
@@ -58,6 +59,7 @@ export class FulfilmentCommandService {
     private readonly policy: FulfilmentPolicyService,
     paymentCapture?: PaymentCaptureService,
     stockDepletion?: StockDepletionService,
+    @Optional() private readonly shipmentExecution?: ShipmentExecutionService,
   ) {
     this.paymentCapture = paymentCapture ?? new PaymentCaptureService();
     this.stockDepletion = stockDepletion ?? new StockDepletionService(coverage);
@@ -557,6 +559,14 @@ export class FulfilmentCommandService {
         actorId: context.actorId,
         requestId: context.requestId,
       });
+
+      if (order.fulfilment === "delivery" && this.shipmentExecution) {
+        await this.shipmentExecution.activateForHandover(tx, {
+          orderId: order.id,
+          actorId: context.actorId,
+          requestId: context.requestId,
+        });
+      }
 
       const now = new Date();
       const targetStatus = order.fulfilment === "delivery" ? "dispatched" : "collected";

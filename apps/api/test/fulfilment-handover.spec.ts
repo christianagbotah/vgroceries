@@ -166,6 +166,7 @@ test("verified paid delivery handover is the one physical stock depletion bounda
   assert.equal(await db.orderEvent.count({ where: { orderId: fixture.order.id, action: "fulfilment.handed_over" } }), 1);
   assert.equal(await db.auditEvent.count({ where: { entityId: fixture.order.id, action: "fulfilment.handed_over" } }), 1);
   assert.equal(await db.outboxEvent.count({ where: { aggregateId: fixture.order.id, type: "fulfilment.handed_over" } }), 1);
+  assert.equal(await db.shipment.count({ where: { orderId: fixture.order.id } }), 0);
 });
 
 test("same handover key replays one immutable depletion without a second decrement", async () => {
