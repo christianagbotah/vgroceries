@@ -11,9 +11,10 @@ import { LogisticsRouteRuleService } from "./logistics-route-rule.service";
 import { LogisticsBootstrapService } from "./logistics-bootstrap.service";
 import { ShipmentPlanningService } from "./shipment-planning.service";
 import { ShipmentExecutionService } from "./shipment-execution.service";
+import { ShipmentFinalMileService } from "./shipment-final-mile.service";
 @Module({
   controllers:[AdminLogisticsNodesController,AdminLogisticsLanesController,AdminLogisticsWorkflowsController,AdminLogisticsRouteRulesController,AdminLogisticsShipmentsController],
-  providers:[LogisticsNodeService,LogisticsLaneService,LogisticsWorkflowService,LogisticsRouteRuleService,LogisticsBootstrapService,ShipmentPlanningService,ShipmentExecutionService],
-  exports:[LogisticsNodeService,LogisticsLaneService,LogisticsWorkflowService,LogisticsRouteRuleService,LogisticsBootstrapService,ShipmentPlanningService,ShipmentExecutionService],
+  providers:[LogisticsNodeService,LogisticsLaneService,LogisticsWorkflowService,LogisticsRouteRuleService,LogisticsBootstrapService,ShipmentPlanningService,ShipmentExecutionService,ShipmentFinalMileService],
+  exports:[LogisticsNodeService,LogisticsLaneService,LogisticsWorkflowService,LogisticsRouteRuleService,LogisticsBootstrapService,ShipmentPlanningService,ShipmentExecutionService,ShipmentFinalMileService],
 })
 export class LogisticsModule {}

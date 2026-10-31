@@ -1,4 +1,5 @@
 import { Module } from "@nestjs/common";
+import { LogisticsModule } from "../logistics/logistics.module";
 import { AdminDispatchController } from "./admin-dispatch.controller";
 import { AdminRidersController } from "./admin-riders.controller";
 import { RiderController } from "./rider.controller";
@@ -10,6 +11,7 @@ import { ManualProviderService } from "./manual-provider.service";
 import { RiderCommandService } from "./rider-command.service";
 
 @Module({
+  imports:[LogisticsModule],
   controllers:[AdminDispatchController,AdminRidersController,RiderController],
   providers:[DispatchPolicyService,DispatchEventService,ManualProviderService,DispatchCommandService,DispatchQueryService,RiderCommandService],
   exports:[DispatchPolicyService,DispatchCommandService,DispatchQueryService,RiderCommandService],
