@@ -1,6 +1,6 @@
-# Logistics L1 Configuration Runbook
+# Logistics L1 Configuration + L2 Shipment Execution Runbook
 
-Wave L1 configures the logistics network, immutable delivery-workflow versions, and deterministic route rules. It does **not** execute shipments, record parcel movement, dispatch notifications, connect a courier provider, settle COD, restock returns, or change payment authority.
+Wave L1 configures the logistics network, immutable delivery-workflow versions, and deterministic route rules. Wave L2 adds server-owned Shipment route snapshots and movement execution behind `LOGISTICS_SHIPMENT_EXECUTION_ENABLED`, which defaults to `false`. L2 does **not** dispatch notifications, connect a live courier provider, settle COD, restock returns, publish customer route-aware tracking, or change payment authority.
 
 ## 1. Prerequisites
 
@@ -80,6 +80,61 @@ Wave L1 has no shipment-runtime cutover, so rollback is configuration-only:
 
 Do **not** attempt to rollback L1 by changing Orders, Fulfilment runs, Delivery jobs, Payment attempts, Refunds, Stock lots, Reservations, or Stock depletion records. L1 owns none of those runtime authorities.
 
-## 8. Before enabling Wave L2
+## 8. Enable Wave L2 only after route coverage is ready
 
-Wave L2 may begin only after L1 migrations, API tests, deterministic 82-path OpenAPI, UI regressions, production build, and CI are green. L2 will introduce shipment execution and final-mile dispatch gating; customer tracking and notification delivery remain later waves.
+Wave L2 is implemented but defaults **off**. With `LOGISTICS_SHIPMENT_EXECUTION_ENABLED=false`, checkout creates no Shipment plan, the admin legacy-planning command is closed, and legacy handed-over orders without Shipment rows keep the pre-L2 Dispatch behavior.
+
+Before setting the flag to `true`:
+
+1. Apply the current migration set, including `202610300019_shipment_route_execution`.
+2. Confirm `COMMERCE_LOCATION_ID` and the intended source Logistics Node are correct.
+3. For every delivery zone to be activated, either run the guarded direct bootstrap or review a real multi-hop route.
+4. Simulate representative zone/locality/service-level inputs. Resolve every no-match and equal-highest-priority ambiguity before cutover.
+5. Confirm every selected workflow is published and every adjacent multi-hop stop has the intended active lane.
+6. Run the direct and multi-hop UAT sequences below against the same API/web build intended for deployment.
+7. Keep L3 customer route-aware tracking and L4 notifications disabled; L2 admin evidence is not a customer tracking feed.
+
+The flag is the single operational cutover for **new** Shipment planning/execution. Do not create Shipment rows by direct database scripts.
+
+## 9. Required L2 UAT
+
+### Direct doorstep
+
+1. Enable L2 in the UAT API process.
+2. Complete a delivery checkout whose server-resolved route is one `final_mile_dispatch` stop.
+3. Verify exactly one `planned` Shipment exists and no movement event claims departure/arrival before handover.
+4. Complete Fulfilment handover. Verify stock depletes once and the Shipment becomes `final_mile_ready` at source custody in the same transaction.
+5. Verify the order is eligible for Dispatch assignment.
+6. Rider or manual-provider pickup must move Shipment custody to `rider` or `provider` and status to `final_mile` exactly once.
+7. Delivery must complete Shipment custody to `customer` without a second stock mutation and without marking COD paid.
+
+### Multi-hop doorstep
+
+1. Complete checkout against a route with at least one real lane and verify the frozen stop/lane display snapshot.
+2. Fulfilment handover activates the Shipment at the source and marks only the first leg ready.
+3. `depart` must move only that ready leg to `in_transit`; `arrive` must complete only the active leg and make the next leg ready.
+4. Repeat in order until the terminal `final_mile_dispatch` stop is reached and Shipment becomes `final_mile_ready`.
+5. Confirm Dispatch was unavailable before final-mile readiness and becomes available only after terminal arrival.
+6. Complete final-mile pickup/delivery and reconfirm COD/payment and inventory authorities remain separate.
+
+### Pickup terminal
+
+A route ending in `customer_pickup` must become `ready_for_pickup`, never `final_mile_ready`. Do not route it through rider Dispatch merely because the parcel has arrived at a terminal.
+
+## 10. Reroute and checkpoint rules
+
+Reroute is allowed only while the Shipment is physically at a node, has no active leg, is incomplete and L2 is enabled. The client supplies intent/reason/service level only; the server resolves the replacement route. Prior stop/leg revisions remain immutable and only unstarted future legs of the old revision may be superseded.
+
+A custom checkpoint is informational append-only evidence. It must not change Shipment location/custody, inventory, payment, refund, COD or delivery status.
+
+## 11. Disable / rollback L2 safely
+
+To stop new L2 execution, set `LOGISTICS_SHIPMENT_EXECUTION_ENABLED=false` and redeploy the API configuration. Then:
+
+1. Preserve every Shipment, Stop, Leg and Event row; never delete or rewrite route history.
+2. Do not directly mark active shipments completed, arrived or delivered in PostgreSQL.
+3. Do not use rollback to restore stock; physical stock authority remains the existing handover/Returns boundary.
+4. Legacy no-Shipment handed-over orders may continue under the pre-L2 Dispatch compatibility rule.
+5. Mid-route Shipments will remain pending while movement commands are disabled. Operationally drain them before disabling where possible, or re-enable the same verified L2 authority to finish them. Do not fabricate movement to clear a queue.
+
+L3 customer route-aware tracking, L4 notifications, COD remittance, Physical Returns/restocking, POS, live courier integrations and GPS/ETA remain separate future authorities.

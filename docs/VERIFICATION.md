@@ -1,5 +1,47 @@
 # Verification record
 
+## Wave L2 Shipment Route Execution + Dispatch Integration — 1 November 2026
+
+**Branch under review:** `feat/shipment-route-execution-l2-20261030`
+**L2 API checkpoint before rollout-doc commit:** `6c8cc66`
+**Integrated base:** `origin/main` at `575673f`
+
+Wave L2 adds server-owned Shipment/Stop/Leg runtime authority on top of L1 configuration: immutable route snapshots, append-only movement evidence, Fulfilment handover activation, depart/arrive/checkpoint/reroute, final-mile Dispatch gating, and Rider/manual-provider custody synchronization. `LOGISTICS_SHIPMENT_EXECUTION_ENABLED` defaults to `false`; this verification proves the code authority and fail-closed rollout gate, not production enablement.
+
+### Clean-room database and API evidence
+
+A freshly recreated isolated PostgreSQL database on `127.0.0.1:55432`, separate from production/staging, applied all **20 migrations** through `202610300019_shipment_route_execution`. The complete API suite was run under a PID-1-owned transient systemd service after the remote command harness was found to terminate long child processes; that stable run completed normally with **540/540 tests passed, 0 failed**.
+
+| Check | Result |
+|---|---:|
+| Empty database migrations | **20/20 applied** |
+| Complete API integration/security suite | **540/540 passed, 0 failed** |
+| Focused L2 shipment authority + HTTP tests | **5/5 passed, 0 failed** |
+| Root ESLint on L2 API checkpoint | **PASS** |
+| Production OpenAPI | **111 paths** |
+| OpenAPI deterministic regeneration | **PASS — two byte-identical generations** |
+| OpenAPI SHA-256 | `56020fd2254980f1aa4e140ffa60cc8b67d553c16ec604c60e0e9ccd934f6732` |
+| `git diff --check` | **PASS** |
+
+### L2 authority evidence
+
+The focused and complete suites prove:
+
+- delivery checkout snapshots exactly one server-resolved route when L2 is enabled, while collection and flag-off checkout remain Shipment-free;
+- no-match and equal-priority ambiguity roll the checkout transaction back rather than inventing a route;
+- Fulfilment handover activates Shipment state in the same transaction as the existing exactly-once stock depletion boundary;
+- direct routes become `final_mile_ready`, multi-hop routes execute one ready/active leg at a time, and pickup-terminal routes become `ready_for_pickup`;
+- reroute is accepted only at a physical node with no active leg, preserves all earlier route revisions and fails atomically on no replacement/ambiguity;
+- checkpoints are append-only informational evidence and cannot change projection/custody/payment/inventory truth;
+- Dispatch excludes routed Shipments before final-mile readiness while preserving legacy no-Shipment compatibility;
+- Rider/manual-provider pickup and delivery synchronize Shipment custody without settling COD or mutating inventory;
+- admin Shipment reads/mutations are role-restricted, replay-protected where mutating, bounded/customer-safe, and publish exactly seven L2 paths on the 111-path production surface;
+- L3 customer route-aware tracking, L4 notifications, COD remittance, Physical Returns, POS, live courier APIs and GPS/ETA remain absent from the published authority.
+
+### Remaining merge gate
+
+Whole-branch frontend lint/typecheck/production build, handoff/Bun/contract/acceptance/route-sweep verification, exact-head OpenAPI determinism, review, and fresh GitHub `CI` + `API foundation` runs are still required before merge readiness is claimed. No production database migration or L2 production flag enablement was performed by this checkpoint.
+
 ## Wave L1 Logistics Network & Workflow Configuration — 19 October 2026
 
 **Branch under review:** `feat/logistics-network-workflow-l1-20261017`
