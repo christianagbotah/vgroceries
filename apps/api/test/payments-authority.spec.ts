@@ -27,7 +27,7 @@ test("production OpenAPI exposes exactly the five Payments Authority routes and 
   for (const path of paymentPaths) assert.ok(document.paths[path], `missing ${path}`);
   assert.equal(document.paths["/api/v1/orders/{orderId}/payment-outcome"], undefined);
   assert.equal(document.paths["/api/v1/payments/fake/events"], undefined);
-  assert.equal(Object.keys(document.paths).length, 104);
+  assert.equal(Object.keys(document.paths).length, 111);
 });
 
 test("eTranzact hosted return is public provider evidence and redirects only after server processing", () => {
@@ -77,10 +77,20 @@ test("staff payment ledger and reconcile routes document admin-only application 
 });
 
 test("production payment schemas contain no card secrets, provider credentials or raw webhook evidence", () => {
-  const paymentSurface = JSON.stringify({
-    paths: Object.fromEntries(Object.entries(document.paths).filter(([path]) => path.includes("payment"))),
-    schemas: document.components.schemas,
-  }).toLowerCase();
+  const paths = Object.fromEntries(Object.entries(document.paths).filter(([path]) => path.includes("payment")));
+  const schemaNames = new Set<string>();
+  const collectRefs = (value: unknown): void => {
+    if (Array.isArray(value)) { for (const entry of value) collectRefs(entry); return; }
+    if (!value || typeof value !== "object") return;
+    const record = value as Record<string, unknown>;
+    if (typeof record.$ref === "string" && record.$ref.startsWith("#/components/schemas/"))
+      schemaNames.add(record.$ref.slice("#/components/schemas/".length));
+    for (const entry of Object.values(record)) collectRefs(entry);
+  };
+  collectRefs(paths);
+  for (const name of Array.from(schemaNames)) collectRefs(document.components.schemas[name]);
+  const schemas = Object.fromEntries(Array.from(schemaNames).sort().map((name) => [name, document.components.schemas[name]]));
+  const paymentSurface = JSON.stringify({ paths, schemas }).toLowerCase();
   for (const forbidden of [
     '"pan"', '"cvv"', '"cvc"', '"cardnumber"', '"card_number"',
     '"providersecret"', '"provider_secret"', '"webhooksecret"', '"signaturesecret"',

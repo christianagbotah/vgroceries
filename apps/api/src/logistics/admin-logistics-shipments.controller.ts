@@ -1,4 +1,4 @@
-import { Body, Controller, HttpCode, Param, Post, Req, UseGuards } from "@nestjs/common";
+import { Body, Controller, Get, HttpCode, Param, Post, Query, Req, UseGuards } from "@nestjs/common";
 import { ApiExcludeController } from "@nestjs/swagger";
 import { planShipmentRequestSchema, replayKeySchema, shipmentArriveRequestSchema, shipmentCheckpointRequestSchema, shipmentDepartRequestSchema, shipmentRerouteRequestSchema, type PlanShipmentRequest, type ShipmentArriveRequest, type ShipmentCheckpointRequest, type ShipmentDepartRequest, type ShipmentRerouteRequest } from "@variety/contracts";
 import { ApiProblem } from "../http/errors";
@@ -6,12 +6,13 @@ import { AccessGuard } from "../identity/access.guard";
 import type { AuthRequest } from "../identity/identity.service";
 import { ShipmentPlanningService } from "./shipment-planning.service";
 import { ShipmentExecutionService } from "./shipment-execution.service";
+import { ShipmentQueryService } from "./shipment-query.service";
 
 @ApiExcludeController()
 @Controller("admin/logistics")
 @UseGuards(AccessGuard)
 export class AdminLogisticsShipmentsController {
-  constructor(private readonly planning: ShipmentPlanningService, private readonly execution: ShipmentExecutionService) {}
+  constructor(private readonly planning: ShipmentPlanningService, private readonly execution: ShipmentExecutionService, private readonly query: ShipmentQueryService) {}
   private requireAdmin(req: AuthRequest) { if (req.actor.role !== "admin") throw new ApiProblem(403, "FORBIDDEN", "Administrator access required."); }
   private parse<T>(schema: { safeParse(input: unknown): any }, input: unknown, message: string): T {
     const parsed = schema.safeParse(input);
@@ -19,6 +20,12 @@ export class AdminLogisticsShipmentsController {
     return parsed.data as T;
   }
   private key(req: AuthRequest) { return this.parse<string>(replayKeySchema, req.get("idempotency-key"), "A valid Idempotency-Key header is required."); }
+
+  @Get("shipments")
+  async list(@Req() req:AuthRequest,@Query() query:unknown){this.requireAdmin(req);return{ok:true,data:await this.query.list(query)};}
+
+  @Get("shipments/:shipmentId")
+  async detail(@Req() req:AuthRequest,@Param("shipmentId") shipmentId:string){this.requireAdmin(req);return{ok:true,data:await this.query.get(shipmentId)};}
 
   @Post("orders/:orderId/plan")
   @HttpCode(200)

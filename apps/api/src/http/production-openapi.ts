@@ -62,6 +62,15 @@ import {
   deliveryRouteRuleViewSchema,
   routeSimulationRequestSchema,
   routeSimulationResponseSchema,
+  planShipmentRequestSchema,
+  shipmentDepartRequestSchema,
+  shipmentArriveRequestSchema,
+  shipmentRerouteRequestSchema,
+  shipmentCheckpointRequestSchema,
+  shipmentStatusSchema,
+  shipmentListItemSchema,
+  shipmentDetailViewSchema,
+  shipmentActionResponseSchema,
   cmsHomepageContentSchema,
   cmsHomepageDraftSchema,
   cmsHomepageAdminViewSchema,
@@ -285,6 +294,14 @@ export function productionOpenApi(app: INestApplication): OpenAPIObject {
     DeliveryRouteRuleList: json(z.array(deliveryRouteRuleViewSchema)),
     RouteSimulationRequest: json(routeSimulationRequestSchema),
     RouteSimulationResponse: json(routeSimulationResponseSchema),
+    PlanShipmentRequest: json(planShipmentRequestSchema),
+    ShipmentDepartRequest: json(shipmentDepartRequestSchema),
+    ShipmentArriveRequest: json(shipmentArriveRequestSchema),
+    ShipmentRerouteRequest: json(shipmentRerouteRequestSchema),
+    ShipmentCheckpointRequest: json(shipmentCheckpointRequestSchema),
+    ShipmentListResponse: json(z.object({ items: z.array(shipmentListItemSchema), page: z.number().int().positive(), perPage: z.number().int().positive().max(100), total: z.number().int().nonnegative() }).strict()),
+    ShipmentDetailView: json(shipmentDetailViewSchema),
+    ShipmentActionResponse: json(shipmentActionResponseSchema),
     CmsHomepage: json(cmsHomepageContentSchema),
     CmsHomepageDraft: json(cmsHomepageDraftSchema),
     CmsHomepageAdminView: json(cmsHomepageAdminViewSchema),
@@ -344,6 +361,7 @@ export function productionOpenApi(app: INestApplication): OpenAPIObject {
     "LogisticsNodeView", "LogisticsNodeList", "LogisticsLaneView", "LogisticsLaneList",
     "DeliveryWorkflowView", "DeliveryWorkflowVersionView", "DeliveryWorkflowList",
     "DeliveryRouteRuleView", "DeliveryRouteRuleList", "RouteSimulationResponse",
+    "ShipmentListResponse", "ShipmentDetailView", "ShipmentActionResponse",
     "CmsHomepage", "CmsHomepageAdminView", "CmsContentPage", "CmsContentPageAdminView", "CmsOverviewView",
   ])
     schemas[name + "Envelope"] = {
@@ -354,7 +372,7 @@ export function productionOpenApi(app: INestApplication): OpenAPIObject {
     };
 
   doc.info.description =
-    "Implemented production subset: identity, catalogue, Product Media upload/review plus queued image-generation authority, inventory receiving, delivery configuration, authoritative checkout/orders, provider-neutral Payments Authority, provider-neutral Refunds Authority, Fulfilment + Stock Handover Authority, Dispatch + Rider Authority, Logistics L1 network/workflow/route configuration authority, and PostgreSQL-backed Storefront CMS draft/publish authority. L1 configuration does not prove or record shipment movement, customer tracking milestones, courier-provider connectivity or notification delivery. COD cash collection/remittance, physical returns/restocking, POS cash authority, live courier providers, GPS/ETA/route optimization, notifications and complete public storefront cutover remain closed.";
+    "Implemented production subset: identity, catalogue, Product Media upload/review plus queued image-generation authority, inventory receiving, delivery configuration, authoritative checkout/orders, provider-neutral Payments Authority, provider-neutral Refunds Authority, Fulfilment + Stock Handover Authority, Dispatch + Rider Authority, Logistics L1 network/workflow/route configuration plus L2 Shipment Execution authority, and PostgreSQL-backed Storefront CMS draft/publish authority. L2 records server-owned shipment planning and administrator movement evidence; customer route-aware tracking, courier-provider connectivity and notification delivery remain closed. COD cash collection/remittance, physical returns/restocking, POS cash authority, live courier providers, GPS/ETA/route optimization, notifications and complete public storefront cutover remain closed.";
 
   const cmsSlug: ParameterObject = { name: "slug", in: "path", required: true, schema: { type: "string", enum: ["help", "returns-policy", "privacy", "terms"] } };
   const cmsMutation = (description: string, requestSchema: string, responseSchema: string, parameters: ParameterObject[] = []): OperationObject => ({
@@ -534,6 +552,7 @@ export function productionOpenApi(app: INestApplication): OpenAPIObject {
   const logisticsTemplateId: ParameterObject = { name: "templateId", in: "path", required: true, schema: { type: "string", minLength: 1 } };
   const logisticsVersionId: ParameterObject = { name: "versionId", in: "path", required: true, schema: { type: "string", minLength: 1 } };
   const logisticsRuleId: ParameterObject = { name: "ruleId", in: "path", required: true, schema: { type: "string", minLength: 1 } };
+  const shipmentId: ParameterObject = { name: "shipmentId", in: "path", required: true, schema: { type: "string", minLength: 1 } };
   const logisticsMutation = (description: string, requestSchema: string, responseSchema: string, parameters: ParameterObject[] = []): OperationObject =>
     authorityMutation(description, requestSchema, responseSchema, parameters);
   const logisticsBodylessMutation = (description: string, responseSchema: string, parameters: ParameterObject[] = []): OperationObject => ({
@@ -594,6 +613,32 @@ export function productionOpenApi(app: INestApplication): OpenAPIObject {
       requestBody: { required: true, content: { "application/json": { schema: ref("RouteSimulationRequest") } } },
       responses: authorityResponses("RouteSimulationResponseEnvelope"),
     },
+  };
+
+  doc.paths["/api/v1/admin/logistics/shipments"] = {
+    get: readOperation("Administrator-only bounded Logistics L2 shipment execution list. This is operational evidence, not customer tracking or financial authority.", "ShipmentListResponseEnvelope", [
+      { name: "page", in: "query", schema: { type: "integer", minimum: 1, maximum: 1000000, default: 1 } },
+      { name: "perPage", in: "query", schema: { type: "integer", minimum: 1, maximum: 100, default: 25 } },
+      { name: "status", in: "query", schema: json(shipmentStatusSchema) },
+    ]),
+  };
+  doc.paths["/api/v1/admin/logistics/shipments/{shipmentId}"] = {
+    get: readOperation("Administrator-only Logistics L2 shipment detail with immutable route snapshots, movement events and server-derived actions.", "ShipmentDetailViewEnvelope", [shipmentId]),
+  };
+  doc.paths["/api/v1/admin/logistics/orders/{orderId}/plan"] = {
+    post: logisticsMutation("Administrator-only Logistics L2 legacy-order planning. The server resolves and snapshots the route; clients cannot submit stops or lanes.", "PlanShipmentRequest", "ShipmentActionResponseEnvelope", [orderId]),
+  };
+  doc.paths["/api/v1/admin/logistics/shipments/{shipmentId}/depart"] = {
+    post: logisticsMutation("Administrator-only Logistics L2 departure evidence for the exact server-selected ready leg. It does not mutate inventory or payment authority.", "ShipmentDepartRequest", "ShipmentActionResponseEnvelope", [shipmentId]),
+  };
+  doc.paths["/api/v1/admin/logistics/shipments/{shipmentId}/arrive"] = {
+    post: logisticsMutation("Administrator-only Logistics L2 arrival evidence for the exact active leg and destination stop.", "ShipmentArriveRequest", "ShipmentActionResponseEnvelope", [shipmentId]),
+  };
+  doc.paths["/api/v1/admin/logistics/shipments/{shipmentId}/reroute"] = {
+    post: logisticsMutation("Administrator-only Logistics L2 reroute request. The server resolves a replacement route and preserves prior route revisions; clients cannot submit route graphs.", "ShipmentRerouteRequest", "ShipmentActionResponseEnvelope", [shipmentId]),
+  };
+  doc.paths["/api/v1/admin/logistics/shipments/{shipmentId}/checkpoints"] = {
+    post: logisticsMutation("Administrator-only informational Logistics L2 checkpoint. It appends evidence without changing shipment movement, custody, inventory or payment truth.", "ShipmentCheckpointRequest", "ShipmentActionResponseEnvelope", [shipmentId]),
   };
 
   doc.paths["/api/v1/admin/fulfilment"] = {
