@@ -57,6 +57,7 @@ export const workflowEventKindSchema = z.enum([
   "delivery_rescheduled",
   "delivered",
   "returned_toward_store",
+  "returned_to_dispatch",
   "custom_checkpoint",
 ]);
 export type WorkflowEventKind = z.infer<typeof workflowEventKindSchema>;
@@ -400,6 +401,7 @@ export const shipmentEventKindSchema = z.enum([
   "delivery_rescheduled",
   "delivered",
   "returned_toward_store",
+  "returned_to_dispatch",
   "custom_checkpoint",
 ]);
 export type ShipmentEventKind = z.infer<typeof shipmentEventKindSchema>;

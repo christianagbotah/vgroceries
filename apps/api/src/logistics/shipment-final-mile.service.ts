@@ -55,6 +55,7 @@ export class ShipmentFinalMileService {
     let customerTitle: string | null = null;
     let fromCustody: string | null = null;
     let toCustody: string | null = null;
+    let eventNodeId: string | null = shipment.currentNodeId;
     let update: Prisma.ShipmentUpdateInput | null = null;
 
     if (input.action === "assigned" || input.action === "reassigned") {
@@ -88,6 +89,28 @@ export class ShipmentFinalMileService {
     } else if (input.action === "rescheduled") {
       if (!["final_mile_ready", "final_mile"].includes(shipment.status)) blocked("Shipment is not in an active final-mile state.");
       eventKind = "delivery_rescheduled";
+    } else if (input.action === "return_to_store") {
+      if (shipment.status !== "final_mile" || !["rider", "provider"].includes(shipment.custody ?? ""))
+        blocked("Only final-mile goods still in delivery custody can return toward dispatch.");
+      eventKind = "returned_toward_store";
+    } else if (input.action === "returned_goods_received") {
+      if (shipment.status !== "final_mile" || !["rider", "provider"].includes(shipment.custody ?? ""))
+        blocked("Only physically returned final-mile goods can re-enter dispatch readiness.");
+      const terminal = await tx.shipmentStop.findFirst({
+        where: { shipmentId: shipment.id, routeRevision: shipment.routeRevision, terminalRole: "final_mile_dispatch" },
+        orderBy: { position: "desc" },
+        select: { nodeId: true },
+      });
+      if (!terminal) blocked("Shipment route has no final-mile dispatch stop.");
+      const returnedCustody = terminal.nodeId === shipment.originNodeId ? "source_staff" : "node_staff";
+      eventKind = "returned_to_dispatch";
+      eventNodeId = terminal.nodeId;
+      fromCustody = shipment.custody;
+      toCustody = returnedCustody;
+      update = {
+        status: "final_mile_ready", custody: returnedCustody, currentNode: { connect: { id: terminal.nodeId } },
+        currentLeg: { disconnect: true }, version: { increment: 1 },
+      };
     } else if (input.action === "delivered" || input.action === "provider_delivered") {
       if (shipment.status !== "final_mile" || !["rider", "provider"].includes(shipment.custody ?? "")) blocked("Shipment is not in customer-delivery custody.");
       eventKind = "delivered";
@@ -98,7 +121,6 @@ export class ShipmentFinalMileService {
       return;
     }
 
-    const eventNodeId = shipment.currentNodeId;
     if (update) await tx.shipment.update({ where: { id: shipment.id }, data: update });
     await tx.shipmentEvent.create({ data: {
       shipmentId: shipment.id,

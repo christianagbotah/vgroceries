@@ -161,3 +161,23 @@ test("manual-provider pickup and delivery synchronize shipment custody without n
   row=await db.shipment.findUniqueOrThrow({where:{id:shipment.id}}); assert.equal(row.status,"completed"); assert.equal(row.custody,"customer"); assert.ok(row.completedAt);
   assert.equal((await db.order.findUniqueOrThrow({where:{id:order.id}})).paymentStatus,"unpaid"); assert.deepEqual(await stockSnapshot(),stockBefore);
 });
+
+test("physically returned final-mile goods re-enter dispatch readiness and can be reassigned without restocking", async()=>{
+  const first=await rider("return-first"),replacement=await rider("return-next");
+  const order=await handedOrder("VG-FM-RETURN"); const shipment=await finalReadyShipment(order.id,"RETURN"); const stockBefore=await stockSnapshot();
+  const dispatchNodeId=shipment.currentNodeId; assert.ok(dispatchNodeId);
+  const assigned=await dispatch.assign(order.id,{riderProfileId:first.profile.id},ctx("fm-return-assign"));
+  await riders.accept(first.user.id,assigned.jobId,{},riderCtx("fm-return-accept"));
+  await riders.pickup(first.user.id,assigned.jobId,{},riderCtx("fm-return-pickup"));
+  await riders.outForDelivery(first.user.id,assigned.jobId,{},riderCtx("fm-return-out"));
+  await riders.fail(first.user.id,assigned.jobId,{reason:"customer_unavailable"},riderCtx("fm-return-fail"));
+  await dispatch.returnToStore(assigned.jobId,{note:"Bring parcel back"},ctx("fm-return-request"));
+  let row=await db.shipment.findUniqueOrThrow({where:{id:shipment.id}}); assert.equal(row.status,"final_mile"); assert.equal(row.custody,"rider"); assert.equal(row.currentNodeId,null);
+  await dispatch.receiveReturnedGoods(assigned.jobId,{note:"Received sealed"},ctx("fm-return-received"));
+  row=await db.shipment.findUniqueOrThrow({where:{id:shipment.id}}); assert.equal(row.status,"final_mile_ready"); assert.equal(row.currentNodeId,dispatchNodeId); assert.ok(["source_staff","node_staff"].includes(row.custody??""));
+  assert.equal(await db.shipmentEvent.count({where:{shipmentId:shipment.id,eventKind:"returned_toward_store"}}),1);
+  assert.equal(await db.shipmentEvent.count({where:{shipmentId:shipment.id,eventKind:"returned_to_dispatch"}}),1);
+  const reassigned=await dispatch.reassign(assigned.jobId,{riderProfileId:replacement.profile.id},ctx("fm-return-reassign")); assert.equal(reassigned.deliveryStatus,"assigned");
+  assert.equal((await db.shipment.findUniqueOrThrow({where:{id:shipment.id}})).status,"final_mile_ready");
+  assert.equal((await db.order.findUniqueOrThrow({where:{id:order.id}})).paymentStatus,"unpaid"); assert.deepEqual(await stockSnapshot(),stockBefore);
+});

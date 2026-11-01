@@ -52,6 +52,7 @@ const eventKinds = [
   "delivery_rescheduled",
   "delivered",
   "returned_toward_store",
+  "returned_to_dispatch",
   "custom_checkpoint",
 ] as const;
 
@@ -264,7 +265,7 @@ test("shipment execution contracts pin production states and server-owned rerout
   assert.deepEqual(shipmentEventKindSchema.options, [
     "fulfilment_handed_over", "shipment_departed", "shipment_arrived", "shipment_handover", "shipment_rerouted",
     "shipment_delayed", "ready_for_pickup", "customer_collected", "rider_assigned", "rider_accepted", "rider_picked_up",
-    "out_for_delivery", "delivery_failed", "delivery_rescheduled", "delivered", "returned_toward_store", "custom_checkpoint",
+    "out_for_delivery", "delivery_failed", "delivery_rescheduled", "delivered", "returned_toward_store", "returned_to_dispatch", "custom_checkpoint",
   ]);
 
   assert.equal(planShipmentRequestSchema.safeParse({ destinationKind: "doorstep" }).success, true);
