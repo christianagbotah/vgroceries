@@ -4,6 +4,7 @@ import { DeliveryConfigModule } from "../delivery-config/delivery-config.module"
 import { CommerceIdentityModule } from "../commerce-identity/commerce-identity.module";
 import { PaymentsModule } from "../payments/payments.module";
 import { RefundsModule } from "../refunds/refunds.module";
+import { LogisticsModule } from "../logistics/logistics.module";
 import { VerificationCodeService } from "./verification-code.service";
 import { CheckoutQuoteService } from "./checkout-quote.service";
 import { CheckoutCommandService } from "./checkout-command.service";
@@ -22,7 +23,7 @@ import { AdminOrdersController } from "./admin-orders.controller";
 import { AdminOrderQueryService } from "./admin-order-query.service";
 
 @Module({
-  imports: [InventoryModule, DeliveryConfigModule, CommerceIdentityModule, PaymentsModule, RefundsModule],
+  imports: [InventoryModule, DeliveryConfigModule, CommerceIdentityModule, PaymentsModule, RefundsModule, LogisticsModule],
   controllers: [CheckoutController, OrdersController, AccountController, AccountOrdersController, AdminOrderActionsController, AdminOrdersController],
   providers: [VerificationCodeService, CheckoutQuoteService, CheckoutCommandService, OrderProjectionService, OrderQueryService, TrackingThrottleService, OrderCancellationService, OrderFinancialActionService, AccountProfileService, AdminOrderQueryService],
   exports: [VerificationCodeService, CheckoutQuoteService, CheckoutCommandService, OrderProjectionService, OrderQueryService, TrackingThrottleService, OrderCancellationService, OrderFinancialActionService],

@@ -1,5 +1,6 @@
-import { Injectable } from "@nestjs/common";
+import { Injectable, Optional } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
+import { ShipmentFinalMileService } from "../logistics/shipment-final-mile.service";
 
 export interface DeliveryTransitionInput {
   deliveryJobId: string;
@@ -17,6 +18,12 @@ export interface DeliveryTransitionInput {
 
 @Injectable()
 export class DispatchEventService {
+  constructor(@Optional() private readonly finalMile?: ShipmentFinalMileService) {}
+
+  async assertShipmentDispatchReady(tx: Prisma.TransactionClient, orderId: string) {
+    if (this.finalMile) await this.finalMile.assertDispatchReady(tx, orderId);
+  }
+
   async recordTransition(tx: Prisma.TransactionClient, input: DeliveryTransitionInput) {
     const action = `delivery.${input.action}`;
     const metadata = input.safeMetadata ?? {};
@@ -54,5 +61,9 @@ export class DispatchEventService {
       aggregateId: input.orderId,
       payload: { deliveryJobId: input.deliveryJobId, fromStatus: input.fromStatus ?? null, toStatus: input.toStatus ?? null, metadata, requestId: input.requestId } as Prisma.InputJsonValue,
     } });
+    if (this.finalMile) await this.finalMile.syncDispatchTransition(tx, {
+      orderId: input.orderId, deliveryJobId: input.deliveryJobId, actorKind: input.actorKind, actorId: input.actorId,
+      action: input.action, safeMetadata: metadata, requestId: input.requestId,
+    });
   }
 }

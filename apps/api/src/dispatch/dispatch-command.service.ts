@@ -149,6 +149,7 @@ export class DispatchCommandService {
       await this.assignmentAdvisory(tx);
       const { order, job: existing } = await this.lockOrderJob(tx, orderId);
       this.policy.assertDispatchEligible(order, order.fulfilmentRun);
+      await this.events.assertShipmentDispatchReady(tx, orderId);
       if (existing && existing.status !== "unassigned") conflict("Order already has an active delivery assignment.");
       const target = await this.lockAssignmentTarget(tx, input, existing?.id);
       const data = { ...target, status: "assigned", custodyState: "dispatch", assignedBy: context.actorId, assignedAt: new Date(), acceptedAt: null, pickedUpAt: null, outForDeliveryAt: null, deliveredAt: null, failedAt: null, failureReasonCode: null, failureNote: null, rescheduledFor: null, returnedToStoreAt: null };

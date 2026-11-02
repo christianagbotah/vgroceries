@@ -57,6 +57,7 @@ export const workflowEventKindSchema = z.enum([
   "delivery_rescheduled",
   "delivered",
   "returned_toward_store",
+  "returned_to_dispatch",
   "custom_checkpoint",
 ]);
 export type WorkflowEventKind = z.infer<typeof workflowEventKindSchema>;
@@ -347,3 +348,207 @@ export const routeSimulationResponseSchema = z.discriminatedUnion("status", [
   z.object({ status: z.literal("ambiguous"), candidates: z.array(routeSimulationCandidateSchema).min(2) }).strict(),
 ]);
 export type RouteSimulationResponse = z.infer<typeof routeSimulationResponseSchema>;
+
+
+// Wave L2 — persisted shipment route execution contracts.
+export const shipmentStatusSchema = z.enum([
+  "planned",
+  "at_node",
+  "in_transit",
+  "final_mile_ready",
+  "final_mile",
+  "ready_for_pickup",
+  "completed",
+  "exception",
+]);
+export type ShipmentStatus = z.infer<typeof shipmentStatusSchema>;
+
+export const shipmentLegStatusSchema = z.enum([
+  "planned",
+  "ready",
+  "in_transit",
+  "arrived",
+  "exception",
+  "superseded",
+]);
+export type ShipmentLegStatus = z.infer<typeof shipmentLegStatusSchema>;
+
+export const shipmentCustodySchema = z.enum([
+  "source_staff",
+  "node_staff",
+  "linehaul_internal",
+  "provider",
+  "rider",
+  "customer",
+  "return_transit",
+]);
+export type ShipmentCustody = z.infer<typeof shipmentCustodySchema>;
+
+export const shipmentEventKindSchema = z.enum([
+  "fulfilment_handed_over",
+  "shipment_departed",
+  "shipment_arrived",
+  "shipment_handover",
+  "shipment_rerouted",
+  "shipment_delayed",
+  "ready_for_pickup",
+  "customer_collected",
+  "rider_assigned",
+  "rider_accepted",
+  "rider_picked_up",
+  "out_for_delivery",
+  "delivery_failed",
+  "delivery_rescheduled",
+  "delivered",
+  "returned_toward_store",
+  "returned_to_dispatch",
+  "custom_checkpoint",
+]);
+export type ShipmentEventKind = z.infer<typeof shipmentEventKindSchema>;
+
+export const shipmentAllowedActionSchema = z.enum(["depart", "arrive", "reroute", "checkpoint"]);
+export type ShipmentAllowedAction = z.infer<typeof shipmentAllowedActionSchema>;
+
+export const planShipmentRequestSchema = z.object({
+  destinationKind: routeDestinationKindSchema,
+  finalPickupNodeId: idSchema.optional().nullable(),
+  serviceLevel: z.string().trim().min(1).max(80).optional().nullable(),
+}).strict().superRefine((value, ctx) => {
+  if (value.destinationKind === "pickup_point" && !value.finalPickupNodeId) {
+    ctx.addIssue({ code: "custom", path: ["finalPickupNodeId"], message: "Pickup shipment planning requires a final pickup node." });
+  }
+  if (value.destinationKind === "doorstep" && value.finalPickupNodeId) {
+    ctx.addIssue({ code: "custom", path: ["finalPickupNodeId"], message: "Doorstep shipment planning cannot set a final pickup node." });
+  }
+});
+export type PlanShipmentRequest = z.infer<typeof planShipmentRequestSchema>;
+
+const shipmentMovementRequestSchema = z.object({
+  note: z.string().trim().min(1).max(500).optional(),
+}).strict();
+export const shipmentDepartRequestSchema = shipmentMovementRequestSchema;
+export type ShipmentDepartRequest = z.infer<typeof shipmentDepartRequestSchema>;
+export const shipmentArriveRequestSchema = shipmentMovementRequestSchema;
+export type ShipmentArriveRequest = z.infer<typeof shipmentArriveRequestSchema>;
+
+export const shipmentRerouteRequestSchema = z.object({
+  reason: z.string().trim().min(1).max(500),
+  serviceLevel: z.string().trim().min(1).max(80).optional().nullable(),
+}).strict();
+export type ShipmentRerouteRequest = z.infer<typeof shipmentRerouteRequestSchema>;
+
+export const shipmentCheckpointRequestSchema = z.object({
+  title: shortTextSchema,
+  detail: z.string().trim().min(1).max(500).optional().nullable(),
+}).strict();
+export type ShipmentCheckpointRequest = z.infer<typeof shipmentCheckpointRequestSchema>;
+
+export const shipmentDestinationAddressSchema = z.object({
+  recipientName: shortTextSchema,
+  locality: z.string().trim().min(1).max(120),
+  street: z.string().trim().min(1).max(240),
+  landmark: z.string().trim().min(1).max(240).optional().nullable(),
+  ghanaPostGps: z.string().trim().min(1).max(80).optional().nullable(),
+}).strict();
+export type ShipmentDestinationAddress = z.infer<typeof shipmentDestinationAddressSchema>;
+
+export const shipmentStopViewSchema = z.object({
+  id: idSchema,
+  routeRevision: z.number().int().positive(),
+  position: z.number().int().positive(),
+  nodeId: idSchema,
+  nodeCode: z.string().trim().min(1).max(64),
+  nodePublicName: shortTextSchema,
+  nodeKind: logisticsNodeKindSchema,
+  nodeKindLabel: z.string().trim().min(1).max(80).optional().nullable(),
+  terminalRole: routeTerminalRoleSchema,
+  plannedArrivalAt: isoTimestampSchema.optional().nullable(),
+  plannedDepartureAt: isoTimestampSchema.optional().nullable(),
+}).strict();
+export type ShipmentStopView = z.infer<typeof shipmentStopViewSchema>;
+
+export const shipmentLegViewSchema = z.object({
+  id: idSchema,
+  routeRevision: z.number().int().positive(),
+  position: z.number().int().positive(),
+  laneId: idSchema,
+  originStopId: idSchema,
+  destinationStopId: idSchema,
+  mode: logisticsLaneModeSchema,
+  providerKey: z.string().trim().min(1).max(80).optional().nullable(),
+  typicalMinutes: z.number().int().positive().max(10080),
+  status: shipmentLegStatusSchema,
+  departedAt: isoTimestampSchema.optional().nullable(),
+  arrivedAt: isoTimestampSchema.optional().nullable(),
+  slaDeadline: isoTimestampSchema.optional().nullable(),
+  version: z.number().int().positive(),
+}).strict();
+export type ShipmentLegView = z.infer<typeof shipmentLegViewSchema>;
+
+export const shipmentEventViewSchema = z.object({
+  id: idSchema,
+  eventKind: shipmentEventKindSchema,
+  routeRevision: z.number().int().positive(),
+  legId: idSchema.optional().nullable(),
+  nodeId: idSchema.optional().nullable(),
+  actorKind: z.enum(["staff", "rider", "system", "provider", "customer"]),
+  actorId: idSchema.optional().nullable(),
+  fromCustody: shipmentCustodySchema.optional().nullable(),
+  toCustody: shipmentCustodySchema.optional().nullable(),
+  customerTitle: z.string().trim().min(1).max(160).optional().nullable(),
+  customerDetail: z.string().trim().min(1).max(500).optional().nullable(),
+  safeMetadata: z.record(z.string(), z.unknown()),
+  requestId: idSchema,
+  occurredAt: isoTimestampSchema,
+  createdAt: isoTimestampSchema,
+}).strict();
+export type ShipmentEventView = z.infer<typeof shipmentEventViewSchema>;
+
+const shipmentProjectionFields = {
+  id: idSchema,
+  orderId: idSchema,
+  orderReference: z.string().trim().min(1).max(80),
+  sequence: z.number().int().positive(),
+  workflowVersionId: idSchema,
+  routeRuleId: idSchema,
+  routeRevision: z.number().int().positive(),
+  status: shipmentStatusSchema,
+  originNodeId: idSchema,
+  destinationKind: routeDestinationKindSchema,
+  finalPickupNodeId: idSchema.optional().nullable(),
+  currentNodeId: idSchema.optional().nullable(),
+  currentLegId: idSchema.optional().nullable(),
+  custody: shipmentCustodySchema.optional().nullable(),
+  activatedAt: isoTimestampSchema.optional().nullable(),
+  completedAt: isoTimestampSchema.optional().nullable(),
+  version: z.number().int().positive(),
+  createdAt: isoTimestampSchema,
+  updatedAt: isoTimestampSchema,
+  allowedActions: z.array(shipmentAllowedActionSchema),
+  blockers: z.array(z.string().trim().min(1).max(160)),
+} as const;
+
+export const shipmentListItemSchema = z.object(shipmentProjectionFields).strict();
+export type ShipmentListItem = z.infer<typeof shipmentListItemSchema>;
+
+export const shipmentDetailViewSchema = z.object({
+  ...shipmentProjectionFields,
+  destinationAddress: shipmentDestinationAddressSchema.optional().nullable(),
+  stops: z.array(shipmentStopViewSchema),
+  legs: z.array(shipmentLegViewSchema),
+  events: z.array(shipmentEventViewSchema),
+}).strict();
+export type ShipmentDetailView = z.infer<typeof shipmentDetailViewSchema>;
+
+export const shipmentActionResponseSchema = z.object({
+  shipmentId: idSchema,
+  orderId: idSchema,
+  status: shipmentStatusSchema,
+  custody: shipmentCustodySchema.optional().nullable(),
+  currentNodeId: idSchema.optional().nullable(),
+  currentLegId: idSchema.optional().nullable(),
+  routeRevision: z.number().int().positive(),
+  allowedActions: z.array(shipmentAllowedActionSchema),
+  blockers: z.array(z.string().trim().min(1).max(160)),
+}).strict();
+export type ShipmentActionResponse = z.infer<typeof shipmentActionResponseSchema>;

@@ -95,6 +95,10 @@ export class DispatchQueryService {
       cancelledAt: null,
       stockConsumedAt: { not: null },
       fulfilmentRun: { is: { handedOverAt: { not: null }, handoverKind: "dispatch" } },
+      OR: [
+        { shipments: { none: { sequence: 1 } } },
+        { shipments: { some: { sequence: 1, status: query.status === "delivered" ? "completed" : { in: ["final_mile_ready", "final_mile"] } } } },
+      ],
       ...(query.status ? { deliveryStatus: query.status } : {}),
     };
     const [total, orders] = await this.db.$transaction([

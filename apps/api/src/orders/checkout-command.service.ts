@@ -9,13 +9,14 @@ import { DeliveryConfigService } from "../delivery-config/delivery-config.servic
 import { ApiProblem, ApiRequest } from "../http/errors";
 import type { CheckoutPrincipal } from "../commerce-identity/checkout-principal.service";
 import { PaymentPolicyService } from "../payments/payment-policy.service";
+import { ShipmentPlanningService } from "../logistics/shipment-planning.service";
 import { checkoutRequestHash, roundLineTotalMinor, validateCheckoutContact, validateCheckoutLines } from "./checkout.values";
 import { VerificationCodeService } from "./verification-code.service";
 
 const electronic = new Set(["electronic","mobile_money","card_hosted","bank_transfer"]);
 @Injectable()
 export class CheckoutCommandService {
-  constructor(private readonly db:Database,@Inject(API_CONFIG) private readonly config:ApiConfig,private readonly allocation:AllocationService,private readonly delivery:DeliveryConfigService,private readonly verification:VerificationCodeService,private readonly paymentPolicy:PaymentPolicyService) {}
+  constructor(private readonly db:Database,@Inject(API_CONFIG) private readonly config:ApiConfig,private readonly allocation:AllocationService,private readonly delivery:DeliveryConfigService,private readonly verification:VerificationCodeService,private readonly paymentPolicy:PaymentPolicyService,private readonly shipmentPlanning:ShipmentPlanningService) {}
   private commerce(){ if(!this.config.commerce) throw new ApiProblem(503,"UNAVAILABLE","Commerce is not configured."); return this.config.commerce; }
   private async replay(tx:Prisma.TransactionClient,actorScope:string,key:string,hash:string):Promise<CompleteOrderResponse|null>{
     const row=await tx.idempotency.findUnique({where:{actorId_operation_key:{actorId:actorScope,operation:"checkout.complete",key}}});
@@ -64,6 +65,7 @@ export class CheckoutCommandService {
       if(!customerEmail&&principal.kind==="customer"){const owner=await tx.user.findUnique({where:{id:principal.userId},select:{email:true}}); customerEmail=owner?.email?.trim().toLowerCase()??undefined;}
       await tx.order.create({data:{id:orderId,reference,customerUserId:principal.kind==="customer"?principal.userId:null,guestSessionId:principal.kind==="guest"?principal.guestSessionId:null,customerName:input.customerName.trim(),customerPhone:input.customerPhone.replace(/[\s-]/g,""),customerEmail,fulfilment:input.fulfilment,zoneId:zone?.id,slotId:input.slotId,paymentMethod:input.paymentMethod,paymentStatus:paymentRequired?"pending":"unpaid",fulfilmentStatus:"awaiting_confirmation",deliveryStatus:"unassigned",subtotalMinor,discountMinor:0,deliveryFeeMinor,totalMinor:subtotalMinor+deliveryFeeMinor,verificationKeyVersion:keyVersion,verificationCodeHash:codeHash,note:input.note?.trim()||null,lines:{create:lines.map(l=>({...l,id:l.id}))}}});
       if(address)await tx.orderDeliveryAddress.create({data:{orderId,label:address.label?.trim()||"Delivery",recipientName:address.recipientName.trim(),phone:address.phone.replace(/[\s-]/g,""),locality:address.locality.trim(),street:address.street.trim(),landmark:address.landmark?.trim()||null,ghanaPostGps:address.ghanaPostGps?.trim().toUpperCase()||null}});
+      if(this.config.shipmentExecutionEnabled && input.fulfilment==="delivery") await this.shipmentPlanning.planInTransaction(tx,orderId,{destinationKind:"doorstep"},{actorId:principal.actorId,requestId:req.requestId});
       await this.allocation.create(tx,{claimType:"order",claimId:orderId,locationId:commerce.locationId,expiresAt,actorId:principal.actorId,requestId:req.requestId,lines:lines.map(l=>({claimLineId:l.id,variantId:l.variantId,quantity:l.quantity}))});
       if(input.slotId)await this.delivery.lockAndBookSlot(tx,{orderId,zoneId:zone!.id,slotId:input.slotId,now:new Date()},{actorId:principal.actorId,requestId:req.requestId});
       await tx.orderEvent.create({data:{orderId,actorKind:principal.kind,actorId:principal.actorId,action:"order.created",toStatus:"awaiting_confirmation",note:input.note?.trim()||null,customerSafe:true}});
