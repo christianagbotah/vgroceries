@@ -1,6 +1,6 @@
 # Handoff — current authorities and next integration wave
 
-This is the current engineering handoff for Variety Groceries at the Wave L2 Shipment Route Execution checkpoint. The verified L2 API checkpoint is `6c8cc66`, and the generated production OpenAPI contains **111 paths**. L2 execution code is implemented but remains **disabled by default** until the rollout prerequisites below are completed.
+This is the current engineering handoff for Variety Groceries at the Wave L2 Shipment Route Execution checkpoint. The reviewed L2 code checkpoint is `798a9d6`, and the generated production OpenAPI contains **111 paths**. L2 execution code is implemented but remains **disabled by default** until the rollout prerequisites below are completed.
 
 ## 1. Current backend authority boundary
 
@@ -35,7 +35,7 @@ See `docs/LOGISTICS_CONFIGURATION_RUNBOOK.md` for configuration, enablement, UAT
 
 Picking and packing do **not** decrement physical stock. Delivery stock is consumed once at Fulfilment handover to dispatch; collection stock is consumed once at customer handover. Shipment movement and Dispatch/Rider operations never become a second stock-depletion authority. A parcel visiting a logistics node does not create saleable inventory. Any goods physically returned require future Physical Returns inspection/disposition before inventory can increase.
 
-Return-to-store exception truth remains in Dispatch. Until Physical Returns exists, do not invent a logistics-node restock or rewrite Shipment history merely because a DeliveryJob records physical return receipt.
+Return-to-store exception truth remains in Dispatch. A confirmed physical return receipt now synchronizes the Shipment back to its immutable final-mile dispatch node as `final_mile_ready` with append-only `returned_toward_store` / `returned_to_dispatch` evidence so it can be reassigned. This is **not** a restock: until Physical Returns exists, inventory must not increase merely because a parcel returned to dispatch.
 
 ## 4. Delivery, COD and provider boundaries
 
@@ -72,6 +72,6 @@ L2 code availability also does not imply that production shipment execution is e
 
 ## 8. Verification checkpoint
 
-The L2 API checkpoint applied **20/20 migrations** to a fresh isolated PostgreSQL database, passed the complete API suite **540/540 with 0 failures**, passed the focused Shipment authority/HTTP set **5/5**, root ESLint passed, and production OpenAPI regenerated twice byte-identically at exactly **111 paths** with SHA-256 `56020fd2254980f1aa4e140ffa60cc8b67d553c16ec604c60e0e9ccd934f6732`.
+The final local L2 checkpoint applied **21/21 migrations** to a fresh isolated PostgreSQL database, passed the complete API suite **541/541 with 0 failures**, passed the focused physical-return/Shipment contract + migration-lineage review set **11/11**, root ESLint and TypeScript no-emit passed, built **54/54** Next.js pages, passed handoff regressions **27/27**, Bun tests **176/176** (1,346 expectations), contracts **38/38**, acceptance **24/24**, and the production route sweep **66/66 HTTP 200**. Production OpenAPI regenerated twice byte-identically at exactly **111 paths** with SHA-256 `d763a7b8011c4ca6cdfa9d719073755b2171e73e42093dc9c225f988b2b2e6e`.
 
-Whole-branch frontend/build/acceptance verification and fresh GitHub pull-request runs remain required before merge readiness is claimed. No production database migration, production L2 flag enablement or live-provider activation is implied by this local verification.
+Local whole-branch frontend/build/acceptance verification is complete; fresh GitHub pull-request `CI` and `API foundation` runs remain required before merge readiness is claimed. No production database migration, production L2 flag enablement or live-provider activation is implied by this local verification.

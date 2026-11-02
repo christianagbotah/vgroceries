@@ -1,6 +1,6 @@
 # Known issues, incomplete work & integration limits
 
-This document separates implemented authority from deliberately unconnected production capabilities. At the Wave L2 API checkpoint `6c8cc66`, the generated production OpenAPI contains **111 paths**. Shipment execution code is implemented but the rollout flag defaults off.
+This document separates implemented authority from deliberately unconnected production capabilities. At the reviewed Wave L2 code checkpoint `798a9d6`, the generated production OpenAPI contains **111 paths**. Shipment execution code is implemented but the rollout flag defaults off.
 
 ## 1. Production/backend authorities already implemented
 
@@ -15,7 +15,7 @@ Operationally, `LOGISTICS_SHIPMENT_EXECUTION_ENABLED` remains `false` by default
 1. **Advanced route-aware customer tracking (L3) is not implemented.** Current secure order tracking remains the existing order/event projection; the new admin Shipment detail must not be exposed as a customer tracking feed without a dedicated customer-safe projection.
 2. **Notification Authority (L4) is not implemented.** No production Email/SMS/WhatsApp/in-app delivery ledger/provider delivery is claimed.
 3. **COD cash collection and rider remittance are not implemented.** Delivery remains independent from customer cash, rider liability and remittance/reconciliation.
-4. **Physical Returns Authority is not implemented.** Return-to-store does not restore inventory; goods must later be received, inspected and dispositioned. Do not rewrite Shipment history to simulate Returns.
+4. **Physical Returns Authority is not implemented.** Dispatch physical-return receipt may restore the Shipment to `final_mile_ready` for reassignment, but it does not restore inventory; goods still require future Returns inspection/disposition before any restock. Shipment return history remains append-only.
 5. **POS cashier sales are not yet a production API authority.** POS must reuse exactly-once depletion and add cashier/session/payment controls.
 6. **External courier APIs are not connected.** Manual-provider evidence exists, but booking/status/webhooks are not API-live.
 7. **Live GPS/ETA authority does not exist.** Route configuration and Shipment movement events must never fabricate GPS or ETA.
@@ -57,6 +57,6 @@ Continue responsive/mobile QA for dense admin workflows. Add realtime/push only 
 
 ## 5. Current verified checkpoint
 
-Wave L2 local API verification uses an isolated PostgreSQL test database separate from production/staging. It applied **20/20 migrations**, passed **540/540 API tests with 0 failures**, passed the focused Shipment authority/HTTP tests **5/5**, root ESLint passed, and deterministic production OpenAPI is **111 paths** with SHA-256 `56020fd2254980f1aa4e140ffa60cc8b67d553c16ec604c60e0e9ccd934f6732`.
+Wave L2 local verification uses an isolated PostgreSQL test database separate from production/staging. It applied **21/21 migrations**, passed **541/541 API tests with 0 failures**, passed the focused physical-return/Shipment contract + migration-lineage review set **11/11**, root ESLint and TypeScript no-emit passed, built **54/54** Next.js pages, passed handoff regressions **27/27**, Bun tests **176/176** (1,346 expectations), contracts **38/38**, acceptance **24/24**, and the production-server route sweep **66/66 HTTP 200**. Deterministic production OpenAPI is **111 paths** with SHA-256 `d763a7b8011c4ca6cdfa9d719073755b2171e73e42093dc9c225f988b2b2e6e`.
 
-Whole-branch frontend/build/acceptance verification and a fresh GitHub pull-request run on PostgreSQL 17 remain required before merge readiness is claimed. No production database migration or L2 production enablement was performed by this local verification.
+Local whole-branch frontend/build/acceptance verification is complete; fresh GitHub pull-request `CI` and `API foundation` runs on PostgreSQL 17 remain required before merge readiness is claimed. No production database migration or L2 production enablement was performed by this local verification.
