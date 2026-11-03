@@ -2,6 +2,8 @@ import { Injectable } from "@nestjs/common";
 import type { CustomerRefundView, PublicOrder, RefundSourceType } from "@variety/contracts";
 import { Database } from "../database/database";
 import { ApiProblem } from "../http/errors";
+import { ShipmentCustomerTrackingService } from "../logistics/shipment-customer-tracking.service";
+import { legacyOrderTrackingJourney } from "./legacy-order-tracking";
 
 const money = (minor: number) => `₵${(minor / 100).toFixed(2)}`;
 const refundSourceLabel = (source: RefundSourceType) => {
@@ -15,7 +17,7 @@ const refundSourceLabel = (source: RefundSourceType) => {
 
 @Injectable()
 export class OrderProjectionService {
-  constructor(private readonly db: Database) {}
+  constructor(private readonly db: Database, private readonly tracking: ShipmentCustomerTrackingService) {}
 
   async publicOrder(orderId: string): Promise<PublicOrder> {
     const o = await this.db.order.findUnique({
@@ -29,6 +31,8 @@ export class OrderProjectionService {
       },
     });
     if (!o) throw new ApiProblem(404, "NOT_FOUND", "Order not found.");
+
+    const trackingJourney = (await this.tracking.project(orderId)) ?? legacyOrderTrackingJourney(o);
 
     const refunds: CustomerRefundView[] = o.refunds.map((refund) => ({
       id: refund.id,
@@ -97,6 +101,7 @@ export class OrderProjectionService {
         ...(event.toStatus ? { toStatus: event.toStatus } : {}),
         ...(event.note ? { note: event.note } : {}),
       })),
+      trackingJourney,
       returns: [],
       ...(o.stockConsumedAt ? { stockConsumedAt: o.stockConsumedAt.toISOString() } : {}),
     };
