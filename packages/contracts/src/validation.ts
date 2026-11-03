@@ -438,6 +438,46 @@ export const quoteResponseSchema = z.object({
   conflicts: z.array(z.unknown()),
 });
 
+export const customerTrackingStateSchema = z.enum([
+  "preparing",
+  "at_facility",
+  "in_transit",
+  "ready_for_delivery",
+  "out_for_delivery",
+  "delivery_exception",
+  "ready_for_pickup",
+  "delivered",
+  "collected",
+  "returned_to_dispatch",
+]);
+
+export const customerTrackingMilestoneStatusSchema = z.enum(["complete", "current", "planned"]);
+export const customerTrackingMilestoneKindSchema = z.enum(["order", "fulfilment", "shipment", "delivery"]);
+
+const customerTrackingTimestampSchema = z.string().datetime({ offset: true });
+const customerTrackingTitleSchema = z.string().trim().min(1).max(160);
+const customerTrackingDetailSchema = z.string().trim().min(1).max(500);
+
+export const customerTrackingMilestoneSchema = z.object({
+  id: z.string().trim().min(1).max(128),
+  at: customerTrackingTimestampSchema,
+  title: customerTrackingTitleSchema,
+  detail: customerTrackingDetailSchema.optional(),
+  locationLabel: customerTrackingTitleSchema.optional(),
+  status: customerTrackingMilestoneStatusSchema,
+  kind: customerTrackingMilestoneKindSchema,
+}).strict();
+
+export const customerTrackingJourneySchema = z.object({
+  source: z.enum(["shipment", "legacy"]),
+  state: customerTrackingStateSchema,
+  headline: customerTrackingTitleSchema,
+  detail: customerTrackingDetailSchema.optional(),
+  currentLocationLabel: customerTrackingTitleSchema.optional(),
+  updatedAt: customerTrackingTimestampSchema,
+  milestones: z.array(customerTrackingMilestoneSchema),
+}).strict();
+
 export const publicOrderSchema = z.object({
   id: z.string(),
   reference: z.string(),
@@ -459,6 +499,7 @@ export const publicOrderSchema = z.object({
   lines: z.array(z.unknown()),
   notes: z.array(z.unknown()),
   events: z.array(z.unknown()),
+  trackingJourney: customerTrackingJourneySchema.optional(),
   returns: z.array(z.unknown()),
   verificationCode: z.string().optional(),
 });

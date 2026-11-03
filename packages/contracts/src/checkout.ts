@@ -227,6 +227,41 @@ export interface OrderJobView {
   remittedAt?: string;
 }
 
+export type CustomerTrackingState =
+  | "preparing"
+  | "at_facility"
+  | "in_transit"
+  | "ready_for_delivery"
+  | "out_for_delivery"
+  | "delivery_exception"
+  | "ready_for_pickup"
+  | "delivered"
+  | "collected"
+  | "returned_to_dispatch";
+
+export type CustomerTrackingMilestoneStatus = "complete" | "current" | "planned";
+export type CustomerTrackingMilestoneKind = "order" | "fulfilment" | "shipment" | "delivery";
+
+export interface CustomerTrackingMilestone {
+  id: string;
+  at: string;
+  title: string;
+  detail?: string;
+  locationLabel?: string;
+  status: CustomerTrackingMilestoneStatus;
+  kind: CustomerTrackingMilestoneKind;
+}
+
+export interface CustomerTrackingJourney {
+  source: "shipment" | "legacy";
+  state: CustomerTrackingState;
+  headline: string;
+  detail?: string;
+  currentLocationLabel?: string;
+  updatedAt: string;
+  milestones: CustomerTrackingMilestone[];
+}
+
 /** The customer-safe order projection shared by status + tracking screens. */
 export interface PublicOrder {
   id: string;
@@ -252,6 +287,7 @@ export interface PublicOrder {
   lines: OrderLineView[];
   notes: PublicOrderNote[];
   events: OrderEventView[];
+  trackingJourney?: CustomerTrackingJourney;
   job?: OrderJobView;
   returns: { id: string; reference: string; status: string; createdAt: string }[];
   posReceiptNo?: string;
