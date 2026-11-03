@@ -158,6 +158,7 @@ test("guarded checkpoint custom copy is included without copying arbitrary metad
 test("final-mile exceptions and physical dispatch return never claim delivery or stock restoration", async () => {
   const statuses = [
     ["final_mile_ready", [event("returned_to_dispatch", 20)], "returned_to_dispatch"],
+    ["final_mile_ready", [event("returned_to_dispatch", 20), event("rider_assigned", 24)], "ready_for_delivery"],
     ["final_mile", [event("delivery_failed", 16)], "delivery_exception"],
     ["final_mile", [event("delivery_failed", 16), event("out_for_delivery", 20)], "out_for_delivery"],
     ["final_mile", [event("returned_toward_store", 18)], "delivery_exception"],
@@ -191,4 +192,18 @@ test("event chronology is deterministic across revisions and repeated arrivals",
   assert.deepEqual(result.milestones.map((item) => item.title),
     ["Reached first hub", "Delivery route updated", "Your order reached a delivery facility"]);
   assert.equal(result.milestones[2]?.locationLabel, "Second Hub");
+});
+
+test("custom checkpoint wording cannot fabricate payment, refund or delivery confirmation", async () => {
+  const x = fixture({ events: [
+    event("custom_checkpoint", 15, null, { customerTitle: "Payment received", customerDetail: "Cash remitted" }),
+    event("custom_checkpoint", 16, null, { customerTitle: "Customer delivery completed" }),
+    event("custom_checkpoint", 17, null, { customerTitle: "Parcel inspected", customerDetail: "Refund approved" }),
+    event("custom_checkpoint", 18, null, { customerTitle: "Payment settlement processed" }),
+  ], stages: [] });
+  const result = await x.service.project("order-customer");
+  assert.ok(result);
+  assert.equal(result.milestones.length, 1);
+  assert.equal(result.milestones[0]?.title, "Parcel inspected");
+  assert.equal(result.milestones[0]?.detail, undefined);
 });

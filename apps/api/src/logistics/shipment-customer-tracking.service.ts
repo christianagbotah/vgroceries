@@ -49,11 +49,20 @@ const text = (value: string | null | undefined, max: number): string | undefined
   return clean ? clean.slice(0, max) : undefined;
 };
 const iso = (date: Date) => date.toISOString();
+const customerEventCopy = (kind: string, value: string | null | undefined, max: number): string | undefined => {
+  const copy = text(value, max);
+  if (!copy) return undefined;
+  // Shipment checkpoints are informational; financial outcomes belong exclusively
+  // to Payments/Refunds, even if a staff-entered note uses alternative wording.
+  if (/\b(?:payment|payments|paid|unpaid|cash|refund|refunded|charge|charged|credit|credited|settled|settlement|remittance|remitted)\b/i.test(copy)) return undefined;
+  if (kind !== "delivered" && /\bdelivered\b|delivery\s+complete/i.test(copy)) return undefined;
+  return copy;
+};
 const mostRecentKind = (kinds: string[]): string | undefined =>
   kinds.slice().reverse().find((kind) => [
     "delivery_failed", "delivery_rescheduled", "returned_toward_store",
     "returned_to_dispatch", "out_for_delivery", "rider_picked_up",
-    "shipment_handover", "delivered", "customer_collected",
+    "shipment_handover", "rider_assigned", "rider_accepted", "delivered", "customer_collected",
   ].includes(kind));
 
 export function trackingState(status: string, destinationKind: string, eventKinds: string[]): CustomerTrackingState {
@@ -184,9 +193,9 @@ export class ShipmentCustomerTrackingService {
       if (represented.has(index)) return;
       // No customer-facing notes on arbitrary event kinds; title is either
       // a guarded custom title or a pinned safe canonical phrase.
-      const title = text(event.customerTitle, 160) ?? EVENT_TITLES[event.eventKind];
+      const title = customerEventCopy(event.eventKind, event.customerTitle, 160) ?? EVENT_TITLES[event.eventKind];
       if (!title) return;
-      const detail = text(event.customerDetail, 500);
+      const detail = customerEventCopy(event.eventKind, event.customerDetail, 500);
       const locationLabel = event.node?.customerVisible &&
         ["shipment_arrived", "returned_to_dispatch", "ready_for_pickup"].includes(event.eventKind)
         ? text(event.node.publicName, 160) : undefined;
