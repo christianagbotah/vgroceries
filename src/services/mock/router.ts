@@ -180,6 +180,27 @@ export function publicOrder(store: VgStore, orderId: string) {
   const lines = orderLinesOf(store, order);
   const job = store.deliveryJobs.find((j) => j.orderId === order.id);
   const returns = store.returnRequests.filter((r) => r.orderId === order.id);
+  // Explicit seed-only demo: present the existing committed mock order events in
+  // a shipment-shaped customer journey, without inventing a route, facility or ETA.
+  const demoJourney = order.id === "ord_1001" ? {
+    source: "shipment" as const,
+    state: "delivered" as const,
+    headline: "Your order has been delivered",
+    updatedAt: order.events[6]?.at ?? order.createdAt,
+    milestones: [
+      { index: 0, title: "Order placed", kind: "order" as const },
+      { index: 2, title: "Your order is being prepared", kind: "fulfilment" as const },
+      { index: 3, title: "Your order was packed", kind: "fulfilment" as const },
+      { index: 5, title: "Rider collected your order", kind: "delivery" as const },
+      { index: 6, title: "Your order was delivered", kind: "delivery" as const },
+    ].filter((step) => Boolean(order.events[step.index])).map((step) => ({
+      id: "demo-event-" + step.index,
+      at: order.events[step.index]!.at,
+      title: step.title,
+      status: "complete" as const,
+      kind: step.kind,
+    })),
+  } : undefined;
   return {
     id: order.id,
     reference: order.reference,
@@ -211,6 +232,7 @@ export function publicOrder(store: VgStore, orderId: string) {
     })),
     notes: order.notes.filter((n) => !n.internalOnly),
     events: order.events.map((e) => ({ ...e, atLabel: formatDateTime(e.at) })),
+    ...(demoJourney ? { trackingJourney: demoJourney } : {}),
     job: job
       ? {
           id: job.id, status: job.status, riderName: store.riders.find((r) => r.id === job.riderId)?.name,
