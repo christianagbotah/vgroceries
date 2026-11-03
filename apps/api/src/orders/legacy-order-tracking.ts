@@ -20,9 +20,12 @@ const TITLES: Record<string, string> = {
   "delivery.delivered": "Order delivered",
   "delivery.rescheduled": "Delivery rescheduled",
   "order.cancelled": "Order cancelled",
+  "order.cancelled_with_refund": "Order cancelled",
 };
 
 function legacyState(order: LegacyOrder): CustomerTrackingState {
+  if (order.fulfilmentStatus === "cancelled") return "delivery_exception";
+  if (order.fulfilmentStatus === "ready_for_collection") return "ready_for_pickup";
   if (order.fulfilmentStatus === "delivered") return "delivered";
   if (order.fulfilmentStatus === "collected") return "collected";
   if (["failed", "rescheduled"].includes(order.deliveryStatus)) return "delivery_exception";
@@ -43,7 +46,7 @@ export function legacyOrderTrackingJourney(order: LegacyOrder): CustomerTracking
   }));
   if (!milestones.length) {
     milestones.push({ id: "order-1", at: order.createdAt.toISOString(), title: "Order placed", kind: "order", status: "current" });
-  } else if (!["delivered", "collected"].includes(state)) {
+  } else if (!["delivered", "collected"].includes(state) && order.fulfilmentStatus !== "cancelled") {
     milestones[milestones.length - 1]!.status = "current";
   }
   const lastAt = sorted[sorted.length - 1]?.createdAt;
@@ -51,7 +54,9 @@ export function legacyOrderTrackingJourney(order: LegacyOrder): CustomerTracking
   const headline = state === "delivered" ? "Your order has been delivered"
     : state === "collected" ? "Your order has been collected"
     : state === "out_for_delivery" ? "Your order is out for delivery"
+    : order.fulfilmentStatus === "cancelled" ? "Your order was cancelled"
     : state === "delivery_exception" ? "Your delivery is being reviewed"
+    : state === "ready_for_pickup" ? "Your order is ready for collection"
     : order.fulfilment === "collection" ? "Your order is being prepared for collection" : "Your order is being prepared";
   return customerTrackingJourneySchema.parse({
     source: "legacy", state, headline, updatedAt: updatedAt.toISOString(), milestones,

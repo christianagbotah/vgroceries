@@ -207,3 +207,14 @@ test("custom checkpoint wording cannot fabricate payment, refund or delivery con
   assert.equal(result.milestones[0]?.title, "Parcel inspected");
   assert.equal(result.milestones[0]?.detail, undefined);
 });
+
+
+test("completed shipments do not show leftover future workflow stages as still planned", async () => {
+  const x = fixture({ status: "completed", events: [event("delivered", 30)], stages: [
+    stage("delivered", "Order delivered", false, 1),
+    stage("ready_for_pickup", "Visit collection point", true, 2),
+  ] });
+  const journey = await x.service.project("order-customer");
+  assert.equal(journey?.state, "delivered");
+  assert.equal(journey?.milestones.some((step) => step.status === "planned"), false);
+});

@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import type { Database } from "../src/database/database";
 import { OrderProjectionService } from "../src/orders/order-projection.service";
+import { legacyOrderTrackingJourney } from "../src/orders/legacy-order-tracking";
 import { OrderQueryService } from "../src/orders/order-query.service";
 import { ShipmentCustomerTrackingService } from "../src/logistics/shipment-customer-tracking.service";
 import { TrackingThrottleService } from "../src/orders/tracking-throttle.service";
@@ -84,4 +85,26 @@ test("tracking projection failures never silently return raw Shipment details or
   const tracker = { project: async () => { throw new Error("tracking projection unavailable"); } } as unknown as ShipmentCustomerTrackingService;
   const projection = new OrderProjectionService(db, tracker);
   await assert.rejects(() => projection.publicOrder(order.id), /tracking projection unavailable/);
+});
+
+
+test("cancelled legacy orders never claim active preparation or another delivery", () => {
+  const result = legacyOrderTrackingJourney({
+    createdAt: now, fulfilment: "delivery", fulfilmentStatus: "cancelled", deliveryStatus: "unassigned",
+    events: [{ createdAt: now, action: "order.cancelled_with_refund", note: null }],
+  });
+  assert.equal(result.state, "delivery_exception");
+  assert.equal(result.headline, "Your order was cancelled");
+  assert.equal(result.milestones[0]?.title, "Order cancelled");
+  assert.equal(result.milestones[0]?.status, "complete");
+});
+
+test("ready legacy collection orders show collection readiness without inventing Shipment milestones", () => {
+  const result = legacyOrderTrackingJourney({
+    createdAt: now, fulfilment: "collection", fulfilmentStatus: "ready_for_collection", deliveryStatus: "unassigned", events: [],
+  });
+  assert.equal(result.state, "ready_for_pickup");
+  assert.equal(result.headline, "Your order is ready for collection");
+  assert.equal(result.source, "legacy");
+  assert.equal(result.milestones.length, 1);
 });

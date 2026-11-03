@@ -221,7 +221,8 @@ export class ShipmentCustomerTrackingService {
       headline: HEADLINES[state],
       ...(currentLocationLabel ? { currentLocationLabel } : {}),
       updatedAt: iso(updatedAt),
-      milestones: [...milestones, ...planned].slice(-160),
+      // A terminal shipment cannot still have future customer-facing stages.
+      milestones: [...milestones, ...(["delivered", "collected"].includes(state) ? [] : planned)].slice(-160),
     };
     return customerTrackingJourneySchema.parse(result);
   }
