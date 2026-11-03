@@ -6,11 +6,12 @@ import { useParams } from "next/navigation";
 import { apiOps, ApiError, type PublicOrder } from "@/services/client";
 import { LoadingState, ErrorState } from "@/components/shared/states";
 import { StatusBadge } from "@/components/shared/status-badge";
+import { OrderTrackingJourney } from "@/components/orders/order-tracking-journey";
 import { Button } from "@/components/ui/button";
 import { PAYMENT_METHOD_LABELS } from "@/types/domain";
 import { formatMoney } from "@/lib/money";
 import { formatDateTime } from "@/lib/format";
-import { CheckCircle2, CircleDashed, Clock, Loader2, Package, PartyPopper, PhoneCall, ShieldQuestion, TriangleAlert, XCircle } from "lucide-react";
+import { CheckCircle2, Clock, Loader2, PartyPopper, PhoneCall, ShieldQuestion, TriangleAlert, XCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const POLL_MS = 4000;
@@ -261,31 +262,7 @@ export default function CheckoutStatusPage() {
         </div>
       </div>
 
-      {/* recent events */}
-      <div className="mt-4 rounded-2xl border bg-card p-4 sm:p-5">
-        <h2 className="font-semibold">Progress</h2>
-        <ol className="mt-3 space-y-3">
-          {order.events.slice(-6).reverse().map((e, i) => (
-            <li key={i} className="flex gap-3 text-sm">
-              <span
-                className={cn(
-                  "mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full border",
-                  i === 0 ? "border-primary bg-primary/10 text-primary" : "border-border text-muted-foreground"
-                )}
-                aria-hidden
-              >
-                {i === 0 ? <Package className="size-3" /> : <CircleDashed className="size-3" />}
-              </span>
-              <div>
-                <p className="font-medium">{e.action}</p>
-                <p className="text-xs text-muted-foreground">
-                  {e.atLabel} UTC{e.actor ? ` · ${e.actor}` : ""}
-                </p>
-              </div>
-            </li>
-          ))}
-        </ol>
-      </div>
+      <div className="mt-4"><OrderTrackingJourney order={order} compact onRefresh={load} /></div>
 
       {error ? <ErrorState message={error} onRetry={load} className="mt-4" /> : null}
 

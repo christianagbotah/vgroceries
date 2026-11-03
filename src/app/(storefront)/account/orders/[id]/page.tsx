@@ -6,6 +6,7 @@ import Link from "next/link";
 import { apiOps, ApiError, type PublicOrder } from "@/services/client";
 import { LoadingState, ErrorState } from "@/components/shared/states";
 import { StatusBadge } from "@/components/shared/status-badge";
+import { OrderTrackingJourney } from "@/components/orders/order-tracking-journey";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -15,7 +16,7 @@ import { formatMoney } from "@/lib/money";
 import { PAYMENT_METHOD_LABELS } from "@/types/domain";
 import { formatDateTime } from "@/lib/format";
 import { useToast } from "@/hooks/use-toast";
-import { Ban, CircleDashed, Navigation, Package } from "lucide-react";
+import { Ban, Navigation, Package } from "lucide-react";
 
 export default function AccountOrderDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -131,20 +132,7 @@ export default function AccountOrderDetailPage() {
         </div>
       ) : null}
 
-      <div className="rounded-xl border bg-card p-4">
-        <h3 className="font-semibold">History</h3>
-        <ol className="mt-2 space-y-2.5">
-          {order.events.slice().reverse().map((e, i) => (
-            <li key={i} className="flex gap-2.5 text-sm">
-              <CircleDashed className="mt-0.5 size-4 shrink-0 text-muted-foreground" aria-hidden />
-              <div>
-                <p className="font-medium">{e.action}</p>
-                <p className="text-xs text-muted-foreground">{e.atLabel} UTC</p>
-              </div>
-            </li>
-          ))}
-        </ol>
-      </div>
+      <OrderTrackingJourney order={order} onRefresh={load} />
 
       <div className="flex flex-wrap gap-2">
         {returnable ? (
