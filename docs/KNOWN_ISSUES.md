@@ -1,6 +1,6 @@
 # Known issues, incomplete work & integration limits
 
-This document separates implemented authority from deliberately unconnected production capabilities. At the Wave L3 tracking checkpoint, the generated production OpenAPI still contains **111 paths**. Customer tracking enriches the existing PublicOrder response without new endpoints or tables. Shipment execution code is implemented but the rollout flag defaults off; live API/web release and L2 activation remain separate steps.
+This document separates implemented authority from deliberately unconnected production capabilities. At the Wave L4 in-app notification development checkpoint, the generated production OpenAPI contains **113 paths** (111 previous paths plus two customer-notification endpoints). L3 tracking still enriches the existing PublicOrder response without new tracking endpoints or tables. Shipment execution code is implemented but the rollout flag defaults off; live API/web release and L2 activation remain separate steps.
 
 ## 1. Production/backend authorities already implemented
 
@@ -13,7 +13,7 @@ Operationally, `LOGISTICS_SHIPMENT_EXECUTION_ENABLED` remains `false` by default
 ## 2. Backend/integration authorities still deliberately closed
 
 1. **Advanced customer tracking (L3) code is implemented; live cutover is not claimed.** The dedicated customer-safe projection enriches PublicOrder and shares presentation across track, checkout status and account order detail. Operational Shipment detail remains administrator-only. No new account/admin tracking endpoints, notification links or notification inbox are introduced by this scope.
-2. **Notification Authority (L4) is not implemented.** No production Email/SMS/WhatsApp/in-app delivery ledger/provider delivery is claimed.
+2. **L4 notification phase 1 is implemented on a separate branch, not yet released.** Customer-owned in-app inbox rows are projected from committed order/fulfilment/delivery outbox events. No live Email/SMS/WhatsApp, external delivery ledger/provider receipts, preferences, retries or push delivery are claimed. Running API/web services do not include this branch until a verified coordinated release.
 3. **COD cash collection and rider remittance are not implemented.** Delivery remains independent from customer cash, rider liability and remittance/reconciliation.
 4. **Physical Returns Authority is not implemented.** Dispatch physical-return receipt may restore the Shipment to `final_mile_ready` for reassignment, but it does not restore inventory; goods still require future Returns inspection/disposition before any restock. Shipment return history remains append-only.
 5. **POS cashier sales are not yet a production API authority.** POS must reuse exactly-once depletion and add cashier/session/payment controls.

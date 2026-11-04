@@ -1,6 +1,6 @@
 # Handoff — current authorities and next integration wave
 
-This is the current engineering handoff for Variety Groceries at the Wave L3 Advanced Customer Tracking checkpoint. L3 enriches the existing secure PublicOrder response; it adds no endpoint, database table or execution authority. The generated production OpenAPI remains at **111 paths**. L2 shipment execution remains **disabled by default** until its separate rollout prerequisites are completed. Verification for this branch is recorded in docs/VERIFICATION.md.
+This handoff includes the Wave L4 phase 1 customer in-app notification development checkpoint on top of the Wave L3 tracking release. L3 enriches the existing secure PublicOrder response without new tracking endpoints or tables. L4 phase 1 adds two authenticated customer-inbox endpoints, bringing generated production OpenAPI to **113 paths** on this branch. L2 shipment execution remains **disabled by default** until its separate rollout prerequisites are completed. Verification for this branch is recorded in docs/VERIFICATION.md.
 
 ## 1. Current backend authority boundary
 
@@ -17,6 +17,7 @@ The backend currently owns these capability boundaries:
 9. **Logistics Network & Workflow Configuration (L1)** — configurable nodes/hubs, directed lanes, immutable workflow versions, deterministic route rules, activation preflight, route simulation and guarded direct-route bootstrap.
 10. **Shipment Route Execution + Dispatch Integration (L2)** — durable Shipment/Stop/Leg identities, immutable route snapshots, append-only movement events, Fulfilment handover activation, depart/arrive/checkpoint/reroute commands, final-mile readiness gating and Dispatch/Rider/manual-provider custody synchronization.
 11. **Advanced Customer Tracking (L3)** — a read-only, customer-safe trackingJourney on the existing PublicOrder projection, composed from pinned workflow presentation and committed order/fulfilment/shipment/dispatch evidence. Verified guests and authenticated order owners use the same projection; historical no-shipment orders receive a bounded legacy journey.
+12. **Notification inbox (L4 phase 1, branch only)** — committed outbox-event projection into durable, customer-owned notification rows; duplicate-safe receipts, owner-scoped listing and audited idempotent marking read. This implementation is not yet live and does not send email, SMS, WhatsApp or push.
 
 ## 2. Logistics configuration and execution boundary
 
@@ -59,7 +60,7 @@ If L2 must be disabled after activation, disable the flag for new planning/movem
 ## 6. Next implementation sequence
 
 1. **Wave L3 release follow-up** — deploy the matched, verified API/web release through the existing release process. Customer tracking is a projection only; this does not enable L2 shipment execution.
-2. **Wave L4 — Notification Authority & Inbox** — durable in-app notifications plus provider-backed Email/SMS/WhatsApp delivery ledger, retries, suppression/preferences and receipts.
+2. **Wave L4 — Notification Authority & Inbox** — phase 1 implemented on the L4 feature branch: a durable customer-only in-app inbox projected exactly once from committed outbox events, with authenticated owner reads and idempotent marking read. It is not yet deployed. Provider-backed Email/SMS/WhatsApp delivery ledger, retries, suppression/preferences, receipts and frontend inbox integration remain separate subsequent work.
 3. **COD cash collection + rider remittance** — customer cash fact, rider liability, remittance/allocation/reconciliation, separate from delivery.
 4. **Physical Returns Authority** — physical receipt, inspection/disposition and controlled restock/quarantine/damage outcomes.
 5. **POS Authority** — counter sales/cashier sessions reusing exactly-once stock depletion.

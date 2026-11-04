@@ -268,6 +268,18 @@ export function productionOpenApi(app: INestApplication): OpenAPIObject {
     RiderJobResponse: json(riderJobResponseSchema),
     RiderJobsResponse: json(riderJobsResponseSchema),
     RiderActionResponse: json(riderActionResponseSchema),
+    NotificationItem: json(z.strictObject({
+      id: z.string(), kind: z.enum(["order","fulfilment","delivery"]), title: z.string(), body: z.string(),
+      orderId: z.string(), createdAt: z.iso.datetime(), readAt: z.iso.datetime().nullable(),
+    })),
+    NotificationListResponse: json(z.strictObject({
+      items: z.array(z.strictObject({
+        id: z.string(), kind: z.enum(["order","fulfilment","delivery"]), title: z.string(), body: z.string(),
+        orderId: z.string(), createdAt: z.iso.datetime(), readAt: z.iso.datetime().nullable(),
+      })),
+      unreadCount: z.number().int().nonnegative(), hasMore: z.boolean(),
+    })),
+    NotificationReadResponse: json(z.strictObject({ id: z.string(), readAt: z.iso.datetime().nullable() })),
     CreateGenerationRequest: json(createGenerationRequestSchema),
     CreateProductDraftRequest: json(createProductDraftRequestSchema),
     SetFeaturedMediaRequest: json(setFeaturedMediaRequestSchema),
@@ -357,6 +369,7 @@ export function productionOpenApi(app: INestApplication): OpenAPIObject {
     "FulfilmentQueueResponse", "FulfilmentDetailResponse", "FulfilmentActionResponse",
     "DispatchQueueResponse", "DispatchJobDetailResponse", "DispatchRiderFleetResponse", "DispatchRiderDetailResponse", "DispatchActionResponse",
     "RiderAvailabilityResponse", "RiderSelfResponse", "RiderJobResponse", "RiderJobsResponse", "RiderActionResponse",
+    "NotificationListResponse", "NotificationReadResponse",
     "ProductDraftResponse", "ProductMediaView", "ImageGenerationJobView", "AdminProductMediaView",
     "LogisticsNodeView", "LogisticsNodeList", "LogisticsLaneView", "LogisticsLaneList",
     "DeliveryWorkflowView", "DeliveryWorkflowVersionView", "DeliveryWorkflowList",
@@ -372,7 +385,7 @@ export function productionOpenApi(app: INestApplication): OpenAPIObject {
     };
 
   doc.info.description =
-    "Implemented production subset: identity, catalogue, Product Media upload/review plus queued image-generation authority, inventory receiving, delivery configuration, authoritative checkout/orders, provider-neutral Payments Authority, provider-neutral Refunds Authority, Fulfilment + Stock Handover Authority, Dispatch + Rider Authority, Logistics L1 network/workflow/route configuration plus L2 Shipment Execution authority, and PostgreSQL-backed Storefront CMS draft/publish authority. L2 records server-owned shipment planning and movement evidence. L3 adds a read-only customer-safe route journey to the existing secured PublicOrder response; courier-provider connectivity and notification delivery remain closed. COD cash collection/remittance, physical returns/restocking, POS cash authority, live courier providers, GPS/ETA/route optimization, notifications and complete public storefront cutover remain closed.";
+    "Implemented production subset: identity, catalogue, Product Media upload/review plus queued image-generation authority, inventory receiving, delivery configuration, authoritative checkout/orders, provider-neutral Payments Authority, provider-neutral Refunds Authority, Fulfilment + Stock Handover Authority, Dispatch + Rider Authority, Logistics L1 network/workflow/route configuration plus L2 Shipment Execution authority, and PostgreSQL-backed Storefront CMS draft/publish authority. L2 records server-owned shipment planning and movement evidence. L3 adds a read-only customer-safe route journey to the existing secured PublicOrder response; courier-provider connectivity and notification delivery remain closed. COD cash collection/remittance, physical returns/restocking, POS cash authority, live courier providers, GPS/ETA/route optimization, external email/SMS/WhatsApp notification delivery and complete public storefront cutover remain closed. Customer-only in-app inbox authority is phase 1 of L4.";
 
   const cmsSlug: ParameterObject = { name: "slug", in: "path", required: true, schema: { type: "string", enum: ["help", "returns-policy", "privacy", "terms"] } };
   const cmsMutation = (description: string, requestSchema: string, responseSchema: string, parameters: ParameterObject[] = []): OperationObject => ({
@@ -380,6 +393,16 @@ export function productionOpenApi(app: INestApplication): OpenAPIObject {
     requestBody: { required: true, content: { "application/json": { schema: ref(requestSchema) } } },
     responses: authorityResponses(responseSchema),
   });
+  doc.paths["/api/v1/account/notifications"] = {
+    get: readOperation("Customer-owned in-app inbox, projected only from committed order events. No email/SMS/WhatsApp delivery is implied.", "NotificationListResponseEnvelope", [
+      { name: "limit", in: "query", schema: { type: "integer", minimum: 1, maximum: 50, default: 20 } },
+    ]),
+  };
+  doc.paths["/api/v1/account/notifications/{notificationId}/read"] = {
+    post: { security, description: "Idempotent customer-owned notification read; web mutations require trusted Origin and CSRF.", parameters: [
+      { name: "notificationId", in: "path", required: true, schema: { type: "string", minLength: 1 } }, csrf,
+    ], responses: authorityResponses("NotificationReadResponseEnvelope") },
+  };
   doc.paths["/api/v1/content/homepage"] = {
     get: { security: [], description: "Public read of the currently published storefront homepage content. Draft content is never exposed here.", responses: { "200": response("CmsHomepageEnvelope"), "500": errorResponse, "503": errorResponse } },
   };
