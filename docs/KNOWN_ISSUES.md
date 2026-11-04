@@ -1,10 +1,10 @@
 # Known issues, incomplete work & integration limits
 
-This document separates implemented authority from deliberately unconnected production capabilities. At the reviewed Wave L2 code checkpoint `798a9d6`, the generated production OpenAPI contains **111 paths**. Shipment execution code is implemented but the rollout flag defaults off.
+This document separates implemented authority from deliberately unconnected production capabilities. At the Wave L3 tracking checkpoint, the generated production OpenAPI still contains **111 paths**. Customer tracking enriches the existing PublicOrder response without new endpoints or tables. Shipment execution code is implemented but the rollout flag defaults off; live API/web release and L2 activation remain separate steps.
 
 ## 1. Production/backend authorities already implemented
 
-The repository currently has durable authority for identity/sessions/RBAC, catalogue/inventory, checkout/orders, electronic payments, refunds, Fulfilment/stock handover, Dispatch/Rider operations, Product Media, **Logistics L1 Network & Workflow Configuration**, and **L2 Shipment Route Execution + Dispatch Integration**.
+The repository currently has durable authority for identity/sessions/RBAC, catalogue/inventory, checkout/orders, electronic payments, refunds, Fulfilment/stock handover, Dispatch/Rider operations, Product Media, **Logistics L1 Network & Workflow Configuration**, **L2 Shipment Route Execution + Dispatch Integration**, and the read-only **L3 Advanced Customer Tracking** projection.
 
 L1 remains configuration authority. L2 adds server-owned route snapshots, Shipment/Stop/Leg persistence, append-only movement evidence, activation at Fulfilment handover, depart/arrive/checkpoint/reroute, and final-mile Dispatch synchronization. Neither L1 nor L2 becomes a second inventory, payment, refund or COD authority.
 
@@ -12,7 +12,7 @@ Operationally, `LOGISTICS_SHIPMENT_EXECUTION_ENABLED` remains `false` by default
 
 ## 2. Backend/integration authorities still deliberately closed
 
-1. **Advanced route-aware customer tracking (L3) is not implemented.** Current secure order tracking remains the existing order/event projection; the new admin Shipment detail must not be exposed as a customer tracking feed without a dedicated customer-safe projection.
+1. **Advanced customer tracking (L3) code is implemented; live cutover is not claimed.** The dedicated customer-safe projection enriches PublicOrder and shares presentation across track, checkout status and account order detail. Operational Shipment detail remains administrator-only. No new account/admin tracking endpoints, notification links or notification inbox are introduced by this scope.
 2. **Notification Authority (L4) is not implemented.** No production Email/SMS/WhatsApp/in-app delivery ledger/provider delivery is claimed.
 3. **COD cash collection and rider remittance are not implemented.** Delivery remains independent from customer cash, rider liability and remittance/reconciliation.
 4. **Physical Returns Authority is not implemented.** Dispatch physical-return receipt may restore the Shipment to `final_mile_ready` for reassignment, but it does not restore inventory; goods still require future Returns inspection/disposition before any restock. Shipment return history remains append-only.
@@ -33,7 +33,7 @@ Operationally, `LOGISTICS_SHIPMENT_EXECUTION_ENABLED` remains `false` by default
 - Demo selectors/login conveniences must stay out of production UX.
 - Fulfilment and Dispatch/Rider screens must render backend truth.
 - `/admin/logistics` has production L1 configuration authority and a published L2 Shipment API, but a complete operator Shipment-execution UI is not implied by the API alone.
-- No public/customer route-aware Shipment timeline is published in L2.
+- L3 provides a customer-safe route-aware timeline through the existing secure order responses. It does not expose the admin Shipment API; legacy no-shipment orders show only recorded order history.
 - Returns and POS screens remain non-authoritative until their backend authorities land.
 - Product Media UAT is not identical to final production object-storage/provider hosting.
 - Storefront CMS has PostgreSQL/NestJS draft/publish authority and public published reads; live portal use still requires migration/API/web deployment parity.
