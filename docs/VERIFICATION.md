@@ -1,5 +1,37 @@
 # Verification record
 
+## Current checkpoint: Wave L3 Advanced Customer Tracking — 4 November 2026
+
+Code checkpoint: `91702072711ec0f14e306596c437a0d3b9e9b905`, PR #54. The code adds the optional, strict `PublicOrder.trackingJourney` projection and shared guest/account/checkout presentation without new routes, tables, migrations or movement authority. Production L2 shipment execution stays disabled.
+
+Observed checks for this checkpoint:
+
+| Check | Result |
+| --- | --- |
+| Focused API tracking contracts/projection/OpenAPI/security cases | 26/26 passed |
+| Root Bun regression suite | 184/184 passed; 1,389 expectations across 32 files |
+| ESLint | Passed |
+| TypeScript no-emit | Passed |
+| Production OpenAPI | 111 paths; two generations byte-identical, SHA-256 `c7d78f05178e878e71e72c90ab0e51f6a89bd93abbe953cdd01bc613282570c2` |
+| Complete API suite against fresh isolated PostgreSQL | 567/567 passed; 0 failed, 21/21 migrations applied in GitHub API foundation run 41745990319 |
+| Final production build | Passed; 54/54 Next.js pages generated |
+| Handoff regressions / HTTP contracts / business acceptance / route sweep | 27/27, 42/42, 24/24 and 66/66 HTTP 200 |
+| Browser responsiveness and refresh | 4/4 scenarios passed at 360/768/1440 px, no horizontal overflow; real fixture tracking + manual refresh and separately labelled planned-stage UI fixture |
+| GitHub CI at the code checkpoint | Passed, run 41745990386 |
+| GitHub API foundation at the code checkpoint | Passed, run 41745990319; integration/security suite 567/567 |
+
+A fresh read-only whole-branch review of `0e90f07..51d0403` found five important issues. Regression-first corrections in `9170207` cover cancelled orders retaining planned Shipments, delivery failure/reschedule before pickup, repeated workflow arrival occurrences, informational event volume erasing earlier evidence, and overlapping/stale refresh responses. Five new API behavior tests failed against the reviewed code and passed after correction; five request-coordinator behavior tests likewise demonstrated RED to GREEN. The focused UI/request set passed 8/8. Terminal legacy responses stop polling, and the planned-step explanation is consistent with the rendered timeline.
+
+Order identity changes remount the lookup component and invalidate its outstanding request coordinator; this avoids both stale customer views and synchronous effect-driven state resets. An initial verification command ran the OpenAPI test from the repository root and failed its relative file lookup; rerunning from `apps/api`, the package's documented test working directory, passed 26/26. The final whole-API command uses that same package context.
+
+Implementation decisions: repeated event kinds consume committed occurrences in workflow order, including hidden stages; a single event cannot certify two arrivals. State and stage truth is derived before the public display is bounded to 160 milestones. Reading complete evidence avoids false progress after many checkpoints; query work therefore grows with an individual shipment's event history. These are projection choices, not new movement or financial authority.
+
+Browser evidence is in `docs/qa/evidence/customer-tracking-l3-20261104/`: three real mock-order screenshots, a separately labelled UI-only planned Shipment fixture, and `results.json`. The planned fixture keeps the surrounding payment/fulfilment/delivery badges coherent. Chromium checks loaded and manually refreshed tracking at all three widths, found no browser errors or horizontal overflow, and confirmed planned stages contain no time element. Phone and desktop screenshots were visually inspected. These are isolated production-build checks with fictional fixtures, not a production shipment rollout.
+
+The review did not claim runtime/browser or whole-suite results; those were independently executed and are recorded above. A broader audit of unchanged L1 free-text validation is outside this wave; existing validation and customer-copy guards remain in force.
+
+Historical verification sections below describe earlier checkpoints and do not supersede this current record.
+
 ## Wave L2 Shipment Route Execution + Dispatch Integration — 1 November 2026
 
 **Branch under review:** `feat/shipment-route-execution-l2-20261030`

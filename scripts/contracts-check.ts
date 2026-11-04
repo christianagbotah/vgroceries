@@ -192,6 +192,21 @@ const jobs = await httpOp<{ jobs: unknown[] }>("rider.jobs", { riderId: "rid_2" 
 check("rider.jobs: jobs array conforms", jobs.jobs.every((j) => riderJobViewSchema.safeParse(j).success));
 await conforms("quote", quoteResponseSchema, "checkout.quote", undefined, { lines: [{ variantId: "var_tof_1", quantity: "1" }] });
 await conforms("public order", publicOrderSchema, "checkout.status", { orderId: "ord_1011" });
+const legacyOrder = await httpOp<Record<string, unknown>>("checkout.status", { orderId: "ord_1011" });
+check("L3 legacy order without shipment retains event-history fallback",
+  legacyOrder.trackingJourney === undefined && Array.isArray(legacyOrder.events));
+const mockShipmentOrder = await httpOp<Record<string, unknown>>("checkout.status", { orderId: "ord_1001" });
+const mockShipmentJourney = mockShipmentOrder.trackingJourney as Record<string, unknown> | undefined;
+check("L3 shipped demo order provides a safe confirmed journey",
+  mockShipmentJourney?.source === "shipment" && mockShipmentJourney.state === "delivered"
+    && Array.isArray(mockShipmentJourney.milestones)
+    && mockShipmentJourney.milestones.length > 0);
+check("L3 shipped demo order conforms to PublicOrder contract",
+  publicOrderSchema.safeParse(mockShipmentOrder).success);
+check("L3 rejects private route fields in a shipment journey",
+  !publicOrderSchema.safeParse({ ...mockShipmentOrder,
+    trackingJourney: { ...mockShipmentJourney, routeRuleId: "private" } }).success);
+
 await conforms("logistics nodes", logisticsNodeViewSchema.array(), "admin.logistics.nodes");
 await conforms("logistics workflows", deliveryWorkflowViewSchema.array(), "admin.logistics.workflows");
 await conforms("logistics route rules", deliveryRouteRuleViewSchema.array(), "admin.logistics.route-rules");

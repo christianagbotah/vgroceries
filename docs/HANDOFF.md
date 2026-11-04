@@ -1,6 +1,6 @@
 # Handoff — current authorities and next integration wave
 
-This is the current engineering handoff for Variety Groceries at the Wave L2 Shipment Route Execution checkpoint. The reviewed L2 code checkpoint is `798a9d6`, and the generated production OpenAPI contains **111 paths**. L2 execution code is implemented but remains **disabled by default** until the rollout prerequisites below are completed.
+This is the current engineering handoff for Variety Groceries at the Wave L3 Advanced Customer Tracking checkpoint. L3 enriches the existing secure PublicOrder response; it adds no endpoint, database table or execution authority. The generated production OpenAPI remains at **111 paths**. L2 shipment execution remains **disabled by default** until its separate rollout prerequisites are completed. Verification for this branch is recorded in docs/VERIFICATION.md.
 
 ## 1. Current backend authority boundary
 
@@ -16,6 +16,7 @@ The backend currently owns these capability boundaries:
 8. **Product Media authority** — durable media records, upload/generation-job/review/gallery authority plus guarded UAT tooling.
 9. **Logistics Network & Workflow Configuration (L1)** — configurable nodes/hubs, directed lanes, immutable workflow versions, deterministic route rules, activation preflight, route simulation and guarded direct-route bootstrap.
 10. **Shipment Route Execution + Dispatch Integration (L2)** — durable Shipment/Stop/Leg identities, immutable route snapshots, append-only movement events, Fulfilment handover activation, depart/arrive/checkpoint/reroute commands, final-mile readiness gating and Dispatch/Rider/manual-provider custody synchronization.
+11. **Advanced Customer Tracking (L3)** — a read-only, customer-safe trackingJourney on the existing PublicOrder projection, composed from pinned workflow presentation and committed order/fulfilment/shipment/dispatch evidence. Verified guests and authenticated order owners use the same projection; historical no-shipment orders receive a bounded legacy journey.
 
 ## 2. Logistics configuration and execution boundary
 
@@ -57,7 +58,7 @@ If L2 must be disabled after activation, disable the flag for new planning/movem
 
 ## 6. Next implementation sequence
 
-1. **Wave L3 — Advanced Customer Tracking** — truthful route-aware customer timeline derived only from committed Shipment/Dispatch events.
+1. **Wave L3 release follow-up** — deploy the matched, verified API/web release through the existing release process. Customer tracking is a projection only; this does not enable L2 shipment execution.
 2. **Wave L4 — Notification Authority & Inbox** — durable in-app notifications plus provider-backed Email/SMS/WhatsApp delivery ledger, retries, suppression/preferences and receipts.
 3. **COD cash collection + rider remittance** — customer cash fact, rider liability, remittance/allocation/reconciliation, separate from delivery.
 4. **Physical Returns Authority** — physical receipt, inspection/disposition and controlled restock/quarantine/damage outcomes.
@@ -66,12 +67,18 @@ If L2 must be disabled after activation, disable the flag for new planning/movem
 
 ## 7. Deliberately closed scope
 
-This checkpoint does **not** claim route-aware customer tracking cutover, Email/SMS/WhatsApp/in-app Notification Authority, COD collection/remittance, Physical Returns/restocking, POS cashier authority, external courier network integration, live GPS/ETA, delivery-proof binary storage, Hubtel production credentials/money movement, external AI image generation, S3-compatible Product Media production storage, complete typed grocery specifications, or complete public-storefront cutover.
+This checkpoint implements route-aware customer tracking code but does **not** claim live API/web cutover, Email/SMS/WhatsApp/in-app Notification Authority, COD collection/remittance, Physical Returns/restocking, POS cashier authority, external courier network integration, live GPS/ETA, delivery-proof binary storage, Hubtel production credentials/money movement, external AI image generation, S3-compatible Product Media production storage, complete typed grocery specifications, or complete public-storefront cutover.
 
 L2 code availability also does not imply that production shipment execution is enabled. Operational activation requires the runbook prerequisites and explicit server configuration.
 
+## L3 customer tracking integration
+
+The optional `PublicOrder.trackingJourney` is consumed by one shared journey component on `/track`, `/checkout/status/[id]` and `/account/orders/[id]`. Guest tracking still requires its reference and verification code; account reads still enforce ownership. Non-terminal tracking can refresh using the same verified lookup, with a manual refresh control. Planned milestones are clearly labelled and have no arrival timestamp. Terminal delivery/collection and cancellation stop automatic refresh.
+
+Facility names require the node to be customer-visible; in-transit orders do not claim a current facility. Operational routing/custody identifiers, actors, request IDs, raw metadata and internal notes stay private. Canonical payment/refund/COD outcomes remain outside shipment checkpoint copy. Legacy orders remain usable when L2 is disabled. Notifications, live GPS/ETA, COD remittance and physical restocking remain separate work.
+
 ## 8. Verification checkpoint
 
-The final local L2 checkpoint applied **21/21 migrations** to a fresh isolated PostgreSQL database, passed the complete API suite **541/541 with 0 failures**, passed the focused physical-return/Shipment contract + migration-lineage review set **11/11**, root ESLint and TypeScript no-emit passed, built **54/54** Next.js pages, passed handoff regressions **27/27**, Bun tests **176/176** (1,346 expectations), contracts **38/38**, acceptance **24/24**, and the production route sweep **66/66 HTTP 200**. Production OpenAPI regenerated twice byte-identically at exactly **111 paths** with SHA-256 `d763a7b8011c4ca6cdfa9d719073755b2171e73e42093dc9c225f988b2b2e6e`.
+The L3 code checkpoint `9170207` passed the complete GitHub API integration/security suite **567/567**, with **21/21 migrations** applied to an empty PostgreSQL database; focused tracking tests passed **26/26**. The final local frontend checks passed ESLint, TypeScript no-emit, the production build (**54/54 pages**), Bun regressions **184/184** (1,389 expectations), handoff checks **27/27**, HTTP contracts **42/42**, acceptance **24/24** and route sweep **66/66 HTTP 200**. Browser QA passed three viewport widths plus a planned-stage scenario with no overflow; screenshots and results are retained under `docs/qa/evidence/customer-tracking-l3-20261104/`.
 
-Local whole-branch frontend/build/acceptance verification is complete; fresh GitHub pull-request `CI` and `API foundation` runs remain required before merge readiness is claimed. No production database migration, production L2 flag enablement or live-provider activation is implied by this local verification.
+Production OpenAPI remains at **111 paths** and regenerated twice byte-identically, SHA-256 `c7d78f05178e878e71e72c90ab0e51f6a89bd93abbe953cdd01bc613282570c2`. Both repository workflows passed on the code checkpoint (CI `41745990386`, API foundation `41745990319`). Documentation/evidence changes are pushed on the same PR and must also have green checks before merge. No production deployment, database migration, L2 enablement or provider activation is implied.

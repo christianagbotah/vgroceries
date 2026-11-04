@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { apiOps, ApiError, type PublicOrder } from "@/services/client";
@@ -12,9 +12,13 @@ import { ErrorState } from "@/components/shared/states";
 import { formatMoney } from "@/lib/money";
 import { formatDateTime } from "@/lib/format";
 import { PAYMENT_METHOD_LABELS, FULFILMENT_LABELS, DELIVERY_LABELS } from "@/types/domain";
-import { CheckCircle2, CircleDashed, MapPin, Package } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { CheckCircle2, MapPin } from "lucide-react";
+import { OrderTrackingJourney } from "@/components/orders/order-tracking-journey";
 import { LoadingState } from "@/components/shared/states";
+import { createTrackingRequestCoordinator, isTrackingTerminal } from "@/features/orders/tracking-requests";
+
+type VerifiedLookup = { reference: string; code: string };
+type TrackingResult = { order: PublicOrder; lookup: VerifiedLookup | null };
 
 /** Secure tracking entry — order reference + verification code together. */
 export default function TrackPage() {
@@ -28,39 +32,57 @@ export default function TrackPage() {
 function TrackForm() {
   const params = useSearchParams();
   const orderId = params.get("orderId");
-  const [reference, setReference] = useState(params.get("reference") ?? "");
-  const [code, setCode] = useState(params.get("code") ?? "");
+  // Remount on identity changes so a previous customer's journey cannot remain
+  // visible while a different order is loading.
+  return <TrackFormContent key={orderId ?? "guest"} orderId={orderId}
+    initialReference={params.get("reference") ?? ""} initialCode={params.get("code") ?? ""} />;
+}
+
+function TrackFormContent({ orderId, initialReference, initialCode }: {
+  orderId: string | null; initialReference: string; initialCode: string;
+}) {
+  const [reference, setReference] = useState(initialReference);
+  const [code, setCode] = useState(initialCode);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [order, setOrder] = useState<PublicOrder | null>(null);
+  const [verifiedLookup, setVerifiedLookup] = useState<VerifiedLookup | null>(null);
+  const [requests] = useState(() => createTrackingRequestCoordinator<TrackingResult>({
+    onStart: () => { setLoading(true); setError(null); },
+    onValue: result => { setOrder(result.order); setVerifiedLookup(result.lookup); },
+    onError: err => setError(err instanceof ApiError ? err.message : "Could not load tracking. Please try again."),
+    onFinish: () => setLoading(false),
+  }));
 
   useEffect(() => {
-    if (!orderId) return;
-    let cancelled = false;
-    setLoading(true);
-    setError(null);
-    apiOps.orderStatus(orderId)
-      .then((result) => { if (!cancelled) setOrder(result); })
-      .catch((err) => {
-        if (!cancelled) setError(err instanceof ApiError ? err.message : "Could not load this order.");
-      })
-      .finally(() => { if (!cancelled) setLoading(false); });
-    return () => { cancelled = true; };
-  }, [orderId]);
+    requests.invalidate();
+    if (orderId) {
+      void requests.load(async () => ({ order: await apiOps.orderStatus(orderId), lookup: null }), { replace: true });
+    }
+    return () => requests.invalidate();
+  }, [orderId, requests]);
+
+  const refresh = useCallback(async () => {
+    if (!orderId && !verifiedLookup) return;
+    await requests.load(async () => ({
+      order: orderId ? await apiOps.orderStatus(orderId)
+        : await apiOps.track(verifiedLookup!.reference, verifiedLookup!.code),
+      lookup: orderId ? null : verifiedLookup,
+    }));
+  }, [orderId, verifiedLookup, requests]);
+
+  useEffect(() => {
+    if (!order || (!orderId && !verifiedLookup) || isTrackingTerminal(order)) return;
+    const timer = window.setInterval(() => { void refresh(); }, 30000);
+    return () => window.clearInterval(timer);
+  }, [order, orderId, verifiedLookup, refresh]);
 
   const track = async (e?: React.FormEvent) => {
     e?.preventDefault();
-    setLoading(true);
-    setError(null);
+    const lookup = { reference: reference.trim().toUpperCase(), code: code.trim().toUpperCase() };
     setOrder(null);
-    try {
-      const o = await apiOps.track(reference.trim().toUpperCase(), code.trim().toUpperCase());
-      setOrder(o);
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Tracking failed. Please try again.");
-    } finally {
-      setLoading(false);
-    }
+    setVerifiedLookup(null);
+    await requests.load(async () => ({ order: await apiOps.track(lookup.reference, lookup.code), lookup }), { replace: true });
   };
 
   return (
@@ -155,41 +177,13 @@ function TrackForm() {
             ) : null}
           </div>
 
-          {/* timeline */}
-          <div className="rounded-2xl border bg-card p-4 sm:p-5">
-            <h2 className="font-semibold">Progress history</h2>
-            <ol className="mt-3 space-y-3">
-              {order.events.slice().reverse().map((e, i) => (
-                <li key={i} className="flex gap-3 text-sm">
-                  <span
-                    className={cn(
-                      "mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full border",
-                      i === 0 ? "border-primary bg-primary/10 text-primary" : "border-border text-muted-foreground"
-                    )}
-                    aria-hidden
-                  >
-                    {i === 0 ? <Package className="size-3" /> : <CircleDashed className="size-3" />}
-                  </span>
-                  <div>
-                    <p className="font-medium">{e.action}</p>
-                    <p className="text-xs text-muted-foreground">{e.atLabel} UTC</p>
-                  </div>
-                </li>
-              ))}
-            </ol>
-            {order.returns.length ? (
-              <div className="mt-4 border-t pt-3 text-sm">
-                <p className="font-medium">Returns on this order</p>
-                <ul className="mt-1 space-y-1 text-muted-foreground">
-                  {order.returns.map((r) => (
-                    <li key={r.id}>
-                      {r.reference} — {r.status.replace(/_/g, " ")} · requested {formatDateTime(r.createdAt)} UTC
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ) : null}
-          </div>
+          <OrderTrackingJourney order={order} onRefresh={refresh} refreshing={loading} />
+          {order.returns.length ? <div className="rounded-2xl border bg-card p-4 sm:p-5">
+            <p className="font-medium">Returns on this order</p>
+            {order.returns.map((r) => <p key={r.id} className="mt-1 text-sm text-muted-foreground">
+              {r.reference} — {r.status.replace(/_/g, " ")} · requested {formatDateTime(r.createdAt)} UTC
+            </p>)}
+          </div> : null}
 
           <Button asChild variant="outline" className="h-11">
             <Link href="/account/returns">Request a return</Link>

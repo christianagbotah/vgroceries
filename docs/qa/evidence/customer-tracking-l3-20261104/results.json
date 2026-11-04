@@ -1,0 +1,34 @@
+{
+  "checkedAt": "2026-11-04T00:25:48.156Z",
+  "mode": "isolated production build with mock fixtures",
+  "results": [
+    {
+      "width": 360,
+      "trackingLoaded": true,
+      "manualRefresh": true,
+      "horizontalOverflow": false,
+      "browserErrors": []
+    },
+    {
+      "width": 768,
+      "trackingLoaded": true,
+      "manualRefresh": true,
+      "horizontalOverflow": false,
+      "browserErrors": []
+    },
+    {
+      "width": 1440,
+      "trackingLoaded": true,
+      "manualRefresh": true,
+      "horizontalOverflow": false,
+      "browserErrors": []
+    },
+    {
+      "width": 360,
+      "scenario": "UI-only planned Shipment response fixture",
+      "plannedLabel": true,
+      "futureTimeHidden": true,
+      "horizontalOverflow": false
+    }
+  ]
+}
