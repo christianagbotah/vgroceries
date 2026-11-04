@@ -60,7 +60,11 @@ function fixture(options: MockOptions = {}) {
   const db = {
     shipment: { findUnique: async (query: unknown) => {
       findCalls.push(query);
-      return shipment;
+      if (!shipment) return null;
+      const eventQuery = (query as any).include.events;
+      const all = shipment.events.slice().sort((a: any, b: any) =>
+        b.occurredAt.getTime() - a.occurredAt.getTime() || b.createdAt.getTime() - a.createdAt.getTime() || b.id.localeCompare(a.id));
+      return { ...shipment, events: all.slice(0, eventQuery.take ?? all.length) };
     } },
     fulfilmentRun: { findUnique: async () => {
       queriedRun = true;
@@ -100,7 +104,6 @@ test("pinned workflow stages show only committed times, and future stages are ex
   const query = x.findCalls[0] as any;
   assert.equal(query.where.orderId_sequence.orderId, "order-customer");
   assert.equal(query.where.orderId_sequence.sequence, 1);
-  assert.equal(query.include.events.take, 120);
   assert.ok(!JSON.stringify(result).includes("workflow-private"));
 });
 
@@ -217,4 +220,48 @@ test("completed shipments do not show leftover future workflow stages as still p
   const journey = await x.service.project("order-customer");
   assert.equal(journey?.state, "delivered");
   assert.equal(journey?.milestones.some((step) => step.status === "planned"), false);
+});
+
+
+test("pre-pickup failure and reschedule remain exceptions until a committed retry recovery", async () => {
+  for (const [kinds, expected] of [
+    [["rider_accepted", "delivery_failed"], "delivery_exception"],
+    [["rider_accepted", "delivery_failed", "delivery_rescheduled"], "delivery_exception"],
+    [["delivery_failed", "delivery_rescheduled", "rider_assigned"], "ready_for_delivery"],
+    [["delivery_failed", "rider_accepted"], "ready_for_delivery"],
+  ] as const) {
+    const result = await fixture({ status: "final_mile_ready", events: kinds.map((kind, index) => event(kind, 10 + index)) }).service.project("order-customer");
+    assert.equal(result?.state, expected);
+  }
+  assert.equal(trackingState("exception", "doorstep", []), "delivery_exception");
+});
+
+test("repeated arrival stages each need their own committed occurrence", async () => {
+  const stages = [stage("shipment_arrived", "First facility", true, 1), stage("shipment_arrived", "Second facility", true, 2)];
+  const first = await fixture({ stages, events: [event("shipment_arrived", 11, visible("First Hub"))] }).service.project("order-customer");
+  assert.equal(first?.milestones.find(step => step.title === "First facility")?.at, at(11).toISOString());
+  assert.equal(first?.milestones.find(step => step.title === "Second facility")?.status, "planned");
+  assert.equal(first?.milestones.find(step => step.title === "Second facility")?.locationLabel, undefined);
+  const second = await fixture({ stages, events: [event("shipment_arrived", 11, visible("First Hub")), event("shipment_arrived", 21, visible("Second Hub"))] }).service.project("order-customer");
+  assert.equal(second?.milestones.find(step => step.title === "Second facility")?.at, at(21).toISOString());
+  assert.equal(second?.milestones.find(step => step.title === "Second facility")?.locationLabel, "Second Hub");
+  assert.equal(second?.milestones.filter(step => step.status !== "planned").length, 2);
+});
+
+test("hidden repeated workflow stages still consume only their matching occurrence", async () => {
+  const stages = [ { ...stage("shipment_arrived", "Private stage", true, 1), customerVisible: false }, stage("shipment_arrived", "Public destination", true, 2) ];
+  const result = await fixture({ stages, events: [event("shipment_arrived", 11, hidden("Internal Hub"))] }).service.project("order-customer");
+  assert.equal(result?.milestones.find(step => step.title === "Public destination")?.status, "planned");
+});
+
+test("informational event volume never erases completed stages or an unresolved delivery failure", async () => {
+  const checkpoints = Array.from({ length: 125 }, (_, index) => event("custom_checkpoint", 20 + index, null,
+    { customerTitle: "Parcel checked" }));
+  const result = await fixture({ status: "final_mile", stages: [stage("shipment_arrived", "Arrival confirmed", true)], events: [
+    event("shipment_arrived", 8, visible("Dispatch Hub")), event("delivery_failed", 12), ...checkpoints,
+  ] }).service.project("order-customer");
+  assert.equal(result?.state, "delivery_exception");
+  assert.equal(result?.milestones.find(step => step.title === "Arrival confirmed")?.at, at(8).toISOString());
+  assert.equal(result?.milestones.find(step => step.title === "Arrival confirmed")?.status, "complete");
+  assert.ok((result?.milestones.length ?? 0) <= 160);
 });

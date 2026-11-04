@@ -51,6 +51,6 @@ export function OrderTrackingJourney({ order, compact = false, onRefresh, refres
         </div>
       </li>) : <li className="text-sm text-muted-foreground">No confirmed updates yet.</li>}
     </ol>
-    <p className="mt-4 text-xs text-muted-foreground">Only confirmed updates are shown; this is not live GPS tracking or an arrival-time prediction.</p>
+    <p className="mt-4 text-xs text-muted-foreground">Confirmed updates use recorded times. Planned steps are labelled and are not arrival-time predictions.</p>
   </section>;
 }

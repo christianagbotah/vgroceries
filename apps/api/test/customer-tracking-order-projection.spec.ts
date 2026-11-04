@@ -108,3 +108,26 @@ test("ready legacy collection orders show collection readiness without inventing
   assert.equal(result.source, "legacy");
   assert.equal(result.milestones.length, 1);
 });
+
+
+test("cancelled orders with a planned Shipment show cancellation equally for owners and verified guests", async () => {
+  const cancelledOrder = { ...order, fulfilmentStatus: "cancelled", events: [
+    { ...order.events[0]!, createdAt: new Date(now.getTime() + 60000), action: "order.cancelled", toStatus: "cancelled" },
+  ] };
+  const db = {
+    order: { findUnique: async () => cancelledOrder },
+    auditEvent: { create: async () => ({}) },
+  } as unknown as Database;
+  const tracking = { project: async () => ({ ...journey, state: "preparing", milestones: [
+    { ...journey.milestones[0]!, title: "Future delivery", status: "planned" },
+  ] }) } as unknown as ShipmentCustomerTrackingService;
+  const projection = new OrderProjectionService(db, tracking);
+  const query = new OrderQueryService(db, projection, { registerFailure: async () => {} } as unknown as TrackingThrottleService,
+    { verify: () => true } as unknown as VerificationCodeService);
+  const owner = await query.status({ kind: "customer", userId: "customer-a" } as never, order.id);
+  const guest = await query.track(order.reference, "GOOD", "ip", "request");
+  assert.deepEqual(owner.trackingJourney, guest.trackingJourney);
+  assert.equal(owner.trackingJourney?.headline, "Your order was cancelled");
+  assert.equal(owner.trackingJourney?.milestones.some(step => step.status === "planned"), false);
+  assert.equal(owner.trackingJourney?.milestones.at(-1)?.title, "Order cancelled");
+});

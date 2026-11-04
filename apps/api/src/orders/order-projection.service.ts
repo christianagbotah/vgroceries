@@ -32,7 +32,11 @@ export class OrderProjectionService {
     });
     if (!o) throw new ApiProblem(404, "NOT_FOUND", "Order not found.");
 
-    const trackingJourney = (await this.tracking.project(orderId)) ?? legacyOrderTrackingJourney(o);
+    // Cancellation is authoritative before handover; its planned Shipment is
+    // retained for history and must not advertise an active future journey.
+    const trackingJourney = o.fulfilmentStatus === "cancelled"
+      ? legacyOrderTrackingJourney(o)
+      : (await this.tracking.project(orderId)) ?? legacyOrderTrackingJourney(o);
 
     const refunds: CustomerRefundView[] = o.refunds.map((refund) => ({
       id: refund.id,

@@ -68,11 +68,13 @@ const mostRecentKind = (kinds: string[]): string | undefined =>
 export function trackingState(status: string, destinationKind: string, eventKinds: string[]): CustomerTrackingState {
   if (status === "completed") return destinationKind === "pickup_point" ? "collected" : "delivered";
   if (status === "planned") return "preparing";
+  if (status === "exception") return "delivery_exception";
   if (status === "in_transit") return "in_transit";
   if (status === "at_node") return "at_facility";
   if (status === "ready_for_pickup") return "ready_for_pickup";
   const latest = mostRecentKind(eventKinds);
   if (status === "final_mile_ready") {
+    if (["delivery_failed", "delivery_rescheduled"].includes(latest ?? "")) return "delivery_exception";
     return latest === "returned_to_dispatch" ? "returned_to_dispatch" : "ready_for_delivery";
   }
   if (status === "final_mile") {
@@ -99,7 +101,6 @@ export class ShipmentCustomerTrackingService {
         },
         events: {
           orderBy: [{ occurredAt: "desc" }, { createdAt: "desc" }, { id: "desc" }],
-          take: 120,
           include: { node: { select: { customerVisible: true, publicName: true } } },
         },
       },
@@ -111,8 +112,9 @@ export class ShipmentCustomerTrackingService {
       select: { confirmedAt: true, pickingStartedAt: true, packedAt: true, handedOverAt: true },
     });
 
-    // A capped event tail is sufficient for presentation; sorting by actual times
-    // makes retries and route-revision boundaries deterministic.
+    // Derive state and stage completion from all committed evidence. Truncating
+    // the read first would let later informational checkpoints erase an earlier
+    // failure/arrival. Only the final display projection is bounded below.
     const events = shipment.events.slice().reverse().sort((a, b) =>
       a.occurredAt.getTime() - b.occurredAt.getTime() ||
       a.createdAt.getTime() - b.createdAt.getTime() ||
@@ -146,23 +148,30 @@ export class ShipmentCustomerTrackingService {
       ["fulfilment_handed_over", run?.handedOverAt],
     ] as Array<[string, Date | null | undefined]>) if (when) facts.set(kind, when);
 
-    const firstEventForKind = new Map<string, number>();
+    const eventIndexesByKind = new Map<string, number[]>();
     events.forEach((event, index) => {
-      if (!firstEventForKind.has(event.eventKind)) firstEventForKind.set(event.eventKind, index);
+      const indexes = eventIndexesByKind.get(event.eventKind) ?? [];
+      indexes.push(index);
+      eventIndexesByKind.set(event.eventKind, indexes);
       if (!facts.has(event.eventKind)) facts.set(event.eventKind, event.occurredAt);
     });
+    const stageOccurrences = new Map<string, number>();
 
     const actual: Array<CustomerTrackingMilestone & { order: number }> = [];
     const planned: CustomerTrackingMilestone[] = [];
     const represented = new Set<number>();
     for (const [index, stage] of shipment.workflowVersion.stages.entries()) {
+      // A distinct workflow stage needs its own event occurrence. Hidden stages
+      // consume their occurrence too, without exposing it to the customer.
+      const occurrence = stageOccurrences.get(stage.eventKind) ?? 0;
+      stageOccurrences.set(stage.eventKind, occurrence + 1);
+      const eventIndex = eventIndexesByKind.get(stage.eventKind)?.[occurrence];
+      const event = eventIndex === undefined ? undefined : events[eventIndex];
+      const at = occurrence === 0 ? facts.get(stage.eventKind) : event?.occurredAt;
       if (!stage.customerVisible) continue;
       const title = text(stage.customerTitleTemplate, 160);
       if (!title) continue;
       const detail = text(stage.customerDetailTemplate, 500);
-      const at = facts.get(stage.eventKind);
-      const eventIndex = firstEventForKind.get(stage.eventKind);
-      const event = eventIndex === undefined ? undefined : events[eventIndex];
       const locationLabel = event?.node?.customerVisible &&
         ["shipment_arrived", "returned_to_dispatch", "ready_for_pickup"].includes(event.eventKind)
         ? text(event.node.publicName, 160)

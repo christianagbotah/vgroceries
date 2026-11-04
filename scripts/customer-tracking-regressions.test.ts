@@ -33,8 +33,8 @@ test("verified guest refresh repeats its verified lookup and account refresh ret
   expect(screen).toContain("apiOps.orderStatus(orderId)");
   expect(screen).toContain("window.setInterval");
   expect(screen).toContain("30000");
-  expect(screen).toContain('"delivered", "collected"');
-  expect(screen).toContain("order.fulfilmentStatus === \"cancelled\"");
+  expect(screen).toContain("isTrackingTerminal(order)");
+  expect(screen).toContain("requests.invalidate()");
   expect(screen).toContain("onRefresh={refresh}");
   expect(screen).not.toContain("code: encodeURIComponent");
 });
@@ -42,6 +42,6 @@ test("verified guest refresh repeats its verified lookup and account refresh ret
 test("journey times are only shown for committed, non-planned milestones", () => {
   const component = read("src/components/orders/order-tracking-journey.tsx");
   expect(component).toContain('step.status !== "planned" ? <time');
-  expect(component).toContain("Only confirmed updates are shown");
+  expect(component).toContain("Confirmed updates use recorded times");
   expect(component).toContain('aria-label="Refresh order journey"');
 });
