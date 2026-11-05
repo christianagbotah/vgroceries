@@ -101,6 +101,10 @@ export class ShipmentPlanningService {
       },
     });
     if (!graph?.active) rule("Selected logistics route is no longer active.", "LOGISTICS_ROUTE_NOT_CONFIGURED");
+    // Route activation is not a permanent guarantee: a node or lane may be
+    // disabled between listing the choices and committing checkout.
+    if (graph.stops.some((stop) => !stop.node.active) || graph.legs.some((leg) => !leg.lane.active))
+      rule("The selected logistics route has an unavailable node or lane.", "LOGISTICS_ROUTE_NOT_CONFIGURED");
 
     const destinationAddress: Prisma.InputJsonObject | undefined = input.destinationKind === "doorstep" && order.deliveryAddress ? {
       recipientName: order.deliveryAddress.recipientName,

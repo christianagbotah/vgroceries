@@ -44,6 +44,7 @@ import type {
   BusinessQuestionResponse,
   ByVariantsResponse,
   CompleteOrderRequest,
+  CheckoutPickupOptionsResponse,
   CompleteOrderResponse,
   DashboardView,
   DoneResponse,
@@ -197,6 +198,7 @@ export const apiOps = {
   track: (reference: string, code: string) => api<PublicOrder>("orders.track", { body: { reference, code } }),
   zones: () => api<ZoneView[]>("checkout.zones"),
   slots: (zoneId: string) => api<SlotView[]>("checkout.slots", { query: { zoneId } }),
+  pickupPoints: (zoneId: string, locality?: string) => api<CheckoutPickupOptionsResponse>("checkout.pickup-points", { query: { zoneId, locality } }),
 
   /* account */
   accountLogin: async (identifier: string, password: string) => {

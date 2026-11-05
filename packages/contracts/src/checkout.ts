@@ -73,6 +73,24 @@ export interface QuoteResponse {
   conflicts: QuoteConflict[];
 }
 
+/** Public, configured remote pickup choices. Absence of points is not an availability promise. */
+export interface CheckoutPickupPointView {
+  id: string;
+  name: string;
+  kindLabel: string | null;
+  locality: string | null;
+  region: string | null;
+  addressLine: string | null;
+  ghanaPostGps: string | null;
+  directions: string | null;
+  contact: string | null;
+}
+
+export interface CheckoutPickupOptionsResponse {
+  enabled: boolean;
+  points: CheckoutPickupPointView[];
+}
+
 /* ---------------- order creation ---------------- */
 
 export type CheckoutFulfilment = "delivery" | "collection";
@@ -103,6 +121,10 @@ export interface CompleteOrderRequest {
   addressId?: string;
   guestAddress?: GuestAddressInput;
   fulfilment: CheckoutFulfilment;
+  /** Defaults to doorstep for existing delivery checkout; remote pickup is still fulfilment=delivery. */
+  destinationKind?: "doorstep" | "pickup_point";
+  /** Required for pickup_point, resolved against active server-owned route rules. */
+  finalPickupNodeId?: string;
   zoneId?: string;
   slotId?: string;
   paymentMethod: CheckoutPaymentMethod;

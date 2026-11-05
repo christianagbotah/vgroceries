@@ -30,6 +30,7 @@ Operationally, `LOGISTICS_SHIPMENT_EXECUTION_ENABLED` remains `false` by default
 
 - Mock transport remains available by design and is not production authority.
 - Complete storefront/account cutover is not finished.
+- Remote customer pickup-centre checkout is implemented behind `LOGISTICS_CUSTOMER_PICKUP_ENABLED=false` (and the existing L2 flag) but intentionally **closed** until verified terminal customer-collection authority, pickup-specific payment/slot policy and UAT are ready. Do not enable either flag merely because the checkout API and selector exist.
 - Demo selectors/login conveniences must stay out of production UX.
 - Fulfilment and Dispatch/Rider screens must render backend truth.
 - `/admin/logistics` has production L1 configuration authority and a published L2 Shipment API, but a complete operator Shipment-execution UI is not implied by the API alone.

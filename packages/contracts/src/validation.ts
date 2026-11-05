@@ -80,6 +80,22 @@ export const checkoutQuoteRequestSchema = z.object({
   zoneId: idSchema.optional(),
 });
 
+export const checkoutPickupPointViewSchema = z.object({
+  id: idSchema,
+  name: z.string().min(1),
+  kindLabel: z.string().nullable(),
+  locality: z.string().nullable(),
+  region: z.string().nullable(),
+  addressLine: z.string().nullable(),
+  ghanaPostGps: z.string().nullable(),
+  directions: z.string().nullable(),
+  contact: z.string().nullable(),
+}).strict();
+export const checkoutPickupOptionsResponseSchema = z.object({
+  enabled: z.boolean(),
+  points: z.array(checkoutPickupPointViewSchema),
+}).strict();
+
 export const guestAddressInputSchema = z.object({
   label: z.string().optional(),
   recipientName: z.string().min(1),
@@ -99,6 +115,8 @@ const checkoutCompleteBaseSchema = z.object({
   addressId: idSchema.optional(),
   guestAddress: guestAddressInputSchema.optional(),
   fulfilment: z.enum(["delivery", "collection"]),
+  destinationKind: z.enum(["doorstep", "pickup_point"]).optional(),
+  finalPickupNodeId: idSchema.optional(),
   zoneId: idSchema.optional(),
   slotId: idSchema.optional(),
   paymentMethod: z.enum([
@@ -114,14 +132,30 @@ const checkoutCompleteBaseSchema = z.object({
 
 export const replayKeySchema = z.string().regex(/^[A-Za-z0-9:_-]{8,128}$/);
 
+function validateDestination(value: {
+  fulfilment: "delivery" | "collection";
+  destinationKind?: "doorstep" | "pickup_point";
+  finalPickupNodeId?: string;
+}, ctx: z.RefinementCtx) {
+  if (value.fulfilment === "collection" && (value.destinationKind || value.finalPickupNodeId)) {
+    ctx.addIssue({ code: "custom", path: ["destinationKind"], message: "Source collection cannot specify a remote destination." });
+  }
+  if (value.destinationKind === "pickup_point" && !value.finalPickupNodeId) {
+    ctx.addIssue({ code: "custom", path: ["finalPickupNodeId"], message: "Choose a configured pickup centre." });
+  }
+  if (value.destinationKind !== "pickup_point" && value.finalPickupNodeId) {
+    ctx.addIssue({ code: "custom", path: ["finalPickupNodeId"], message: "Pickup node requires a pickup-point destination." });
+  }
+}
+
 export const checkoutCompleteRequestSchema = checkoutCompleteBaseSchema.extend({
   idempotencyKey: replayKeySchema,
-});
+}).superRefine(validateDestination);
 
 /** Production REST body: Idempotency-Key is authoritative transport metadata. */
 export const checkoutCompleteRestRequestSchema = checkoutCompleteBaseSchema.extend({
   idempotencyKey: replayKeySchema.optional(),
-});
+}).superRefine(validateDestination);
 
 export const trackRequestSchema = z.object({
   reference: z.string().trim().min(1).max(128),

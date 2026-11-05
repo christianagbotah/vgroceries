@@ -83,6 +83,10 @@ test("semantic checkout hash ignores replay metadata and redundant matching cust
   assert.deepEqual(canonicalCheckoutRequest(a), canonicalCheckoutRequest(b));
   assert.equal(checkoutRequestHash(a), checkoutRequestHash(b));
   assert.notEqual(checkoutRequestHash(a), checkoutRequestHash(request({ lines: [{ variantId: "var_rice", quantity: "2" }] })));
+  const existingDelivery = request({ fulfilment: "delivery", paymentMethod: "mobile_money" });
+  assert.equal(checkoutRequestHash(existingDelivery), checkoutRequestHash({ ...existingDelivery, destinationKind: "doorstep" }));
+  assert.notEqual(checkoutRequestHash(a), checkoutRequestHash(request({ destinationKind: "pickup_point", finalPickupNodeId: "pickup-1" })));
+  assert.notEqual(checkoutRequestHash(request({ destinationKind: "pickup_point", finalPickupNodeId: "pickup-1" })), checkoutRequestHash(request({ destinationKind: "pickup_point", finalPickupNodeId: "pickup-2" })));
 });
 
 test("verification codes are 10 Crockford characters deterministic and versioned", () => {

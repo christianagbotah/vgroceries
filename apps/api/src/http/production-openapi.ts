@@ -9,6 +9,7 @@ import type {
 } from "@nestjs/swagger/dist/interfaces/open-api-spec.interface";
 import {
   notificationItemSchema, notificationListResponseSchema, notificationReadResponseSchema, notificationReadAllResponseSchema,
+  checkoutPickupOptionsResponseSchema, checkoutCompleteRestRequestSchema,
   dispatchActionResponseSchema,
   dispatchAssignRequestSchema,
   dispatchJobDetailResponseSchema,
@@ -269,6 +270,8 @@ export function productionOpenApi(app: INestApplication): OpenAPIObject {
     RiderJobResponse: json(riderJobResponseSchema),
     RiderJobsResponse: json(riderJobsResponseSchema),
     RiderActionResponse: json(riderActionResponseSchema),
+    CheckoutPickupOptionsResponse: json(checkoutPickupOptionsResponseSchema),
+    CheckoutCompleteRestRequest: json(checkoutCompleteRestRequestSchema),
     NotificationItem: json(notificationItemSchema),
     NotificationListResponse: json(notificationListResponseSchema),
     NotificationReadResponse: json(notificationReadResponseSchema),
@@ -363,6 +366,7 @@ export function productionOpenApi(app: INestApplication): OpenAPIObject {
     "DispatchQueueResponse", "DispatchJobDetailResponse", "DispatchRiderFleetResponse", "DispatchRiderDetailResponse", "DispatchActionResponse",
     "RiderAvailabilityResponse", "RiderSelfResponse", "RiderJobResponse", "RiderJobsResponse", "RiderActionResponse",
     "NotificationListResponse", "NotificationReadResponse", "NotificationReadAllResponse",
+    "CheckoutPickupOptionsResponse",
     "ProductDraftResponse", "ProductMediaView", "ImageGenerationJobView", "AdminProductMediaView",
     "LogisticsNodeView", "LogisticsNodeList", "LogisticsLaneView", "LogisticsLaneList",
     "DeliveryWorkflowView", "DeliveryWorkflowVersionView", "DeliveryWorkflowList",
@@ -386,6 +390,29 @@ export function productionOpenApi(app: INestApplication): OpenAPIObject {
     requestBody: { required: true, content: { "application/json": { schema: ref(requestSchema) } } },
     responses: authorityResponses(responseSchema),
   });
+  // Only configured customer-visible nodes from active server-validated routes.
+  // No remote pickup is exposed unless the dedicated customer pickup flag is enabled.
+  doc.paths["/api/v1/checkout/zones/{zoneId}/pickup-points"] = {
+    get: {
+      security: [],
+      description: "List safe pickup-centre options for this zone. Default-off remote pickup is independent of L2 shipment execution; disabled returns enabled=false and no options. This does not claim that customer collection authority is operational.",
+      parameters: [
+        { name: "zoneId", in: "path", required: true, schema: { type: "string", minLength: 1 } },
+        { name: "locality", in: "query", required: false, schema: { type: "string", maxLength: 120 } },
+      ],
+      responses: {
+        "200": response("CheckoutPickupOptionsResponseEnvelope"),
+        "400": errorResponse, "404": errorResponse, "500": errorResponse,
+      },
+    },
+  };
+  // Explicitly document the new input; the header remains authoritative for replay.
+  const checkoutComplete = doc.paths["/api/v1/checkout/complete"]?.post;
+  if (checkoutComplete) {
+    checkoutComplete.requestBody = { required: true, content: {
+      "application/json": { schema: ref("CheckoutCompleteRestRequest") },
+    } };
+  }
   doc.paths["/api/v1/account/notifications"] = {
     get: readOperation("Customer-owned in-app inbox, projected only from committed order events. No email/SMS/WhatsApp delivery is implied.", "NotificationListResponseEnvelope", [
       { name: "limit", in: "query", schema: { type: "integer", minimum: 1, maximum: 50, default: 20 } },

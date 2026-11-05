@@ -1,4 +1,6 @@
 import { Module } from "@nestjs/common";
+import { CheckoutPickupPointsController } from "./checkout-pickup-points.controller";
+import { CheckoutPickupPointsService } from "./checkout-pickup-points.service";
 import { AdminLogisticsNodesController } from "./admin-logistics-nodes.controller";
 import { AdminLogisticsLanesController } from "./admin-logistics-lanes.controller";
 import { AdminLogisticsWorkflowsController } from "./admin-logistics-workflows.controller";
@@ -15,8 +17,8 @@ import { ShipmentFinalMileService } from "./shipment-final-mile.service";
 import { ShipmentQueryService } from "./shipment-query.service";
 import { ShipmentCustomerTrackingService } from "./shipment-customer-tracking.service";
 @Module({
-  controllers:[AdminLogisticsNodesController,AdminLogisticsLanesController,AdminLogisticsWorkflowsController,AdminLogisticsRouteRulesController,AdminLogisticsShipmentsController],
-  providers:[LogisticsNodeService,LogisticsLaneService,LogisticsWorkflowService,LogisticsRouteRuleService,LogisticsBootstrapService,ShipmentPlanningService,ShipmentExecutionService,ShipmentFinalMileService,ShipmentQueryService,ShipmentCustomerTrackingService],
+  controllers:[CheckoutPickupPointsController,AdminLogisticsNodesController,AdminLogisticsLanesController,AdminLogisticsWorkflowsController,AdminLogisticsRouteRulesController,AdminLogisticsShipmentsController],
+  providers:[CheckoutPickupPointsService,LogisticsNodeService,LogisticsLaneService,LogisticsWorkflowService,LogisticsRouteRuleService,LogisticsBootstrapService,ShipmentPlanningService,ShipmentExecutionService,ShipmentFinalMileService,ShipmentQueryService,ShipmentCustomerTrackingService],
   exports:[LogisticsNodeService,LogisticsLaneService,LogisticsWorkflowService,LogisticsRouteRuleService,LogisticsBootstrapService,ShipmentPlanningService,ShipmentExecutionService,ShipmentFinalMileService,ShipmentQueryService,ShipmentCustomerTrackingService],
 })
 export class LogisticsModule {}

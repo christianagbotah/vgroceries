@@ -22,3 +22,15 @@ test("shipment execution rollout defaults off and accepts only literal true or f
     );
   }
 });
+
+
+test("remote customer pickup requires an explicit independent opt-in and L2 activation", () => {
+  assert.equal(readConfig(baseEnv()).customerPickupEnabled, false);
+  assert.equal(readConfig({ ...baseEnv(), LOGISTICS_SHIPMENT_EXECUTION_ENABLED: "true" }).customerPickupEnabled, false);
+  assert.equal(readConfig({ ...baseEnv(), LOGISTICS_SHIPMENT_EXECUTION_ENABLED: "true", LOGISTICS_CUSTOMER_PICKUP_ENABLED: "true" }).customerPickupEnabled, true);
+  assert.throws(() => readConfig({ ...baseEnv(), LOGISTICS_CUSTOMER_PICKUP_ENABLED: "true" }), /requires shipment execution/);
+  for (const value of ["yes", "1", "TRUE", "", "disabled"]) {
+    assert.throws(() => readConfig({ ...baseEnv(), LOGISTICS_CUSTOMER_PICKUP_ENABLED: value }),
+      /LOGISTICS_CUSTOMER_PICKUP_ENABLED must be true or false/);
+  }
+});
