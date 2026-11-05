@@ -139,6 +139,7 @@ export type CacheTag =
   | "catalog" // product availability / prices
   | "stock" // lots, movements, inventory overview
   | "orders" // order lists, status, fulfilment queues
+  | "notifications" // customer inbox and unread state
   | "payments" // attempts, refunds, reconciliation
   | "returns" // return requests + refundable balances
   | "delivery" // dispatch queue, rider jobs

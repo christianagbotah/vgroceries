@@ -8,6 +8,7 @@ import type {
   SecurityRequirementObject,
 } from "@nestjs/swagger/dist/interfaces/open-api-spec.interface";
 import {
+  notificationItemSchema, notificationListResponseSchema, notificationReadResponseSchema, notificationReadAllResponseSchema,
   dispatchActionResponseSchema,
   dispatchAssignRequestSchema,
   dispatchJobDetailResponseSchema,
@@ -268,18 +269,10 @@ export function productionOpenApi(app: INestApplication): OpenAPIObject {
     RiderJobResponse: json(riderJobResponseSchema),
     RiderJobsResponse: json(riderJobsResponseSchema),
     RiderActionResponse: json(riderActionResponseSchema),
-    NotificationItem: json(z.strictObject({
-      id: z.string(), kind: z.enum(["order","fulfilment","delivery"]), title: z.string(), body: z.string(),
-      orderId: z.string(), createdAt: z.iso.datetime(), readAt: z.iso.datetime().nullable(),
-    })),
-    NotificationListResponse: json(z.strictObject({
-      items: z.array(z.strictObject({
-        id: z.string(), kind: z.enum(["order","fulfilment","delivery"]), title: z.string(), body: z.string(),
-        orderId: z.string(), createdAt: z.iso.datetime(), readAt: z.iso.datetime().nullable(),
-      })),
-      unreadCount: z.number().int().nonnegative(), hasMore: z.boolean(),
-    })),
-    NotificationReadResponse: json(z.strictObject({ id: z.string(), readAt: z.iso.datetime().nullable() })),
+    NotificationItem: json(notificationItemSchema),
+    NotificationListResponse: json(notificationListResponseSchema),
+    NotificationReadResponse: json(notificationReadResponseSchema),
+    NotificationReadAllResponse: json(notificationReadAllResponseSchema),
     CreateGenerationRequest: json(createGenerationRequestSchema),
     CreateProductDraftRequest: json(createProductDraftRequestSchema),
     SetFeaturedMediaRequest: json(setFeaturedMediaRequestSchema),
@@ -369,7 +362,7 @@ export function productionOpenApi(app: INestApplication): OpenAPIObject {
     "FulfilmentQueueResponse", "FulfilmentDetailResponse", "FulfilmentActionResponse",
     "DispatchQueueResponse", "DispatchJobDetailResponse", "DispatchRiderFleetResponse", "DispatchRiderDetailResponse", "DispatchActionResponse",
     "RiderAvailabilityResponse", "RiderSelfResponse", "RiderJobResponse", "RiderJobsResponse", "RiderActionResponse",
-    "NotificationListResponse", "NotificationReadResponse",
+    "NotificationListResponse", "NotificationReadResponse", "NotificationReadAllResponse",
     "ProductDraftResponse", "ProductMediaView", "ImageGenerationJobView", "AdminProductMediaView",
     "LogisticsNodeView", "LogisticsNodeList", "LogisticsLaneView", "LogisticsLaneList",
     "DeliveryWorkflowView", "DeliveryWorkflowVersionView", "DeliveryWorkflowList",
@@ -396,7 +389,12 @@ export function productionOpenApi(app: INestApplication): OpenAPIObject {
   doc.paths["/api/v1/account/notifications"] = {
     get: readOperation("Customer-owned in-app inbox, projected only from committed order events. No email/SMS/WhatsApp delivery is implied.", "NotificationListResponseEnvelope", [
       { name: "limit", in: "query", schema: { type: "integer", minimum: 1, maximum: 50, default: 20 } },
+      { name: "cursor", in: "query", schema: { type: "string", maxLength: 512 } },
     ]),
+  };
+  doc.paths["/api/v1/account/notifications/read-all"] = {
+    post: { security, description: "Mark the authenticated customer's existing inbox as read. Web sessions require trusted Origin and CSRF.",
+      parameters: [csrf], responses: authorityResponses("NotificationReadAllResponseEnvelope") },
   };
   doc.paths["/api/v1/account/notifications/{notificationId}/read"] = {
     post: { security, description: "Idempotent customer-owned notification read; web mutations require trusted Origin and CSRF.", parameters: [

@@ -20,6 +20,7 @@ export * from "./payments";
 export * from "./refunds";
 export * from "./fulfilment";
 export * from "./account";
+export * from "./notifications";
 export * from "./returns";
 export * from "./inventory";
 export * from "./pos";

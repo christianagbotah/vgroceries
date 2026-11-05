@@ -1,5 +1,21 @@
 # Verification record
 
+## Customer inbox completion checkpoint — 5 November 2026
+
+**Scope:** Completes the in-app notification channel on `feat/l4-customer-notification-inbox`, based on deployed `f635f3f`. Includes authenticated customer UI, stable cursor pagination, read-one/read-all, immutable database evidence, shared REST/demo contracts and a bounded systemd projector timer. External notification channels and L2 execution remain closed. The deployment checkpoint is separate from these code checks.
+
+| Check | Observed result |
+| --- | --- |
+| Focused PostgreSQL inbox integration/security | 10/10 passed |
+| Notification REST/shared-schema/in-process and HTTP demo transport | 4/4 passed |
+| Full Bun regressions | 188/188 passed; 1,404 expectations across 33 files |
+| Independent whole-branch review | One demo HTTP identity defect corrected; re-review found no remaining important findings |
+| Full API, lint/type/build, browser and HTTP gates | In progress; results must be recorded before release |
+
+The initial branch's API workflow failed three checks: two exact route assertions omitted the inbox routes, and a guest fixture violated `Order_owner_xor`. Those fixtures/assertions were corrected, and their focused baseline passed 49/49. New failing behavior tests then proved the missing pagination, read-all, cookie CSRF route, manual-provider event parity and immutable snapshot guards before implementation. Atomic rollback and simultaneous projector tests also passed. The review's HTTP demo transport regression failed with `NOT_FOUND` before the notification ID moved into the request body, then passed after correction.
+
+A first full API attempt used a unique database name accepted by most suites but rejected by several older guards requiring the exact foundation database name. That attempt was stopped. The definitive run uses a new PostgreSQL instance on private loopback port 55434, with its own `variety_foundation_test` database; neither the shared test database nor UAT data is reset.
+
 ## Development checkpoint: Wave L4 phase 1 customer in-app notifications — 4 November 2026
 
 **Scope:** Isolated branch `feat/l4-customer-notification-inbox`, based on deployed `f635f3f`. The live portal/API services and current PostgreSQL data were not changed. This is an in-app inbox foundation only; external notification channels and frontend inbox remain closed.

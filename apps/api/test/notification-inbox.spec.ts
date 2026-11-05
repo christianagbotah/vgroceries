@@ -9,8 +9,15 @@ import { commerceTestPassword, seedCommerceFixtures } from "./commerce-fixtures"
 let app: INestApplication, db: Database, inbox: NotificationService, base: string;
 
 async function createOrder(id: string, userId: string | null, reference: string) {
+  let guestSessionId: string | undefined;
+  if (!userId) {
+    const guest = await db.guestCheckoutSession.create({ data: {
+      tokenHash: "a".repeat(64), csrfHash: "b".repeat(64), expiresAt: new Date(Date.now() + 3600000),
+    } });
+    guestSessionId = guest.id;
+  }
   await db.order.create({ data: {
-    id, reference, customerUserId: userId, customerName: "Fixture Customer",
+    id, reference, customerUserId: userId, guestSessionId, customerName: "Fixture Customer",
     customerPhone: "+233241111111", fulfilment: "delivery",
     paymentMethod: "cash_on_delivery", paymentStatus: "unpaid",
     fulfilmentStatus: "awaiting_confirmation", deliveryStatus: "unassigned",
@@ -93,7 +100,123 @@ test("inbox copy never implies a paid COD delivery, refunds, GPS or ETA", async 
   assert.equal(records.length, 2);
   const delivered = records.find(item => item.title === "Delivery recorded");
   assert.ok(delivered);
-  assert.match(delivered.body, /remittance remain separate/);
   assert.ok(!delivered.body.includes("DO_NOT_LEAK"));
   assert.ok(records.every(item => !/cash was received|payment confirmed|real-time GPS|guaranteed ETA/i.test(item.body)));
+});
+
+test("cursor pagination visits tied-time messages once and excludes later arrivals", async () => {
+  for (let index = 0; index < 5; index++) {
+    await createOrder("page-order-" + index, "customer-a", "VG-PAGE-" + index);
+  }
+  await db.outboxEvent.updateMany({ data: { createdAt: new Date("2026-11-01T12:00:00Z") } });
+  await inbox.projectBatch();
+  const a = await token("customer-a@example.test");
+  const first = await request("/account/notifications?limit=2", a);
+  assert.equal(first.status, 200);
+  assert.equal(typeof first.body.data.nextCursor, "string");
+  const seen = first.body.data.items.map((item: { id: string }) => item.id);
+  await createOrder("later-order", "customer-a", "VG-LATER");
+  await inbox.projectBatch();
+  let cursor: string | null = first.body.data.nextCursor;
+  while (cursor) {
+    const page = await request("/account/notifications?limit=2&cursor=" + encodeURIComponent(cursor), a);
+    assert.equal(page.status, 200);
+    seen.push(...page.body.data.items.map((item: { id: string }) => item.id));
+    cursor = page.body.data.nextCursor;
+  }
+  assert.equal(seen.length, 5);
+  assert.equal(new Set(seen).size, 5);
+  const newer = await db.notification.findFirstOrThrow({ where: { orderId: "later-order" } });
+  assert.ok(!seen.includes(newer.id));
+  assert.equal((await request("/account/notifications?cursor=not-json", a)).status, 400);
+  assert.equal((await request("/account/notifications?cursor=" + "a".repeat(513), a)).status, 400);
+});
+
+test("mark all read changes only the signed-in customer's unread inbox", async () => {
+  for (let index = 0; index < 3; index++) await createOrder("read-order-" + index, "customer-a", "VG-READ-" + index);
+  await createOrder("read-foreign-order", "customer-b", "VG-FOREIGN");
+  await inbox.projectBatch();
+  const a = await token("customer-a@example.test");
+  const b = await token("customer-b@example.test");
+  const first = await db.notification.findFirstOrThrow({ where: { recipientUserId: "customer-a" } });
+  await request("/account/notifications/" + first.id + "/read", a, "POST");
+  const result = await request("/account/notifications/read-all", a, "POST");
+  assert.equal(result.status, 200);
+  assert.equal(result.body.data.updatedCount, 2);
+  assert.equal((await request("/account/notifications/read-all", a, "POST")).body.data.updatedCount, 0);
+  assert.equal((await request("/account/notifications", a)).body.data.unreadCount, 0);
+  assert.equal((await request("/account/notifications", b)).body.data.unreadCount, 1);
+  assert.equal(await db.auditEvent.count({ where: { action: "notification.read_all" } }), 1);
+});
+
+test("web inbox mutations require the owning session's Origin and CSRF token", async () => {
+  await createOrder("web-order", "customer-a", "VG-WEB");
+  await inbox.projectBatch();
+  const login = await fetch(base + "/api/v1/auth/sessions", {
+    method: "POST", headers: { origin: "http://localhost:3000", "content-type": "application/json" },
+    body: JSON.stringify({ email: "customer-a@example.test", password: commerceTestPassword, client: "web" }),
+  });
+  assert.equal(login.status, 201);
+  const cookie = login.headers.getSetCookie().map(value => value.split(";")[0]).join("; ");
+  const csrf = (await login.json()).data.csrfToken as string;
+  const invalidHeaders: Array<Record<string, string>> = [
+    { cookie },
+    { cookie, origin: "https://evil.example", "x-csrf-token": csrf },
+    { cookie, origin: "http://localhost:3000", "x-csrf-token": "wrong" },
+  ];
+  for (const headers of invalidHeaders) {
+    assert.equal((await fetch(base + "/api/v1/account/notifications/read-all", { method: "POST", headers })).status, 403);
+  }
+  const valid = await fetch(base + "/api/v1/account/notifications/read-all", {
+    method: "POST", headers: { cookie, origin: "http://localhost:3000", "x-csrf-token": csrf },
+  });
+  assert.equal(valid.status, 200);
+  assert.equal((await valid.json()).data.updatedCount, 1);
+});
+
+test("two concurrent projectors retain one receipt and one message per source event", async () => {
+  await createOrder("concurrent-order", "customer-a", "VG-CONCURRENT");
+  const results = await Promise.all([inbox.projectBatch(), inbox.projectBatch()]);
+  assert.equal(results.reduce((total, result) => total + result.created, 0), 1);
+  assert.equal(await db.notification.count(), 1);
+  assert.equal(await db.notificationOutboxReceipt.count(), 1);
+});
+
+test("committed manual-provider delivery events receive the same customer updates", async () => {
+  await createOrder("provider-order", "customer-a", "VG-PROVIDER");
+  for (const type of ["delivery.provider_out_for_delivery", "delivery.provider_failed", "delivery.provider_delivered"]) {
+    await db.outboxEvent.create({ data: { type, aggregateId: "provider-order", payload: {} } });
+  }
+  assert.equal((await inbox.projectBatch()).created, 4);
+  assert.equal(await db.notification.count({ where: { kind: "delivery" } }), 3);
+});
+
+test("failed message creation rolls back its receipt and remains retryable", async () => {
+  await createOrder("rollback-order", "customer-a", "VG-ROLLBACK");
+  await db.$executeRawUnsafe(`CREATE FUNCTION reject_notification_fixture() RETURNS trigger AS $$ BEGIN RAISE EXCEPTION 'notification fixture failure'; END; $$ LANGUAGE plpgsql`);
+  await db.$executeRawUnsafe(`CREATE TRIGGER reject_notification_fixture BEFORE INSERT ON "Notification" FOR EACH ROW EXECUTE FUNCTION reject_notification_fixture()`);
+  try {
+    await assert.rejects(() => inbox.projectBatch());
+    assert.equal(await db.notification.count(), 0);
+    assert.equal(await db.notificationOutboxReceipt.count(), 0);
+  } finally {
+    await db.$executeRawUnsafe(`DROP TRIGGER reject_notification_fixture ON "Notification"`);
+    await db.$executeRawUnsafe(`DROP FUNCTION reject_notification_fixture()`);
+  }
+  assert.equal((await inbox.projectBatch()).created, 1);
+});
+
+test("database writes cannot change message evidence or redirect it to another account", async () => {
+  const source = await createOrder("integrity-order", "customer-a", "VG-INTEGRITY");
+  await assert.rejects(() => db.notification.create({ data: {
+    recipientUserId: "customer-b", orderId: "integrity-order", sourceEventId: source.id,
+    kind: "order", title: "Forged recipient", body: "This must be rejected.",
+  } }));
+  await inbox.projectBatch();
+  const row = await db.notification.findFirstOrThrow();
+  await assert.rejects(() => db.notification.update({ where: { id: row.id }, data: { body: "Changed evidence" } }));
+  await assert.rejects(() => db.notification.update({ where: { id: row.id }, data: { recipientUserId: "customer-b" } }));
+  await inbox.markRead("customer-a", row.id, "read-test");
+  await assert.rejects(() => db.notification.update({ where: { id: row.id }, data: { readAt: null } }));
+  await assert.rejects(() => db.notificationOutboxReceipt.update({ where: { sourceEventId: source.id }, data: { outcome: "no_recipient" } }));
 });

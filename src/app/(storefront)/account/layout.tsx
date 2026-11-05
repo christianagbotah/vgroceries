@@ -7,12 +7,13 @@ import { cn } from "@/lib/utils";
 import { apiOps, ApiError } from "@/services/client";
 import { Button } from "@/components/ui/button";
 import { ErrorState, LoadingState } from "@/components/shared/states";
-import { User, UserRound, Package, MapPin, Heart, RotateCcw, LogOut } from "lucide-react";
+import { Bell, User, UserRound, Package, MapPin, Heart, RotateCcw, LogOut } from "lucide-react";
 
 const TABS = [
   { href: "/account", label: "Overview", icon: User },
   { href: "/account/profile", label: "Profile", icon: UserRound },
   { href: "/account/orders", label: "Orders", icon: Package },
+  { href: "/account/notifications", label: "Notifications", icon: Bell },
   { href: "/account/addresses", label: "Addresses", icon: MapPin },
   { href: "/account/lists", label: "Wishlist", icon: Heart },
   { href: "/account/returns", label: "Returns", icon: RotateCcw },
@@ -69,7 +70,7 @@ export default function AccountLayout({ children }: { children: React.ReactNode 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="font-serif text-2xl font-bold sm:text-3xl">My account</h1>
-          <p className="mt-1 text-sm text-muted-foreground">Manage your profile, orders, addresses, wishlist and returns in one place.</p>
+          <p className="mt-1 text-sm text-muted-foreground">Manage your orders, notifications and account details in one place.</p>
         </div>
         <Button variant="outline" className="h-10 gap-2" onClick={logout} disabled={loggingOut}>
           <LogOut className="size-4" aria-hidden /> {loggingOut ? "Logging out…" : "Log out"}

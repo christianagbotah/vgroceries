@@ -14,12 +14,20 @@ export class NotificationController {
     return auth.actor.id;
   }
   @Get()
-  async list(@Req() req: ApiRequest, @Query("limit") rawLimit?: string) {
+  async list(@Req() req: ApiRequest, @Query("limit") rawLimit?: string, @Query("cursor") cursor?: string) {
     const userId = await this.customer(req);
     if (rawLimit !== undefined && !/^(?:[1-9]|[1-4][0-9]|50)$/.test(rawLimit))
       throw new ApiProblem(400, "VALIDATION_FAILED", "Invalid notification limit.");
     const limit = rawLimit === undefined ? 20 : Number(rawLimit);
-    return { ok: true, data: await this.inbox.list(userId, limit) };
+    if (cursor !== undefined && typeof cursor !== "string")
+      throw new ApiProblem(400, "VALIDATION_FAILED", "Invalid notification cursor.");
+    return { ok: true, data: await this.inbox.list(userId, limit, cursor) };
+  }
+  @Post("read-all")
+  @HttpCode(200)
+  async markAllRead(@Req() req: ApiRequest) {
+    const userId = await this.customer(req);
+    return { ok: true, data: await this.inbox.markAllRead(userId, req.requestId) };
   }
   @Post(":notificationId/read")
   @HttpCode(200)

@@ -1,5 +1,6 @@
 import { Injectable } from "@nestjs/common";
 import { randomUUID } from "node:crypto";
+import { notificationCursorSchema, type NotificationListResponse } from "@variety/contracts";
 import { Database } from "../database/database";
 import { ApiProblem } from "../http/errors";
 import { customerNotificationCopy, customerNotificationTypes, type CustomerNotificationType } from "./notification-templates";
@@ -54,19 +55,41 @@ export class NotificationService {
     }, { timeout: 15000 });
   }
 
-  async list(recipientUserId: string, limit: number) {
+  async list(recipientUserId: string, limit: number, cursor?: string): Promise<NotificationListResponse> {
     if (!Number.isInteger(limit) || limit < 1 || limit > 50)
       throw new ApiProblem(400, "VALIDATION_FAILED", "Invalid notification limit.");
+    let position: { createdAt: string; id: string } | undefined;
+    if (cursor !== undefined) {
+      try {
+        if (cursor.length > 512 || !/^[A-Za-z0-9_-]+$/.test(cursor)) throw new Error("Invalid cursor.");
+        position = notificationCursorSchema.parse(JSON.parse(Buffer.from(cursor, "base64url").toString("utf8")));
+      } catch {
+        throw new ApiProblem(400, "VALIDATION_FAILED", "Invalid notification cursor.");
+      }
+    }
     const [rows, unreadCount] = await this.db.$transaction([
       this.db.notification.findMany({
-        where: { recipientUserId }, orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+        where: { recipientUserId, ...(position ? { OR: [
+          { createdAt: { lt: new Date(position.createdAt) } },
+          { createdAt: new Date(position.createdAt), id: { lt: position.id } },
+        ] } : {}) },
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
         take: limit + 1,
         select: { id: true, kind: true, title: true, body: true,
           orderId: true, createdAt: true, readAt: true },
       }),
       this.db.notification.count({ where: { recipientUserId, readAt: null } }),
-    ]);
-    return { items: rows.slice(0, limit), unreadCount, hasMore: rows.length > limit };
+    ], { isolationLevel: "RepeatableRead" });
+    const items = rows.slice(0, limit).map(row => ({
+      ...row, kind: row.kind as "order" | "fulfilment" | "delivery",
+      createdAt: row.createdAt.toISOString(), readAt: row.readAt?.toISOString() ?? null,
+    }));
+    const last = items.at(-1);
+    const hasMore = rows.length > limit;
+    const nextCursor = hasMore && last
+      ? Buffer.from(JSON.stringify({ createdAt: last.createdAt, id: last.id })).toString("base64url")
+      : null;
+    return { items, unreadCount, hasMore, nextCursor };
   }
 
   async markRead(recipientUserId: string, notificationId: string, requestId: string) {
@@ -86,7 +109,23 @@ export class NotificationService {
         select: { id: true, readAt: true },
       });
       if (!row) throw new ApiProblem(404, "NOT_FOUND", "Notification not found.");
-      return row;
+      return { id: row.id, readAt: row.readAt?.toISOString() ?? null };
+    });
+  }
+
+  async markAllRead(recipientUserId: string, requestId: string) {
+    return this.db.$transaction(async tx => {
+      const readAt = new Date();
+      const changed = await tx.notification.updateMany({
+        where: { recipientUserId, readAt: null }, data: { readAt },
+      });
+      if (changed.count) {
+        await tx.auditEvent.create({ data: {
+          actorId: recipientUserId, action: "notification.read_all", entityId: recipientUserId,
+          requestId, details: { updatedCount: changed.count },
+        } });
+      }
+      return { updatedCount: changed.count, readAt: readAt.toISOString() };
     });
   }
 }
