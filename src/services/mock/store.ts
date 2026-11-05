@@ -94,6 +94,7 @@ export interface CmsStoreState {
 export interface VgStore {
   seededAt: string;
   idempotency: IdempotencyRecord[];
+  notificationReadAt: Record<string, string>;
   categories: Category[];
   products: Product[];
   variants: ProductVariant[];
@@ -224,6 +225,7 @@ function seedStore(): VgStore {
   const store: VgStore = {
     seededAt: now.toISOString(),
     idempotency: [],
+    notificationReadAt: {},
     categories: seedCategories,
     products: catalog.products,
     variants: catalog.variants,

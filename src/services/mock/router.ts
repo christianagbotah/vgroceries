@@ -10,6 +10,7 @@
  */
 
 import { getStore, resetStore, type VgStore } from "./store";
+import { listNotifications, readNotification, readAllNotifications } from "./engine/notifications";
 import { OpError, audit } from "./engine/orders";
 import { availability, checkAvailability, isProductPurchasable, sweepExpiredReservations } from "./engine/availability";
 import {
@@ -494,6 +495,15 @@ export async function handleApi(req: ApiRequest): Promise<ApiResult> {
       }
 
       /* ---------------- Customer account (demo) ---------------- */
+      case "account.notifications": {
+        return ok(listNotifications(store, q("limit") || "20", q("cursor") || undefined));
+      }
+      case "account.notifications.read": {
+        return ok(readNotification(store, b("notificationId")));
+      }
+      case "account.notifications.read-all": {
+        return ok(readAllNotifications(store));
+      }
       case "account.profile": {
         const customer = store.customers[0];
         return ok({ customer });

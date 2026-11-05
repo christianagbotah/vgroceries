@@ -23,6 +23,9 @@ import type {
   AccountProfileUpdateRequest,
   AccountReturnRow,
   AccountSummaryResponse,
+  NotificationListResponse,
+  NotificationReadResponse,
+  NotificationReadAllResponse,
   AdminCategoryRow,
   AdminOrderDetail,
   AdminOrderRow,
@@ -226,6 +229,9 @@ export const apiOps = {
     finally { clearBrowserCsrfToken(); }
   },
   accountOrders: (customerId?: string) => api<AccountOrderRow[]>("account.orders", { query: { customerId } }),
+  accountNotifications: (cursor?: string) => api<NotificationListResponse>("account.notifications", { query: { limit: 20, cursor } }),
+  accountNotificationRead: (notificationId: string) => api<NotificationReadResponse>("account.notifications.read", { body: { notificationId } }),
+  accountNotificationsReadAll: () => api<NotificationReadAllResponse>("account.notifications.read-all", { body: {} }),
   accountCancel: (orderId: string, reason: string) =>
     api<AccountCancelResponse>("account.cancel", { body: { orderId, reason } }),
   returnLines: (orderId: string) => api<ReturnLineRow[]>("account.return-lines", { body: { orderId } }),

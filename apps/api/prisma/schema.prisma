@@ -27,6 +27,7 @@ model User {
   locations UserLocation[]
   customerAddresses CustomerAddress[]
   orders Order[]
+  notifications Notification[]
   riderProfile RiderProfile?
 }
 
@@ -303,7 +304,32 @@ model OutboxEvent {
   payload Json
   createdAt DateTime @default(now()) @db.Timestamptz(3)
   publishedAt DateTime? @db.Timestamptz(3)
+  notificationReceipt NotificationOutboxReceipt?
+  notification Notification?
   @@index([publishedAt, createdAt])
+}
+
+model Notification {
+  id String @id @default(uuid())
+  recipientUserId String
+  recipientUser User @relation(fields: [recipientUserId], references: [id], onDelete: Restrict)
+  orderId String
+  order Order @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  sourceEventId String @unique
+  sourceEvent OutboxEvent @relation(fields: [sourceEventId], references: [id], onDelete: Restrict)
+  kind String
+  title String
+  body String
+  readAt DateTime? @db.Timestamptz(3)
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  @@index([recipientUserId, createdAt, id])
+}
+
+model NotificationOutboxReceipt {
+  sourceEventId String @id
+  sourceEvent OutboxEvent @relation(fields: [sourceEventId], references: [id], onDelete: Restrict)
+  outcome String
+  processedAt DateTime @default(now()) @db.Timestamptz(3)
 }
 
 model GuestCheckoutSession {
@@ -409,6 +435,7 @@ model Order {
   deliveryJob DeliveryJob?
   deliveryEvents DeliveryEvent[]
   shipments Shipment[]
+  notifications Notification[]
   @@index([customerUserId, createdAt])
   @@index([guestSessionId, createdAt])
   @@index([zoneId, createdAt])

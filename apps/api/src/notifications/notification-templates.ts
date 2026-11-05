@@ -1,0 +1,44 @@
+/** Customer copy for committed, explicitly supported order transitions. */
+export const customerNotificationTypes = [
+  "order.created", "order.cancelled", "order.cancelled_with_refund",
+  "fulfilment.confirmed", "fulfilment.packed", "fulfilment.handed_over",
+  "delivery.out_for_delivery", "delivery.delivered", "delivery.failed",
+  "delivery.rescheduled", "delivery.return_to_store", "delivery.returned_goods_received",
+  "delivery.provider_out_for_delivery", "delivery.provider_delivered", "delivery.provider_failed",
+] as const;
+export type CustomerNotificationType = typeof customerNotificationTypes[number];
+
+export function customerNotificationCopy(type: CustomerNotificationType, reference: string, fulfilment: string) {
+  const prefix = "Order " + reference + ". ";
+  switch (type) {
+    case "order.created":
+      return { kind: "order", title: "Order received", body: prefix + "We have received your order." };
+    case "order.cancelled":
+      return { kind: "order", title: "Order cancelled", body: prefix + "Your order was cancelled. View order details for its payment status." };
+    case "order.cancelled_with_refund":
+      return { kind: "order", title: "Order cancelled", body: prefix + "Your order was cancelled. View order details for refund updates." };
+    case "fulfilment.confirmed":
+      return { kind: "fulfilment", title: "Order confirmed", body: prefix + "Your order is confirmed for preparation." };
+    case "fulfilment.packed":
+      return { kind: "fulfilment", title: "Order packed", body: prefix + "Your items have been packed." };
+    case "fulfilment.handed_over":
+      return fulfilment === "collection"
+        ? { kind: "fulfilment", title: "Order collected", body: prefix + "Your order has been collected." }
+        : { kind: "fulfilment", title: "Order handed over", body: prefix + "Your order is with our delivery team." };
+    case "delivery.provider_out_for_delivery":
+    case "delivery.out_for_delivery":
+      return { kind: "delivery", title: "Out for delivery", body: prefix + "Your order is out for delivery." };
+    case "delivery.provider_delivered":
+    case "delivery.delivered":
+      return { kind: "delivery", title: "Delivery recorded", body: prefix + "Your order has been delivered." };
+    case "delivery.provider_failed":
+    case "delivery.failed":
+      return { kind: "delivery", title: "Delivery issue", body: prefix + "There was a problem delivering your order. View order details for updates." };
+    case "delivery.rescheduled":
+      return { kind: "delivery", title: "Delivery rescheduled", body: prefix + "Your delivery was rescheduled. View order details for updates." };
+    case "delivery.return_to_store":
+      return { kind: "delivery", title: "Returning to store", body: prefix + "Your delivery parcel is returning to the store." };
+    case "delivery.returned_goods_received":
+      return { kind: "delivery", title: "Parcel returned", body: prefix + "Your parcel has returned to our delivery team. View order details for the next steps." };
+  }
+}

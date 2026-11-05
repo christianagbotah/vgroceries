@@ -14,6 +14,7 @@ import { DeliveryConfigModule } from "./delivery-config/delivery-config.module";
 import { FulfilmentModule } from "./fulfilment/fulfilment.module";
 import { DispatchModule } from "./dispatch/dispatch.module";
 import { LogisticsModule } from "./logistics/logistics.module";
+import { NotificationModule } from "./notifications/notification.module";
 import { IdentityModule } from "./identity/identity.module";
 import { DatabaseModule } from "./database/database";
 import { HealthModule } from "./health/health.controller";
@@ -81,6 +82,7 @@ export async function createApplication(
       FulfilmentModule,
       DispatchModule,
       LogisticsModule,
+      NotificationModule,
       // Keep Payments after the established modules so generated OpenAPI ordering
       // remains deterministic while the four Payments Authority routes are public.
       PaymentsModule,

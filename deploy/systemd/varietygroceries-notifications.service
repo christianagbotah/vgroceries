@@ -1,0 +1,18 @@
+[Unit]
+Description=Variety Groceries in-app notification projection
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=lightworld
+Group=lightworld
+WorkingDirectory=/home/lightworld/webapps/varietygroceries-api/current/apps/api
+EnvironmentFile=/home/lightworld/config/varietygroceries/api.env
+ExecStart=/home/lightworld/runtime/node24/bin/node dist/scripts/project-notifications.js
+TimeoutStartSec=5min
+UMask=0027
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
