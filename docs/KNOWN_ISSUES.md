@@ -61,3 +61,10 @@ Continue responsive/mobile QA for dense admin workflows. Add realtime/push only 
 Wave L2 local verification uses an isolated PostgreSQL test database separate from production/staging. It applied **21/21 migrations**, passed **541/541 API tests with 0 failures**, passed the focused physical-return/Shipment contract + migration-lineage review set **11/11**, root ESLint and TypeScript no-emit passed, built **54/54** Next.js pages, passed handoff regressions **27/27**, Bun tests **176/176** (1,346 expectations), contracts **38/38**, acceptance **24/24**, and the production-server route sweep **66/66 HTTP 200**. Deterministic production OpenAPI is **111 paths** with SHA-256 `d763a7b8011c4ca6cdfa9d719073755b2171e73e42093dc9c225f988b2b2e6e`.
 
 Local whole-branch frontend/build/acceptance verification is complete; fresh GitHub pull-request `CI` and `API foundation` runs on PostgreSQL 17 remain required before merge readiness is claimed. No production database migration or L2 production enablement was performed by this local verification.
+
+
+- Remote pickup collection is not active in UAT: even after the private
+  receipt and staff-only command are merged, full terminal operations, ID
+  verification training, pickup fee/slot semantics and refund/exception
+  workflows need end-to-end approval. Never activate the pickup flag on
+  code completion alone.

@@ -435,6 +435,7 @@ model Order {
   deliveryJob DeliveryJob?
   deliveryEvents DeliveryEvent[]
   shipments Shipment[]
+  collectionReceipts ShipmentCollectionReceipt[]
   notifications Notification[]
   @@index([customerUserId, createdAt])
   @@index([guestSessionId, createdAt])
@@ -838,6 +839,7 @@ model LogisticsNode {
   routeRuleStops DeliveryRouteRuleStop[]
   originShipments Shipment[] @relation("ShipmentOriginNode")
   finalPickupShipments Shipment[] @relation("ShipmentFinalPickupNode")
+  collectionReceipts ShipmentCollectionReceipt[]
   currentShipments Shipment[] @relation("ShipmentCurrentNode")
   shipmentStops ShipmentStop[] @relation("ShipmentStopNode")
   shipmentEvents ShipmentEvent[] @relation("ShipmentEventNode")
@@ -1012,6 +1014,7 @@ model Shipment {
   stops              ShipmentStop[]
   legs               ShipmentLeg[]           @relation("ShipmentLegOwner")
   events             ShipmentEvent[]
+  collectionReceipt  ShipmentCollectionReceipt?
 
   @@unique([orderId, sequence])
   @@index([status, updatedAt])
@@ -1095,8 +1098,33 @@ model ShipmentEvent {
   occurredAt     DateTime       @db.Timestamptz(3)
   createdAt      DateTime       @default(now()) @db.Timestamptz(3)
 
+  collectionReceipt ShipmentCollectionReceipt?
+
   @@index([shipmentId, occurredAt, id])
   @@index([legId, occurredAt])
   @@index([nodeId, occurredAt])
   @@index([requestId])
+}
+
+
+// Private, append-only proof for verified customer collection at a remote pickup centre.
+// The human's name and identity attestation MUST NOT be surfaced through PublicOrder.
+model ShipmentCollectionReceipt {
+  id String @id @default(uuid())
+  shipmentId String @unique
+  shipment Shipment @relation(fields: [shipmentId], references: [id], onDelete: Restrict)
+  orderId String
+  order Order @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  nodeId String
+  node LogisticsNode @relation(fields: [nodeId], references: [id], onDelete: Restrict)
+  eventId String @unique
+  event ShipmentEvent @relation(fields: [eventId], references: [id], onDelete: Restrict)
+  staffActorId String
+  receiverName String
+  identityCheck String
+  verificationKeyVersion Int
+  collectedAt DateTime @db.Timestamptz(3)
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  @@index([orderId, collectedAt])
+  @@index([staffActorId, collectedAt])
 }

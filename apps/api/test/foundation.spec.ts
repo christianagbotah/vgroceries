@@ -1005,7 +1005,7 @@ test("foundation OpenAPI describes only implemented routes with cookie/native se
     "/api/v1/admin/logistics/shipments/{shipmentId}/depart",
     "/api/v1/admin/logistics/shipments/{shipmentId}/arrive",
     "/api/v1/admin/logistics/shipments/{shipmentId}/reroute",
-    "/api/v1/admin/logistics/shipments/{shipmentId}/checkpoints",
+    "/api/v1/admin/logistics/shipments/{shipmentId}/checkpoints", "/api/v1/admin/logistics/shipments/{shipmentId}/collect",
     "/api/v1/rider/jobs",
     "/api/v1/rider/jobs/{jobId}",
     "/api/v1/rider/jobs/{jobId}/accept",

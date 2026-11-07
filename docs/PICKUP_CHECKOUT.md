@@ -19,7 +19,7 @@ This is an **API foundation, not a customer pickup launch**. Remote pickup is st
 
 ## Before full release
 
-1. Implement verified terminal staff customer-collection at the destination with receipt/evidence, authorization, duplicate-safe events and customer-safe updates.
+1. Verified terminal collection implementation exists in the separately gated collection authority branch (see `docs/PICKUP_COLLECTION.md`), but operator UAT, security review and release activation are still mandatory.
 2. Verify the implemented checkout pickup-centre selector at phone/tablet/desktop widths. Complete pickup-specific payment/slot pricing policy and the customer account/confirmation display before launch.
 3. Verify multi-hop custody, correct stock depletion, terminal handoff, pickup evidence, refunds and exceptions in a separate database.
 4. Verify customer-facing text, accessibility, mobile workflows and failure recovery.
