@@ -24,6 +24,7 @@ export const restEndpoints: Record<string, RestEndpoint> = {
   "orders.track": {"method": "POST", "path": "/orders/track"},
   "checkout.zones": {"method": "GET", "path": "/checkout/zones"},
   "checkout.slots": {"method": "GET", "path": "/checkout/zones/{zoneId}/slots"},
+  "checkout.pickup-points": {"method": "GET", "path": "/checkout/zones/{zoneId}/pickup-points"},
   "account.summary": {"method": "GET", "path": "/account/summary"},
   "account.profile": {"method": "GET", "path": "/account/profile"},
   "account.profile.update": {"method": "POST", "path": "/account/profile"},

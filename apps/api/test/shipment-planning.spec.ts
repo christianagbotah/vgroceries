@@ -3,10 +3,14 @@ import assert from "node:assert/strict";
 import type { INestApplication } from "@nestjs/common";
 import { createApplication } from "../src/bootstrap";
 import { readConfig } from "../src/config";
+import { productionOpenApi } from "../src/http/production-openapi";
 import { Database } from "../src/database/database";
 import { LogisticsBootstrapService } from "../src/logistics/logistics-bootstrap.service";
 import { LogisticsRouteRuleService } from "../src/logistics/logistics-route-rule.service";
 import { commerceTestPassword, seedCommerceFixtures } from "./commerce-fixtures";
+import { FakePaymentProvider } from "./fake-payment-provider";
+import { FakeRefundProvider } from "./fake-refund-provider";
+import { publishedPickupWorkflow, routeServices } from "./logistics-route-fixtures";
 
 let app: INestApplication;
 let db: Database;
@@ -20,7 +24,10 @@ const config = () => readConfig({
   COMMERCE_LOCATION_ID: "loc_accra", CHECKOUT_PAYMENT_HOLD_MINUTES: "15",
   CHECKOUT_OFFLINE_HOLD_MINUTES: "1440", GUEST_CHECKOUT_TTL_MINUTES: "1440",
   ORDER_VERIFICATION_ACTIVE_VERSION: "1", ORDER_VERIFICATION_KEYS: JSON.stringify({ 1: "11".repeat(32) }),
-  LOGISTICS_SHIPMENT_EXECUTION_ENABLED: "true",
+  LOGISTICS_SHIPMENT_EXECUTION_ENABLED: "true", LOGISTICS_CUSTOMER_PICKUP_ENABLED: "true",
+  PAYMENT_PROVIDER_ID: "fake", PAYMENT_ENABLED_METHODS: "mobile_money,card_hosted,bank_transfer",
+  PAYMENT_CONFIRMED_HOLD_MINUTES: "1440", PAYMENT_PROVIDER_TIMEOUT_MS: "1000",
+  PAYMENT_RECONCILE_AFTER_SECONDS: "120", PAYMENT_HOSTED_DOMAINS: "pay.example.test",
 });
 
 async function post(path: string, body: unknown, headers: Record<string,string> = {}) {
@@ -32,13 +39,14 @@ async function native(email: string) {
   assert.equal(x.r.status, 201);
   return x.body.data.accessToken as string;
 }
-async function completeDelivery(key: string, token?: string) {
+async function completeDelivery(key: string, token?: string, overrides: Record<string, unknown> = {}) {
   return post("/checkout/complete", {
     lines: [{ variantId: "var-rice", quantity: "6" }], customerName: "Ama", customerPhone: "+233241111111",
     ...(token ? { customerId: "customer-a" } : {}), fulfilment: "delivery", zoneId: "zone-required",
     slotId: "slot-future", addressId: token ? "address-a" : undefined,
     guestAddress: token ? undefined : { recipientName: "Ama", phone: "+233241111111", locality: "Labone", street: "A Street", ghanaPostGps: "GA-123-4567" },
     paymentMethod: "cash_on_delivery",
+    ...overrides,
   }, { origin: "http://localhost:3000", "idempotency-key": key, ...(token ? { authorization: `Bearer ${token}` } : {}) });
 }
 
@@ -55,7 +63,7 @@ async function createLegacyDelivery(reference: string, status = "awaiting_confir
 
 before(async () => {
   if (!new URL(process.env.DATABASE_URL!).pathname.endsWith("variety_foundation_test")) throw Error("isolated database required");
-  app = await createApplication(config());
+  app = await createApplication(config(), [new FakePaymentProvider()], [new FakeRefundProvider()]);
   await app.listen(0, "127.0.0.1");
   base = await app.getUrl();
   db = app.get(Database);
@@ -167,4 +175,128 @@ test("admin legacy planning is admin-only replay-safe and refuses duplicate or h
   const afterHandover = await post(`/admin/logistics/orders/${handed.id}/plan`, { destinationKind: "doorstep" }, { authorization: `Bearer ${adminToken}`, "idempotency-key": "legacy-plan-handed" });
   assert.equal(afterHandover.r.status, 422);
   assert.equal(await db.shipment.count({ where: { orderId: handed.id } }), 0);
+});
+
+async function configurePickupRoute(key: string) {
+  const source = await db.logisticsNode.findUniqueOrThrow({ where: { code: "VG_DIRECT_SOURCE" } });
+  const pickup = await db.logisticsNode.create({ data: {
+    code: `PICKUP_${key.toUpperCase()}`, name: "Internal pickup location",
+    publicName: "Kumasi Central Collection", kind: "pickup_point", kindLabel: "Pickup centre",
+    active: true, customerVisible: true, locality: "Kumasi", publicDirections: "Ask for the collection counter.",
+  } });
+  const lane = await db.logisticsLane.create({ data: {
+    originNodeId: source.id, destinationNodeId: pickup.id, mode: "internal_transfer",
+    typicalMinutes: 180, serviceDays: [], priority: 0, active: true,
+  } });
+  const workflow = await publishedPickupWorkflow(routeServices(db).workflows, key);
+  const rule = await routes.create("admin-commerce", `pickup-${key}-create`, {
+    name: `Pickup option ${key}`, originNodeId: source.id, deliveryZoneId: "zone-required",
+    fulfilment: "delivery", destinationKind: "pickup_point", finalPickupNodeId: pickup.id,
+    workflowVersionId: workflow.id, priority: 10,
+    stops: [{ position: 1, nodeId: source.id, terminalRole: "transit" },
+      { position: 2, nodeId: pickup.id, terminalRole: "customer_pickup" }],
+    legs: [{ position: 1, laneId: lane.id }],
+  }, `req-pickup-${key}-create`);
+  await routes.activate("admin-commerce", rule.id, `pickup-${key}-activate`,
+    { expectedVersion: rule.version }, `req-pickup-${key}-activate`);
+  return pickup;
+}
+
+test("pickup options expose only configured, active, customer-visible destination metadata", async () => {
+  const pickup = await configurePickupRoute("discover");
+  const url = base + "/api/v1/checkout/zones/zone-required/pickup-points";
+  const first = await fetch(url);
+  assert.equal(first.status, 200);
+  const payload = await first.json();
+  assert.equal(payload.data.enabled, true);
+  assert.deepEqual(payload.data.points, [{
+    id: pickup.id,
+    name: "Kumasi Central Collection",
+    kindLabel: "Pickup centre",
+    locality: "Kumasi", region: null, addressLine: null,
+    ghanaPostGps: null, directions: "Ask for the collection counter.", contact: null,
+  }]);
+  assert.ok(!JSON.stringify(payload.data).includes("Internal pickup location"));
+  const byLocale = await (await fetch(url + "?locality=Labone")).json();
+  assert.equal(byLocale.data.points.length, 1);
+  await db.logisticsNode.update({ where: { id: pickup.id }, data: { active: false } });
+  const afterDisable = await (await fetch(url)).json();
+  assert.deepEqual(afterDisable.data.points, []);
+  const token = await native("customer-a@example.test");
+  const denied = await completeDelivery("pickup-disabled-node", token, {
+    destinationKind: "pickup_point", finalPickupNodeId: pickup.id,
+    addressId: undefined, guestAddress: undefined,
+    paymentMethod: "mobile_money",
+  });
+  assert.equal(denied.r.status, 422);
+  assert.equal(denied.body.error.code, "LOGISTICS_ROUTE_NOT_CONFIGURED");
+  assert.equal(await db.order.count(), 0);
+});
+
+test("configured remote pickup checkout freezes the exact pickup node without inventing delivery address", async () => {
+  const pickup = await configurePickupRoute("success");
+  const token = await native("customer-a@example.test");
+  const x = await completeDelivery("pickup-checkout-success", token, {
+    destinationKind: "pickup_point", finalPickupNodeId: pickup.id,
+    addressId: undefined, guestAddress: undefined,
+    paymentMethod: "mobile_money",
+  });
+  assert.equal(x.r.status, 201, JSON.stringify(x.body));
+  const shipment = await db.shipment.findFirstOrThrow({ where: { orderId: x.body.data.orderId },
+    include: { stops: { orderBy: { position: "asc" } }, legs: true } });
+  assert.equal(shipment.destinationKind, "pickup_point");
+  assert.equal(shipment.finalPickupNodeId, pickup.id);
+  assert.equal(shipment.stops.at(-1)?.terminalRole, "customer_pickup");
+  assert.equal(shipment.legs.length, 1);
+  assert.equal(await db.orderDeliveryAddress.count({ where: { orderId: x.body.data.orderId } }), 0);
+  const replay = await completeDelivery("pickup-checkout-success", token, {
+    destinationKind: "pickup_point", finalPickupNodeId: pickup.id,
+    addressId: undefined, guestAddress: undefined,
+    paymentMethod: "mobile_money",
+  });
+  assert.equal(replay.r.status, 201);
+  assert.equal(replay.body.data.orderId, x.body.data.orderId);
+  assert.equal(await db.shipment.count({ where: { orderId: x.body.data.orderId } }), 1);
+});
+
+test("pickup checkout rejects missing or foreign route nodes and never creates partial commerce state", async () => {
+  const token = await native("customer-a@example.test");
+  const incomplete = await completeDelivery("pickup-checkout-missing", token, {
+    destinationKind: "pickup_point", addressId: undefined, guestAddress: undefined,
+  });
+  assert.equal(incomplete.r.status, 400);
+  const forbidden = await completeDelivery("pickup-checkout-injected", token, {
+    destinationKind: "pickup_point", finalPickupNodeId: "not-a-configured-node",
+    addressId: undefined, guestAddress: undefined,
+    paymentMethod: "mobile_money",
+  });
+  assert.equal(forbidden.r.status, 422);
+  assert.equal(forbidden.body.error.code, "LOGISTICS_ROUTE_NOT_CONFIGURED");
+  const badCollection = await post("/checkout/complete", {
+    lines: [{ variantId: "var-rice", quantity: "1" }], customerName: "Ama", customerPhone: "+233241111111",
+    fulfilment: "collection", paymentMethod: "cash_counter",
+    destinationKind: "pickup_point", finalPickupNodeId: "not-a-configured-node",
+  }, { origin: "http://localhost:3000", "idempotency-key": "pickup-collection-not-allowed",
+    authorization: `Bearer ${token}` });
+  assert.equal(badCollection.r.status, 400);
+  assert.deepEqual(await Promise.all([
+    db.order.count(), db.shipment.count(), db.reservation.count(),
+    db.idempotency.count({ where: { operation: "checkout.complete" } }),
+  ]), [0, 0, 0, 0]);
+});
+
+
+test("production OpenAPI describes the public pickup discovery and checkout fields without claiming activation", () => {
+  const doc = productionOpenApi(app) as any;
+  const path = doc.paths["/api/v1/checkout/zones/{zoneId}/pickup-points"];
+  assert.ok(path?.get);
+  assert.deepEqual(path.get.security, []);
+  assert.deepEqual(path.get.responses["200"].content["application/json"].schema, {
+    $ref: "#/components/schemas/CheckoutPickupOptionsResponseEnvelope",
+  });
+  const request = doc.components.schemas.CheckoutCompleteRestRequest;
+  assert.ok(request.properties.destinationKind);
+  assert.ok(request.properties.finalPickupNodeId);
+  assert.equal(doc.paths["/api/v1/checkout/complete"].post.requestBody.content["application/json"].schema.$ref,
+    "#/components/schemas/CheckoutCompleteRestRequest");
 });

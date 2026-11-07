@@ -93,6 +93,7 @@ export interface ApiConfig {
   host: string;
   commerce: CommerceConfig | null;
   shipmentExecutionEnabled: boolean;
+  customerPickupEnabled: boolean;
   payments: PaymentConfig | null;
   hubtelPayment: HubtelPaymentConfig | null;
   hubtelRefund: HubtelRefundConfig | null;
@@ -134,6 +135,12 @@ export function readConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
     rawShipmentExecutionEnabled !== "false"
   ) throw new Error("LOGISTICS_SHIPMENT_EXECUTION_ENABLED must be true or false");
   const shipmentExecutionEnabled = rawShipmentExecutionEnabled === "true";
+  const rawCustomerPickupEnabled = env.LOGISTICS_CUSTOMER_PICKUP_ENABLED;
+  if (rawCustomerPickupEnabled !== undefined && !["true", "false"].includes(rawCustomerPickupEnabled))
+    throw new Error("LOGISTICS_CUSTOMER_PICKUP_ENABLED must be true or false");
+  const customerPickupEnabled = rawCustomerPickupEnabled === "true";
+  if (customerPickupEnabled && !shipmentExecutionEnabled)
+    throw new Error("LOGISTICS_CUSTOMER_PICKUP_ENABLED requires shipment execution");
   const port = Number(env.PORT ?? 3010);
   if (!Number.isInteger(port) || port < 1 || port > 65535)
     throw new Error("Invalid PORT");
@@ -593,6 +600,7 @@ export function readConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
     host: env.API_HOST ?? "127.0.0.1",
     commerce,
     shipmentExecutionEnabled,
+    customerPickupEnabled,
     payments,
     hubtelPayment,
     hubtelRefund,

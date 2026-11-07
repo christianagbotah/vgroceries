@@ -26,6 +26,15 @@ export class CheckoutCommandService {
   }
   async complete(req:ApiRequest,principal:CheckoutPrincipal,input:CompleteOrderRequest,key:string):Promise<CompleteOrderResponse>{
     const commerce=this.commerce(); validateCheckoutContact(input);
+    const destinationKind = input.destinationKind ?? "doorstep";
+    if (input.fulfilment === "collection" && (input.destinationKind || input.finalPickupNodeId))
+      throw new ApiProblem(400, "VALIDATION_FAILED", "Source collection cannot specify a remote pickup destination.");
+    if (destinationKind === "pickup_point" && !input.finalPickupNodeId)
+      throw new ApiProblem(400, "VALIDATION_FAILED", "Select a configured pickup centre.");
+    if (destinationKind === "doorstep" && input.finalPickupNodeId)
+      throw new ApiProblem(400, "VALIDATION_FAILED", "Pickup node is not valid for doorstep delivery.");
+    if (destinationKind === "pickup_point" && !this.config.customerPickupEnabled)
+      throw new ApiProblem(503, "UNAVAILABLE", "Remote customer pickup is not enabled.");
     if(principal.kind==="customer" && input.customerId && input.customerId!==principal.userId) throw new ApiProblem(403,"FORBIDDEN","Customer ownership does not match authenticated identity.");
     if(principal.kind==="guest" && input.customerId) throw new ApiProblem(403,"FORBIDDEN","Guest checkout cannot claim a customer identity.");
     const hash=checkoutRequestHash(input);
@@ -46,10 +55,17 @@ export class CheckoutCommandService {
         if(!input.zoneId)throw new ApiProblem(400,"VALIDATION_FAILED","Delivery zone is required."); zone=await this.delivery.requireZone(tx,input.zoneId);
         if(input.paymentMethod==="cash_counter")throw new ApiProblem(400,"VALIDATION_FAILED","Cash counter payment requires collection.");
         if(input.paymentMethod==="cash_on_delivery"&&!zone.codEnabled)throw new ApiProblem(400,"VALIDATION_FAILED","Cash on delivery is unavailable for this zone.");
+        if(destinationKind==="pickup_point"&&input.paymentMethod==="cash_on_delivery")
+          throw new ApiProblem(400,"VALIDATION_FAILED","Cash-on-delivery is not supported at remote pickup centres.");
         if(zone.slotPolicy==="required"&&!input.slotId)throw new ApiProblem(400,"VALIDATION_FAILED","A delivery slot is required for this zone.");
         if(zone.slotPolicy==="none"&&input.slotId)throw new ApiProblem(400,"VALIDATION_FAILED","This zone does not accept delivery slots.");
-        if(Boolean(input.addressId)===Boolean(input.guestAddress))throw new ApiProblem(400,"VALIDATION_FAILED","Exactly one delivery address source is required.");
-        if(input.addressId){
+        if(destinationKind==="pickup_point" && (input.addressId || input.guestAddress))
+          throw new ApiProblem(400,"VALIDATION_FAILED","Remote pickup uses the chosen pickup centre, not a delivery address.");
+        if(destinationKind==="doorstep" && Boolean(input.addressId)===Boolean(input.guestAddress))
+          throw new ApiProblem(400,"VALIDATION_FAILED","Exactly one delivery address source is required.");
+        if(destinationKind==="pickup_point"){
+          address=null;
+        }else if(input.addressId){
           if(principal.kind!=="customer")throw new ApiProblem(403,"FORBIDDEN","Guest checkout cannot use a saved customer address.");
           const saved=await tx.customerAddress.findUnique({where:{id:input.addressId}}); if(!saved)throw new ApiProblem(404,"NOT_FOUND","Delivery address not found."); if(saved.userId!==principal.userId)throw new ApiProblem(403,"FORBIDDEN","Delivery address belongs to another customer.");
           address={label:saved.label,recipientName:saved.recipientName,phone:saved.phone,locality:saved.locality,street:saved.street,landmark:saved.landmark??undefined,ghanaPostGps:saved.ghanaPostGps??undefined};
@@ -65,7 +81,9 @@ export class CheckoutCommandService {
       if(!customerEmail&&principal.kind==="customer"){const owner=await tx.user.findUnique({where:{id:principal.userId},select:{email:true}}); customerEmail=owner?.email?.trim().toLowerCase()??undefined;}
       await tx.order.create({data:{id:orderId,reference,customerUserId:principal.kind==="customer"?principal.userId:null,guestSessionId:principal.kind==="guest"?principal.guestSessionId:null,customerName:input.customerName.trim(),customerPhone:input.customerPhone.replace(/[\s-]/g,""),customerEmail,fulfilment:input.fulfilment,zoneId:zone?.id,slotId:input.slotId,paymentMethod:input.paymentMethod,paymentStatus:paymentRequired?"pending":"unpaid",fulfilmentStatus:"awaiting_confirmation",deliveryStatus:"unassigned",subtotalMinor,discountMinor:0,deliveryFeeMinor,totalMinor:subtotalMinor+deliveryFeeMinor,verificationKeyVersion:keyVersion,verificationCodeHash:codeHash,note:input.note?.trim()||null,lines:{create:lines.map(l=>({...l,id:l.id}))}}});
       if(address)await tx.orderDeliveryAddress.create({data:{orderId,label:address.label?.trim()||"Delivery",recipientName:address.recipientName.trim(),phone:address.phone.replace(/[\s-]/g,""),locality:address.locality.trim(),street:address.street.trim(),landmark:address.landmark?.trim()||null,ghanaPostGps:address.ghanaPostGps?.trim().toUpperCase()||null}});
-      if(this.config.shipmentExecutionEnabled && input.fulfilment==="delivery") await this.shipmentPlanning.planInTransaction(tx,orderId,{destinationKind:"doorstep"},{actorId:principal.actorId,requestId:req.requestId});
+      if(this.config.shipmentExecutionEnabled && input.fulfilment==="delivery") await this.shipmentPlanning.planInTransaction(
+        tx,orderId,{destinationKind, ...(destinationKind==="pickup_point"?{finalPickupNodeId:input.finalPickupNodeId}:{})},
+        {actorId:principal.actorId,requestId:req.requestId});
       await this.allocation.create(tx,{claimType:"order",claimId:orderId,locationId:commerce.locationId,expiresAt,actorId:principal.actorId,requestId:req.requestId,lines:lines.map(l=>({claimLineId:l.id,variantId:l.variantId,quantity:l.quantity}))});
       if(input.slotId)await this.delivery.lockAndBookSlot(tx,{orderId,zoneId:zone!.id,slotId:input.slotId,now:new Date()},{actorId:principal.actorId,requestId:req.requestId});
       await tx.orderEvent.create({data:{orderId,actorKind:principal.kind,actorId:principal.actorId,action:"order.created",toStatus:"awaiting_confirmation",note:input.note?.trim()||null,customerSafe:true}});

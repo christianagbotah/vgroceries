@@ -432,6 +432,9 @@ export async function handleApi(req: ApiRequest): Promise<ApiResult> {
         return ok(quoteCart(store, lines, (body.zoneId as string) || undefined));
       }
       case "checkout.complete": {
+        // Mock mode cannot promise a configured or completed remote pickup shipment.
+        if (b("destinationKind") === "pickup_point" || b("finalPickupNodeId"))
+          throw new OpError("UNAVAILABLE", "Remote pickup is not connected in demo mode.");
         sweepExpiredReservations(store);
         const result = createOnlineOrder(store, {
           lines: (body.lines ?? []) as { variantId: string; quantity: string }[],
@@ -487,6 +490,11 @@ export async function handleApi(req: ApiRequest): Promise<ApiResult> {
       /* ---------------- Delivery config (public) ---------------- */
       case "checkout.zones": {
         return ok(store.zones.filter((z) => z.isActive && store.settings.deliveryEnabled));
+      }
+      // The demo transport has no genuine configured remote pickup logistics;
+      // never fabricate available pickup centres in prototype mode.
+      case "checkout.pickup-points": {
+        return ok({ enabled: false, points: [] });
       }
       case "checkout.slots": {
         const zoneId = q("zoneId");

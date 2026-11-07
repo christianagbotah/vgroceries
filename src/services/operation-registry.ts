@@ -57,6 +57,7 @@ export const operationMeta: Record<string, OperationMeta> = {
   "checkout.status": { tags: ORD },
   "checkout.zones": { tags: CONF },
   "checkout.slots": { tags: CONF },
+  "checkout.pickup-points": { tags: [...CONF, ...LOGISTICS] },
   "orders.track": { tags: [...ORD, ...DEL] },
   "orders.detail": { tags: ORD },
 
