@@ -1,4 +1,5 @@
-import { Injectable } from "@nestjs/common";
+import { Inject, Injectable } from "@nestjs/common";
+import { API_CONFIG, type ApiConfig } from "../config";
 import {
   shipmentDetailViewSchema,
   shipmentListItemSchema,
@@ -21,14 +22,16 @@ type ProjectionInput={id:string;orderId:string;sequence:number;workflowVersionId
 
 @Injectable()
 export class ShipmentQueryService {
-  constructor(private readonly db:Database){}
+  constructor(private readonly db:Database, @Inject(API_CONFIG) private readonly config:ApiConfig){}
 
   private actions(status:string):{allowedActions:ShipmentAllowedAction[];blockers:string[]}{
     if(status==="planned")return{allowedActions:[],blockers:["awaiting_fulfilment_handover"]};
     if(status==="at_node")return{allowedActions:["depart","reroute","checkpoint"],blockers:[]};
     if(status==="in_transit")return{allowedActions:["arrive","checkpoint"],blockers:[]};
     if(status==="final_mile_ready")return{allowedActions:["checkpoint"],blockers:["dispatch_controls_final_mile"]};
-    if(status==="ready_for_pickup")return{allowedActions:["checkpoint"],blockers:["awaiting_customer_pickup"]};
+    if(status==="ready_for_pickup")return this.config.shipmentExecutionEnabled && this.config.customerPickupEnabled
+      ? {allowedActions:["collect","checkpoint"],blockers:["awaiting_verified_customer_pickup"]}
+      : {allowedActions:["checkpoint"],blockers:["customer_pickup_not_enabled"]};
     if(status==="final_mile")return{allowedActions:["checkpoint"],blockers:["dispatch_controls_final_mile"]};
     return{allowedActions:[],blockers:["shipment_completed"]};
   }

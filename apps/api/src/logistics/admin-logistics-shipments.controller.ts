@@ -1,18 +1,19 @@
 import { Body, Controller, Get, HttpCode, Param, Post, Query, Req, UseGuards } from "@nestjs/common";
 import { ApiExcludeController } from "@nestjs/swagger";
-import { planShipmentRequestSchema, replayKeySchema, shipmentArriveRequestSchema, shipmentCheckpointRequestSchema, shipmentDepartRequestSchema, shipmentRerouteRequestSchema, type PlanShipmentRequest, type ShipmentArriveRequest, type ShipmentCheckpointRequest, type ShipmentDepartRequest, type ShipmentRerouteRequest } from "@variety/contracts";
+import { planShipmentRequestSchema, replayKeySchema, pickupCollectRequestSchema, type PickupCollectRequest, shipmentArriveRequestSchema, shipmentCheckpointRequestSchema, shipmentDepartRequestSchema, shipmentRerouteRequestSchema, type PlanShipmentRequest, type ShipmentArriveRequest, type ShipmentCheckpointRequest, type ShipmentDepartRequest, type ShipmentRerouteRequest } from "@variety/contracts";
 import { ApiProblem } from "../http/errors";
 import { AccessGuard } from "../identity/access.guard";
 import type { AuthRequest } from "../identity/identity.service";
 import { ShipmentPlanningService } from "./shipment-planning.service";
 import { ShipmentExecutionService } from "./shipment-execution.service";
+import { ShipmentCollectionService } from "./shipment-collection.service";
 import { ShipmentQueryService } from "./shipment-query.service";
 
 @ApiExcludeController()
 @Controller("admin/logistics")
 @UseGuards(AccessGuard)
 export class AdminLogisticsShipmentsController {
-  constructor(private readonly planning: ShipmentPlanningService, private readonly execution: ShipmentExecutionService, private readonly query: ShipmentQueryService) {}
+  constructor(private readonly planning: ShipmentPlanningService, private readonly execution: ShipmentExecutionService, private readonly query: ShipmentQueryService, private readonly collection: ShipmentCollectionService) {}
   private requireAdmin(req: AuthRequest) { if (req.actor.role !== "admin") throw new ApiProblem(403, "FORBIDDEN", "Administrator access required."); }
   private parse<T>(schema: { safeParse(input: unknown): any }, input: unknown, message: string): T {
     const parsed = schema.safeParse(input);
@@ -46,6 +47,14 @@ export class AdminLogisticsShipmentsController {
   @Post("shipments/:shipmentId/checkpoints")
   @HttpCode(200)
   async checkpoint(@Req() req:AuthRequest,@Param("shipmentId") shipmentId:string,@Body() body:unknown){this.requireAdmin(req);const input=this.parse<ShipmentCheckpointRequest>(shipmentCheckpointRequestSchema,body,"Shipment checkpoint body is invalid.");return {ok:true,data:await this.execution.checkpoint(shipmentId,req.actor.id,this.key(req),input,req.requestId)};}
+
+  @Post("shipments/:shipmentId/collect")
+  @HttpCode(200)
+  async collect(@Req() req:AuthRequest,@Param("shipmentId") shipmentId:string,@Body() body:unknown) {
+    this.requireAdmin(req);
+    const input=this.parse<PickupCollectRequest>(pickupCollectRequestSchema,body,"Customer pickup proof is invalid.");
+    return {ok:true,data:await this.collection.collect(shipmentId,req.actor.id,this.key(req),input,req.requestId)};
+  }
 
   @Post("shipments/:shipmentId/reroute")
   @HttpCode(200)

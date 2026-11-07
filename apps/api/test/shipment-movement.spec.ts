@@ -73,6 +73,8 @@ test("pickup terminal arrival becomes ready-for-pickup and wrong-leg/skipped arr
   await execution.depart(x.shipment.id,"admin-commerce","pick-dep1",{},"req-pick-dep1"); await execution.arrive(x.shipment.id,"admin-commerce","pick-arr1",{},"req-pick-arr1");
   await execution.depart(x.shipment.id,"admin-commerce","pick-dep2",{},"req-pick-dep2"); const final=await execution.arrive(x.shipment.id,"admin-commerce","pick-arr2",{},"req-pick-arr2");
   assert.equal(final.status,"ready_for_pickup"); assert.equal(final.currentNodeId,x.terminal.id);
+  assert.equal(await db.shipmentEvent.count({where:{shipmentId:x.shipment.id,eventKind:"ready_for_pickup"}}),1);
+  assert.equal(await db.outboxEvent.count({where:{aggregateId:x.shipment.id,type:"logistics.shipment.ready_for_pickup"}}),1);
 });
 
 test("custom checkpoint is append-only informational evidence and changes no shipment projection", async()=>{

@@ -406,7 +406,27 @@ export const shipmentEventKindSchema = z.enum([
 ]);
 export type ShipmentEventKind = z.infer<typeof shipmentEventKindSchema>;
 
-export const shipmentAllowedActionSchema = z.enum(["depart", "arrive", "reroute", "checkpoint"]);
+/** Private staff collection command. Verification code must never be persisted in a receipt/event. */
+export const pickupCollectRequestSchema = z.object({
+  verificationCode: z.string().trim().regex(/^[0-9A-HJKMNP-TV-Z]{10}$/i),
+  receiverName: z.string().trim().min(2).max(160),
+  identityCheck: z.enum(["recipient_photo_id_checked", "authorized_representative_photo_id_checked"]),
+}).strict();
+export type PickupCollectRequest = z.infer<typeof pickupCollectRequestSchema>;
+
+export const pickupCollectResponseSchema = z.object({
+  receiptId: idSchema,
+  shipmentId: idSchema,
+  orderId: idSchema,
+  orderReference: z.string().min(1).max(80),
+  nodeId: idSchema,
+  collectedAt: isoTimestampSchema,
+  status: z.literal("completed"),
+  custody: z.literal("customer"),
+}).strict();
+export type PickupCollectResponse = z.infer<typeof pickupCollectResponseSchema>;
+
+export const shipmentAllowedActionSchema = z.enum(["depart", "arrive", "reroute", "checkpoint", "collect"]);
 export type ShipmentAllowedAction = z.infer<typeof shipmentAllowedActionSchema>;
 
 export const planShipmentRequestSchema = z.object({

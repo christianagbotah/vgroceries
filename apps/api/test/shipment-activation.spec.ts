@@ -151,6 +151,8 @@ test("one-stop pickup-terminal shipment becomes ready-for-pickup and never final
   assert.notEqual(shipment.status, "final_mile_ready");
   assert.equal(shipment.currentNodeId, source.id);
   assert.equal(shipment.custody, "source_staff");
+  assert.equal(await db.shipmentEvent.count({where:{shipmentId:shipment.id,eventKind:"ready_for_pickup"}}),1);
+  assert.equal(await db.outboxEvent.count({where:{aggregateId:shipment.id,type:"logistics.shipment.ready_for_pickup"}}),1);
   assert.equal(await db.deliveryJob.count({ where: { orderId: fixture.order.id } }), 0);
 });
 

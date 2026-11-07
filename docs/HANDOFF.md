@@ -88,3 +88,14 @@ Production OpenAPI remains at **111 paths** and regenerated twice byte-identical
 ## Remote pickup-centre checkout foundation (default off)
 
 A separate remote pickup opt-in has been added: `LOGISTICS_CUSTOMER_PICKUP_ENABLED=false`. It requires L2 shipment execution but does **not** follow the L2 flag automatically. The public pickup options endpoint lists only customer-visible, active, route-backed centres and otherwise returns no options. Checkout snapshots the selected terminal pickup route atomically, and cannot accept a browser-authored graph. The browser selector is suppressed without server-advertised options; the demo adapter invents none. See `docs/PICKUP_CHECKOUT.md` for the remaining collection authority and rollout gates. The flag stays off in UAT until terminal collection and payment/slot rules have end-to-end evidence.
+
+
+## Remote pickup collection authority (not yet UAT activated)
+
+The collection command, private immutable receipt table and pickup-readiness
+events have been developed on a separate integration branch. This code is
+**not** live until the release steps and both feature flags are approved.
+It requires a previously handed-over, paid shipment at the exact frozen
+terminal pickup node; staff validates the order code and records a physical
+ID-check attestation. It does not own payment or stock actions. See
+`docs/PICKUP_COLLECTION.md` for complete rollout and rollback boundaries.

@@ -69,6 +69,7 @@ import {
   shipmentArriveRequestSchema,
   shipmentRerouteRequestSchema,
   shipmentCheckpointRequestSchema,
+  pickupCollectRequestSchema, pickupCollectResponseSchema,
   shipmentStatusSchema,
   shipmentListItemSchema,
   shipmentDetailViewSchema,
@@ -307,6 +308,8 @@ export function productionOpenApi(app: INestApplication): OpenAPIObject {
     ShipmentArriveRequest: json(shipmentArriveRequestSchema),
     ShipmentRerouteRequest: json(shipmentRerouteRequestSchema),
     ShipmentCheckpointRequest: json(shipmentCheckpointRequestSchema),
+    PickupCollectRequest: json(pickupCollectRequestSchema),
+    PickupCollectResponse: json(pickupCollectResponseSchema),
     ShipmentListResponse: json(z.object({ items: z.array(shipmentListItemSchema), page: z.number().int().positive(), perPage: z.number().int().positive().max(100), total: z.number().int().nonnegative() }).strict()),
     ShipmentDetailView: json(shipmentDetailViewSchema),
     ShipmentActionResponse: json(shipmentActionResponseSchema),
@@ -372,6 +375,7 @@ export function productionOpenApi(app: INestApplication): OpenAPIObject {
     "DeliveryWorkflowView", "DeliveryWorkflowVersionView", "DeliveryWorkflowList",
     "DeliveryRouteRuleView", "DeliveryRouteRuleList", "RouteSimulationResponse",
     "ShipmentListResponse", "ShipmentDetailView", "ShipmentActionResponse",
+    "PickupCollectResponse",
     "CmsHomepage", "CmsHomepageAdminView", "CmsContentPage", "CmsContentPageAdminView", "CmsOverviewView",
   ])
     schemas[name + "Envelope"] = {
@@ -684,6 +688,9 @@ export function productionOpenApi(app: INestApplication): OpenAPIObject {
   };
   doc.paths["/api/v1/admin/logistics/shipments/{shipmentId}/reroute"] = {
     post: logisticsMutation("Administrator-only Logistics L2 reroute request. The server resolves a replacement route and preserves prior route revisions; clients cannot submit route graphs.", "ShipmentRerouteRequest", "ShipmentActionResponseEnvelope", [shipmentId]),
+  };
+  doc.paths["/api/v1/admin/logistics/shipments/{shipmentId}/collect"] = {
+    post: logisticsMutation("Administrator-only verified customer collection at the shipment's terminal pickup node. Requires confirmed payment, code and physical ID attestation, appends an immutable private receipt and customer-safe event. Does not collect payment, modify stock or create a delivery job.", "PickupCollectRequest", "PickupCollectResponseEnvelope", [shipmentId]),
   };
   doc.paths["/api/v1/admin/logistics/shipments/{shipmentId}/checkpoints"] = {
     post: logisticsMutation("Administrator-only informational Logistics L2 checkpoint. It appends evidence without changing shipment movement, custody, inventory or payment truth.", "ShipmentCheckpointRequest", "ShipmentActionResponseEnvelope", [shipmentId]),

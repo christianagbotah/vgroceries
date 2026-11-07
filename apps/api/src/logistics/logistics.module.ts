@@ -12,13 +12,15 @@ import { LogisticsWorkflowService } from "./logistics-workflow.service";
 import { LogisticsRouteRuleService } from "./logistics-route-rule.service";
 import { LogisticsBootstrapService } from "./logistics-bootstrap.service";
 import { ShipmentPlanningService } from "./shipment-planning.service";
+import { ShipmentCollectionService } from "./shipment-collection.service";
+import { VerificationCodeService } from "../orders/verification-code.service";
 import { ShipmentExecutionService } from "./shipment-execution.service";
 import { ShipmentFinalMileService } from "./shipment-final-mile.service";
 import { ShipmentQueryService } from "./shipment-query.service";
 import { ShipmentCustomerTrackingService } from "./shipment-customer-tracking.service";
 @Module({
   controllers:[CheckoutPickupPointsController,AdminLogisticsNodesController,AdminLogisticsLanesController,AdminLogisticsWorkflowsController,AdminLogisticsRouteRulesController,AdminLogisticsShipmentsController],
-  providers:[CheckoutPickupPointsService,LogisticsNodeService,LogisticsLaneService,LogisticsWorkflowService,LogisticsRouteRuleService,LogisticsBootstrapService,ShipmentPlanningService,ShipmentExecutionService,ShipmentFinalMileService,ShipmentQueryService,ShipmentCustomerTrackingService],
+  providers:[VerificationCodeService,ShipmentCollectionService,CheckoutPickupPointsService,LogisticsNodeService,LogisticsLaneService,LogisticsWorkflowService,LogisticsRouteRuleService,LogisticsBootstrapService,ShipmentPlanningService,ShipmentExecutionService,ShipmentFinalMileService,ShipmentQueryService,ShipmentCustomerTrackingService],
   exports:[LogisticsNodeService,LogisticsLaneService,LogisticsWorkflowService,LogisticsRouteRuleService,LogisticsBootstrapService,ShipmentPlanningService,ShipmentExecutionService,ShipmentFinalMileService,ShipmentQueryService,ShipmentCustomerTrackingService],
 })
 export class LogisticsModule {}

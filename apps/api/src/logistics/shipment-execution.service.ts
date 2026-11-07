@@ -33,8 +33,22 @@ export class ShipmentExecutionService {
   private action(shipment: { id:string; orderId:string; status:string; custody:string|null; currentNodeId:string|null; currentLegId:string|null; routeRevision:number }): ShipmentActionResponse {
     const allowedActions = shipment.status === "at_node" ? ["depart","reroute","checkpoint"]
       : shipment.status === "in_transit" ? ["arrive","checkpoint"]
+      : shipment.status === "ready_for_pickup" && this.config.customerPickupEnabled ? ["collect","checkpoint"]
       : ["checkpoint"];
     return shipmentActionResponseSchema.parse({ shipmentId: shipment.id, orderId: shipment.orderId, status: shipment.status, custody: shipment.custody, currentNodeId: shipment.currentNodeId, currentLegId: shipment.currentLegId, routeRevision: shipment.routeRevision, allowedActions, blockers: [] });
+  }
+
+  /** Persist pickup readiness as a real business event, never a proposed workflow milestone. */
+  private async emitPickupReady(tx:Tx, data:{shipmentId:string;orderId:string;routeRevision:number;nodeId:string;actorId:string;requestId:string;at:Date}) {
+    await tx.shipmentEvent.create({data:{
+      shipmentId:data.shipmentId,routeRevision:data.routeRevision,nodeId:data.nodeId,
+      eventKind:"ready_for_pickup",actorKind:"staff",actorId:data.actorId,
+      safeMetadata:{},requestId:data.requestId,occurredAt:data.at,
+    }});
+    await tx.outboxEvent.create({data:{
+      type:"logistics.shipment.ready_for_pickup",aggregateId:data.shipmentId,
+      payload:{shipmentId:data.shipmentId,orderId:data.orderId,nodeId:data.nodeId,routeRevision:data.routeRevision},
+    }});
   }
 
   private parse<T>(schema: { safeParse(input: unknown): any }, raw: unknown, message: string): T {
@@ -168,6 +182,9 @@ export class ShipmentExecutionService {
         payload: { shipmentId: shipment.id, orderId: input.orderId, routeRevision: shipment.routeRevision, status, currentNodeId: stops[0]!.nodeId },
       },
     });
+    if(status==="ready_for_pickup")
+      await this.emitPickupReady(tx,{shipmentId:shipment.id,orderId:input.orderId,routeRevision:shipment.routeRevision,
+        nodeId:stops[0]!.nodeId,actorId:input.actorId,requestId:input.requestId,at:now});
   }
 
   async depart(shipmentId:string, actorId:string, idempotencyKey:string, raw:ShipmentDepartRequest, requestId:string):Promise<ShipmentActionResponse> {
@@ -215,6 +232,8 @@ export class ShipmentExecutionService {
       else rule("Terminal shipment stop does not define a supported handoff authority.");
       const updated=await tx.shipment.update({where:{id:shipmentId},data:{status,currentNodeId:leg.destinationStop.nodeId,currentLegId:null,custody:"node_staff",version:{increment:1}}});
       await tx.shipmentEvent.create({data:{shipmentId,routeRevision:shipment.routeRevision,legId:leg.id,nodeId:leg.destinationStop.nodeId,eventKind:"shipment_arrived",actorKind:"staff",actorId,fromCustody:shipment.custody,toCustody:"node_staff",safeMetadata:{legPosition:leg.position,status},requestId,occurredAt:now}});
+      if(status==="ready_for_pickup")
+        await this.emitPickupReady(tx,{shipmentId,orderId:shipment.orderId,routeRevision:shipment.routeRevision,nodeId:leg.destinationStop.nodeId,actorId,requestId,at:now});
       await tx.auditEvent.create({data:{actorId,action:"logistics.shipment.arrived",entityId:shipmentId,requestId,details:{orderId:shipment.orderId,routeRevision:shipment.routeRevision,legId:leg.id,legPosition:leg.position,status,note:input.note??null}}});
       await tx.outboxEvent.create({data:{type:"logistics.shipment.arrived",aggregateId:shipmentId,payload:{shipmentId,orderId:shipment.orderId,routeRevision:shipment.routeRevision,legId:leg.id,legPosition:leg.position,status}}});
       const outcome=this.action(updated); await tx.idempotency.create({data:{actorId,operation,key:idempotencyKey,requestHash,outcome:outcome as Prisma.InputJsonValue}}); return outcome;
@@ -261,6 +280,8 @@ export class ShipmentExecutionService {
       const updated=await tx.shipment.update({where:{id:shipmentId},data:{routeRuleId:snapshot.routeRuleId,routeRevision:newRevision,status,version:{increment:1}}});
       const now=new Date(); const metadata={oldRouteRuleId,newRouteRuleId:snapshot.routeRuleId,oldRouteRevision,newRouteRevision:newRevision};
       await tx.shipmentEvent.create({data:{shipmentId,routeRevision:newRevision,nodeId:shipment.currentNodeId,eventKind:"shipment_rerouted",actorKind:"staff",actorId,safeMetadata:metadata,requestId,occurredAt:now}});
+      if(status==="ready_for_pickup")
+        await this.emitPickupReady(tx,{shipmentId,orderId:shipment.orderId,routeRevision:newRevision,nodeId:shipment.currentNodeId,actorId,requestId,at:now});
       await tx.auditEvent.create({data:{actorId,action:"logistics.shipment.rerouted",entityId:shipmentId,requestId,details:{orderId:shipment.orderId,...metadata,reason:input.reason,serviceLevel:input.serviceLevel??null}}});
       await tx.outboxEvent.create({data:{type:"logistics.shipment.rerouted",aggregateId:shipmentId,payload:{shipmentId,orderId:shipment.orderId,...metadata,status}}});
       const outcome=this.action(updated); await tx.idempotency.create({data:{actorId,operation,key:idempotencyKey,requestHash,outcome:outcome as Prisma.InputJsonValue}}); return outcome;
