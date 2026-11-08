@@ -120,3 +120,14 @@ change. Each pickup checkout records immutable public centre details and
 transport window with SQL integrity protection. The customer order/status
 views show the stored copy and never imply a collection appointment.
 Both runtime flags remain off. See `docs/PICKUP_PRICING_SNAPSHOT.md`.
+
+## Collection appointment capacity and hours — Nov 8, 2026
+
+A separate, default-off customer appointment policy and owned, capacity-locked
+booking flow now exist for *confirmed ready-for-pickup* parcels. Admins
+configure opening days, 30-/60-minute appointment length, capacity,
+advance notice and horizon. Customers can book/reschedule/cancel, and
+verified staff handover completes any booked appointment atomically.
+No stock/payment side effects or fabricated demo availability. The global
+shipment and remote pickup flags remain OFF pending on-site acceptance.
+See `docs/PICKUP_APPOINTMENTS.md`.

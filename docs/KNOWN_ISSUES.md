@@ -83,3 +83,10 @@ Local whole-branch frontend/build/acceptance verification is complete; fresh Git
   pickup-day/time capacity, missed-appointment rescheduling) remain out of
   scope even though transport windows and explicit centre transport charges
   now exist. Do not advertise the transport slot as a pickup appointment.
+
+- Remote pickup appointments are not enabled in UAT; the new policy and
+  booking UI require operational verification of real centre staffing,
+  holidays, late arrivals and missed appointments. No automated no-show,
+  SMS reminder, third-party calendar integration, centre holiday closure
+  or delivery ETA is implemented. Do not activate both logistics flags
+  on code completion alone.

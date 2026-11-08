@@ -36,3 +36,4 @@ export * from "./identity";
 export * from "./foundation";
 
 export * from "./endpoints";
+export * from "./pickup-appointments";

@@ -112,6 +112,10 @@ export class ShipmentCollectionService {
         actorKind: "staff", actorId, fromCustody: shipment.custody, toCustody: "customer",
         safeMetadata: { receiptId }, requestId, occurredAt: at,
       } });
+      // Appointment is informational, not a second handover gate. A verified
+      // physical collection closes any existing booking in the same transaction.
+      await tx.pickupAppointment.updateMany({where:{orderId:order.id,status:"booked"},
+        data:{status:"completed",completedAt:at}});
       await tx.shipmentCollectionReceipt.create({ data: {
         id: receiptId, shipmentId, orderId: order.id, nodeId: shipment.finalPickupNodeId,
         eventId, staffActorId: actorId, receiverName: input.receiverName.trim(),

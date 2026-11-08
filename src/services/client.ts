@@ -45,6 +45,8 @@ import type {
   ByVariantsResponse,
   CompleteOrderRequest,
   CheckoutPickupOptionsResponse,
+  PickupAppointmentOptions, PickupAppointmentMutationResponse,
+  PickupAppointmentPolicyInput, PickupAppointmentPolicyView,
   CompleteOrderResponse,
   DashboardView,
   DoneResponse,
@@ -201,6 +203,11 @@ export const apiOps = {
   zones: () => api<ZoneView[]>("checkout.zones"),
   slots: (zoneId: string) => api<SlotView[]>("checkout.slots", { query: { zoneId } }),
   pickupPoints: (zoneId: string, locality?: string) => api<CheckoutPickupOptionsResponse>("checkout.pickup-points", { query: { zoneId, locality } }),
+  pickupAppointments: (orderId: string) => api<PickupAppointmentOptions>("pickup.appointments", { query: { orderId } }),
+  pickupAppointmentBook: (orderId: string, startsAt: string, idempotencyKey: string) =>
+    api<PickupAppointmentMutationResponse>("pickup.appointment.book", { query: { orderId }, body: { startsAt }, idempotencyKey }),
+  pickupAppointmentCancel: (orderId: string, idempotencyKey: string) =>
+    api<PickupAppointmentMutationResponse>("pickup.appointment.cancel", { query: { orderId }, body: {}, idempotencyKey }),
 
   /* account */
   accountLogin: async (identifier: string, password: string) => {
@@ -362,6 +369,12 @@ export const apiOps = {
     api<LogisticsNodeView>("admin.logistics.node.create", { body: body as unknown as Record<string, unknown>, idempotencyKey }),
   logisticsNodeUpdate: (nodeId: string, body: UpdateLogisticsNodeRequest, idempotencyKey: string) =>
     api<LogisticsNodeView>("admin.logistics.node.update", { query: { nodeId }, body: body as unknown as Record<string, unknown>, idempotencyKey }),
+  pickupAppointmentPolicy: (nodeId: string) =>
+    api<PickupAppointmentPolicyView | null>("admin.logistics.pickup-policy", { query: { nodeId } }),
+  pickupAppointmentPolicySave: (nodeId: string, body: PickupAppointmentPolicyInput, idempotencyKey: string) =>
+    api<PickupAppointmentPolicyView>("admin.logistics.pickup-policy.save", {
+      query: { nodeId }, body: body as unknown as Record<string, unknown>, idempotencyKey,
+    }),
 
   logisticsLanes: (query: { q?: string; mode?: string; originNodeId?: string; destinationNodeId?: string; active?: boolean } = {}) =>
     api<LogisticsLaneView[]>("admin.logistics.lanes", { query }),

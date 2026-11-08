@@ -14,6 +14,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Building2, Plus, Search, X } from "lucide-react";
 import { formatMoney } from "@/lib/money";
+import { PickupAppointmentPolicyEditor } from "./pickup-appointment-policy-editor";
 
 const KINDS: { value: LogisticsNodeKind; label: string }[] = [
   ["head_office", "Head office"], ["warehouse", "Warehouse"], ["fulfilment_center", "Fulfilment / picking centre"],
@@ -113,7 +114,7 @@ export function NodesPanel() {
     {!rows.length ? <EmptyState icon={Building2} title="No logistics locations found" description="Add a source location, warehouse, hub, outlet or pickup point." /> : <div className="grid min-w-0 gap-3 xl:grid-cols-2">{rows.map(node=><article key={node.id} className="min-w-0 rounded-xl border bg-card p-4"><div className="flex flex-wrap items-start justify-between gap-2"><div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><h3 className="font-semibold">{node.publicName}</h3><Badge variant="outline">{node.kind.replaceAll("_"," ")}</Badge>{node.customerVisible?<Badge variant="secondary">Customer-visible</Badge>:null}{!node.active?<Badge variant="destructive">Inactive</Badge>:null}</div><p className="mt-1 text-sm text-muted-foreground">{node.code} · {node.name}</p><p className="text-xs text-muted-foreground">{[node.locality,node.region].filter(Boolean).join(" · ") || "No public location detail"}</p>
           {node.kind === "pickup_point" ? <p className="mt-1 text-xs text-muted-foreground">
             {node.pickupFeeMinor == null ? "Pickup transport: zone delivery rate" : `Pickup transport: ${formatMoney(node.pickupFeeMinor)} (centre rate)`}
-          </p> : null}</div><Button variant="outline" size="sm" onClick={()=>startEdit(node)}>Edit</Button></div><div className="mt-3 rounded-lg bg-muted/45 p-3"><p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Dependencies</p><p className="mt-1 text-xs text-muted-foreground">{node.dependencies?.activeIncomingLanes ?? 0} incoming lanes · {node.dependencies?.activeOutgoingLanes ?? 0} outgoing lanes · {node.dependencies?.activeRouteRules ?? 0} active route rules · {node.dependencies?.childNodes ?? 0} child nodes</p></div>{node.active?<Button variant="ghost" size="sm" className="mt-2 text-destructive" onClick={()=>deactivate(node)}>Deactivate node</Button>:null}</article>)}</div>}
+          </p> : null}</div>{node.kind === "pickup_point" ? <PickupAppointmentPolicyEditor nodeId={node.id} nodeName={node.publicName} /> : null}<Button variant="outline" size="sm" onClick={()=>startEdit(node)}>Edit</Button></div><div className="mt-3 rounded-lg bg-muted/45 p-3"><p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Dependencies</p><p className="mt-1 text-xs text-muted-foreground">{node.dependencies?.activeIncomingLanes ?? 0} incoming lanes · {node.dependencies?.activeOutgoingLanes ?? 0} outgoing lanes · {node.dependencies?.activeRouteRules ?? 0} active route rules · {node.dependencies?.childNodes ?? 0} child nodes</p></div>{node.active?<Button variant="ghost" size="sm" className="mt-2 text-destructive" onClick={()=>deactivate(node)}>Deactivate node</Button>:null}</article>)}</div>}
   </div>;
 }
 

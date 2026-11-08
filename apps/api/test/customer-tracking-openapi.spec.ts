@@ -6,7 +6,7 @@ import { resolve } from "node:path";
 const doc = JSON.parse(readFileSync(resolve(process.cwd(), "../../docs/openapi-foundation.json"), "utf8"));
 
 test("L3 enriches both existing secure order endpoints without adding a public route", () => {
-  assert.equal(Object.keys(doc.paths).length, 116);
+  assert.equal(Object.keys(doc.paths).length, 119);
   const track = doc.paths["/api/v1/orders/track"].post;
   const detail = doc.paths["/api/v1/orders/{orderId}"].get;
   assert.deepEqual(track.responses["200"].content["application/json"].schema, { $ref: "#/components/schemas/PublicOrderEnvelope" });
@@ -33,4 +33,32 @@ test("L3 published shape is strict and has no operational IDs, GPS, ETA or money
     "nodeId", "routeRuleId", "routeRevision", "workflowVersionId", "laneId", "custody",
     "actorId", "requestId", "safeMetadata", "cashCollectedAt", "stockConsumedAt", "latitude", "longitude", "eta",
   ]) assert.ok(!published.includes('"' + privateField + '"'), "must omit " + privateField);
+});
+
+test("appointment routes use strict owned-customer/guest or administrator security with replay controls",()=>{
+  const read=doc.paths["/api/v1/orders/{orderId}/pickup-appointments"].get;
+  const write=doc.paths["/api/v1/orders/{orderId}/pickup-appointments"].post;
+  const cancel=doc.paths["/api/v1/orders/{orderId}/pickup-appointments/cancel"].post;
+  const admin=doc.paths["/api/v1/admin/logistics/nodes/{nodeId}/pickup-appointment-policy"];
+  const customerSecurity=[{cookieAuth:[]},{bearerAuth:[]},{guestAuth:[]}];
+  assert.deepEqual(read.security,customerSecurity);
+  assert.deepEqual(write.security,customerSecurity);
+  assert.deepEqual(cancel.security,customerSecurity);
+  assert.deepEqual(admin.get.security,[{cookieAuth:[]},{bearerAuth:[]}]);
+  assert.deepEqual(admin.post.security,[{cookieAuth:[]},{bearerAuth:[]}]);
+  for(const operation of [write,cancel,admin.post]){
+    assert.ok(operation.parameters.some((p:any)=>p.name==="Idempotency-Key"&&p.required));
+    assert.ok(operation.parameters.some((p:any)=>p.name==="X-CSRF-Token"));
+  }
+  assert.deepEqual(write.requestBody.content["application/json"].schema,
+    {$ref:"#/components/schemas/BookPickupAppointmentRequest"});
+  assert.deepEqual(cancel.requestBody.content["application/json"].schema,
+    {$ref:"#/components/schemas/CancelPickupAppointmentRequest"});
+  assert.deepEqual(admin.post.requestBody.content["application/json"].schema,
+    {$ref:"#/components/schemas/PickupAppointmentPolicyInput"});
+  assert.deepEqual(read.responses["200"].content["application/json"].schema,
+    {$ref:"#/components/schemas/PickupAppointmentOptionsEnvelope"});
+  const surface=JSON.stringify(doc.components.schemas.PickupAppointmentOptions);
+  for(const sensitive of ["paymentAttemptId","receiptId","staffActorId","verificationCode","customerUserId"])
+    assert.ok(!surface.includes('"'+sensitive+'"'));
 });
