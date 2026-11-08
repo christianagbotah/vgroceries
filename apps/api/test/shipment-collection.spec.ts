@@ -209,6 +209,53 @@ test("unpaid, cash, wrong pickup node and missing handover cannot close shipment
   }
 });
 
+test("pending/approved/processing/review and succeeded refunds freeze physical collection without side effects", async () => {
+  for (const status of ["awaiting_approval", "approved", "processing", "requires_review", "succeeded"]) {
+    const x=await fixture(`REF-${status}`);
+    const payment=await db.paymentAttempt.create({data:{
+      orderId:x.order.id,provider:"fake",method:"mobile_money",currency:"GHS",amountMinor:3500,
+      merchantReference:`VG-COLL-REF-PAY-${status}`,status:"succeeded",initiationState:"accepted",
+      settlementState:"unsettled",
+    }});
+    await db.refund.create({data:{
+      orderId:x.order.id,paymentAttemptId:payment.id,provider:"fake",method:"mobile_money",
+      currency:"GHS",amountMinor:500,sourceType:"customer_cancellation",
+      reason:"Payment adjustment under review",requestedBy:"customer-a",status,
+    }});
+    await assert.rejects(() => collection.collect(x.shipment.id,"admin-commerce",`ref-${status}`,proof(x.code),`req-ref-${status}`),
+      (error:any) => error?.getStatus?.() === 422 && error?.getResponse?.()?.code === "PICKUP_REFUND_CONFLICT");
+    assert.equal(await db.shipmentCollectionReceipt.count({where:{shipmentId:x.shipment.id}}),0);
+    assert.equal(await db.shipmentEvent.count({where:{shipmentId:x.shipment.id,eventKind:"customer_collected"}}),0);
+    assert.equal((await db.shipment.findUniqueOrThrow({where:{id:x.shipment.id}})).status,"ready_for_pickup");
+  }
+});
+
+test("direct SQL cannot insert a collection event or receipt after refunded payment", async () => {
+  const x=await fixture("REF-DB-GUARD");
+  const payment=await db.paymentAttempt.create({data:{
+    orderId:x.order.id,provider:"fake",method:"mobile_money",amountMinor:3500,
+    merchantReference:"VG-REF-DB-GUARD",status:"succeeded",initiationState:"accepted",
+    settlementState:"unsettled",
+  }});
+  await db.refund.create({data:{
+    orderId:x.order.id,paymentAttemptId:payment.id,provider:"fake",method:"mobile_money",
+    amountMinor:500,sourceType:"customer_cancellation",reason:"Review",requestedBy:"customer-a",
+    status:"awaiting_approval",
+  }});
+  const now=new Date(),receiptId=randomUUID(),eventId=randomUUID();
+  await db.shipment.update({where:{id:x.shipment.id},data:{
+    status:"completed",custody:"customer",currentNodeId:null,completedAt:now,
+  }});
+  await db.order.update({where:{id:x.order.id},data:{fulfilmentStatus:"collected"}});
+  await assert.rejects(() => db.shipmentEvent.create({data:{
+    id:eventId,shipmentId:x.shipment.id,routeRevision:1,nodeId:x.terminal.id,
+    eventKind:"customer_collected",actorKind:"staff",actorId:"admin-commerce",
+    fromCustody:"node_staff",toCustody:"customer",safeMetadata:{receiptId},
+    requestId:"req-ref-bypass",occurredAt:now,
+  }}));
+  assert.equal(await db.shipmentCollectionReceipt.count({where:{shipmentId:x.shipment.id}}),0);
+});
+
 test("concurrent collections cannot both commit different receipts", async () => {
   const x = await fixture("RACE");
   const results = await Promise.allSettled([

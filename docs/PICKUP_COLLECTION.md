@@ -24,6 +24,11 @@ outside Payments Authority.
 - The order must have a verified `succeeded` electronic payment status
   owned by Payments. Cash-on-delivery, unverified/expired/refunded payment,
   and cashier collection are not payment shortcuts here.
+- Any outstanding or issued refund (`awaiting_approval`, `approved`,
+  `processing`, `requires_review`, `succeeded`) blocks collection,
+  even if the legacy order payment flag still reads `succeeded`. Refunds
+  and payment disputes must be resolved by their owning services, never by
+  bypassing the collection checks.
 
 ## Collection evidence
 

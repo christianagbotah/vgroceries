@@ -68,3 +68,12 @@ Local whole-branch frontend/build/acceptance verification is complete; fresh Git
   verification training, pickup fee/slot semantics and refund/exception
   workflows need end-to-end approval. Never activate the pickup flag on
   code completion alone.
+
+- Remote pickup staff controls require real UAT with trained operators and
+  verified payment-provider outcomes. The interface is ready for tests,
+  but `LOGISTICS_SHIPMENT_EXECUTION_ENABLED` and
+  `LOGISTICS_CUSTOMER_PICKUP_ENABLED` must remain disabled pending signoff.
+- Current customer tracking intentionally shows confirmed pickup readiness
+  but does not provide separate collection appointment slots or a full
+  static pickup-centre directions card. Those require a deliberately scoped
+  customer-safe projection and scheduling policy.

@@ -1476,6 +1476,14 @@ export async function handleApi(req: ApiRequest): Promise<ApiResult> {
         return ok(candidates.length > 1 ? { status: "ambiguous", candidates } : { status: "matched", selectedRule: candidates[0], candidates });
       }
 
+      /* L2 is never simulated by the in-memory L1 configuration preview.
+         Do not create fabricated collected parcels or receipt evidence. */
+      case "admin.logistics.shipments":
+        return ok({ items: [], page: Math.max(1, n("page") || 1), perPage: Math.max(1, n("perPage") || 20), total: 0 });
+      case "admin.logistics.shipment":
+      case "admin.logistics.shipment.collect":
+        throw new OpError("UNAVAILABLE", "Verified shipment execution is unavailable in demo mode. Use a release-approved, authenticated backend.");
+
       /* ---------------- Staff: dispatch & riders ---------------- */
       case "admin.dispatch.queue": {
         sweepExpiredReservations(store);

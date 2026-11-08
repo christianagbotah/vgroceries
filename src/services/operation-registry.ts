@@ -172,6 +172,9 @@ export const operationMeta: Record<string, OperationMeta> = {
   "admin.logistics.route-rule.update": { invalidates: [...LOGISTICS, ...CONF] },
   "admin.logistics.route-rule.activate": { invalidates: [...LOGISTICS, ...CONF] },
   "admin.logistics.route-rule.simulate": { tags: LOGISTICS },
+  "admin.logistics.shipments": { tags: [...LOGISTICS, ...ORD, ...DEL] },
+  "admin.logistics.shipment": { tags: [...LOGISTICS, ...ORD, ...DEL] },
+  "admin.logistics.shipment.collect": { invalidates: [...LOGISTICS, ...ORD, ...DEL] },
 
   /* staff: dispatch, riders, providers */
   "admin.dispatch.queue": { tags: [...DEL, ...ORD] },
