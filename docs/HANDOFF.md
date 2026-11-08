@@ -109,3 +109,14 @@ fabricate receipt evidence. Customer order details present only recorded
 pickup-readiness information. Collection is blocked when the Payments/Refunds
 ledger contains a pending/issued refund, with a matching SQL integrity
 trigger. See `docs/PICKUP_STAFF_OPERATIONS.md`. Release flags remain default-off.
+
+
+## Pickup-centre transport rate and frozen customer details — Nov 8, 2026
+
+Remote pickup centre nodes can optionally override the regular zone delivery
+fee; `null` means zone rate, `0` means free, positive integers are pesewas.
+The selected fee is explicitly accepted at checkout, with a 409 conflict on
+change. Each pickup checkout records immutable public centre details and
+transport window with SQL integrity protection. The customer order/status
+views show the stored copy and never imply a collection appointment.
+Both runtime flags remain off. See `docs/PICKUP_PRICING_SNAPSHOT.md`.

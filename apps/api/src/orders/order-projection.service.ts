@@ -26,6 +26,7 @@ export class OrderProjectionService {
         lines: { orderBy: { id: "asc" } },
         events: { where: { customerSafe: true }, orderBy: { createdAt: "asc" } },
         slot: true,
+        pickupSnapshot: true,
         paymentAttempts: { orderBy: [{ createdAt: "asc" }, { id: "asc" }] },
         refunds: { orderBy: [{ createdAt: "asc" }, { id: "asc" }] },
       },
@@ -57,7 +58,11 @@ export class OrderProjectionService {
       customerName: o.customerName,
       customerPhone: o.customerPhone,
       fulfilment: o.fulfilment as PublicOrder["fulfilment"],
-      ...(o.slot ? { slotLabel: `${o.slot.startsAt.toISOString().slice(0, 10)} ${o.slot.startsAt.toISOString().slice(11, 16)}–${o.slot.endsAt.toISOString().slice(11, 16)}` } : {}),
+      ...(o.pickupSnapshot?.transportWindowStart && o.pickupSnapshot.transportWindowEnd ? {
+        slotLabel: `${o.pickupSnapshot.transportWindowStart.toISOString().slice(0, 10)} ${o.pickupSnapshot.transportWindowStart.toISOString().slice(11, 16)}–${o.pickupSnapshot.transportWindowEnd.toISOString().slice(11, 16)}`,
+      } : o.slot && !o.pickupSnapshot ? {
+        slotLabel: `${o.slot.startsAt.toISOString().slice(0, 10)} ${o.slot.startsAt.toISOString().slice(11, 16)}–${o.slot.endsAt.toISOString().slice(11, 16)}`,
+      } : {}),
       createdAt: o.createdAt.toISOString(),
       createdAtLabel: o.createdAt.toISOString(),
       subtotalMinor: o.subtotalMinor,
@@ -106,6 +111,21 @@ export class OrderProjectionService {
         ...(event.note ? { note: event.note } : {}),
       })),
       trackingJourney,
+      ...(o.pickupSnapshot ? {pickupPoint:{
+        name:o.pickupSnapshot.name,
+        ...(o.pickupSnapshot.locality?{locality:o.pickupSnapshot.locality}:{}),
+        ...(o.pickupSnapshot.region?{region:o.pickupSnapshot.region}:{}),
+        ...(o.pickupSnapshot.addressLine?{addressLine:o.pickupSnapshot.addressLine}:{}),
+        ...(o.pickupSnapshot.ghanaPostGps?{ghanaPostGps:o.pickupSnapshot.ghanaPostGps}:{}),
+        ...(o.pickupSnapshot.directions?{directions:o.pickupSnapshot.directions}:{}),
+        ...(o.pickupSnapshot.contact?{contact:o.pickupSnapshot.contact}:{}),
+        feeMinor:o.pickupSnapshot.feeMinor,
+        feeBasis:o.pickupSnapshot.feeBasis as "zone_delivery"|"centre_pickup",
+        ...(o.pickupSnapshot.transportWindowStart&&o.pickupSnapshot.transportWindowEnd?{
+          transportWindow:{startsAt:o.pickupSnapshot.transportWindowStart.toISOString(),
+            endsAt:o.pickupSnapshot.transportWindowEnd.toISOString()},
+        }:{}),
+      }}:{}),
       returns: [],
       ...(o.stockConsumedAt ? { stockConsumedAt: o.stockConsumedAt.toISOString() } : {}),
     };

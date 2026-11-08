@@ -5,13 +5,16 @@ import { API_CONFIG, ApiConfig } from "../config";
 import { Database } from "../database/database";
 import { ApiProblem } from "../http/errors";
 import { validateCheckoutLines, roundLineTotalMinor } from "./checkout.values";
+import { CheckoutPickupPointsService } from "../logistics/checkout-pickup-points.service";
 
-export type CheckoutQuoteInput = { lines: CartLineInput[]; zoneId?: string };
+export type CheckoutQuoteInput = { lines: CartLineInput[]; zoneId?: string;
+  destinationKind?: "doorstep" | "pickup_point"; finalPickupNodeId?: string };
 type AvailabilityRow = { variantId: string; availableToSell: Prisma.Decimal };
 
 @Injectable()
 export class CheckoutQuoteService {
-  constructor(private readonly db: Database, @Inject(API_CONFIG) private readonly config: ApiConfig) {}
+  constructor(private readonly db: Database, @Inject(API_CONFIG) private readonly config: ApiConfig,
+    private readonly pickup: CheckoutPickupPointsService) {}
   private commerce() {
     if (!this.config.commerce) throw new ApiProblem(503,"UNAVAILABLE","Commerce is not configured.");
     return this.config.commerce;
@@ -49,8 +52,20 @@ export class CheckoutQuoteService {
       if (!zone) throw new ApiProblem(400,"VALIDATION_FAILED","Delivery zone is unavailable.");
       fee=zone.feeMinor; min=zone.minimumOrderMinor;
     }
+    let feeBasis: "centre_pickup" | "zone_delivery" | undefined;
+    if (input.destinationKind === "pickup_point") {
+      if (!this.config.customerPickupEnabled || !this.config.shipmentExecutionEnabled)
+        throw new ApiProblem(503, "UNAVAILABLE", "Remote pickup is not enabled.");
+      const available = await this.pickup.list(input.zoneId!);
+      const selected = available.points.find(point => point.id === input.finalPickupNodeId);
+      if (!available.enabled || !selected)
+        throw new ApiProblem(422, "RULE_VIOLATION", "This pickup centre is no longer available for the selected zone.");
+      fee = selected.feeMinor;
+      feeBasis = selected.feeBasis;
+    }
     const subtotal=lines.reduce((n,l)=>n+l.lineTotalMinor,0);
     const conflicts=lines.filter(l=>!l.availableNow).map(l=>({variantId:l.variantId,productName:l.productName,variantName:l.variantName,requested:l.quantity,available:l.available}));
-    return {ok:conflicts.length===0 && subtotal>=min,lines,subtotalMinor:subtotal,deliveryFeeMinor:fee,totalMinor:subtotal+fee,minOrderMinor:min,meetsMinimum:subtotal>=min,conflicts};
+    return {ok:conflicts.length===0 && subtotal>=min,lines,subtotalMinor:subtotal,deliveryFeeMinor:fee,
+      ...(feeBasis?{feeBasis}:{}),totalMinor:subtotal+fee,minOrderMinor:min,meetsMinimum:subtotal>=min,conflicts};
   }
 }

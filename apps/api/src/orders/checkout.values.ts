@@ -102,6 +102,7 @@ export function canonicalCheckoutRequest(input: CompleteOrderRequest): Record<st
     // Preserve the pre-pickup hash for existing delivery orders and their in-flight retries.
     destinationKind: input.fulfilment === "delivery" && input.destinationKind === "pickup_point" ? "pickup_point" : undefined,
     finalPickupNodeId: input.destinationKind === "pickup_point" ? input.finalPickupNodeId : undefined,
+    expectedDeliveryFeeMinor: input.destinationKind === "pickup_point" ? input.expectedDeliveryFeeMinor : undefined,
     zoneId: input.zoneId,
     slotId: input.slotId,
     paymentMethod: input.paymentMethod,

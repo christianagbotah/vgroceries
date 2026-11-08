@@ -7,6 +7,7 @@ import { apiOps, ApiError, type PublicOrder } from "@/services/client";
 import { LoadingState, ErrorState } from "@/components/shared/states";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { OrderTrackingJourney } from "@/components/orders/order-tracking-journey";
+import { PickupCentreDetails } from "@/components/orders/pickup-centre-details";
 import { Button } from "@/components/ui/button";
 import { PAYMENT_METHOD_LABELS } from "@/types/domain";
 import { formatMoney } from "@/lib/money";
@@ -245,7 +246,7 @@ export default function CheckoutStatusPage() {
             </div>
           ) : null}
           <div className="flex justify-between text-muted-foreground">
-            <span>{order.fulfilment === "delivery" ? "Delivery" : "Collection"}</span>
+            <span>{order.pickupPoint ? "Pickup transport" : order.fulfilment === "delivery" ? "Delivery" : "Collection"}</span>
             <span className="tabular-nums">{order.deliveryFeeMinor === 0 ? "Free" : formatMoney(order.deliveryFeeMinor)}</span>
           </div>
           <div className="flex justify-between font-bold">
@@ -255,14 +256,18 @@ export default function CheckoutStatusPage() {
         </div>
         <div className="border-t pt-2 text-sm">
           <p className="text-muted-foreground">
-            {order.fulfilment === "delivery" ? `Delivery${order.slotLabel ? ` · ${order.slotLabel}` : ""}` : "Collect in store"}
+            {order.pickupPoint ? "Delivery to selected pickup centre (transport window is not a collection appointment)"
+              : order.fulfilment === "delivery" ? `Delivery${order.slotLabel ? ` · ${order.slotLabel}` : ""}` : "Collect in store"}
             {" · "}
             {PAYMENT_METHOD_LABELS[order.paymentMethod]}
           </p>
         </div>
       </div>
 
-      <div className="mt-4"><OrderTrackingJourney order={order} compact onRefresh={load} /></div>
+      <div className="mt-4 space-y-4">
+        <PickupCentreDetails order={order} />
+        <OrderTrackingJourney order={order} compact onRefresh={load} />
+      </div>
 
       {error ? <ErrorState message={error} onRetry={load} className="mt-4" /> : null}
 

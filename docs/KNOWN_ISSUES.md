@@ -77,3 +77,9 @@ Local whole-branch frontend/build/acceptance verification is complete; fresh Git
   but does not provide separate collection appointment slots or a full
   static pickup-centre directions card. Those require a deliberately scoped
   customer-safe projection and scheduling policy.
+
+
+- Dedicated **customer collection appointments** (centre opening hours,
+  pickup-day/time capacity, missed-appointment rescheduling) remain out of
+  scope even though transport windows and explicit centre transport charges
+  now exist. Do not advertise the transport slot as a pickup appointment.

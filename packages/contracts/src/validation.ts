@@ -79,6 +79,13 @@ export const cartLineInputSchema = z.object({
 export const checkoutQuoteRequestSchema = z.object({
   lines: z.array(cartLineInputSchema).min(1),
   zoneId: idSchema.optional(),
+  destinationKind: z.enum(["doorstep", "pickup_point"]).optional(),
+  finalPickupNodeId: idSchema.optional(),
+}).superRefine((input, ctx) => {
+  if (input.destinationKind === "pickup_point" && (!input.zoneId || !input.finalPickupNodeId))
+    ctx.addIssue({ code: "custom", path: ["finalPickupNodeId"], message: "Pickup quote requires a zone and centre." });
+  if (input.destinationKind !== "pickup_point" && input.finalPickupNodeId)
+    ctx.addIssue({ code: "custom", path: ["finalPickupNodeId"], message: "Doorstep quote cannot set a pickup centre." });
 });
 
 export const checkoutPickupPointViewSchema = z.object({
@@ -91,6 +98,8 @@ export const checkoutPickupPointViewSchema = z.object({
   ghanaPostGps: z.string().nullable(),
   directions: z.string().nullable(),
   contact: z.string().nullable(),
+  feeMinor: z.number().int().min(0),
+  feeBasis: z.enum(["zone_delivery", "centre_pickup"]),
 }).strict();
 export const checkoutPickupOptionsResponseSchema = z.object({
   enabled: z.boolean(),
@@ -118,6 +127,7 @@ const checkoutCompleteBaseSchema = z.object({
   fulfilment: z.enum(["delivery", "collection"]),
   destinationKind: z.enum(["doorstep", "pickup_point"]).optional(),
   finalPickupNodeId: idSchema.optional(),
+  expectedDeliveryFeeMinor: moneyMinorSchema.optional(),
   zoneId: idSchema.optional(),
   slotId: idSchema.optional(),
   paymentMethod: z.enum([
@@ -137,6 +147,7 @@ function validateDestination(value: {
   fulfilment: "delivery" | "collection";
   destinationKind?: "doorstep" | "pickup_point";
   finalPickupNodeId?: string;
+  expectedDeliveryFeeMinor?: number;
 }, ctx: z.RefinementCtx) {
   if (value.fulfilment === "collection" && (value.destinationKind || value.finalPickupNodeId)) {
     ctx.addIssue({ code: "custom", path: ["destinationKind"], message: "Source collection cannot specify a remote destination." });
@@ -147,6 +158,10 @@ function validateDestination(value: {
   if (value.destinationKind !== "pickup_point" && value.finalPickupNodeId) {
     ctx.addIssue({ code: "custom", path: ["finalPickupNodeId"], message: "Pickup node requires a pickup-point destination." });
   }
+  if (value.destinationKind === "pickup_point" && value.expectedDeliveryFeeMinor === undefined)
+    ctx.addIssue({ code: "custom", path: ["expectedDeliveryFeeMinor"], message: "Confirm the displayed pickup transport fee." });
+  if (value.destinationKind !== "pickup_point" && value.expectedDeliveryFeeMinor !== undefined)
+    ctx.addIssue({ code: "custom", path: ["expectedDeliveryFeeMinor"], message: "Pickup fee acceptance is only valid for a pickup-point destination." });
 }
 
 export const checkoutCompleteRequestSchema = checkoutCompleteBaseSchema.extend({
@@ -513,6 +528,22 @@ export const customerTrackingJourneySchema = z.object({
   milestones: z.array(customerTrackingMilestoneSchema),
 }).strict();
 
+export const customerPickupSnapshotViewSchema = z.object({
+  name: z.string().min(1).max(160),
+  locality: z.string().max(120).optional(),
+  region: z.string().max(120).optional(),
+  addressLine: z.string().max(240).optional(),
+  ghanaPostGps: z.string().max(80).optional(),
+  directions: z.string().max(500).optional(),
+  contact: z.string().max(160).optional(),
+  feeMinor: z.number().int().min(0),
+  feeBasis: z.enum(["zone_delivery", "centre_pickup"]),
+  transportWindow: z.object({
+    startsAt: z.string().datetime({offset:true}),
+    endsAt: z.string().datetime({offset:true}),
+  }).strict().optional(),
+}).strict();
+
 export const publicOrderSchema = z.object({
   id: z.string(),
   reference: z.string(),
@@ -535,6 +566,7 @@ export const publicOrderSchema = z.object({
   notes: z.array(z.unknown()),
   events: z.array(z.unknown()),
   trackingJourney: customerTrackingJourneySchema.optional(),
+  pickupPoint: customerPickupSnapshotViewSchema.optional(),
   returns: z.array(z.unknown()),
   verificationCode: z.string().optional(),
 });

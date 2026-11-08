@@ -215,6 +215,7 @@ test("pickup options expose only configured, active, customer-visible destinatio
     kindLabel: "Pickup centre",
     locality: "Kumasi", region: null, addressLine: null,
     ghanaPostGps: null, directions: "Ask for the collection counter.", contact: null,
+    feeMinor: 1200, feeBasis: "zone_delivery",
   }]);
   assert.ok(!JSON.stringify(payload.data).includes("Internal pickup location"));
   const byLocale = await (await fetch(url + "?locality=Labone")).json();
@@ -224,7 +225,7 @@ test("pickup options expose only configured, active, customer-visible destinatio
   assert.deepEqual(afterDisable.data.points, []);
   const token = await native("customer-a@example.test");
   const denied = await completeDelivery("pickup-disabled-node", token, {
-    destinationKind: "pickup_point", finalPickupNodeId: pickup.id,
+    destinationKind: "pickup_point", finalPickupNodeId: pickup.id, expectedDeliveryFeeMinor: 1200,
     addressId: undefined, guestAddress: undefined,
     paymentMethod: "mobile_money",
   });
@@ -237,7 +238,7 @@ test("configured remote pickup checkout freezes the exact pickup node without in
   const pickup = await configurePickupRoute("success");
   const token = await native("customer-a@example.test");
   const x = await completeDelivery("pickup-checkout-success", token, {
-    destinationKind: "pickup_point", finalPickupNodeId: pickup.id,
+    destinationKind: "pickup_point", finalPickupNodeId: pickup.id, expectedDeliveryFeeMinor: 1200,
     addressId: undefined, guestAddress: undefined,
     paymentMethod: "mobile_money",
   });
@@ -249,8 +250,14 @@ test("configured remote pickup checkout freezes the exact pickup node without in
   assert.equal(shipment.stops.at(-1)?.terminalRole, "customer_pickup");
   assert.equal(shipment.legs.length, 1);
   assert.equal(await db.orderDeliveryAddress.count({ where: { orderId: x.body.data.orderId } }), 0);
+  const snapshot = await db.orderPickupSnapshot.findUniqueOrThrow({ where: { orderId: x.body.data.orderId } });
+  assert.equal(snapshot.nodeId, pickup.id);
+  assert.equal(snapshot.name, "Kumasi Central Collection");
+  assert.equal(snapshot.feeBasis, "zone_delivery");
+  assert.equal(snapshot.feeMinor, 1200);
+  assert.ok(snapshot.transportWindowStart && snapshot.transportWindowEnd);
   const replay = await completeDelivery("pickup-checkout-success", token, {
-    destinationKind: "pickup_point", finalPickupNodeId: pickup.id,
+    destinationKind: "pickup_point", finalPickupNodeId: pickup.id, expectedDeliveryFeeMinor: 1200,
     addressId: undefined, guestAddress: undefined,
     paymentMethod: "mobile_money",
   });
@@ -266,7 +273,7 @@ test("pickup checkout rejects missing or foreign route nodes and never creates p
   });
   assert.equal(incomplete.r.status, 400);
   const forbidden = await completeDelivery("pickup-checkout-injected", token, {
-    destinationKind: "pickup_point", finalPickupNodeId: "not-a-configured-node",
+    destinationKind: "pickup_point", finalPickupNodeId: "not-a-configured-node", expectedDeliveryFeeMinor: 1200,
     addressId: undefined, guestAddress: undefined,
     paymentMethod: "mobile_money",
   });
@@ -299,4 +306,117 @@ test("production OpenAPI describes the public pickup discovery and checkout fiel
   assert.ok(request.properties.finalPickupNodeId);
   assert.equal(doc.paths["/api/v1/checkout/complete"].post.requestBody.content["application/json"].schema.$ref,
     "#/components/schemas/CheckoutCompleteRestRequest");
+});
+
+test("pickup quote and checkout use the centre's configured fee, reject changed prices and freeze customer-safe details", async () => {
+  const pickup=await configurePickupRoute("PRICE");
+  await db.logisticsNode.update({where:{id:pickup.id},data:{
+    pickupFeeMinor:350, publicName:"Kumasi Riverside Counter",
+    addressLine:"14 River Road",locality:"Kumasi",region:"Ashanti",
+    ghanaPostGps:"AK-123-4567",publicDirections:"Ask for counter 3.",publicContact:"+233240000001",
+  }});
+  const discovered=await (await fetch(base+"/api/v1/checkout/zones/zone-required/pickup-points")).json();
+  assert.equal(discovered.data.points.length,1);
+  const option=discovered.data.points[0];
+  assert.equal(option.feeMinor,350);
+  assert.equal(option.feeBasis,"centre_pickup");
+  assert.equal(option.name,"Kumasi Riverside Counter");
+
+  const quote=await post("/checkout/quote",{lines:[{variantId:"var-rice",quantity:"6"}],
+    zoneId:"zone-required",destinationKind:"pickup_point",finalPickupNodeId:pickup.id});
+  assert.equal(quote.r.status,200,JSON.stringify(quote.body));
+  assert.equal(quote.body.data.deliveryFeeMinor,350);
+  assert.equal(quote.body.data.feeBasis,"centre_pickup");
+  assert.equal(quote.body.data.totalMinor,1194+350);
+  assert.equal(quote.body.data.meetsMinimum,true);
+
+  const token=await native("customer-a@example.test");
+  const selected={destinationKind:"pickup_point" as const,finalPickupNodeId:pickup.id,
+    addressId:undefined,guestAddress:undefined,paymentMethod:"mobile_money"};
+  const mismatch=await completeDelivery("price-stale",token,{...selected,expectedDeliveryFeeMinor:1200});
+  assert.equal(mismatch.r.status,409,JSON.stringify(mismatch.body));
+  assert.equal(mismatch.body.error.code,"PICKUP_FEE_CHANGED");
+  assert.equal(mismatch.body.error.details.currentFeeMinor,350);
+  assert.deepEqual(await Promise.all([
+    db.order.count(),db.shipment.count(),db.orderPickupSnapshot.count(),
+    db.reservation.count(),db.idempotency.count({where:{operation:"checkout.complete"}}),
+  ]),[0,0,0,0,0]);
+
+  const placed=await completeDelivery("price-accept",token,{...selected,expectedDeliveryFeeMinor:350});
+  assert.equal(placed.r.status,201,JSON.stringify(placed.body));
+  const id=placed.body.data.orderId as string;
+  const original=await db.order.findUniqueOrThrow({where:{id},include:{pickupSnapshot:true,slot:true}});
+  assert.equal(original.deliveryFeeMinor,350);
+  assert.equal(original.totalMinor,1544);
+  assert.equal(original.pickupSnapshot?.name,"Kumasi Riverside Counter");
+  assert.equal(original.pickupSnapshot?.feeBasis,"centre_pickup");
+  assert.equal(original.pickupSnapshot?.feeMinor,350);
+  assert.equal(original.pickupSnapshot?.transportWindowStart?.getTime(),original.slot?.startsAt.getTime());
+  assert.equal(original.pickupSnapshot?.transportWindowEnd?.getTime(),original.slot?.endsAt.getTime());
+
+  const status=await fetch(base+`/api/v1/orders/${id}`,{headers:{authorization:`Bearer ${token}`}});
+  assert.equal(status.status,200);
+  const current=(await status.json()).data;
+  assert.equal(current.pickupPoint.name,"Kumasi Riverside Counter");
+  assert.equal(current.pickupPoint.directions,"Ask for counter 3.");
+  assert.equal(current.pickupPoint.feeMinor,350);
+  assert.equal(current.pickupPoint.transportWindow.startsAt,original.slot?.startsAt.toISOString());
+  assert.ok(!JSON.stringify(current.pickupPoint).includes(pickup.id));
+  assert.ok(!JSON.stringify(current.pickupPoint).includes("Internal pickup location"));
+
+  await db.logisticsNode.update({where:{id:pickup.id},data:{
+    publicName:"Different Name",publicDirections:"Different directions",
+    pickupFeeMinor:0,publicContact:"+233240000002",
+  }});
+  const updated=(await (await fetch(base+`/api/v1/orders/${id}`,{
+    headers:{authorization:`Bearer ${token}`},
+  })).json()).data;
+  assert.deepEqual(updated.pickupPoint,current.pickupPoint);
+  const replay=await completeDelivery("price-accept",token,{...selected,expectedDeliveryFeeMinor:350});
+  assert.equal(replay.r.status,201);
+  assert.equal(replay.body.data.orderId,id);
+  assert.equal(await db.orderPickupSnapshot.count(),1);
+  await assert.rejects(()=>db.orderPickupSnapshot.update({where:{orderId:id},data:{name:"Forged"}}));
+  await assert.rejects(()=>db.orderPickupSnapshot.delete({where:{orderId:id}}));
+  assert.equal((await db.orderPickupSnapshot.findUniqueOrThrow({where:{orderId:id}})).name,"Kumasi Riverside Counter");
+});
+
+test("pickup centre explicitly set to zero rate is free, but blank rate retains zone fee", async () => {
+  const pickup=await configurePickupRoute("FREE");
+  const token=await native("customer-a@example.test");
+  await db.logisticsNode.update({where:{id:pickup.id},data:{pickupFeeMinor:0}});
+  const price=await post("/checkout/quote",{
+    lines:[{variantId:"var-rice",quantity:"6"}],zoneId:"zone-required",
+    destinationKind:"pickup_point",finalPickupNodeId:pickup.id,
+  });
+  assert.equal(price.r.status,200);
+  assert.equal(price.body.data.deliveryFeeMinor,0);
+  assert.equal(price.body.data.feeBasis,"centre_pickup");
+  const free=await completeDelivery("free-price",token,{
+    destinationKind:"pickup_point",finalPickupNodeId:pickup.id,
+    addressId:undefined,guestAddress:undefined,paymentMethod:"mobile_money",
+    expectedDeliveryFeeMinor:0,
+  });
+  assert.equal(free.r.status,201,JSON.stringify(free.body));
+  const snapshot=await db.orderPickupSnapshot.findUniqueOrThrow({where:{orderId:free.body.data.orderId}});
+  assert.equal(snapshot.feeMinor,0);
+  assert.equal(snapshot.feeBasis,"centre_pickup");
+
+  await db.logisticsNode.update({where:{id:pickup.id},data:{pickupFeeMinor:null}});
+  const zone=(await (await fetch(base+"/api/v1/checkout/zones/zone-required/pickup-points")).json()).data;
+  assert.equal(zone.points[0].feeMinor,1200);
+  assert.equal(zone.points[0].feeBasis,"zone_delivery");
+});
+
+test("snapshot database guard rejects forged non-pickup orders and pickup fee overrides on non-pickup nodes", async () => {
+  const token=await native("customer-a@example.test");
+  const created=await completeDelivery("not-pickup",token);
+  assert.equal(created.r.status,201);
+  const ordinaryId=created.body.data.orderId as string;
+  const original=await db.logisticsNode.findFirstOrThrow({where:{code:"VG_DIRECT_SOURCE"}});
+  await assert.rejects(()=>db.logisticsNode.update({where:{id:original.id},data:{pickupFeeMinor:500}}));
+  await assert.rejects(()=>db.orderPickupSnapshot.create({data:{
+    orderId:ordinaryId,nodeId:original.id,name:"Forged",feeBasis:"centre_pickup",feeMinor:1200,
+  }}));
+  assert.equal(await db.orderPickupSnapshot.count(),0);
 });
