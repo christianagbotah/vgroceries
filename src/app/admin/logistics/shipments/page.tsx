@@ -16,16 +16,17 @@ export default function ShipmentOperationsPage() {
     let active = true;
     if (isDemoStaffSessionActive()) {
       // Demo role selector is only a UI preview; demo shipment custody is still disabled.
-      setAuthorized(role === "owner_admin");
-    } else {
-      // Real role MUST come from the current authenticated server session.
-      // StaffRoleProvider is a demo presentation context and is not a security authority.
-      apiOps.staffSession().then(session => {
-        if (active) setAuthorized(session.actor.role === "admin");
-      }).catch(() => {
-        if (active) setAuthorized(false);
-      });
+      // Defer the update to avoid synchronous cascading renders in an effect.
+      const timer = window.setTimeout(() => { if (active) setAuthorized(role === "owner_admin"); }, 0);
+      return () => { active = false; window.clearTimeout(timer); };
     }
+    // Real role MUST come from the current authenticated server session.
+    // StaffRoleProvider is a demo presentation context and is not a security authority.
+    apiOps.staffSession().then(session => {
+      if (active) setAuthorized(session.actor.role === "admin");
+    }).catch(() => {
+      if (active) setAuthorized(false);
+    });
     return () => { active = false; };
   }, [role]);
 
