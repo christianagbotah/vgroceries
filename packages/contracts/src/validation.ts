@@ -24,6 +24,7 @@ import {
   createDeliveryWorkflowRequestSchema, saveDeliveryWorkflowDraftRequestSchema, publishDeliveryWorkflowRequestSchema,
   createDeliveryRouteRuleRequestSchema, updateDeliveryRouteRuleRequestSchema, activateDeliveryRouteRuleRequestSchema,
   routeSimulationRequestSchema,
+  pickupCollectRequestSchema,
 } from "./logistics";
 
 /* ------------------------------------------------------------------ */
@@ -658,6 +659,7 @@ export const requestSchemas: Record<string, z.ZodTypeAny> = {
   "admin.logistics.route-rule.update": withoutTransportReplay(updateDeliveryRouteRuleRequestSchema),
   "admin.logistics.route-rule.activate": withoutTransportReplay(activateDeliveryRouteRuleRequestSchema),
   "admin.logistics.route-rule.simulate": routeSimulationRequestSchema,
+  "admin.logistics.shipment.collect": withoutTransportReplay(pickupCollectRequestSchema),
   "admin.product.create": createProductDraftRequestSchema,
   "admin.product-media.generate": createGenerationRequestSchema,
   "admin.product-media.featured": setFeaturedMediaRequestSchema,

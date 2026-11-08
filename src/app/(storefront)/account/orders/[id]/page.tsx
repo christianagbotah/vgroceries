@@ -16,7 +16,7 @@ import { formatMoney } from "@/lib/money";
 import { PAYMENT_METHOD_LABELS } from "@/types/domain";
 import { formatDateTime } from "@/lib/format";
 import { useToast } from "@/hooks/use-toast";
-import { Ban, Navigation, Package } from "lucide-react";
+import { Ban, Navigation, Package, MapPin, PackageCheck } from "lucide-react";
 
 export default function AccountOrderDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -129,6 +129,37 @@ export default function AccountOrderDetailPage() {
               </li>
             ))}
           </ul>
+        </div>
+      ) : null}
+
+      {order.trackingJourney?.source === "shipment" && order.trackingJourney.state === "ready_for_pickup" ? (
+        <section className="rounded-xl border bg-card p-4 sm:p-5" aria-label="Customer pickup confirmation">
+          <div className="flex items-start gap-3">
+            <MapPin className="mt-0.5 size-5 shrink-0 text-primary" aria-hidden />
+            <div className="space-y-2">
+              <h3 className="font-semibold">Your order is ready for collection</h3>
+              {order.trackingJourney.currentLocationLabel ? (
+                <p className="text-sm">Confirmed collection facility: <strong>{order.trackingJourney.currentLocationLabel}</strong></p>
+              ) : null}
+              <p className="text-sm text-muted-foreground">
+                Bring your order verification code and a valid photo ID. If someone else is collecting,
+                they must bring their own valid photo ID and be authorised to receive the parcel.
+                Staff will verify your collection before handing over the order.
+              </p>
+              <p className="text-xs text-muted-foreground">
+                This readiness update is based on recorded shipment evidence, not an estimated arrival.
+              </p>
+            </div>
+          </div>
+        </section>
+      ) : null}
+
+      {order.trackingJourney?.source === "shipment" && order.trackingJourney.state === "collected" ? (
+        <div className="flex items-start gap-3 rounded-xl border bg-card p-4" role="status">
+          <PackageCheck className="mt-0.5 size-5 shrink-0 text-success" aria-hidden />
+          <div><p className="font-semibold">Your order was collected</p>
+            <p className="mt-1 text-sm text-muted-foreground">Collection was recorded by the pickup centre. Your order journey below shows its confirmed history.</p>
+          </div>
         </div>
       ) : null}
 

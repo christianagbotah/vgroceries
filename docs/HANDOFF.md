@@ -99,3 +99,13 @@ It requires a previously handed-over, paid shipment at the exact frozen
 terminal pickup node; staff validates the order code and records a physical
 ID-check attestation. It does not own payment or stock actions. See
 `docs/PICKUP_COLLECTION.md` for complete rollout and rollback boundaries.
+
+## Pickup staff workspace — Nov 8, 2026
+
+Staff UI at `/admin/logistics/shipments` displays authenticated shipment
+history and enables the gated receipt command only for ready, terminal pickup
+shipments. Proof is masked and cleared after success; the demo service cannot
+fabricate receipt evidence. Customer order details present only recorded
+pickup-readiness information. Collection is blocked when the Payments/Refunds
+ledger contains a pending/issued refund, with a matching SQL integrity
+trigger. See `docs/PICKUP_STAFF_OPERATIONS.md`. Release flags remain default-off.

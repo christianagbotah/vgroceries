@@ -80,6 +80,18 @@ export class ShipmentCollectionService {
           order.paymentStatus !== "succeeded")
         rule("Collection requires a confirmed electronic payment; cash collection belongs to a separate authority.",
           "PICKUP_PAYMENT_NOT_CONFIRMED");
+      // A successful charge does not guarantee that the order is still payable
+      // to fulfil: disputes, pending approvals and completed refunds freeze
+      // release of the entire parcel until Payments/Refunds resolves them.
+      const refundConflict = await tx.refund.findFirst({
+        where: { orderId: order.id, status: { in: [
+          "awaiting_approval", "approved", "processing", "requires_review", "succeeded",
+        ] } },
+        select: { id: true },
+      });
+      if (refundConflict)
+        rule("A refund is pending, under review or already issued. Collection requires a separate resolution.",
+          "PICKUP_REFUND_CONFLICT");
       if (!this.verification.verify(order.id, input.verificationCode, order.verificationKeyVersion, order.verificationCodeHash))
         rule("Customer order verification code does not match.", "PICKUP_VERIFICATION_FAILED");
       if (await tx.shipmentCollectionReceipt.count({ where: { shipmentId } }))

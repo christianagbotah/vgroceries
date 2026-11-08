@@ -1,11 +1,13 @@
 "use client";
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import Link from "next/link";
+import { Button } from "@/components/ui/button";
 import { NodesPanel } from "./nodes-panel";
 import { LanesPanel } from "./lanes-panel";
 import { WorkflowsPanel } from "./workflows-panel";
 import { RouteRulesPanel } from "./route-rules-panel";
-import { MapPinned, Network, Route, Workflow } from "lucide-react";
+import { MapPinned, Network, Route, Workflow, PackageCheck } from "lucide-react";
 
 export function LogisticsWorkspace() {
   return (
@@ -15,6 +17,15 @@ export function LogisticsWorkspace() {
         <p className="mt-1 max-w-3xl text-sm text-muted-foreground">
           Configure facilities, transport lanes and delivery journeys. This configuration plans how orders may move; it does not itself prove that a parcel departed, arrived or was delivered.
         </p>
+      </div>
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-card p-4">
+        <div>
+          <h2 className="font-semibold">Shipment operations &amp; customer pickup</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Review physical shipment evidence and verified terminal collections. Runtime execution remains controlled by server release gates.
+          </p>
+        </div>
+        <Button asChild><Link href="/admin/logistics/shipments"><PackageCheck className="size-4" aria-hidden /> Open shipment operations</Link></Button>
       </div>
       <Tabs defaultValue="nodes" className="min-w-0">
         <TabsList className="h-auto w-full justify-start gap-1 overflow-x-auto bg-muted/60 p-1">

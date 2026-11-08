@@ -98,6 +98,7 @@ import type {
   SupplierRow,
   TeamRow,
   ZoneView,
+  ShipmentListItem, ShipmentDetailView, PickupCollectRequest, PickupCollectResponse,
   LogisticsNodeView,
   LogisticsLaneView,
   DeliveryWorkflowView,
@@ -394,6 +395,16 @@ export const apiOps = {
     api<DeliveryRouteRuleView>("admin.logistics.route-rule.activate", { query: { ruleId }, body: body as unknown as Record<string, unknown>, idempotencyKey }),
   logisticsRouteRuleSimulate: (body: RouteSimulationRequest) =>
     api<RouteSimulationResponse>("admin.logistics.route-rule.simulate", { body: body as unknown as Record<string, unknown> }),
+
+  /* shipment execution — L2 read-only list/detail and gated verified customer handover */
+  logisticsShipments: (query: { page?: number; perPage?: number; status?: ShipmentListItem["status"] } = {}) =>
+    api<{ items: ShipmentListItem[]; page: number; perPage: number; total: number }>("admin.logistics.shipments", { query }),
+  logisticsShipment: (shipmentId: string) =>
+    api<ShipmentDetailView>("admin.logistics.shipment", { query: { shipmentId } }),
+  logisticsShipmentCollect: (shipmentId: string, proof: PickupCollectRequest, idempotencyKey: string) =>
+    api<PickupCollectResponse>("admin.logistics.shipment.collect", {
+      query: { shipmentId }, body: proof as Record<string, unknown>, idempotencyKey,
+    }),
 
   /* dispatch */
   dispatchQueue: () => api<DispatchQueueResponse>("admin.dispatch.queue"),
