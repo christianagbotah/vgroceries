@@ -428,6 +428,7 @@ model Order {
   lines OrderLine[]
   events OrderEvent[]
   deliveryAddress OrderDeliveryAddress?
+  pickupSnapshot OrderPickupSnapshot?
   slotBooking DeliverySlotBooking?
   paymentAttempts PaymentAttempt[]
   refunds Refund[]
@@ -441,6 +442,26 @@ model Order {
   @@index([guestSessionId, createdAt])
   @@index([zoneId, createdAt])
   @@index([slotId, createdAt])
+}
+
+model OrderPickupSnapshot {
+  orderId String @id
+  order Order @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  nodeId String
+  node LogisticsNode @relation(fields: [nodeId], references: [id], onDelete: Restrict)
+  name String
+  locality String?
+  region String?
+  addressLine String?
+  ghanaPostGps String?
+  directions String?
+  contact String?
+  feeBasis String // zone_delivery | centre_pickup
+  feeMinor Int
+  transportWindowStart DateTime? @db.Timestamptz(3)
+  transportWindowEnd DateTime? @db.Timestamptz(3)
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  @@index([nodeId])
 }
 
 model OrderDeliveryAddress {
@@ -828,6 +849,7 @@ model LogisticsNode {
   ghanaPostGps String?
   publicDirections String?
   publicContact String?
+  pickupFeeMinor Int? // Optional centre rate; NULL uses standard zone delivery fee
   customerVisible Boolean @default(true)
   active Boolean @default(true)
   createdAt DateTime @default(now()) @db.Timestamptz(3)
@@ -840,6 +862,7 @@ model LogisticsNode {
   originShipments Shipment[] @relation("ShipmentOriginNode")
   finalPickupShipments Shipment[] @relation("ShipmentFinalPickupNode")
   collectionReceipts ShipmentCollectionReceipt[]
+  orderPickupSnapshots OrderPickupSnapshot[]
   currentShipments Shipment[] @relation("ShipmentCurrentNode")
   shipmentStops ShipmentStop[] @relation("ShipmentStopNode")
   shipmentEvents ShipmentEvent[] @relation("ShipmentEventNode")

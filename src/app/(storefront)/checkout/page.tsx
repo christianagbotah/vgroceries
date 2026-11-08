@@ -153,7 +153,9 @@ export default function CheckoutPage() {
     return lines.reduce((a, l) => a + (l.priceMinor ?? 0) * Number(l.quantity), 0);
   }, [lines]);
 
-  const deliveryFee = fulfilment === "delivery" ? zone?.feeMinor ?? 0 : 0;
+  const deliveryFee = fulfilment === "delivery"
+    ? destinationKind === "pickup_point" ? selectedPickupPoint?.feeMinor ?? zone?.feeMinor ?? 0 : zone?.feeMinor ?? 0
+    : 0;
   const total = subtotal + deliveryFee;
   const meetsMinimum = fulfilment === "collection" || !zone || subtotal >= zone.minimumOrderMinor;
 
@@ -211,6 +213,7 @@ export default function CheckoutPage() {
         zoneId: fulfilment === "delivery" ? zoneId : undefined,
         destinationKind: fulfilment === "delivery" ? destinationKind : undefined,
         finalPickupNodeId: fulfilment === "delivery" && destinationKind === "pickup_point" ? finalPickupNodeId : undefined,
+        expectedDeliveryFeeMinor: fulfilment === "delivery" && destinationKind === "pickup_point" ? selectedPickupPoint?.feeMinor : undefined,
         slotId: fulfilment === "delivery" ? slotId : undefined,
         paymentMethod,
         note: note.trim() || undefined,
@@ -234,6 +237,26 @@ export default function CheckoutPage() {
     } catch (e) {
       if (e instanceof ApiError) {
         setOrderError(e.message);
+        if (e.code === "PICKUP_FEE_CHANGED" && zoneId) {
+          // Refresh the centre price, but require a second explicit customer
+          // submit. Never silently accept a changed charge.
+          try {
+            const updated = await apiOps.pickupPoints(zoneId);
+            setPickupEnabled(updated.enabled);
+            setPickupPoints(updated.points);
+            if (!updated.enabled || !updated.points.some(point => point.id === finalPickupNodeId)) {
+              setFinalPickupNodeId("");
+              setOrderError("The chosen pickup centre is no longer available. Select a centre again.");
+            } else {
+              setOrderError("The pickup transport fee changed. Review the updated total and submit again.");
+            }
+          } catch {
+            setPickupEnabled(false);
+            setPickupPoints([]);
+            setFinalPickupNodeId("");
+            setOrderError("The centre rate changed and could not be refreshed. Please choose a centre again.");
+          }
+        }
         if (e.code === "OUT_OF_STOCK" && Array.isArray(e.details)) {
           const conflicts = e.details as { productName: string; variantName: string; requested: string; available: string }[];
           setConflicts(conflicts.map((x) => ({
@@ -409,7 +432,7 @@ export default function CheckoutPage() {
                       <SelectContent>
                         {zones.map((z) => (
                           <SelectItem key={z.id} value={z.id}>
-                            {z.name} — {formatMoney(z.feeMinor)}
+                            {z.name} — Zone delivery {formatMoney(z.feeMinor)}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -479,6 +502,10 @@ export default function CheckoutPage() {
                             {selectedPickupPoint.addressLine ? <p>{selectedPickupPoint.addressLine}</p> : null}
                             {selectedPickupPoint.directions ? <p>{selectedPickupPoint.directions}</p> : null}
                             {selectedPickupPoint.contact ? <p>Centre contact: {selectedPickupPoint.contact}</p> : null}
+                            <p className="mt-2 font-medium text-foreground">
+                              Pickup transport fee: {formatMoney(selectedPickupPoint.feeMinor)}
+                              {selectedPickupPoint.feeBasis === "zone_delivery" ? " (zone transport rate)" : " (centre pickup rate)"}
+                            </p>
                             <p className="mt-1">The selected transport window is not a confirmed collection appointment. Track your order for recorded pickup readiness.</p>
                           </div>
                         ) : null}
@@ -664,12 +691,13 @@ export default function CheckoutPage() {
               <span className="font-medium tabular-nums">{formatMoney(subtotal)}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-muted-foreground">{fulfilment === "delivery" ? "Delivery fee" : "Collection"}</span>
+              <span className="text-muted-foreground">{fulfilment !== "delivery" ? "Store collection"
+                : destinationKind === "pickup_point" ? "Pickup transport fee" : "Delivery fee"}</span>
               <span className="font-medium tabular-nums">{fulfilment === "delivery" ? formatMoney(deliveryFee) : "Free"}</span>
             </div>
             {zone && fulfilment === "delivery" ? (
               <div className="flex justify-between">
-                <span className="text-muted-foreground">Slot</span>
+                <span className="text-muted-foreground">{destinationKind === "pickup_point" ? "Transport window" : "Delivery slot"}</span>
                 <span className="text-muted-foreground">{slot ? `${slot.window} · ${slot.date}` : "—"}</span>
               </div>
             ) : null}
@@ -682,7 +710,7 @@ export default function CheckoutPage() {
           {fulfilment === "delivery" && zone && !meetsMinimum ? (
             <p role="alert" className="rounded-lg border border-warning/40 bg-warning/10 p-2.5 text-sm">
               Minimum order for {zone.name} is {formatMoney(zone.minimumOrderMinor)} — add{" "}
-              {formatMoney(zone.minimumOrderMinor - subtotal)} more, or choose collection.
+              {formatMoney(zone.minimumOrderMinor - subtotal)} more, or choose store collection.
             </p>
           ) : null}
           <p className="text-xs text-muted-foreground">

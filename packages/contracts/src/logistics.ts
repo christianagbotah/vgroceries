@@ -76,6 +76,7 @@ export const logisticsNodeInputSchema = z.object({
   ghanaPostGps: z.string().trim().max(80).optional().nullable(),
   publicDirections: z.string().trim().max(500).optional().nullable(),
   publicContact: z.string().trim().max(160).optional().nullable(),
+  pickupFeeMinor: z.number().int().min(0).max(1_000_000).optional().nullable(),
   customerVisible: z.boolean().default(true),
   active: z.boolean().default(true),
 }).strict();

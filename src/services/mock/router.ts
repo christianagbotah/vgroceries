@@ -1331,6 +1331,7 @@ export async function handleApi(req: ApiRequest): Promise<ApiResult> {
           kindLabel: b("kindLabel") || null, parentNodeId: b("parentNodeId") || null, inventoryLocationId: b("inventoryLocationId") || null,
           addressLine: b("addressLine") || null, locality: b("locality") || null, region: b("region") || null, ghanaPostGps: b("ghanaPostGps") || null,
           publicDirections: b("publicDirections") || null, publicContact: b("publicContact") || null,
+          pickupFeeMinor: typeof body.pickupFeeMinor === "number" ? body.pickupFeeMinor : null,
           customerVisible: body.customerVisible !== false, active: body.active !== false, createdAt: now, updatedAt: now,
           dependencies: { activeIncomingLanes: 0, activeOutgoingLanes: 0, activeRouteRules: 0, childNodes: 0, inventoryLocationExists: !!b("inventoryLocationId"), inventoryLocationActive: !!b("inventoryLocationId") },
         } as any;
@@ -1342,6 +1343,7 @@ export async function handleApi(req: ApiRequest): Promise<ApiResult> {
         if (!node) throw new OpError("VALIDATION_FAILED", "Demo logistics node not found.");
         for (const key of ["name","publicName","kind","kindLabel","parentNodeId","inventoryLocationId","addressLine","locality","region","ghanaPostGps","publicDirections","publicContact"] as const)
           if (Object.prototype.hasOwnProperty.call(body, key)) (node as any)[key] = body[key] || null;
+        if (Object.prototype.hasOwnProperty.call(body, "pickupFeeMinor")) node.pickupFeeMinor = typeof body.pickupFeeMinor === "number" ? body.pickupFeeMinor : null;
         if (typeof body.code === "string") node.code = body.code.trim().toUpperCase();
         if (typeof body.customerVisible === "boolean") node.customerVisible = body.customerVisible;
         if (typeof body.active === "boolean") node.active = body.active;

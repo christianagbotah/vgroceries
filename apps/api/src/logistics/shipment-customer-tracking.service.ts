@@ -94,7 +94,7 @@ export class ShipmentCustomerTrackingService {
     const shipment = await this.db.shipment.findUnique({
       where: { orderId_sequence: { orderId, sequence: 1 } },
       include: {
-        order: { select: { createdAt: true } },
+        order: { select: { createdAt: true, pickupSnapshot: { select: { name: true } } } },
         currentNode: { select: { customerVisible: true, publicName: true } },
         workflowVersion: {
           include: { stages: { orderBy: [{ sortOrder: "asc" }, { id: "asc" }] } },
@@ -124,7 +124,10 @@ export class ShipmentCustomerTrackingService {
     const state = trackingState(shipment.status, shipment.destinationKind, kinds);
     const currentLocationLabel = ["at_node", "final_mile_ready", "ready_for_pickup"].includes(shipment.status) &&
       shipment.currentNode?.customerVisible
-      ? text(shipment.currentNode.publicName, 160)
+      ? text(shipment.destinationKind === "pickup_point" &&
+        shipment.currentNodeId === shipment.finalPickupNodeId
+          ? shipment.order.pickupSnapshot?.name ?? shipment.currentNode.publicName
+          : shipment.currentNode.publicName, 160)
       : undefined;
 
     const updatedAt = [
@@ -174,7 +177,10 @@ export class ShipmentCustomerTrackingService {
       const detail = text(stage.customerDetailTemplate, 500);
       const locationLabel = event?.node?.customerVisible &&
         ["shipment_arrived", "returned_to_dispatch", "ready_for_pickup"].includes(event.eventKind)
-        ? text(event.node.publicName, 160)
+        ? text(shipment.destinationKind === "pickup_point" &&
+          event.nodeId === shipment.finalPickupNodeId
+            ? shipment.order.pickupSnapshot?.name ?? event.node.publicName
+            : event.node.publicName, 160)
         : undefined;
       if (at) {
         if (eventIndex !== undefined) represented.add(eventIndex);
@@ -207,7 +213,10 @@ export class ShipmentCustomerTrackingService {
       const detail = customerEventCopy(event.eventKind, event.customerDetail, 500);
       const locationLabel = event.node?.customerVisible &&
         ["shipment_arrived", "returned_to_dispatch", "ready_for_pickup"].includes(event.eventKind)
-        ? text(event.node.publicName, 160) : undefined;
+        ? text(shipment.destinationKind === "pickup_point" &&
+          event.nodeId === shipment.finalPickupNodeId
+            ? shipment.order.pickupSnapshot?.name ?? event.node.publicName
+            : event.node.publicName, 160) : undefined;
       actual.push({
         id: "event-" + (index + 1), at: iso(event.occurredAt),
         title, ...(detail ? { detail } : {}),

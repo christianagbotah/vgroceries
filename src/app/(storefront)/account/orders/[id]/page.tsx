@@ -7,6 +7,7 @@ import { apiOps, ApiError, type PublicOrder } from "@/services/client";
 import { LoadingState, ErrorState } from "@/components/shared/states";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { OrderTrackingJourney } from "@/components/orders/order-tracking-journey";
+import { PickupCentreDetails } from "@/components/orders/pickup-centre-details";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -104,7 +105,7 @@ export default function AccountOrderDetailPage() {
             <span className="tabular-nums">{formatMoney(order.subtotalMinor)}</span>
           </div>
           <div className="flex justify-between text-muted-foreground">
-            <span>{order.fulfilment === "delivery" ? "Delivery" : "Collection"}</span>
+            <span>{order.pickupPoint ? "Pickup transport" : order.fulfilment === "delivery" ? "Delivery" : "Collection"}</span>
             <span className="tabular-nums">{order.deliveryFeeMinor === 0 ? "Free" : formatMoney(order.deliveryFeeMinor)}</span>
           </div>
           <div className="flex justify-between font-bold">
@@ -113,7 +114,7 @@ export default function AccountOrderDetailPage() {
           </div>
           <p className="pt-1 text-xs text-muted-foreground">
             {PAYMENT_METHOD_LABELS[order.paymentMethod]}
-            {order.slotLabel ? ` · ${order.slotLabel}` : ""}
+            {!order.pickupPoint && order.slotLabel ? ` · ${order.slotLabel}` : ""}
           </p>
         </div>
       </div>
@@ -131,6 +132,8 @@ export default function AccountOrderDetailPage() {
           </ul>
         </div>
       ) : null}
+
+      <PickupCentreDetails order={order} />
 
       {order.trackingJourney?.source === "shipment" && order.trackingJourney.state === "ready_for_pickup" ? (
         <section className="rounded-xl border bg-card p-4 sm:p-5" aria-label="Customer pickup confirmation">

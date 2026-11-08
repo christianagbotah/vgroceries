@@ -13,7 +13,8 @@ type NodeCreateInput = {
   code: string; name: string; publicName: string; kind: LogisticsNodeKind;
   kindLabel?: string | null; parentNodeId?: string | null; inventoryLocationId?: string | null;
   addressLine?: string | null; locality?: string | null; region?: string | null; ghanaPostGps?: string | null;
-  publicDirections?: string | null; publicContact?: string | null; customerVisible?: boolean; active?: boolean;
+  publicDirections?: string | null; publicContact?: string | null; pickupFeeMinor?: number | null;
+  customerVisible?: boolean; active?: boolean;
 };
 type NodeUpdateInput = Partial<NodeCreateInput>;
 type NodeListQuery = { q?: string; kind?: LogisticsNodeKind; active?: boolean };
@@ -47,6 +48,7 @@ export class LogisticsNodeService {
       ghanaPostGps: input.ghanaPostGps == null ? null : boundedText(input.ghanaPostGps, 80, "GhanaPost GPS"),
       publicDirections: input.publicDirections == null ? null : boundedText(input.publicDirections, 500, "Public directions"),
       publicContact: input.publicContact == null ? null : boundedText(input.publicContact, 160, "Public contact"),
+      pickupFeeMinor: input.pickupFeeMinor ?? null,
       customerVisible: input.customerVisible ?? true,
       active: input.active ?? true,
     };
@@ -67,6 +69,7 @@ export class LogisticsNodeService {
     if (input.ghanaPostGps !== undefined) out.ghanaPostGps = input.ghanaPostGps == null ? null : boundedText(input.ghanaPostGps, 80, "GhanaPost GPS");
     if (input.publicDirections !== undefined) out.publicDirections = input.publicDirections == null ? null : boundedText(input.publicDirections, 500, "Public directions");
     if (input.publicContact !== undefined) out.publicContact = input.publicContact == null ? null : boundedText(input.publicContact, 160, "Public contact");
+    if (input.pickupFeeMinor !== undefined) out.pickupFeeMinor = input.pickupFeeMinor;
     if (input.customerVisible !== undefined) out.customerVisible = input.customerVisible;
     if (input.active !== undefined) out.active = input.active;
     if (!Object.keys(out).length) throw new ApiProblem(400, "VALIDATION_FAILED", "At least one node field is required.");
@@ -144,6 +147,8 @@ export class LogisticsNodeService {
         if (replay.requestHash !== requestHash) throw new ApiProblem(409, "IDEMPOTENCY_CONFLICT", "Idempotency key was already used with a different logistics node command.");
         return this.parseReplay(replay.outcome);
       }
+      if (normalized.pickupFeeMinor !== null && normalized.kind !== "pickup_point")
+        throw new ApiProblem(400, "VALIDATION_FAILED", "Pickup fee overrides are only valid at pickup points.");
       await this.validateReferences(tx, null, normalized);
       let node;
       try { node = await tx.logisticsNode.create({ data: normalized }); }
@@ -171,6 +176,8 @@ export class LogisticsNodeService {
       const current = await tx.logisticsNode.findUnique({ where: { id: nodeId } });
       if (!current) throw new ApiProblem(404, "NOT_FOUND", "Logistics node not found.");
       const effective = { ...current, ...normalized } as Record<string, unknown>;
+      if (effective.pickupFeeMinor != null && effective.kind !== "pickup_point")
+        throw new ApiProblem(400, "VALIDATION_FAILED", "Remove the pickup fee override before changing the node type.");
       await this.validateReferences(tx, nodeId, effective);
       if (normalized.active === false && current.active) {
         const deps = await this.dependencyCounts(tx, nodeId, (effective.inventoryLocationId as string | null) ?? null);

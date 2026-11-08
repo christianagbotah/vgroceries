@@ -21,7 +21,7 @@ export class CheckoutPickupPointsService {
     if (!zoneId || zoneId.length > 128 || (locality && locality.length > 120)) {
       throw new ApiProblem(400, "VALIDATION_FAILED", "Invalid pickup option query.");
     }
-    const zone = await this.db.deliveryZone.findUnique({ where: { id: zoneId }, select: { active: true } });
+    const zone = await this.db.deliveryZone.findUnique({ where: { id: zoneId }, select: { active: true, feeMinor: true } });
     if (!zone?.active) throw new ApiProblem(404, "NOT_FOUND", "Delivery zone not available.");
     const source = this.config.commerce && await this.db.logisticsNode.findFirst({
       where: { active: true, inventoryLocationId: this.config.commerce.locationId },
@@ -71,6 +71,8 @@ export class CheckoutPickupPointsService {
         ghanaPostGps: node.ghanaPostGps ?? null,
         directions: node.publicDirections ?? null,
         contact: node.publicContact ?? null,
+        feeMinor: node.pickupFeeMinor ?? zone.feeMinor,
+        feeBasis: node.pickupFeeMinor === null ? "zone_delivery" : "centre_pickup",
       });
     }
     return checkoutPickupOptionsResponseSchema.parse({

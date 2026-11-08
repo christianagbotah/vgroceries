@@ -15,6 +15,9 @@ type MockOptions = {
   events?: Array<Record<string, unknown>>;
   stages?: Array<Record<string, unknown>>;
   noShipment?: boolean;
+  pickupSnapshotName?: string;
+  finalPickupNodeId?: string;
+  currentNodeId?: string;
 };
 
 const stage = (eventKind: string, title: string, planned = false, order = 1) => ({
@@ -44,9 +47,12 @@ function fixture(options: MockOptions = {}) {
     id: "shipment-private",
     status: options.status ?? "at_node",
     destinationKind: options.destinationKind ?? "doorstep",
+    finalPickupNodeId: options.finalPickupNodeId ?? null,
+    currentNodeId: options.currentNodeId ?? null,
     activatedAt: at(5),
     completedAt: null,
-    order: { createdAt: at(0) },
+    order: { createdAt: at(0),
+      pickupSnapshot: options.pickupSnapshotName ? {name:options.pickupSnapshotName} : null },
     currentNode: options.currentNode === undefined ? visible("Accra Dispatch") : options.currentNode,
     workflowVersion: {
       id: "workflow-private", stages: options.stages ?? [
@@ -264,4 +270,21 @@ test("informational event volume never erases completed stages or an unresolved 
   assert.equal(result?.milestones.find(step => step.title === "Arrival confirmed")?.at, at(8).toISOString());
   assert.equal(result?.milestones.find(step => step.title === "Arrival confirmed")?.status, "complete");
   assert.ok((result?.milestones.length ?? 0) <= 160);
+});
+
+test("remote pickup journey preserves the customer-selected centre name even after node rename", async () => {
+  const x=fixture({
+    status:"ready_for_pickup",destinationKind:"pickup_point",
+    finalPickupNodeId:"terminal-1",currentNodeId:"terminal-1",
+    pickupSnapshotName:"Kumasi Central Collection",
+    currentNode:visible("Renamed private admin centre"),
+    events:[event("ready_for_pickup",18,visible("Renamed private admin centre"),{nodeId:"terminal-1"})],
+    stages:[stage("ready_for_pickup","Ready for collection")],
+  });
+  const result=await x.service.project("pickup-order");
+  assert.equal(result?.state,"ready_for_pickup");
+  assert.equal(result?.currentLocationLabel,"Kumasi Central Collection");
+  assert.equal(result?.milestones[0]?.locationLabel,"Kumasi Central Collection");
+  assert.ok(!JSON.stringify(result).includes("Renamed private admin centre"));
+  assert.ok(!JSON.stringify(result).includes("terminal-1"));
 });

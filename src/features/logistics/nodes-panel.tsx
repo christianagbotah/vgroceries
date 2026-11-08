@@ -13,6 +13,7 @@ import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Building2, Plus, Search, X } from "lucide-react";
+import { formatMoney } from "@/lib/money";
 
 const KINDS: { value: LogisticsNodeKind; label: string }[] = [
   ["head_office", "Head office"], ["warehouse", "Warehouse"], ["fulfilment_center", "Fulfilment / picking centre"],
@@ -23,10 +24,11 @@ const KINDS: { value: LogisticsNodeKind; label: string }[] = [
 type FormState = {
   code: string; name: string; publicName: string; kind: LogisticsNodeKind; kindLabel: string;
   parentNodeId: string; inventoryLocationId: string; addressLine: string; locality: string; region: string;
-  ghanaPostGps: string; publicDirections: string; publicContact: string; customerVisible: boolean; active: boolean;
+  ghanaPostGps: string; publicDirections: string; publicContact: string;
+  pickupFeeText: string; customerVisible: boolean; active: boolean;
 };
-const emptyForm = (): FormState => ({ code: "", name: "", publicName: "", kind: "hub", kindLabel: "", parentNodeId: "", inventoryLocationId: "", addressLine: "", locality: "", region: "", ghanaPostGps: "", publicDirections: "", publicContact: "", customerVisible: true, active: true });
-const fromNode = (n: LogisticsNodeView): FormState => ({ code:n.code, name:n.name, publicName:n.publicName, kind:n.kind, kindLabel:n.kindLabel ?? "", parentNodeId:n.parentNodeId ?? "", inventoryLocationId:n.inventoryLocationId ?? "", addressLine:n.addressLine ?? "", locality:n.locality ?? "", region:n.region ?? "", ghanaPostGps:n.ghanaPostGps ?? "", publicDirections:n.publicDirections ?? "", publicContact:n.publicContact ?? "", customerVisible:n.customerVisible, active:n.active });
+const emptyForm = (): FormState => ({ code: "", name: "", publicName: "", kind: "hub", kindLabel: "", parentNodeId: "", inventoryLocationId: "", addressLine: "", locality: "", region: "", ghanaPostGps: "", publicDirections: "", publicContact: "", pickupFeeText: "", customerVisible: true, active: true });
+const fromNode = (n: LogisticsNodeView): FormState => ({ code:n.code, name:n.name, publicName:n.publicName, kind:n.kind, kindLabel:n.kindLabel ?? "", parentNodeId:n.parentNodeId ?? "", inventoryLocationId:n.inventoryLocationId ?? "", addressLine:n.addressLine ?? "", locality:n.locality ?? "", region:n.region ?? "", ghanaPostGps:n.ghanaPostGps ?? "", publicDirections:n.publicDirections ?? "", publicContact:n.publicContact ?? "", pickupFeeText:n.pickupFeeMinor==null?"":(n.pickupFeeMinor/100).toFixed(2), customerVisible:n.customerVisible, active:n.active });
 
 export function NodesPanel() {
   const { data, loading, error, reload } = useApiData(() => apiOps.logisticsNodes(), []);
@@ -45,7 +47,17 @@ export function NodesPanel() {
     if (!form) return;
     setSaving(true); setFormError(null);
     try {
-      const body = { ...form, kindLabel: form.kindLabel || null, parentNodeId: form.parentNodeId || null, inventoryLocationId: form.inventoryLocationId || null, addressLine: form.addressLine || null, locality: form.locality || null, region: form.region || null, ghanaPostGps: form.ghanaPostGps || null, publicDirections: form.publicDirections || null, publicContact: form.publicContact || null };
+      if (form.kind === "pickup_point" && form.pickupFeeText.trim() &&
+          (!/^(?:0|[1-9]\d{0,4})(?:\.\d{1,2})?$/.test(form.pickupFeeText.trim()) ||
+           Number(form.pickupFeeText) > 10000)) {
+        setFormError("Enter a pickup fee between ₵0.00 and ₵10,000.00 with at most two decimals.");
+        return;
+      }
+      const { pickupFeeText: _pickupFeeText, ...nodeInput } = form;
+      const body = { ...nodeInput,
+        pickupFeeMinor: form.kind === "pickup_point" && form.pickupFeeText.trim()
+          ? Math.round(Number(form.pickupFeeText) * 100) : null,
+        kindLabel: form.kindLabel || null, parentNodeId: form.parentNodeId || null, inventoryLocationId: form.inventoryLocationId || null, addressLine: form.addressLine || null, locality: form.locality || null, region: form.region || null, ghanaPostGps: form.ghanaPostGps || null, publicDirections: form.publicDirections || null, publicContact: form.publicContact || null };
       if (editingId) await apiOps.logisticsNodeUpdate(editingId, body, crypto.randomUUID());
       else await apiOps.logisticsNodeCreate(body, crypto.randomUUID());
       setForm(null); setEditingId(null); await reload();
@@ -75,7 +87,7 @@ export function NodesPanel() {
       {formError ? <p role="alert" className="mt-3 rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">{formError}</p> : null}
       <div className="mt-4 grid gap-4 md:grid-cols-2">
         <Field label="Node code" id="node-code"><Input id="node-code" value={form.code} onChange={(e)=>setForm({...form,code:e.target.value})} disabled={!!editingId} /></Field>
-        <div><Label htmlFor="node-kind">Node type</Label><Select value={form.kind} onValueChange={(v)=>setForm({...form,kind:v as LogisticsNodeKind})}><SelectTrigger id="node-kind" className="mt-1 h-10"><SelectValue /></SelectTrigger><SelectContent>{KINDS.map(k=><SelectItem key={k.value} value={k.value}>{k.label}</SelectItem>)}</SelectContent></Select></div>
+        <div><Label htmlFor="node-kind">Node type</Label><Select value={form.kind} onValueChange={(v)=>setForm({...form,kind:v as LogisticsNodeKind,pickupFeeText:v==="pickup_point"?form.pickupFeeText:""})}><SelectTrigger id="node-kind" className="mt-1 h-10"><SelectValue /></SelectTrigger><SelectContent>{KINDS.map(k=><SelectItem key={k.value} value={k.value}>{k.label}</SelectItem>)}</SelectContent></Select></div>
         <Field label="Internal name" id="node-name"><Input id="node-name" value={form.name} onChange={(e)=>setForm({...form,name:e.target.value})} /></Field>
         <Field label="Customer-visible name" id="node-public-name"><Input id="node-public-name" value={form.publicName} onChange={(e)=>setForm({...form,publicName:e.target.value})} /></Field>
         <div><Label htmlFor="node-parent">Parent / group node</Label><Select value={form.parentNodeId || "none"} onValueChange={(v)=>setForm({...form,parentNodeId:v==="none"?"":v})}><SelectTrigger id="node-parent" className="mt-1 h-10"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="none">No parent</SelectItem>{(data??[]).filter(n=>n.id!==editingId).map(n=><SelectItem key={n.id} value={n.id}>{n.name}</SelectItem>)}</SelectContent></Select></div>
@@ -84,6 +96,12 @@ export function NodesPanel() {
         <Field label="Locality" id="node-locality"><Input id="node-locality" value={form.locality} onChange={(e)=>setForm({...form,locality:e.target.value})} /></Field>
         <Field label="Region" id="node-region"><Input id="node-region" value={form.region} onChange={(e)=>setForm({...form,region:e.target.value})} /></Field>
         <Field label="GhanaPost GPS" id="node-gps"><Input id="node-gps" value={form.ghanaPostGps} onChange={(e)=>setForm({...form,ghanaPostGps:e.target.value})} /></Field>
+        {form.kind === "pickup_point" ? <div className="min-w-0 space-y-1.5">
+          <Label htmlFor="node-pickup-fee">Pickup transport fee (₵, optional)</Label>
+          <Input id="node-pickup-fee" type="text" inputMode="decimal" placeholder="Blank = zone delivery rate"
+            value={form.pickupFeeText} onChange={e=>setForm({...form,pickupFeeText:e.target.value})} />
+          <p className="text-xs text-muted-foreground">Blank uses the delivery-zone rate. Enter 0.00 for free pickup; changes affect new orders only.</p>
+        </div>:null}
         <Field label="Public contact" id="node-contact"><Input id="node-contact" value={form.publicContact} onChange={(e)=>setForm({...form,publicContact:e.target.value})} placeholder="Customer-safe phone or instructions" /></Field>
         <div className="md:col-span-2"><Label htmlFor="node-directions">Public directions</Label><Textarea id="node-directions" className="mt-1" value={form.publicDirections} onChange={(e)=>setForm({...form,publicDirections:e.target.value})} placeholder="Customer-safe pickup directions" /></div>
         <div className="flex items-center justify-between rounded-lg border p-3"><div><p className="text-sm font-medium">Customer-visible</p><p className="text-xs text-muted-foreground">Allow this facility name in customer-safe tracking later.</p></div><Switch checked={form.customerVisible} onCheckedChange={(v)=>setForm({...form,customerVisible:v})} /></div>
@@ -92,7 +110,10 @@ export function NodesPanel() {
       <div className="mt-4 flex flex-wrap gap-2"><Button onClick={save} disabled={saving || !form.code.trim() || !form.name.trim() || !form.publicName.trim()}>{saving?"Saving…":"Save node"}</Button><Button variant="outline" onClick={()=>{setForm(null);setEditingId(null)}}>Cancel</Button></div>
     </div> : null}
 
-    {!rows.length ? <EmptyState icon={Building2} title="No logistics locations found" description="Add a source location, warehouse, hub, outlet or pickup point." /> : <div className="grid min-w-0 gap-3 xl:grid-cols-2">{rows.map(node=><article key={node.id} className="min-w-0 rounded-xl border bg-card p-4"><div className="flex flex-wrap items-start justify-between gap-2"><div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><h3 className="font-semibold">{node.publicName}</h3><Badge variant="outline">{node.kind.replaceAll("_"," ")}</Badge>{node.customerVisible?<Badge variant="secondary">Customer-visible</Badge>:null}{!node.active?<Badge variant="destructive">Inactive</Badge>:null}</div><p className="mt-1 text-sm text-muted-foreground">{node.code} · {node.name}</p><p className="text-xs text-muted-foreground">{[node.locality,node.region].filter(Boolean).join(" · ") || "No public location detail"}</p></div><Button variant="outline" size="sm" onClick={()=>startEdit(node)}>Edit</Button></div><div className="mt-3 rounded-lg bg-muted/45 p-3"><p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Dependencies</p><p className="mt-1 text-xs text-muted-foreground">{node.dependencies?.activeIncomingLanes ?? 0} incoming lanes · {node.dependencies?.activeOutgoingLanes ?? 0} outgoing lanes · {node.dependencies?.activeRouteRules ?? 0} active route rules · {node.dependencies?.childNodes ?? 0} child nodes</p></div>{node.active?<Button variant="ghost" size="sm" className="mt-2 text-destructive" onClick={()=>deactivate(node)}>Deactivate node</Button>:null}</article>)}</div>}
+    {!rows.length ? <EmptyState icon={Building2} title="No logistics locations found" description="Add a source location, warehouse, hub, outlet or pickup point." /> : <div className="grid min-w-0 gap-3 xl:grid-cols-2">{rows.map(node=><article key={node.id} className="min-w-0 rounded-xl border bg-card p-4"><div className="flex flex-wrap items-start justify-between gap-2"><div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><h3 className="font-semibold">{node.publicName}</h3><Badge variant="outline">{node.kind.replaceAll("_"," ")}</Badge>{node.customerVisible?<Badge variant="secondary">Customer-visible</Badge>:null}{!node.active?<Badge variant="destructive">Inactive</Badge>:null}</div><p className="mt-1 text-sm text-muted-foreground">{node.code} · {node.name}</p><p className="text-xs text-muted-foreground">{[node.locality,node.region].filter(Boolean).join(" · ") || "No public location detail"}</p>
+          {node.kind === "pickup_point" ? <p className="mt-1 text-xs text-muted-foreground">
+            {node.pickupFeeMinor == null ? "Pickup transport: zone delivery rate" : `Pickup transport: ${formatMoney(node.pickupFeeMinor)} (centre rate)`}
+          </p> : null}</div><Button variant="outline" size="sm" onClick={()=>startEdit(node)}>Edit</Button></div><div className="mt-3 rounded-lg bg-muted/45 p-3"><p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Dependencies</p><p className="mt-1 text-xs text-muted-foreground">{node.dependencies?.activeIncomingLanes ?? 0} incoming lanes · {node.dependencies?.activeOutgoingLanes ?? 0} outgoing lanes · {node.dependencies?.activeRouteRules ?? 0} active route rules · {node.dependencies?.childNodes ?? 0} child nodes</p></div>{node.active?<Button variant="ghost" size="sm" className="mt-2 text-destructive" onClick={()=>deactivate(node)}>Deactivate node</Button>:null}</article>)}</div>}
   </div>;
 }
 

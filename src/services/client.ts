@@ -183,8 +183,9 @@ export const apiOps = {
   byVariants: (variantIds: string[]) => api<ByVariantsResponse>("catalog.by-variants", { body: { variantIds } }),
 
   /* checkout */
-  quote: (lines: { variantId: string; quantity: string }[], zoneId?: string) =>
-    api<QuoteResponse>("checkout.quote", { body: { lines, zoneId } }),
+  quote: (lines: { variantId: string; quantity: string }[], zoneId?: string,
+    pickup?: { destinationKind: "pickup_point"; finalPickupNodeId: string }) =>
+    api<QuoteResponse>("checkout.quote", { body: { lines, zoneId, ...(pickup ?? {}) } }),
   complete: (body: CompleteOrderRequest) =>
     api<CompleteOrderResponse>("checkout.complete", { body: body as unknown as Record<string, unknown> }),
   paymentInitiate: (orderId: string, payerPhone: string | undefined, idempotencyKey: string) =>

@@ -67,6 +67,8 @@ export interface QuoteResponse {
   lines: QuoteLineResult[];
   subtotalMinor: number;
   deliveryFeeMinor: number;
+  /** Pickup pricing is either a centre override or the regular zone transport rate. */
+  feeBasis?: "zone_delivery" | "centre_pickup";
   totalMinor: number;
   minOrderMinor: number;
   meetsMinimum: boolean;
@@ -84,6 +86,8 @@ export interface CheckoutPickupPointView {
   ghanaPostGps: string | null;
   directions: string | null;
   contact: string | null;
+  feeMinor: number;
+  feeBasis: "zone_delivery" | "centre_pickup";
 }
 
 export interface CheckoutPickupOptionsResponse {
@@ -125,6 +129,8 @@ export interface CompleteOrderRequest {
   destinationKind?: "doorstep" | "pickup_point";
   /** Required for pickup_point, resolved against active server-owned route rules. */
   finalPickupNodeId?: string;
+  /** Price acceptance: reject a changed centre/zone fee before reserving or charging. */
+  expectedDeliveryFeeMinor?: number;
   zoneId?: string;
   slotId?: string;
   paymentMethod: CheckoutPaymentMethod;
@@ -285,6 +291,21 @@ export interface CustomerTrackingJourney {
 }
 
 /** The customer-safe order projection shared by status + tracking screens. */
+/** Immutable order-time display of a remote customer pickup centre, never internal route authority. */
+export interface CustomerPickupSnapshotView {
+  name: string;
+  locality?: string;
+  region?: string;
+  addressLine?: string;
+  ghanaPostGps?: string;
+  directions?: string;
+  contact?: string;
+  feeMinor: number;
+  feeBasis: "zone_delivery" | "centre_pickup";
+  /** Transport to the pickup centre, not a promised customer collection appointment. */
+  transportWindow?: { startsAt: string; endsAt: string };
+}
+
 export interface PublicOrder {
   id: string;
   reference: string;
@@ -310,6 +331,7 @@ export interface PublicOrder {
   notes: PublicOrderNote[];
   events: OrderEventView[];
   trackingJourney?: CustomerTrackingJourney;
+  pickupPoint?: CustomerPickupSnapshotView;
   job?: OrderJobView;
   returns: { id: string; reference: string; status: string; createdAt: string }[];
   posReceiptNo?: string;

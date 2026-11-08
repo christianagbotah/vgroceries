@@ -74,7 +74,37 @@ export class CheckoutCommandService {
       if(input.paymentMethod==="electronic") this.paymentPolicy.resolveElectronicMethod();
       else if(electronic.has(input.paymentMethod)) this.paymentPolicy.assertElectronicMethodAvailable(input.paymentMethod as ElectronicPaymentMethod);
       const lines=input.lines.map(line=>{const v=byId.get(line.variantId)!;return {id:randomUUID(),variantId:v.id,productId:v.productId,productName:v.product.name,variantName:v.name,unit:v.unit,quantity:new Prisma.Decimal(line.quantity).toString(),unitPriceMinor:v.priceMinor,lineTotalMinor:roundLineTotalMinor(v.priceMinor,line.quantity)};});
-      const subtotalMinor=lines.reduce((n,l)=>n+l.lineTotalMinor,0); const deliveryFeeMinor=zone?.feeMinor??0;
+      const subtotalMinor=lines.reduce((n,l)=>n+l.lineTotalMinor,0);
+      let deliveryFeeMinor=zone?.feeMinor??0;
+      let pickupSnapshot: {
+        nodeId:string; name:string; locality:string|null; region:string|null;
+        addressLine:string|null; ghanaPostGps:string|null; directions:string|null;
+        contact:string|null; feeBasis:"zone_delivery"|"centre_pickup"; feeMinor:number;
+      }|null=null;
+      if (destinationKind==="pickup_point") {
+        // Hold a shared row lock through order price/route/snapshot creation so
+        // a simultaneous admin fee change cannot produce inconsistent proof.
+        type PickupNode = { id:string; kind:string; active:boolean; customerVisible:boolean;
+          publicName:string; locality:string|null; region:string|null; addressLine:string|null;
+          ghanaPostGps:string|null; publicDirections:string|null; publicContact:string|null;
+          pickupFeeMinor:number|null; };
+        const [node]=await tx.$queryRaw<PickupNode[]>`SELECT id,kind,active,"customerVisible","publicName",
+          locality,region,"addressLine","ghanaPostGps","publicDirections","publicContact","pickupFeeMinor"
+          FROM "LogisticsNode" WHERE id=${input.finalPickupNodeId!} FOR SHARE`;
+        if (!node||!node.active||!node.customerVisible||node.kind!=="pickup_point")
+          throw new ApiProblem(422,"LOGISTICS_ROUTE_NOT_CONFIGURED","The chosen pickup centre is not available.");
+        deliveryFeeMinor=node.pickupFeeMinor??zone!.feeMinor;
+        if (input.expectedDeliveryFeeMinor!==deliveryFeeMinor)
+          throw new ApiProblem(409,"PICKUP_FEE_CHANGED","Pickup transport price has changed. Refresh your checkout before continuing.",
+            {currentFeeMinor:deliveryFeeMinor});
+        pickupSnapshot={
+          nodeId:node.id,name:node.publicName,locality:node.locality,region:node.region,
+          addressLine:node.addressLine,ghanaPostGps:node.ghanaPostGps,
+          directions:node.publicDirections,contact:node.publicContact,
+          feeBasis:node.pickupFeeMinor===null?"zone_delivery":"centre_pickup",
+          feeMinor:deliveryFeeMinor,
+        };
+      }
       if(zone&&subtotalMinor<zone.minimumOrderMinor)throw new ApiProblem(422,"RULE_VIOLATION","Delivery minimum order has not been met.",{minimumOrderMinor:zone.minimumOrderMinor,subtotalMinor});
       const orderId=randomUUID(); const reference=`VG-${randomUUID().replaceAll("-","").slice(0,12).toUpperCase()}`; const keyVersion=commerce.verificationActiveKeyVersion; const code=this.verification.codeFor(orderId,keyVersion); const codeHash=this.verification.digestFor(orderId,code,keyVersion); const paymentRequired=electronic.has(input.paymentMethod); const expiryMinutes=paymentRequired?commerce.paymentHoldMinutes:commerce.offlineHoldMinutes; const expiresAt=new Date(Date.now()+expiryMinutes*60000);
       let customerEmail=input.customerEmail?.trim().toLowerCase();
@@ -86,6 +116,12 @@ export class CheckoutCommandService {
         {actorId:principal.actorId,requestId:req.requestId});
       await this.allocation.create(tx,{claimType:"order",claimId:orderId,locationId:commerce.locationId,expiresAt,actorId:principal.actorId,requestId:req.requestId,lines:lines.map(l=>({claimLineId:l.id,variantId:l.variantId,quantity:l.quantity}))});
       if(input.slotId)await this.delivery.lockAndBookSlot(tx,{orderId,zoneId:zone!.id,slotId:input.slotId,now:new Date()},{actorId:principal.actorId,requestId:req.requestId});
+      if (pickupSnapshot) {
+        const slot=input.slotId?await tx.deliverySlot.findUnique({where:{id:input.slotId},select:{startsAt:true,endsAt:true}}):null;
+        await tx.orderPickupSnapshot.create({data:{
+          orderId,...pickupSnapshot,transportWindowStart:slot?.startsAt??null,transportWindowEnd:slot?.endsAt??null,
+        }});
+      }
       await tx.orderEvent.create({data:{orderId,actorKind:principal.kind,actorId:principal.actorId,action:"order.created",toStatus:"awaiting_confirmation",note:input.note?.trim()||null,customerSafe:true}});
       await tx.auditEvent.create({data:{actorId:principal.actorId,action:"order.created",entityId:orderId,requestId:req.requestId,details:{reference,fulfilment:input.fulfilment,paymentMethod:input.paymentMethod,variantIds:lines.map(l=>l.variantId)}}});
       await tx.outboxEvent.create({data:{type:"order.created",aggregateId:orderId,payload:{orderId,reference,fulfilment:input.fulfilment,paymentMethod:input.paymentMethod}}});
