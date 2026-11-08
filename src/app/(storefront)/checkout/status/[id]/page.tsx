@@ -8,6 +8,7 @@ import { LoadingState, ErrorState } from "@/components/shared/states";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { OrderTrackingJourney } from "@/components/orders/order-tracking-journey";
 import { PickupCentreDetails } from "@/components/orders/pickup-centre-details";
+import { PickupAppointmentManager } from "@/components/orders/pickup-appointment-manager";
 import { Button } from "@/components/ui/button";
 import { PAYMENT_METHOD_LABELS } from "@/types/domain";
 import { formatMoney } from "@/lib/money";
@@ -266,6 +267,7 @@ export default function CheckoutStatusPage() {
 
       <div className="mt-4 space-y-4">
         <PickupCentreDetails order={order} />
+        {order.pickupPoint ? <PickupAppointmentManager key={order.id} orderId={order.id} onChanged={load} /> : null}
         <OrderTrackingJourney order={order} compact onRefresh={load} />
       </div>
 

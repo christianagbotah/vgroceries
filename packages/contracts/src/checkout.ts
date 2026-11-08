@@ -332,6 +332,7 @@ export interface PublicOrder {
   events: OrderEventView[];
   trackingJourney?: CustomerTrackingJourney;
   pickupPoint?: CustomerPickupSnapshotView;
+  pickupAppointment?: import("./pickup-appointments").PickupAppointmentView;
   job?: OrderJobView;
   returns: { id: string; reference: string; status: string; createdAt: string }[];
   posReceiptNo?: string;

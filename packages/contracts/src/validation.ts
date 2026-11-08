@@ -15,6 +15,8 @@
  */
 
 import { z } from "zod";
+import { pickupAppointmentViewSchema,bookPickupAppointmentRequestSchema,
+  cancelPickupAppointmentRequestSchema,pickupAppointmentPolicyInputSchema } from "./pickup-appointments";
 import { loginRequestSchema, registerRequestSchema } from "./identity";
 import { paymentInitiationRequestSchema } from "./payments";
 import { cmsContentPageDraftRequestSchema, cmsHomepageDraftSchema } from "./cms";
@@ -567,6 +569,7 @@ export const publicOrderSchema = z.object({
   events: z.array(z.unknown()),
   trackingJourney: customerTrackingJourneySchema.optional(),
   pickupPoint: customerPickupSnapshotViewSchema.optional(),
+  pickupAppointment: pickupAppointmentViewSchema.optional(),
   returns: z.array(z.unknown()),
   verificationCode: z.string().optional(),
 });
@@ -663,6 +666,9 @@ export const requestSchemas: Record<string, z.ZodTypeAny> = {
   "auth.signup": registerRequestSchema,
   "checkout.quote": checkoutQuoteRequestSchema,
   "checkout.complete": checkoutCompleteRequestSchema,
+  "pickup.appointment.book": withoutTransportReplay(bookPickupAppointmentRequestSchema),
+  "pickup.appointment.cancel": withoutTransportReplay(cancelPickupAppointmentRequestSchema),
+  "admin.logistics.pickup-policy.save": withoutTransportReplay(pickupAppointmentPolicyInputSchema),
   "payments.initiate": paymentInitiationRequestSchema,
   "checkout.payment-outcome": paymentOutcomeRequestSchema,
   "account.cancel": accountCancelRequestSchema,

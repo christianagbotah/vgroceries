@@ -8,6 +8,7 @@ import { LoadingState, ErrorState } from "@/components/shared/states";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { OrderTrackingJourney } from "@/components/orders/order-tracking-journey";
 import { PickupCentreDetails } from "@/components/orders/pickup-centre-details";
+import { PickupAppointmentManager } from "@/components/orders/pickup-appointment-manager";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -134,6 +135,7 @@ export default function AccountOrderDetailPage() {
       ) : null}
 
       <PickupCentreDetails order={order} />
+      {order.pickupPoint ? <PickupAppointmentManager key={order.id} orderId={order.id} onChanged={load} /> : null}
 
       {order.trackingJourney?.source === "shipment" && order.trackingJourney.state === "ready_for_pickup" ? (
         <section className="rounded-xl border bg-card p-4 sm:p-5" aria-label="Customer pickup confirmation">

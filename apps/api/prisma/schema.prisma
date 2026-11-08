@@ -429,6 +429,7 @@ model Order {
   events OrderEvent[]
   deliveryAddress OrderDeliveryAddress?
   pickupSnapshot OrderPickupSnapshot?
+  pickupAppointment PickupAppointment?
   slotBooking DeliverySlotBooking?
   paymentAttempts PaymentAttempt[]
   refunds Refund[]
@@ -442,6 +443,35 @@ model Order {
   @@index([guestSessionId, createdAt])
   @@index([zoneId, createdAt])
   @@index([slotId, createdAt])
+}
+
+model PickupAppointmentPolicy {
+  nodeId String @id
+  node LogisticsNode @relation(fields: [nodeId], references: [id], onDelete: Restrict)
+  active Boolean @default(false)
+  serviceDays Int[]
+  opensAt String
+  closesAt String
+  slotMinutes Int
+  capacity Int
+  minLeadMinutes Int
+  maxDaysAhead Int
+  updatedBy String
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+}
+
+model PickupAppointment {
+  orderId String @id
+  order Order @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  nodeId String
+  node LogisticsNode @relation(fields: [nodeId], references: [id], onDelete: Restrict)
+  startsAt DateTime @db.Timestamptz(3)
+  endsAt DateTime @db.Timestamptz(3)
+  status String // booked | cancelled | completed
+  bookedAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+  completedAt DateTime? @db.Timestamptz(3)
+  @@index([nodeId, startsAt, status])
 }
 
 model OrderPickupSnapshot {
@@ -863,6 +893,8 @@ model LogisticsNode {
   finalPickupShipments Shipment[] @relation("ShipmentFinalPickupNode")
   collectionReceipts ShipmentCollectionReceipt[]
   orderPickupSnapshots OrderPickupSnapshot[]
+  pickupAppointmentPolicy PickupAppointmentPolicy?
+  pickupAppointments PickupAppointment[]
   currentShipments Shipment[] @relation("ShipmentCurrentNode")
   shipmentStops ShipmentStop[] @relation("ShipmentStopNode")
   shipmentEvents ShipmentEvent[] @relation("ShipmentEventNode")

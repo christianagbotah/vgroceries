@@ -58,6 +58,9 @@ export const operationMeta: Record<string, OperationMeta> = {
   "checkout.zones": { tags: CONF },
   "checkout.slots": { tags: CONF },
   "checkout.pickup-points": { tags: [...CONF, ...LOGISTICS] },
+  "pickup.appointments": { tags: [...ORD, ...LOGISTICS] },
+  "pickup.appointment.book": { invalidates: [...ORD, ...LOGISTICS] },
+  "pickup.appointment.cancel": { invalidates: [...ORD, ...LOGISTICS] },
   "orders.track": { tags: [...ORD, ...DEL] },
   "orders.detail": { tags: ORD },
 
@@ -156,6 +159,8 @@ export const operationMeta: Record<string, OperationMeta> = {
   "admin.logistics.node": { tags: LOGISTICS },
   "admin.logistics.node.create": { invalidates: [...LOGISTICS, ...CONF] },
   "admin.logistics.node.update": { invalidates: [...LOGISTICS, ...CONF] },
+  "admin.logistics.pickup-policy": { tags: LOGISTICS },
+  "admin.logistics.pickup-policy.save": { invalidates: [...LOGISTICS, ...CONF, ...ORD] },
   "admin.logistics.lanes": { tags: LOGISTICS },
   "admin.logistics.lane": { tags: LOGISTICS },
   "admin.logistics.lane.create": { invalidates: [...LOGISTICS, ...CONF] },

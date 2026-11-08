@@ -70,6 +70,9 @@ import {
   shipmentRerouteRequestSchema,
   shipmentCheckpointRequestSchema,
   pickupCollectRequestSchema, pickupCollectResponseSchema,
+  pickupAppointmentPolicyInputSchema, pickupAppointmentPolicyViewSchema,
+  pickupAppointmentOptionsSchema, bookPickupAppointmentRequestSchema,
+  cancelPickupAppointmentRequestSchema, pickupAppointmentMutationResponseSchema,
   shipmentStatusSchema,
   shipmentListItemSchema,
   shipmentDetailViewSchema,
@@ -310,6 +313,12 @@ export function productionOpenApi(app: INestApplication): OpenAPIObject {
     ShipmentCheckpointRequest: json(shipmentCheckpointRequestSchema),
     PickupCollectRequest: json(pickupCollectRequestSchema),
     PickupCollectResponse: json(pickupCollectResponseSchema),
+    PickupAppointmentPolicyInput: json(pickupAppointmentPolicyInputSchema),
+    PickupAppointmentPolicyView: json(pickupAppointmentPolicyViewSchema),
+    PickupAppointmentOptions: json(pickupAppointmentOptionsSchema),
+    BookPickupAppointmentRequest: json(bookPickupAppointmentRequestSchema),
+    CancelPickupAppointmentRequest: json(cancelPickupAppointmentRequestSchema),
+    PickupAppointmentMutationResponse: json(pickupAppointmentMutationResponseSchema),
     ShipmentListResponse: json(z.object({ items: z.array(shipmentListItemSchema), page: z.number().int().positive(), perPage: z.number().int().positive().max(100), total: z.number().int().nonnegative() }).strict()),
     ShipmentDetailView: json(shipmentDetailViewSchema),
     ShipmentActionResponse: json(shipmentActionResponseSchema),
@@ -376,6 +385,7 @@ export function productionOpenApi(app: INestApplication): OpenAPIObject {
     "DeliveryRouteRuleView", "DeliveryRouteRuleList", "RouteSimulationResponse",
     "ShipmentListResponse", "ShipmentDetailView", "ShipmentActionResponse",
     "PickupCollectResponse",
+    "PickupAppointmentPolicyView", "PickupAppointmentOptions", "PickupAppointmentMutationResponse",
     "CmsHomepage", "CmsHomepageAdminView", "CmsContentPage", "CmsContentPageAdminView", "CmsOverviewView",
   ])
     schemas[name + "Envelope"] = {
@@ -410,6 +420,29 @@ export function productionOpenApi(app: INestApplication): OpenAPIObject {
       },
     },
   };
+  const guestAppointmentSecurity: SecurityRequirementObject[] = [
+    { cookieAuth: [] }, { bearerAuth: [] }, { guestAuth: [] },
+  ];
+  const appointmentRead = (description: string): OperationObject => ({
+    security: guestAppointmentSecurity, description, parameters: [orderId],
+    responses: authorityResponses("PickupAppointmentOptionsEnvelope"),
+  });
+  const appointmentWrite = (description: string, requestName: string): OperationObject => ({
+    security: guestAppointmentSecurity, description,
+    parameters: [orderId, replay, csrf],
+    requestBody: { required: true, content: {
+      "application/json": { schema: ref(requestName) },
+    } },
+    responses: authorityResponses("PickupAppointmentMutationResponseEnvelope"),
+  });
+  doc.paths["/api/v1/orders/{orderId}/pickup-appointments"] = {
+    get: appointmentRead("Customer or guest-owned collection appointment options and booked status. No options before verified paid shipment arrival; all times Africa/Accra. No public order enumeration."),
+    post: appointmentWrite("Customer/guest-owned, idempotent collection appointment booking or rescheduling within active centre hours and capacity. Never changes payment, transport slots or stock.", "BookPickupAppointmentRequest"),
+  };
+  doc.paths["/api/v1/orders/{orderId}/pickup-appointments/cancel"] = {
+    post: appointmentWrite("Customer/guest-owned, idempotent cancellation of a booked collection appointment. This does not cancel the paid order or shipment.", "CancelPickupAppointmentRequest"),
+  };
+
   // Explicitly document the new input; the header remains authoritative for replay.
   const checkoutComplete = doc.paths["/api/v1/checkout/complete"]?.post;
   if (checkoutComplete) {
@@ -621,6 +654,10 @@ export function productionOpenApi(app: INestApplication): OpenAPIObject {
   doc.paths["/api/v1/admin/logistics/nodes/{nodeId}"] = {
     get: readOperation("Administrator-only Logistics L1 node configuration detail. Configuration is not shipment-location evidence.", "LogisticsNodeViewEnvelope", [logisticsNodeId]),
     post: logisticsMutation("Administrator-only Logistics L1 node configuration update. This does not move stock or record parcel arrival.", "UpdateLogisticsNodeRequest", "LogisticsNodeViewEnvelope", [logisticsNodeId]),
+  };
+  doc.paths["/api/v1/admin/logistics/nodes/{nodeId}/pickup-appointment-policy"] = {
+    get: readOperation("Administrator-only centre collection appointment operating hours, service days, capacity, lead time and booking horizon. Configuration does not activate shipment execution.", "PickupAppointmentPolicyViewEnvelope", [logisticsNodeId]),
+    post: logisticsMutation("Administrator-only audited centre appointment policy update. A disabled policy stops new bookings without modifying existing bookings. Does not override remote-pickup release flags.", "PickupAppointmentPolicyInput", "PickupAppointmentPolicyViewEnvelope", [logisticsNodeId]),
   };
   doc.paths["/api/v1/admin/logistics/lanes"] = {
     get: readOperation("Administrator-only Logistics L1 network-lane configuration read. A configured lane does not prove provider connectivity or a shipment transfer.", "LogisticsLaneListEnvelope"),

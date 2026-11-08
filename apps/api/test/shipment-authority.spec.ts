@@ -24,8 +24,8 @@ const requestRef=(op:any)=>op.requestBody?.content?.["application/json"]?.schema
 const assertAdmin=(op:any)=>{ assert.deepEqual(op.security,security); assert.match(String(op.description).toLowerCase(),/admin/); };
 const assertMutation=(op:any)=>{ assertAdmin(op); assert.equal(parameter(op,"Idempotency-Key")?.required,true); assert.ok(parameter(op,"X-CSRF-Token")); };
 
-test("production OpenAPI publishes exactly eight L2 shipment and pickup collection authority paths on a 116-path surface",()=>{
-  assert.equal(Object.keys(document.paths).length,116);
+test("production OpenAPI publishes exactly eight L2 shipment and pickup collection authority paths on a 119-path surface",()=>{
+  assert.equal(Object.keys(document.paths).length,119);
   for(const path of Object.values(paths)) assert.ok(document.paths[path],`missing ${path}`);
   for(const absent of ["/api/v1/shipments","/api/v1/shipments/{shipmentId}","/api/v1/admin/logistics/notifications","/api/v1/admin/logistics/courier-webhooks","/api/v1/cod/remittances","/api/v1/returns","/api/v1/pos"]) assert.equal(document.paths[absent],undefined,`unexpected later-wave authority ${absent}`);
 });

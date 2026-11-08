@@ -27,6 +27,7 @@ export class OrderProjectionService {
         events: { where: { customerSafe: true }, orderBy: { createdAt: "asc" } },
         slot: true,
         pickupSnapshot: true,
+        pickupAppointment: true,
         paymentAttempts: { orderBy: [{ createdAt: "asc" }, { id: "asc" }] },
         refunds: { orderBy: [{ createdAt: "asc" }, { id: "asc" }] },
       },
@@ -111,6 +112,12 @@ export class OrderProjectionService {
         ...(event.note ? { note: event.note } : {}),
       })),
       trackingJourney,
+      ...(o.pickupAppointment?{pickupAppointment:{
+        startsAt:o.pickupAppointment.startsAt.toISOString(),
+        endsAt:o.pickupAppointment.endsAt.toISOString(),
+        status:o.pickupAppointment.status as "booked"|"cancelled"|"completed",
+        updatedAt:o.pickupAppointment.updatedAt.toISOString(),
+      }}:{}),
       ...(o.pickupSnapshot ? {pickupPoint:{
         name:o.pickupSnapshot.name,
         ...(o.pickupSnapshot.locality?{locality:o.pickupSnapshot.locality}:{}),

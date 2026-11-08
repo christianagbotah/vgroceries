@@ -496,6 +496,13 @@ export async function handleApi(req: ApiRequest): Promise<ApiResult> {
       case "checkout.pickup-points": {
         return ok({ enabled: false, points: [] });
       }
+      case "pickup.appointments": {
+        return ok({enabled:false,ready:false,timezone:"Africa/Accra",slots:[],appointment:null});
+      }
+      case "pickup.appointment.book":
+      case "pickup.appointment.cancel": {
+        throw new OpError("UNAVAILABLE","Remote pickup appointments require a verified live shipment and are disabled in demo.");
+      }
       case "checkout.slots": {
         const zoneId = q("zoneId");
         const slots = store.slots.filter((s) => s.zoneId === zoneId && s.booked < s.capacity).slice(0, 9);
@@ -1337,6 +1344,12 @@ export async function handleApi(req: ApiRequest): Promise<ApiResult> {
         } as any;
         store.logisticsNodes.push(node);
         return ok(node);
+      }
+      case "admin.logistics.pickup-policy": {
+        return ok(null); // No fabricated appointment capacity or hours in mock mode.
+      }
+      case "admin.logistics.pickup-policy.save": {
+        throw new OpError("UNAVAILABLE","Live centre appointment configuration requires the server.");
       }
       case "admin.logistics.node.update": {
         const node = store.logisticsNodes.find((row) => row.id === q("nodeId"));
