@@ -81,6 +81,8 @@ import {
   customerReturnClaimRequestSchema,customerReturnClaimCancelSchema,
   customerReturnClaimDecisionSchema,customerReturnClaimViewSchema,
   customerReturnClaimsListSchema,customerReturnClaimEligibilitySchema,
+  cashierTillOpenSchema,cashierTillMoveSchema,cashierTillCloseSchema,
+  cashierTillSessionViewSchema,cashierTillListSchema,
   shipmentStatusSchema,
   shipmentListItemSchema,
   shipmentDetailViewSchema,
@@ -345,6 +347,11 @@ export function productionOpenApi(app: INestApplication): OpenAPIObject {
     CustomerReturnClaimView:json(customerReturnClaimViewSchema),
     CustomerReturnClaimsList:json(customerReturnClaimsListSchema),
     CustomerReturnClaimEligibility:json(customerReturnClaimEligibilitySchema),
+    CashierTillOpen:json(cashierTillOpenSchema),
+    CashierTillMove:json(cashierTillMoveSchema),
+    CashierTillClose:json(cashierTillCloseSchema),
+    CashierTillSessionView:json(cashierTillSessionViewSchema),
+    CashierTillList:json(cashierTillListSchema),
     ShipmentListResponse: json(z.object({ items: z.array(shipmentListItemSchema), page: z.number().int().positive(), perPage: z.number().int().positive().max(100), total: z.number().int().nonnegative() }).strict()),
     ShipmentDetailView: json(shipmentDetailViewSchema),
     ShipmentActionResponse: json(shipmentActionResponseSchema),
@@ -418,6 +425,7 @@ export function productionOpenApi(app: INestApplication): OpenAPIObject {
     "PhysicalReturnResaleReviewView",
     "CustomerReturnClaimView","CustomerReturnClaimsList",
     "CustomerReturnClaimEligibility",
+    "CashierTillSessionView","CashierTillList",
     "CmsHomepage", "CmsHomepageAdminView", "CmsContentPage", "CmsContentPageAdminView", "CmsOverviewView",
   ])
     schemas[name + "Envelope"] = {
@@ -746,6 +754,30 @@ export function productionOpenApi(app: INestApplication): OpenAPIObject {
     post:physicalReturnMutation(
       "Admin-only final accept/reject of pending customer claim, with required note and replay-safe audit. Acceptance is NOT physical receipt or money/refund approval.",
       "CustomerReturnClaimDecision","CustomerReturnClaimViewEnvelope",[returnClaimId]),
+  };
+  // POS P0a: administrator-only cash-drawer session preparation. These
+  // operations do not create sale/payment authority or decrement stock.
+  const tillId:ParameterObject={name:"sessionId",in:"path",required:true,
+    schema:{type:"string",minLength:1}};
+  doc.paths["/api/v1/admin/pos/tills"]={
+    get:readOperation(
+      "Administrator-only till records; preliminary drawer movements exclude POS sales and merchant settlements.",
+      "CashierTillListEnvelope"),
+    post:physicalReturnMutation(
+      "Administrator-only idempotent till opening at an active location. Feature gate is default OFF; this does not confirm payment or reserve goods.",
+      "CashierTillOpen","CashierTillSessionViewEnvelope"),
+  };
+  doc.paths["/api/v1/admin/pos/tills/{sessionId}"]={
+    get:readOperation("Administrator-only immutable till detail, including cash movements but no sale totals.",
+      "CashierTillSessionViewEnvelope",[tillId]),
+  };
+  doc.paths["/api/v1/admin/pos/tills/{sessionId}/movements"]={
+    post:physicalReturnMutation("Administrator-only cash-in/out/drop recording with immutable evidence and replay safety; no POS payment truth.",
+      "CashierTillMove","CashierTillSessionViewEnvelope",[tillId]),
+  };
+  doc.paths["/api/v1/admin/pos/tills/{sessionId}/close"]={
+    post:physicalReturnMutation("Administrator-only preliminary drawer close using float and cash movements only; this explicitly excludes sales and is not full financial reconciliation.",
+      "CashierTillClose","CashierTillSessionViewEnvelope",[tillId]),
   };
   doc.paths["/api/v1/admin/physical-returns"]={
     get:readOperation("Administrator-only physical return receipts with bounded pagination and optional source order filter; never a customer-facing refund promise.","PhysicalReturnListEnvelope",[

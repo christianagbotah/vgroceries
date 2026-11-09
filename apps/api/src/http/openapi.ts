@@ -380,7 +380,16 @@ export function foundationOpenApi(app: INestApplication) {
         suffix.startsWith("/admin/catalog/products/") ||
         suffix.startsWith("/admin/catalog/media/");
       const documentedProviderReturn = suffix === "/payments/providers/etranzact/return";
-      if (productionExtension || documentedProviderReturn) continue;
+      // New P0a till routes have strict schemas and authorization set in
+      // productionOpenApi; the foundation registry must not claim them as
+      // unimplemented legacy routes.
+      const documentedPosTill = [
+        "/admin/pos/tills",
+        "/admin/pos/tills/{sessionId}",
+        "/admin/pos/tills/{sessionId}/movements",
+        "/admin/pos/tills/{sessionId}/close",
+      ].includes(suffix);
+      if (productionExtension || documentedProviderReturn || documentedPosTill) continue;
       throw new Error(`Undocumented foundation endpoint: ${path}`);
     }
     for (const method of ["get", "post"] as const) {

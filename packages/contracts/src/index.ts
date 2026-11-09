@@ -24,6 +24,7 @@ export * from "./notifications";
 export * from "./returns";
 export * from "./inventory";
 export * from "./pos";
+export * from "./cashier-tills";
 export * from "./dispatch";
 export * from "./logistics";
 export * from "./rider";
