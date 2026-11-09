@@ -147,14 +147,14 @@ test("one counted cash sale atomically depletes reserved goods and updates till 
       headers:{authorization:"Bearer "+admin},
     });
   assert.equal(printResponse.status,200);
-  assert.match(printResponse.headers.get("content-type")??"",/text\\/html/);
+  assert.match(printResponse.headers.get("content-type")??"",/text\/html/);
   assert.match(printResponse.headers.get("cache-control")??"",/no-store/);
   const html=await printResponse.text();
   assert.match(html,/VARIETY GROCERIES/);
   assert.match(html,/Fixture Rice/);
-  assert.match(html,/₵5\\.23/);
-  assert.match(html,/₵6\\.00/);
-  assert.match(html,/₵0\\.77/);
+  assert.match(html,/₵5\.23/);
+  assert.match(html,/₵6\.00/);
+  assert.match(html,/₵0\.77/);
   assert.match(html,/NOT A TAX INVOICE/);
   assert.equal((await api("GET","/admin/pos/cash-sales",admin)).status,200);
   const movement=await tills.move("admin-commerce",till.id,
