@@ -94,6 +94,7 @@ export interface ApiConfig {
   commerce: CommerceConfig | null;
   shipmentExecutionEnabled: boolean;
   customerPickupEnabled: boolean;
+  physicalReturnsEnabled: boolean;
   payments: PaymentConfig | null;
   hubtelPayment: HubtelPaymentConfig | null;
   hubtelRefund: HubtelRefundConfig | null;
@@ -139,6 +140,11 @@ export function readConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
   if (rawCustomerPickupEnabled !== undefined && !["true", "false"].includes(rawCustomerPickupEnabled))
     throw new Error("LOGISTICS_CUSTOMER_PICKUP_ENABLED must be true or false");
   const customerPickupEnabled = rawCustomerPickupEnabled === "true";
+  const rawPhysicalReturnsEnabled=env.PHYSICAL_RETURNS_INTAKE_ENABLED;
+  if(rawPhysicalReturnsEnabled!==undefined&&
+    !["true","false"].includes(rawPhysicalReturnsEnabled))
+    throw new Error("PHYSICAL_RETURNS_INTAKE_ENABLED must be true or false");
+  const physicalReturnsEnabled=rawPhysicalReturnsEnabled==="true";
   if (customerPickupEnabled && !shipmentExecutionEnabled)
     throw new Error("LOGISTICS_CUSTOMER_PICKUP_ENABLED requires shipment execution");
   const port = Number(env.PORT ?? 3010);
@@ -601,6 +607,7 @@ export function readConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
     commerce,
     shipmentExecutionEnabled,
     customerPickupEnabled,
+    physicalReturnsEnabled,
     payments,
     hubtelPayment,
     hubtelRefund,

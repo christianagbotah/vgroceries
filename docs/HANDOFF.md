@@ -159,3 +159,13 @@ with an immutable source receipt and no recipient inference from payload.
 Guests without accounts produce no fake inbox. This is not an SMS, email,
 WhatsApp message, or a time-based reminder. See `docs/NOTIFICATIONS_L4.md`.
 Remote pickup flags remain OFF pending real-centre acceptance.
+
+## Physical Returns R1 — staff-held goods and inspection (9 November 2026)
+
+The dedicated Physical Returns R1 authority records original-order-depleted,
+quantity-bounded physical receipts and audited terminal quarantine/destroy
+inspections, without any inventory restock or refund. Staff UI lives at
+`/admin/physical-returns`; protected mutations default OFF via
+`PHYSICAL_RETURNS_INTAKE_ENABLED`. See `docs/PHYSICAL_RETURNS_R1.md` and issue
+#61. The prior Returns pages remain demo/non-authoritative until the full
+customer request and refund/disposition workflow is cut over.

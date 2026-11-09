@@ -1,0 +1,289 @@
+"use client";
+
+import Link from "next/link";
+import { Suspense, useCallback, useEffect, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { AlertTriangle, ClipboardCheck, PackageOpen, ShieldCheck, RefreshCw } from "lucide-react";
+import { apiOps, ApiError } from "@/services/client";
+import type { PublicOrder, PhysicalReturnInspect, PhysicalReturnList,
+  PhysicalReturnReceive, PhysicalReturnView } from "@/services/contracts";
+import { physicalReturnReceiveSchema, physicalReturnInspectSchema } from "@/services/contracts";
+import { useStaff } from "@/features/staff/role-context";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
+
+const friendly=(e:unknown)=>e instanceof ApiError?e.message:"The request could not be verified. No receipt has been assumed.";
+type DraftLine={selected:boolean;quantity:string;condition:"sealed"|"opened"|"damaged"|"unknown"};
+type InspectionLine={disposition:"quarantine"|"destroy";note:string};
+const defaultLine=():DraftLine=>({selected:false,quantity:"1",condition:"unknown"});
+const defaultInspection=():InspectionLine=>({disposition:"quarantine",note:""});
+function useReplayIntent(){
+  const ref=useRef<{hash:string;key:string}|null>(null);
+  return {
+    key(payload:unknown){
+      const hash=JSON.stringify(payload);
+      if(ref.current?.hash!==hash)ref.current={hash,key:crypto.randomUUID()};
+      return ref.current.key;
+    },
+    clear(){ref.current=null;},
+  };
+}
+export default function PhysicalReturnsPage(){
+  return <Suspense fallback={<p role="status" className="rounded-lg border p-4 text-sm">Loading physical returns…</p>}>
+    <PhysicalReturnsWorkspace />
+  </Suspense>;
+}
+function PhysicalReturnsWorkspace(){
+  const params=useSearchParams();
+  const {can}=useStaff();
+  const isAdmin=can("returns.decide");
+  const [orderId,setOrderId]=useState(params.get("orderId")??"");
+  const [order,setOrder]=useState<PublicOrder|null>(null);
+  const [orderError,setOrderError]=useState<string|null>(null);
+  const [orderLoading,setOrderLoading]=useState(false);
+  const [lines,setLines]=useState<Record<string,DraftLine>>({});
+  const [reason,setReason]=useState("");
+  const [evidence,setEvidence]=useState("");
+  const [physicallyPresent,setPhysicallyPresent]=useState(false);
+  const [list,setList]=useState<PhysicalReturnList|null>(null);
+  const [busy,setBusy]=useState(false);
+  const [listLoading,setListLoading]=useState(true);
+  const [error,setError]=useState<string|null>(null);
+  const [notice,setNotice]=useState<string|null>(null);
+  const [target,setTarget]=useState<PhysicalReturnView|null>(null);
+  const [inspection,setInspection]=useState<Record<string,InspectionLine>>({});
+  const [summary,setSummary]=useState("");
+  const receiveReplay=useReplayIntent();
+  const inspectReplay=useReplayIntent();
+  const enabled=list?.enabled===true;
+  const canMutate=isAdmin&&enabled;
+
+  const refresh=useCallback(async()=>{
+    try {
+      const response=await apiOps.physicalReturns({perPage:50});
+      setList(response);setError(null);
+    }catch(e){setError(friendly(e));}
+    finally{setListLoading(false);}
+  },[]);
+  useEffect(()=>{void refresh();},[refresh]);
+
+  const lookupOrder=useCallback(async(id:string)=>{
+    if(!id.trim())return;
+    setOrderLoading(true);setOrderError(null);setOrder(null);setLines({});
+    try{
+      const result=await apiOps.order(id.trim());
+      setOrder(result.order);
+      setLines(Object.fromEntries(result.order.lines.map(line=>[line.id,defaultLine()])));
+    }catch(e){setOrderError(friendly(e));}
+    finally{setOrderLoading(false);}
+  },[]);
+  useEffect(()=>{
+    const id=params.get("orderId");
+    if(id)void lookupOrder(id);
+  },[params,lookupOrder]);
+
+  async function receive(){
+    if(!order||busy||!canMutate||!physicallyPresent)return;
+    const payload:PhysicalReturnReceive={
+      orderId:order.id,reason:reason.trim(),evidenceNote:evidence.trim(),
+      lines:order.lines.filter(l=>lines[l.id]?.selected).map(l=>({
+        orderLineId:l.id,quantity:lines[l.id].quantity.trim(),condition:lines[l.id].condition,
+      })),
+    };
+    const parsed=physicalReturnReceiveSchema.safeParse(payload);
+    if(!parsed.success){
+      setError(parsed.error.issues.map(i=>i.message).join("; "));return;
+    }
+    setBusy(true);setError(null);setNotice(null);
+    try{
+      const receipt=await apiOps.physicalReturnReceive(parsed.data,receiveReplay.key(parsed.data));
+      receiveReplay.clear();setReason("");setEvidence("");setPhysicallyPresent(false);
+      setOrder(null);setLines({});
+      setNotice(`Physical receipt ${receipt.reference} recorded. All goods remain off-sale pending inspection; no refund or stock addition was made.`);
+      await refresh();
+    }catch(e){setError(friendly(e));}
+    finally{setBusy(false);}
+  }
+  function startInspection(r:PhysicalReturnView){
+    setTarget(r);setSummary("");
+    setInspection(Object.fromEntries(r.lines.map(l=>[l.id,defaultInspection()])));
+    setError(null);setNotice(null);
+  }
+  async function inspect(){
+    if(!target||busy||!canMutate)return;
+    const payload:PhysicalReturnInspect={
+      summary:summary.trim(),lines:target.lines.map(l=>({
+        itemId:l.id,disposition:inspection[l.id]?.disposition??"quarantine",
+        note:inspection[l.id]?.note.trim()??"",
+      })),
+    };
+    const parsed=physicalReturnInspectSchema.safeParse(payload);
+    if(!parsed.success){
+      setError(parsed.error.issues.map(i=>i.message).join("; "));return;
+    }
+    setBusy(true);setError(null);setNotice(null);
+    try{
+      const receipt=await apiOps.physicalReturnInspect(target.id,parsed.data,
+        inspectReplay.key({returnId:target.id,...parsed.data}));
+      inspectReplay.clear();setTarget(null);
+      setNotice(`Inspection for ${receipt.reference} saved. Quarantined and destroyed goods are not saleable stock. No refund was issued.`);
+      await refresh();
+    }catch(e){setError(friendly(e));}
+    finally{setBusy(false);}
+  }
+  return <div className="min-w-0 space-y-5 pb-12">
+    <header className="flex flex-wrap items-center justify-between gap-3">
+      <div>
+        <nav className="text-sm text-muted-foreground" aria-label="Breadcrumb">
+          <Link href="/admin/returns" className="underline-offset-2 hover:underline">Returns</Link> / Physical receipts
+        </nav>
+        <h1 className="mt-2 flex items-center gap-2 font-serif text-2xl font-bold">
+          <PackageOpen className="size-6" aria-hidden/> Physical returns
+        </h1>
+        <p className="mt-1 max-w-3xl text-sm text-muted-foreground">
+          Verify returned goods against the original stock-depleted order and record a final condition inspection.
+          This workflow never creates refunds, increases saleable stock, or settles cash on delivery.
+        </p>
+      </div>
+      <Button variant="outline" onClick={()=>void refresh()} disabled={busy||listLoading}>
+        <RefreshCw className="size-4" aria-hidden/> Refresh
+      </Button>
+    </header>
+    {listLoading?<p role="status" className="rounded-lg border p-4 text-sm">Checking physical returns authority…</p>:null}
+    {!enabled?<div className="rounded-xl border border-amber-500/40 p-4 text-sm" role="status">
+      <p className="flex items-center gap-2 font-semibold"><AlertTriangle className="size-4" aria-hidden/>
+        Physical returns intake is not activated</p>
+      <p className="mt-2 text-muted-foreground">
+        The server controls activation. No goods may be marked received, inspected, restocked or refunded from this workspace
+        until the rollout has been approved. Historical receipts remain readable by administrators.
+      </p>
+    </div>:null}
+    {error?<p className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive" role="alert">{error}</p>:null}
+    {notice?<p className="rounded-lg border bg-muted/40 p-3 text-sm" role="status">{notice}</p>:null}
+
+    <section className="min-w-0 rounded-xl border bg-card p-4 sm:p-5" aria-labelledby="return-intake-heading">
+      <h2 id="return-intake-heading" className="font-semibold">Record physically received goods</h2>
+      <p className="mt-1 text-xs text-muted-foreground">
+        An administrator must have the actual goods. The order must already be delivered or collected,
+        with documented stock handover; the original inventory location is derived by the server.
+      </p>
+      <div className="mt-4 flex flex-wrap items-end gap-2">
+        <div className="min-w-[14rem] flex-1"><Label htmlFor="physical-source-order">Original order ID</Label>
+          <Input id="physical-source-order" className="mt-1" value={orderId}
+            disabled={busy||!canMutate} onChange={e=>setOrderId(e.target.value)}
+            placeholder="Paste order ID from the order detail"/></div>
+        <Button variant="outline" disabled={!canMutate||orderLoading||!orderId.trim()}
+          onClick={()=>void lookupOrder(orderId)}>{orderLoading?"Checking…":"Load order"}</Button>
+      </div>
+      {orderError?<p role="alert" className="mt-3 text-sm text-destructive">{orderError}</p>:null}
+      {order?<div className="mt-4 space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border p-3 text-sm">
+          <div><p className="font-semibold">{order.reference}</p>
+            <p className="text-muted-foreground">Fulfilment: {order.fulfilmentStatus} · Stock handover: {order.stockConsumedAt?"recorded":"not recorded"}</p></div>
+          <Link href={`/admin/orders/${order.id}`} className="text-primary underline">View order</Link>
+        </div>
+        <fieldset className="space-y-2">
+          <legend className="font-medium">Items physically handed back</legend>
+          {order.lines.map(l=><div key={l.id} className="grid gap-2 rounded-lg border p-3 sm:grid-cols-[auto_minmax(0,1.5fr)_minmax(0,.7fr)_minmax(0,1fr)] sm:items-center">
+            <Checkbox checked={lines[l.id]?.selected??false} disabled={!canMutate||busy}
+              aria-label={`Include ${l.productName}`}
+              onCheckedChange={v=>setLines(p=>({...p,[l.id]:{...(p[l.id]??defaultLine()),selected:v===true}}))}/>
+            <div className="text-sm"><p className="font-medium">{l.productName} · {l.variantName}</p>
+              <p className="text-xs text-muted-foreground">Originally {l.quantity} {l.unit}</p></div>
+            <div><Label htmlFor={`physical-qty-${l.id}`}>Returned quantity</Label>
+              <Input id={`physical-qty-${l.id}`} type="text" inputMode="decimal"
+                disabled={!canMutate||busy||!lines[l.id]?.selected}
+                value={lines[l.id]?.quantity??"1"} onChange={e=>setLines(p=>({...p,[l.id]:{...(p[l.id]??defaultLine()),quantity:e.target.value}}))}/></div>
+            <div><Label htmlFor={`physical-condition-${l.id}`}>As received</Label>
+              <select id={`physical-condition-${l.id}`} className="h-10 w-full rounded-md border bg-background px-2 text-sm"
+                disabled={!canMutate||busy||!lines[l.id]?.selected}
+                value={lines[l.id]?.condition??"unknown"}
+                onChange={e=>setLines(p=>({...p,[l.id]:{...(p[l.id]??defaultLine()),condition:e.target.value as DraftLine["condition"]}}))}>
+                <option value="unknown">Not verified</option><option value="sealed">Sealed</option>
+                <option value="opened">Opened</option><option value="damaged">Damaged</option>
+              </select></div>
+          </div>)}
+        </fieldset>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div><Label htmlFor="physical-reason">Return reason</Label>
+            <Textarea id="physical-reason" className="mt-1" rows={3} value={reason} maxLength={400}
+              disabled={!canMutate||busy} onChange={e=>setReason(e.target.value)}
+              placeholder="Reason given and verified by receiving staff"/></div>
+          <div><Label htmlFor="physical-evidence">Physical receipt evidence (required)</Label>
+            <Textarea id="physical-evidence" className="mt-1" rows={3} value={evidence} maxLength={1000}
+              disabled={!canMutate||busy} onChange={e=>setEvidence(e.target.value)}
+              placeholder="Condition, packaging, counting and handover details"/></div>
+        </div>
+        <label className="flex items-start gap-3 rounded-md border p-3 text-sm">
+          <Checkbox checked={physicallyPresent} disabled={!canMutate||busy} onCheckedChange={v=>setPhysicallyPresent(v===true)}/>
+          <span>I confirm the goods are physically present and the quantities have been checked. This does not approve resale or refund.</span>
+        </label>
+        <Button disabled={!canMutate||busy||!physicallyPresent||!order.lines.some(l=>lines[l.id]?.selected)}
+          onClick={()=>void receive()}>{busy?"Recording…":"Record received goods"}</Button>
+      </div>:null}
+    </section>
+
+    <section className="min-w-0 space-y-3" aria-labelledby="physical-receipt-list">
+      <h2 id="physical-receipt-list" className="font-semibold">Recorded physical receipts</h2>
+      {!list?.items.length?<p className="rounded-lg border p-4 text-sm text-muted-foreground">
+        No verified physical receipts have been recorded in this environment.
+      </p>:list.items.map(r=><article key={r.id} className="min-w-0 space-y-2 rounded-xl border bg-card p-4">
+        <div className="flex flex-wrap items-start justify-between gap-2">
+          <div><p className="font-semibold">{r.reference}</p>
+            <p className="text-sm text-muted-foreground">Order {r.orderReference} · {r.locationId} · {r.status}</p>
+            <p className="text-xs text-muted-foreground">Received {new Date(r.receivedAt).toLocaleString("en-GH")}</p></div>
+          {r.status==="received"&&canMutate?
+            <Button size="sm" onClick={()=>startInspection(r)} disabled={busy}>
+              <ClipboardCheck className="size-4" aria-hidden/> Inspect items
+            </Button>:
+            <span className="inline-flex items-center gap-1 rounded-md border px-2 py-1 text-xs">
+              <ShieldCheck className="size-3" aria-hidden/>{r.status==="inspected"?"Inspected":"Awaiting inspection"}
+            </span>}
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[34rem] text-left text-sm">
+            <thead><tr className="border-b text-xs text-muted-foreground"><th className="py-1">Item</th>
+              <th className="py-1">Quantity</th><th className="py-1">Condition</th><th className="py-1">Disposition</th></tr></thead>
+            <tbody>{r.lines.map(l=><tr key={l.id} className="border-b last:border-0">
+              <td className="py-2">{l.productName} · {l.variantName}</td>
+              <td className="py-2">{l.quantity} {l.unit}</td>
+              <td className="py-2">{l.condition}</td><td className="py-2">{l.disposition.replaceAll("_"," ")}</td>
+            </tr>)}</tbody>
+          </table>
+        </div>
+        {r.inspectionSummary?<p className="text-xs text-muted-foreground">Inspection: {r.inspectionSummary}</p>:null}
+      </article>)}
+    </section>
+    {target?<section className="space-y-3 rounded-xl border bg-card p-4 sm:p-5" aria-label="Final return inspection">
+      <div><h2 className="font-semibold">Final inspection · {target.reference}</h2>
+        <p className="text-xs text-muted-foreground">
+          Inspect every physically received line. Only quarantine and controlled destruction are available in this first authority.
+          Saleable restocking and refunds require separate future approval.
+        </p></div>
+      {target.lines.map(l=><div key={l.id} className="grid gap-2 rounded-md border p-3 sm:grid-cols-[1fr_1fr_2fr] sm:items-end">
+        <p className="text-sm font-medium">{l.productName}<span className="block text-xs font-normal text-muted-foreground">{l.quantity} {l.unit}</span></p>
+        <div><Label htmlFor={`disposition-${l.id}`}>Disposition</Label>
+          <select id={`disposition-${l.id}`} className="mt-1 h-10 w-full rounded-md border bg-background px-2 text-sm"
+            value={inspection[l.id]?.disposition??"quarantine"} disabled={busy}
+            onChange={e=>setInspection(p=>({...p,[l.id]:{...(p[l.id]??defaultInspection()),disposition:e.target.value as InspectionLine["disposition"]}}))}>
+            <option value="quarantine">Keep quarantined</option><option value="destroy">Controlled destruction</option>
+          </select></div>
+        <div><Label htmlFor={`disposition-note-${l.id}`}>Inspection evidence</Label>
+          <Textarea id={`disposition-note-${l.id}`} className="mt-1" rows={2} maxLength={1000}
+            value={inspection[l.id]?.note??""} disabled={busy}
+            onChange={e=>setInspection(p=>({...p,[l.id]:{...(p[l.id]??defaultInspection()),note:e.target.value}}))}/></div>
+      </div>)}
+      <div><Label htmlFor="physical-inspection-summary">Inspection summary</Label>
+        <Textarea id="physical-inspection-summary" className="mt-1" rows={2} maxLength={1000}
+          value={summary} disabled={busy} onChange={e=>setSummary(e.target.value)}/></div>
+      <div className="flex flex-wrap gap-2">
+        <Button disabled={!canMutate||busy} onClick={()=>void inspect()}>
+          {busy?"Recording…":"Confirm final inspection"}</Button>
+        <Button variant="outline" disabled={busy} onClick={()=>setTarget(null)}>Cancel</Button>
+      </div>
+    </section>:null}
+  </div>;
+}

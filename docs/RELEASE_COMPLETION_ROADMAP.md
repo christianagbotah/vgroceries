@@ -48,6 +48,10 @@ provider integrations or operations are already production-ready.
 - [ ] Gradual on-site enablement, UAT signoff, rollback and evidence capture.
 
 ### 2. Physical Returns Authority [P0: cash and stock integrity]
+- [x] R1 physical receipt against actual depleted order lines, immutable
+  inspection notes, server-derived original location, full returned-quantity
+  cap and quarantine/destroy results. Release remains default-off.
+
 - [ ] Durable physical-return authorization with order-line quantity balance,
   traceable receipt and lot/condition evidence.
 - [ ] Inspection/disposition: quarantined/damaged/unsellable/restockable, with

@@ -48,6 +48,8 @@ import type {
   PickupAppointmentOptions, PickupAppointmentMutationResponse,
   PickupAppointmentPolicyInput, PickupAppointmentPolicyView,
   PickupCentreClosureInput, PickupCentreClosureView,
+  PhysicalReturnReceive, PhysicalReturnInspect,
+  PhysicalReturnView, PhysicalReturnList,
   CompleteOrderResponse,
   DashboardView,
   DoneResponse,
@@ -209,6 +211,20 @@ export const apiOps = {
     api<PickupAppointmentMutationResponse>("pickup.appointment.book", { query: { orderId }, body: { startsAt }, idempotencyKey }),
   pickupAppointmentCancel: (orderId: string, idempotencyKey: string) =>
     api<PickupAppointmentMutationResponse>("pickup.appointment.cancel", { query: { orderId }, body: {}, idempotencyKey }),
+
+  /* production Physical Returns R1 — confirmed receipt and terminal inspection */
+  physicalReturns: (query: {orderId?:string;page?:number;perPage?:number} = {}) =>
+    api<PhysicalReturnList>("admin.physical-returns", {query}),
+  physicalReturnReceive: (body:PhysicalReturnReceive,idempotencyKey:string) =>
+    api<PhysicalReturnView>("admin.physical-return.receive",{
+      body:body as unknown as Record<string,unknown>,idempotencyKey,
+    }),
+  physicalReturnDetail: (returnId:string) =>
+    api<PhysicalReturnView>("admin.physical-return.detail",{query:{returnId}}),
+  physicalReturnInspect: (returnId:string,body:PhysicalReturnInspect,idempotencyKey:string) =>
+    api<PhysicalReturnView>("admin.physical-return.inspect",{
+      query:{returnId},body:body as unknown as Record<string,unknown>,idempotencyKey,
+    }),
 
   /* account */
   accountLogin: async (identifier: string, password: string) => {

@@ -74,6 +74,8 @@ import {
   pickupAppointmentOptionsSchema, bookPickupAppointmentRequestSchema,
   cancelPickupAppointmentRequestSchema, pickupAppointmentMutationResponseSchema,
   pickupCentreClosureInputSchema,pickupCentreClosureViewSchema,pickupCentreClosureListSchema,
+  physicalReturnReceiveSchema,physicalReturnInspectSchema,
+  physicalReturnViewSchema,physicalReturnListSchema,
   shipmentStatusSchema,
   shipmentListItemSchema,
   shipmentDetailViewSchema,
@@ -323,6 +325,10 @@ export function productionOpenApi(app: INestApplication): OpenAPIObject {
     PickupCentreClosureInput: json(pickupCentreClosureInputSchema),
     PickupCentreClosureView: json(pickupCentreClosureViewSchema),
     PickupCentreClosureList: json(pickupCentreClosureListSchema),
+    PhysicalReturnReceive: json(physicalReturnReceiveSchema),
+    PhysicalReturnInspect: json(physicalReturnInspectSchema),
+    PhysicalReturnView: json(physicalReturnViewSchema),
+    PhysicalReturnList: json(physicalReturnListSchema),
     ShipmentListResponse: json(z.object({ items: z.array(shipmentListItemSchema), page: z.number().int().positive(), perPage: z.number().int().positive().max(100), total: z.number().int().nonnegative() }).strict()),
     ShipmentDetailView: json(shipmentDetailViewSchema),
     ShipmentActionResponse: json(shipmentActionResponseSchema),
@@ -391,6 +397,7 @@ export function productionOpenApi(app: INestApplication): OpenAPIObject {
     "PickupCollectResponse",
     "PickupAppointmentPolicyView", "PickupAppointmentOptions", "PickupAppointmentMutationResponse",
     "PickupCentreClosureView","PickupCentreClosureList",
+    "PhysicalReturnView","PhysicalReturnList",
     "CmsHomepage", "CmsHomepageAdminView", "CmsContentPage", "CmsContentPageAdminView", "CmsOverviewView",
   ])
     schemas[name + "Envelope"] = {
@@ -667,6 +674,31 @@ export function productionOpenApi(app: INestApplication): OpenAPIObject {
   doc.paths["/api/v1/admin/logistics/nodes/{nodeId}/pickup-closures"] = {
     get: readOperation("Administrator-only local-calendar pickup centre closures. Closed days never alter booked appointments or delivery transport windows.", "PickupCentreClosureListEnvelope", [logisticsNodeId]),
     post: logisticsMutation("Administrator-only, replay-safe centre closure and reopening. Closing a date fails if customer appointments are already booked. No silent cancellation, inventory or payment changes.", "PickupCentreClosureInput", "PickupCentreClosureViewEnvelope", [logisticsNodeId]),
+  };
+  // Physical Returns R1: physical possession and inspection evidence only.
+  // Nothing here creates a refund, restores stock, or marks COD as collected.
+  const physicalReturnId:ParameterObject={
+    name:"returnId",in:"path",required:true,
+    schema:{type:"string",minLength:1},
+  };
+  const physicalReturnMutation=(description:string,input:string,output:string,parameters:ParameterObject[]=[]):OperationObject=>({
+    security,description,parameters:[...parameters,replay,csrf],
+    requestBody:{required:true,content:{"application/json":{schema:ref(input)}}},
+    responses:authorityResponses(output),
+  });
+  doc.paths["/api/v1/admin/physical-returns"]={
+    get:readOperation("Administrator-only physical return receipts with bounded pagination and optional source order filter; never a customer-facing refund promise.","PhysicalReturnListEnvelope",[
+      {name:"orderId",in:"query",schema:{type:"string"}},
+      {name:"page",in:"query",schema:{type:"integer",minimum:1,default:1}},
+      {name:"perPage",in:"query",schema:{type:"integer",minimum:1,maximum:50,default:20}},
+    ]),
+    post:physicalReturnMutation("Administrator-only, exactly-once staff physical intake. Requires completed stock-depleted order and prevents over-return across receipts. No sellable inventory or money mutation.","PhysicalReturnReceive","PhysicalReturnViewEnvelope"),
+  };
+  doc.paths["/api/v1/admin/physical-returns/{returnId}"]={
+    get:readOperation("Administrator-only immutable return receipt, original quantities and inspection outcomes. No stock claim implied.","PhysicalReturnViewEnvelope",[physicalReturnId]),
+  };
+  doc.paths["/api/v1/admin/physical-returns/{returnId}/inspect"]={
+    post:physicalReturnMutation("Administrator-only terminal inspection into quarantine or destroy. Receipt evidence is immutable; no automatic stock restoration or refund.","PhysicalReturnInspect","PhysicalReturnViewEnvelope",[physicalReturnId]),
   };
   doc.paths["/api/v1/admin/logistics/lanes"] = {
     get: readOperation("Administrator-only Logistics L1 network-lane configuration read. A configured lane does not prove provider connectivity or a shipment transfer.", "LogisticsLaneListEnvelope"),

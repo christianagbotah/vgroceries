@@ -67,6 +67,7 @@ model Location {
   active Boolean @default(true)
   grants UserLocation[]
   positions StockPosition[]
+  physicalReturnReceipts PhysicalReturnReceipt[]
   logisticsNode LogisticsNode?
 }
 
@@ -438,11 +439,52 @@ model Order {
   deliveryEvents DeliveryEvent[]
   shipments Shipment[]
   collectionReceipts ShipmentCollectionReceipt[]
+  physicalReturnReceipts PhysicalReturnReceipt[]
   notifications Notification[]
   @@index([customerUserId, createdAt])
   @@index([guestSessionId, createdAt])
   @@index([zoneId, createdAt])
   @@index([slotId, createdAt])
+}
+
+/// Staff-verified physical possession of returned customer goods; never a
+/// stock increment or a payment/refund obligation. One receipt may cover
+/// several order lines. Disposition is a separate, guarded inspection step.
+model PhysicalReturnReceipt {
+  id String @id @default(uuid())
+  reference String @unique
+  orderId String
+  order Order @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  locationId String
+  location Location @relation(fields: [locationId], references: [id], onDelete: Restrict)
+  status String @default("received") // received | inspected
+  reason String
+  evidenceNote String
+  receivedBy String
+  receivedAt DateTime @default(now()) @db.Timestamptz(3)
+  inspectedBy String?
+  inspectedAt DateTime? @db.Timestamptz(3)
+  inspectionSummary String?
+  items PhysicalReturnItem[]
+  @@index([orderId, receivedAt])
+  @@index([locationId, receivedAt])
+}
+
+model PhysicalReturnItem {
+  id String @id @default(uuid())
+  receiptId String
+  receipt PhysicalReturnReceipt @relation(fields: [receiptId], references: [id], onDelete: Restrict)
+  orderLineId String
+  orderLine OrderLine @relation(fields: [orderLineId], references: [id], onDelete: Restrict)
+  variantId String
+  quantity Decimal @db.Decimal(15, 3)
+  condition String // sealed | opened | damaged | unknown
+  disposition String @default("awaiting_inspection") // quarantine | destroy
+  inspectionNote String?
+  inspectedBy String?
+  inspectedAt DateTime? @db.Timestamptz(3)
+  @@unique([receiptId, orderLineId])
+  @@index([orderLineId, disposition])
 }
 
 model PickupAppointmentPolicy {
@@ -534,6 +576,7 @@ model OrderLine {
   unitPriceMinor Int
   lineTotalMinor Int
   createdAt DateTime @default(now()) @db.Timestamptz(3)
+  physicalReturnItems PhysicalReturnItem[]
   @@index([orderId, id])
   @@index([variantId])
 }

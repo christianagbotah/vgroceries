@@ -67,7 +67,10 @@ function ReturnsBoard() {
   };
 
   if (loading) return <LoadingState rows={5} label="Loading returns" />;
-  if (error) return <ErrorState message={error} onRetry={reload} />;
+  if (error) return <div className="space-y-3">
+    <Link href="/admin/physical-returns" className="inline-flex min-h-10 items-center rounded-md border px-3 py-2 text-sm font-medium text-primary hover:bg-muted">Open verified physical intake</Link>
+    <ErrorState message={error} onRetry={reload} />
+  </div>;
 
   const rows = data ?? [];
 
@@ -75,6 +78,9 @@ function ReturnsBoard() {
     <div className="space-y-4">
       <div>
         <h1 className="font-serif text-2xl font-bold">Returns</h1>
+        <Link href="/admin/physical-returns" className="mt-2 inline-flex min-h-10 items-center rounded-md border px-3 py-2 text-sm font-medium text-primary hover:bg-muted">
+          Physical receipts and inspections
+        </Link>
         <p className="text-sm text-muted-foreground">
           Requests, inspection and dispositions for online and counter orders. Returned goods only
           re-enter saleable stock through an approved disposition.

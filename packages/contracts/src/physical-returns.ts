@@ -1,0 +1,57 @@
+import { z } from "zod";
+
+const id = z.string().trim().min(1).max(128);
+const quantity = z.string().regex(/^(?:0|[1-9]\d*)(?:\.\d{1,3})?$/)
+  .refine(value => Number(value)>0 && Number.isFinite(Number(value)), "Quantity must be positive");
+const note = z.string().trim().min(10).max(1000);
+export const physicalReturnConditionSchema=z.enum(["sealed","opened","damaged","unknown"]);
+export const physicalReturnDispositionSchema=z.enum(["awaiting_inspection","quarantine","destroy"]);
+export const physicalReturnReceiveSchema=z.object({
+  orderId:id,
+  reason:z.string().trim().min(5).max(400),
+  evidenceNote:note,
+  lines:z.array(z.object({
+    orderLineId:id,quantity,condition:physicalReturnConditionSchema,
+  }).strict()).min(1).max(30).refine(lines=>new Set(lines.map(l=>l.orderLineId)).size===lines.length,
+    "Each source order line may appear only once in a receipt"),
+}).strict();
+export type PhysicalReturnReceive=z.infer<typeof physicalReturnReceiveSchema>;
+export const physicalReturnInspectSchema=z.object({
+  summary:note,
+  lines:z.array(z.object({
+    itemId:id,
+    disposition:z.enum(["quarantine","destroy"]),
+    note,
+  }).strict()).min(1).max(30).refine(lines=>new Set(lines.map(l=>l.itemId)).size===lines.length,
+    "Each received item may be inspected only once"),
+}).strict();
+export type PhysicalReturnInspect=z.infer<typeof physicalReturnInspectSchema>;
+export const physicalReturnLineViewSchema=z.object({
+  id:id,orderLineId:id,variantId:id,productName:z.string(),
+  variantName:z.string(),unit:z.string(),quantity,
+  condition:physicalReturnConditionSchema,
+  disposition:physicalReturnDispositionSchema,
+  inspectionNote:z.string().nullable(),
+  inspectedAt:z.string().datetime({offset:true}).nullable(),
+}).strict();
+export const physicalReturnViewSchema=z.object({
+  id:id,reference:z.string(),orderId:id,orderReference:z.string(),
+  locationId:id,status:z.enum(["received","inspected"]),
+  reason:z.string(),evidenceNote:z.string(),
+  receivedAt:z.string().datetime({offset:true}),
+  inspectedAt:z.string().datetime({offset:true}).nullable(),
+  inspectionSummary:z.string().nullable(),
+  lines:z.array(physicalReturnLineViewSchema),
+}).strict();
+export type PhysicalReturnView=z.infer<typeof physicalReturnViewSchema>;
+export const physicalReturnListSchema=z.object({
+  enabled:z.boolean(),
+  items:z.array(physicalReturnViewSchema),page:z.number().int().min(1),
+  perPage:z.number().int().min(1).max(50),total:z.number().int().nonnegative(),
+}).strict();
+export type PhysicalReturnList=z.infer<typeof physicalReturnListSchema>;
+export const physicalReturnQuerySchema=z.object({
+  orderId:id.optional(),
+  page:z.coerce.number().int().min(1).max(10000).default(1),
+  perPage:z.coerce.number().int().min(1).max(50).default(20),
+}).strict();
