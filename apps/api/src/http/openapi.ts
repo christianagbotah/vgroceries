@@ -386,6 +386,7 @@ export function foundationOpenApi(app: INestApplication) {
       const documentedPosTill = [
         "/admin/pos/tills",
         "/admin/pos/tills/{sessionId}",
+        "/admin/pos/tills/{sessionId}/reconciliation",
         "/admin/pos/tills/{sessionId}/movements",
         "/admin/pos/tills/{sessionId}/close",
         "/admin/pos/quote",
