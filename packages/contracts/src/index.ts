@@ -38,3 +38,5 @@ export * from "./foundation";
 export * from "./endpoints";
 export * from "./pickup-appointments";
 export * from "./physical-returns";
+
+export * from "./customer-return-claims";

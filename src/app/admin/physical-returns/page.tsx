@@ -220,6 +220,9 @@ function PhysicalReturnsWorkspace(){
     }
   }
   return <div className="min-w-0 space-y-5 pb-12">
+    <Link href="/admin/return-claims" className="inline-flex min-h-10 items-center rounded-md border px-3 py-2 text-sm font-medium text-primary hover:bg-muted">
+      Verified customer return requests
+    </Link>
     <header className="flex flex-wrap items-center justify-between gap-3">
       <div>
         <nav className="text-sm text-muted-foreground" aria-label="Breadcrumb">

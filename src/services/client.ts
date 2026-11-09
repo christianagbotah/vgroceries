@@ -48,6 +48,8 @@ import type {
   PickupAppointmentOptions, PickupAppointmentMutationResponse,
   PickupAppointmentPolicyInput, PickupAppointmentPolicyView,
   PickupCentreClosureInput, PickupCentreClosureView,
+  CustomerReturnClaimRequest,CustomerReturnClaimDecision,CustomerReturnClaimView,
+  CustomerReturnClaimsList,CustomerReturnClaimEligibility,
   PhysicalReturnReceive, PhysicalReturnInspect,
   PhysicalReturnView, PhysicalReturnList,
   PhysicalReturnQuarantineRequest,PhysicalReturnCustodyView,
@@ -213,6 +215,28 @@ export const apiOps = {
     api<PickupAppointmentMutationResponse>("pickup.appointment.book", { query: { orderId }, body: { startsAt }, idempotencyKey }),
   pickupAppointmentCancel: (orderId: string, idempotencyKey: string) =>
     api<PickupAppointmentMutationResponse>("pickup.appointment.cancel", { query: { orderId }, body: {}, idempotencyKey }),
+
+  /* R3a authoritative customer requests; no inventory/financial claim */
+  customerReturnClaims: (query:{page?:number;perPage?:number}={}) =>
+    api<CustomerReturnClaimsList>("account.return-claims",{query}),
+  customerReturnClaim: (claimId:string) =>
+    api<CustomerReturnClaimView>("account.return-claim",{query:{claimId}}),
+  customerReturnClaimEligibility: (orderId:string) =>
+    api<CustomerReturnClaimEligibility>("account.return-claim.eligibility",{query:{orderId}}),
+  customerReturnClaimCreate: (body:CustomerReturnClaimRequest,idempotencyKey:string) =>
+    api<CustomerReturnClaimView>("account.return-claim.create",{
+      body:body as unknown as Record<string,unknown>,idempotencyKey,
+    }),
+  customerReturnClaimCancel: (claimId:string,idempotencyKey:string) =>
+    api<CustomerReturnClaimView>("account.return-claim.cancel",{
+      query:{claimId},body:{},idempotencyKey,
+    }),
+  adminReturnClaims: (query:{page?:number;perPage?:number}={}) =>
+    api<CustomerReturnClaimsList>("admin.return-claims",{query}),
+  adminReturnClaimDecision: (claimId:string,body:CustomerReturnClaimDecision,idempotencyKey:string) =>
+    api<CustomerReturnClaimView>("admin.return-claim.decision",{
+      query:{claimId},body:body as unknown as Record<string,unknown>,idempotencyKey,
+    }),
 
   /* production Physical Returns R1 — confirmed receipt and terminal inspection */
   physicalReturns: (query: {orderId?:string;page?:number;perPage?:number} = {}) =>

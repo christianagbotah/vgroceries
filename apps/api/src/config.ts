@@ -95,6 +95,7 @@ export interface ApiConfig {
   shipmentExecutionEnabled: boolean;
   customerPickupEnabled: boolean;
   physicalReturnsEnabled: boolean;
+  customerReturnClaimsEnabled: boolean;
   physicalReturnCustodyEnabled: boolean;
   physicalReturnResaleEnabled: boolean;
   physicalReturnResaleAllowedVariants: string[];
@@ -143,6 +144,10 @@ export function readConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
   if (rawCustomerPickupEnabled !== undefined && !["true", "false"].includes(rawCustomerPickupEnabled))
     throw new Error("LOGISTICS_CUSTOMER_PICKUP_ENABLED must be true or false");
   const customerPickupEnabled = rawCustomerPickupEnabled === "true";
+  const rawReturnClaimsEnabled=env.CUSTOMER_RETURN_CLAIMS_ENABLED;
+  if(rawReturnClaimsEnabled!==undefined&&!["true","false"].includes(rawReturnClaimsEnabled))
+    throw new Error("CUSTOMER_RETURN_CLAIMS_ENABLED must be true or false");
+  const customerReturnClaimsEnabled=rawReturnClaimsEnabled==="true";
   const rawPhysicalReturnsEnabled=env.PHYSICAL_RETURNS_INTAKE_ENABLED;
   if(rawPhysicalReturnsEnabled!==undefined&&
     !["true","false"].includes(rawPhysicalReturnsEnabled))
@@ -629,6 +634,7 @@ export function readConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
     shipmentExecutionEnabled,
     customerPickupEnabled,
     physicalReturnsEnabled,
+    customerReturnClaimsEnabled,
     physicalReturnCustodyEnabled,
     physicalReturnResaleEnabled,
     physicalReturnResaleAllowedVariants,

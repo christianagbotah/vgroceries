@@ -78,6 +78,9 @@ function ReturnsBoard() {
     <div className="space-y-4">
       <div>
         <h1 className="font-serif text-2xl font-bold">Returns</h1>
+        <Link href="/admin/return-claims" className="mr-2 mt-2 inline-flex min-h-10 items-center rounded-md border px-3 py-2 text-sm font-medium text-primary hover:bg-muted">
+          Verified customer claims
+        </Link>
         <Link href="/admin/physical-returns" className="mt-2 inline-flex min-h-10 items-center rounded-md border px-3 py-2 text-sm font-medium text-primary hover:bg-muted">
           Physical receipts and inspections
         </Link>

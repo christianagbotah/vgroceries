@@ -16,6 +16,7 @@ import { DispatchModule } from "./dispatch/dispatch.module";
 import { LogisticsModule } from "./logistics/logistics.module";
 import { NotificationModule } from "./notifications/notification.module";
 import { PhysicalReturnsModule } from "./physical-returns/physical-returns.module";
+import {CustomerReturnClaimsModule} from "./customer-return-claims/customer-return-claims.module";
 import { IdentityModule } from "./identity/identity.module";
 import { DatabaseModule } from "./database/database";
 import { HealthModule } from "./health/health.controller";
@@ -85,6 +86,7 @@ export async function createApplication(
       LogisticsModule,
       NotificationModule,
       PhysicalReturnsModule,
+      CustomerReturnClaimsModule,
       // Keep Payments after the established modules so generated OpenAPI ordering
       // remains deterministic while the four Payments Authority routes are public.
       PaymentsModule,

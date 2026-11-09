@@ -42,7 +42,7 @@ describe("Pickup collection appointment contracts",()=>{
       enabled:true,ready:true,timezone:"Europe/London",slots:[],appointment:null,
     }).success).toBe(false);
   });
-  test("customer and admin routes map to the owned 126-path REST API",()=>{
+  test("customer and admin routes map to the owned 132-path REST API",()=>{
     expect(restEndpoints["pickup.appointments"].path).toBe("/orders/{orderId}/pickup-appointments");
     expect(restEndpoints["pickup.appointment.book"].method).toBe("POST");
     expect(restEndpoints["pickup.appointment.cancel"].path).toBe("/orders/{orderId}/pickup-appointments/cancel");

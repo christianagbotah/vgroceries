@@ -61,6 +61,13 @@ provider integrations or operations are already production-ready.
   This is not a grocery food-return or refund policy. See
   `docs/PHYSICAL_RETURNS_R2B.md`.
 
+- [x] R3a authenticated, order-owned **customer return requests**, with
+  server-computed remaining quantity, PostgreSQL aggregate claim/receipt cap,
+  customer cancellation and administrator terminal accept/reject.
+  This records no physical stock receipt or refund. The dedicated flag stays OFF.
+  See `docs/CUSTOMER_RETURN_CLAIMS_R3A.md`.
+- [ ] Bind accepted customer requests to physical R1/R2a receipt inspection
+  and reconcile return quantities without double-counting.
 - [ ] Durable physical-return authorization with order-line quantity balance,
   traceable receipt and lot/condition evidence.
 - [ ] Inspection/disposition: quarantined/damaged/unsellable/restockable, with
