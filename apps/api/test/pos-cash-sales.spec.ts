@@ -106,6 +106,7 @@ test("one counted cash sale atomically depletes reserved goods and updates till 
   assert.equal(sale.goodsHandedOver,true);
   assert.equal(sale.stockDepletionId.length>0,true);
   assert.equal(await db.posCashSale.count(),1);
+  assert.equal(await db.posCashReceiptLine.count({where:{saleId:sale.id}}),2);
   assert.equal(await db.stockDepletion.count({where:{
     claimType:"pos_draft",claimId:hold.id,kind:"pos_handover",
   }}),1);
@@ -141,6 +142,20 @@ test("one counted cash sale atomically depletes reserved goods and updates till 
   const receipt=await api("GET",`/admin/pos/cash-sales/${sale.id}`,admin);
   assert.equal(receipt.status,200);
   assert.equal(receipt.payload.data.reference,sale.reference);
+  const printResponse=await fetch(
+    base+`/api/v1/admin/pos/cash-sales/${sale.id}/print`,{
+      headers:{authorization:"Bearer "+admin},
+    });
+  assert.equal(printResponse.status,200);
+  assert.match(printResponse.headers.get("content-type")??"",/text\/html/);
+  assert.match(printResponse.headers.get("cache-control")??"",/no-store/);
+  const html=await printResponse.text();
+  assert.match(html,/VARIETY GROCERIES/);
+  assert.match(html,/Fixture Rice/);
+  assert.match(html,/₵5\.23/);
+  assert.match(html,/₵6\.00/);
+  assert.match(html,/₵0\.77/);
+  assert.match(html,/NOT A TAX INVOICE/);
   assert.equal((await api("GET","/admin/pos/cash-sales",admin)).status,200);
   const movement=await tills.move("admin-commerce",till.id,
     "cash-sale-drop-001","drop",{
@@ -237,6 +252,15 @@ test("SQL rejects false sales, altered receipt amounts and stock depletion witho
     where:{id:sale.id},data:{subtotalMinor:100},
   }));
   await assert.rejects(()=>db.posCashSale.delete({where:{id:sale.id}}));
+  const savedLine=await db.posCashReceiptLine.findFirstOrThrow({
+    where:{saleId:sale.id},
+  });
+  await assert.rejects(()=>db.posCashReceiptLine.update({
+    where:{id:savedLine.id},data:{productName:"Forged rename"},
+  }));
+  await assert.rejects(()=>db.posCashReceiptLine.delete({
+    where:{id:savedLine.id},
+  }));
   await assert.rejects(()=>db.posStockHold.update({
     where:{id:hold.id},data:{status:"released",releasedAt:new Date(),
       releaseNote:"Forged return to stock after completed cash sale"},
@@ -247,4 +271,39 @@ test("SQL rejects false sales, altered receipt amounts and stock depletion witho
       closingCountedMinor:1000,closingExpectedMinor:1000,
       closingDifferenceMinor:0,closeNote:"False cash count excluding real sale"},
   }));
+});
+
+test("reprints preserve sale-time item names and escape hostile catalog markup",async()=>{
+  const oldName='<img src=x onerror="alert(1)">';
+  const oldVariant='<script>alert("receipt")</script>';
+  await db.product.update({where:{id:"product-rice"},data:{name:oldName}});
+  await db.variant.update({where:{id:"var-rice"},data:{name:oldVariant}});
+  const {hold}=await held();
+  const sale=await sales.complete("admin-commerce","receipt-snapshot-001",
+    "print-request",request(hold.id));
+  await db.product.update({where:{id:"product-rice"},data:{
+    name:"Changed product name after sale",
+  }});
+  await db.variant.update({where:{id:"var-rice"},data:{
+    name:"Changed variant name after sale",
+  }});
+  const html=await sales.printReceipt(sale.id);
+  assert.ok(html.includes("&lt;img src=x onerror=&quot;alert(1)&quot;&gt;"));
+  assert.ok(html.includes("&lt;script&gt;alert(&quot;receipt&quot;)&lt;/script&gt;"));
+  assert.ok(!html.includes('<img src=x'));
+  assert.ok(!html.includes('<script>alert'));
+  assert.ok(!html.includes("Changed product name after sale"));
+  assert.ok(!html.includes("Changed variant name after sale"));
+  const customer=await token("customer-a@example.test");
+  const unauthorized=await fetch(
+    base+`/api/v1/admin/pos/cash-sales/${sale.id}/print`,{
+      headers:{authorization:"Bearer "+customer},
+    });
+  assert.equal(unauthorized.status,403);
+  const admin=await token("admin-commerce@example.test");
+  const missing=await fetch(
+    base+`/api/v1/admin/pos/cash-sales/${randomUUID()}/print`,{
+      headers:{authorization:"Bearer "+admin},
+    });
+  assert.equal(missing.status,404);
 });

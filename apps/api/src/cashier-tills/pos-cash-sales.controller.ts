@@ -1,4 +1,4 @@
-import {Body,Controller,Get,HttpCode,Param,Post,Req,UseGuards} from "@nestjs/common";
+import {Body,Controller,Get,Header,HttpCode,Param,Post,Req,UseGuards} from "@nestjs/common";
 import {ApiCookieAuth,ApiTags} from "@nestjs/swagger";
 import {posCashSaleCompleteSchema,replayKeySchema} from "@variety/contracts";
 import {AccessGuard} from "../identity/access.guard";
@@ -27,6 +27,17 @@ export class PosCashSalesController {
   @Get()
   async list(@Req() req:AuthRequest){
     this.admin(req);return {ok:true,data:await this.sales.list()};
+  }
+  // Read-only, authenticated browser print view. No JavaScript or third-party assets.
+  @Get(":saleId/print")
+  @Header("Content-Type","text/html; charset=utf-8")
+  @Header("Cache-Control","private, no-store")
+  @Header("X-Content-Type-Options","nosniff")
+  @Header("Content-Security-Policy",
+    "default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'")
+  async printReceipt(@Req() req:AuthRequest,@Param("saleId") id:string){
+    this.admin(req);
+    return this.sales.printReceipt(id);
   }
   @Get(":saleId")
   async detail(@Req() req:AuthRequest,@Param("saleId") id:string){

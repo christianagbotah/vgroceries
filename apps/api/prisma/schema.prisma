@@ -1428,6 +1428,24 @@ model PosCashSale {
   cashCountConfirmed Boolean
   goodsHandedOver Boolean
   createdAt DateTime @default(now()) @db.Timestamptz(3)
+  receiptLines PosCashReceiptLine[]
   @@index([tillSessionId, createdAt])
   @@index([locationId, createdAt])
+}
+
+
+/** Append-only product identity snapshot for reprinted physical cash receipts. */
+model PosCashReceiptLine {
+  id String @id @default(uuid())
+  saleId String
+  sale PosCashSale @relation(fields: [saleId], references: [id], onDelete: Restrict)
+  holdLineId String @unique
+  variantId String
+  productName String
+  variantName String
+  unit String
+  quantity Decimal @db.Decimal(15,3)
+  unitPriceMinor Int
+  lineTotalMinor Int
+  @@index([saleId, variantId])
 }
