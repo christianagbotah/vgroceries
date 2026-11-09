@@ -6,6 +6,7 @@ import {createApplication} from "../src/bootstrap";
 import {readConfig} from "../src/config";
 import {Database} from "../src/database/database";
 import {CashierTillsService} from "../src/cashier-tills/cashier-tills.service";
+import {PosTillReconciliationService} from "../src/cashier-tills/pos-till-reconciliation.service";
 import {commerceTestPassword,seedCommerceFixtures} from "./commerce-fixtures";
 
 let app:INestApplication,db:Database,tills:CashierTillsService,base:string;
@@ -153,4 +154,68 @@ test("database guard rejects forged cashier role, invalid location, and closed-s
     note:"Attempt late movement after close",actorUserId:"admin-commerce",
   }}));
   await assert.rejects(()=>db.cashierTillSession.delete({where:{id:one.id}}));
+});
+
+test("till reconciliation previews real cash movements without posting or changing stock",async()=>{
+  const admin=await token("admin-commerce@example.test");
+  const customer=await token("customer-a@example.test");
+  const opened=await tills.open("admin-commerce","reconcile-open-001","reconcile",{
+    locationId:"loc_accra",tillCode:till(),openingFloatMinor:1500,
+  });
+  const route="/admin/pos/tills/"+opened.id+"/reconciliation";
+  assert.equal((await req("GET",route)).status,401);
+  assert.equal((await req("GET",route,customer)).status,403);
+  assert.equal((await req("GET","/admin/pos/tills/"+randomUUID()+"/reconciliation",admin)).status,404);
+  await tills.move("admin-commerce",opened.id,"reconcile-in","one",{
+    kind:"cash_in",amountMinor:300,note:"Extra coins counted into the drawer",
+  });
+  await tills.move("admin-commerce",opened.id,"reconcile-out","two",{
+    kind:"cash_out",amountMinor:100,note:"Counted office safe transfer",
+  });
+  await tills.move("admin-commerce",opened.id,"reconcile-drop","three",{
+    kind:"drop",amountMinor:200,note:"Counted deposit drop from the drawer",
+  });
+  const baseline={
+    movement:await db.cashierTillMovement.count(),
+    sales:await db.posCashSale.count(),
+    audit:await db.auditEvent.count(),
+    orders:await db.order.count(),
+    depletion:await db.stockDepletion.count(),
+  };
+  const openResult=await req("GET",route,admin);
+  assert.equal(openResult.status,200,JSON.stringify(openResult.body));
+  const preview=openResult.body.data;
+  assert.equal(preview.status,"open");
+  assert.equal(preview.openingFloatMinor,1500);
+  assert.equal(preview.manualCashInMinor,300);
+  assert.equal(preview.manualCashOutMinor,100);
+  assert.equal(preview.manualCashDropsMinor,200);
+  assert.equal(preview.cashSalesMinor,0);
+  assert.equal(preview.cashSalesCount,0);
+  assert.equal(preview.expectedDrawerCashMinor,1500);
+  assert.equal(preview.activeStockHoldsCount,0);
+  assert.equal(preview.closingMatchesLedger,null);
+  assert.equal(preview.actualCountedCashMinor,null);
+  assert.equal(preview.source,"server_cash_ledger");
+  assert.equal(preview.scope,"cash_drawer_only");
+  assert.equal(preview.electronicPaymentsReconciled,false);
+  assert.equal(preview.refundsReconciled,false);
+  assert.equal(preview.taxOrGeneralLedgerReconciled,false);
+  assert.deepEqual({
+    movement:await db.cashierTillMovement.count(),
+    sales:await db.posCashSale.count(),
+    audit:await db.auditEvent.count(),
+    orders:await db.order.count(),
+    depletion:await db.stockDepletion.count(),
+  },baseline);
+  await tills.close("admin-commerce",opened.id,"reconcile-close","close",{
+    countedCashMinor:1475,note:"Independently counted actual notes and coins",
+  });
+  const closed=await req("GET",route,admin);
+  assert.equal(closed.status,200);
+  assert.equal(closed.body.data.closingExpectedCashMinor,1500);
+  assert.equal(closed.body.data.actualCountedCashMinor,1475);
+  assert.equal(closed.body.data.closingDifferenceMinor,-25);
+  assert.equal(closed.body.data.recomputedDifferenceMinor,-25);
+  assert.equal(closed.body.data.closingMatchesLedger,true);
 });
