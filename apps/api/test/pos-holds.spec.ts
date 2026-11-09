@@ -224,7 +224,7 @@ test("database rejects forged claims and till close until an active cart release
   }}));
   await assert.rejects(()=>tills.close("admin-commerce",till.id,"still-held-close-001","close",{
     countedCashMinor:500,note:"Attempt to close a till holding reserved stock",
-  }));
+  }),(e:any)=>e?.getStatus?.()===409);
   await holds.release("admin-commerce",pos.id,"guard-release-001","rel",{
     note:"Customer left the shop without making payment",
   });

@@ -138,6 +138,11 @@ export class CashierTillsService {
       const row=await tx.cashierTillSession.findUnique({where:{id}});
       if(!row)throw new ApiProblem(404,"NOT_FOUND","Till session not found.");
       if(row.status!=="open")throw new ApiProblem(409,"TILL_CLOSED","Till session is already closed.");
+      const activeHold=await tx.posStockHold.findFirst({where:{
+        tillSessionId:id,status:"held",expiresAt:{gt:new Date()},
+      },select:{id:true}});
+      if(activeHold)throw new ApiProblem(409,"POS_HOLD_ACTIVE",
+        "Release the reserved counter cart before closing this till.");
       const expected=await this.expected(tx,id,row.openingFloatMinor);
       await tx.cashierTillSession.update({where:{id},data:{
         status:"closed",closedAt:new Date(),closedByUserId:actorId,
