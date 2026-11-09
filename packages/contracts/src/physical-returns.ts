@@ -8,6 +8,7 @@ export const physicalReturnConditionSchema=z.enum(["sealed","opened","damaged","
 export const physicalReturnDispositionSchema=z.enum(["awaiting_inspection","quarantine","destroy"]);
 export const physicalReturnReceiveSchema=z.object({
   orderId:id,
+  customerClaimId:id.optional(),
   reason:z.string().trim().min(5).max(400),
   evidenceNote:note,
   lines:z.array(z.object({
@@ -77,6 +78,7 @@ export const physicalReturnLineViewSchema=z.object({
 }).strict();
 export const physicalReturnViewSchema=z.object({
   id:id,reference:z.string(),orderId:id,orderReference:z.string(),
+  customerClaimId:id.nullable().optional(),
   locationId:id,status:z.enum(["received","inspected"]),
   reason:z.string(),evidenceNote:z.string(),
   receivedAt:z.string().datetime({offset:true}),
@@ -87,6 +89,7 @@ export const physicalReturnViewSchema=z.object({
 export type PhysicalReturnView=z.infer<typeof physicalReturnViewSchema>;
 export const physicalReturnListSchema=z.object({
   enabled:z.boolean(),
+  claimLinkEnabled:z.boolean().optional(),
   custodyEnabled:z.boolean().optional(),
   resaleEnabled:z.boolean().optional(),
   items:z.array(physicalReturnViewSchema),page:z.number().int().min(1),

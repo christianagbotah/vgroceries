@@ -475,6 +475,7 @@ model CustomerReturnClaim {
   reviewNote String?
   cancelledAt DateTime? @db.Timestamptz(3)
   lines CustomerReturnClaimLine[]
+  physicalReceipts PhysicalReturnReceipt[]
   @@index([customerUserId, createdAt])
   @@index([orderId, status])
   @@index([status, createdAt])
@@ -507,6 +508,9 @@ model PhysicalReturnReceipt {
   inspectedAt DateTime? @db.Timestamptz(3)
   inspectionSummary String?
   items PhysicalReturnItem[]
+  customerClaimId String?
+  customerClaim CustomerReturnClaim? @relation(fields: [customerClaimId], references: [id], onDelete: Restrict)
+  @@index([customerClaimId, receivedAt])
   @@index([orderId, receivedAt])
   @@index([locationId, receivedAt])
 }

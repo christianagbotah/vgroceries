@@ -6,14 +6,18 @@ import {createApplication} from "../src/bootstrap";
 import {readConfig} from "../src/config";
 import {Database} from "../src/database/database";
 import {CustomerReturnClaimsService} from "../src/customer-return-claims/customer-return-claims.service";
+import {PhysicalReturnsService} from "../src/physical-returns/physical-returns.service";
 import {NotificationService} from "../src/notifications/notification.service";
 import {commerceTestPassword,seedCommerceFixtures} from "./commerce-fixtures";
 
-let app:INestApplication,db:Database,service:CustomerReturnClaimsService,inbox:NotificationService,base:string;
+let app:INestApplication,db:Database,service:CustomerReturnClaimsService,
+  physical:PhysicalReturnsService,inbox:NotificationService,base:string;
 const env=()=>readConfig({
   DATABASE_URL:process.env.DATABASE_URL!,WEB_ORIGINS:"http://localhost:3000",
   API_STOCK_LOCATION_ID:"loc_accra",API_INSECURE_COOKIES:"true",
   CUSTOMER_RETURN_CLAIMS_ENABLED:"true",
+  PHYSICAL_RETURNS_INTAKE_ENABLED:"true",
+  PHYSICAL_RETURN_CLAIM_LINK_ENABLED:"true",
 });
 async function fixture(tag:string,complete=true){
   const id="claim-"+tag+"-"+randomUUID().slice(0,8);
@@ -78,7 +82,7 @@ before(async()=>{
     throw Error("Use an isolated customer claim test database");
   app=await createApplication(env());await app.listen(0,"127.0.0.1");
   base=await app.getUrl();db=app.get(Database);service=app.get(CustomerReturnClaimsService);
-  inbox=app.get(NotificationService);
+  inbox=app.get(NotificationService);physical=app.get(PhysicalReturnsService);
 });
 beforeEach(async()=>{await seedCommerceFixtures(db);});
 after(async()=>{await app?.close();});
@@ -198,6 +202,90 @@ test("customer claim status appears in the owner's in-app inbox exactly once wit
   assert.equal(ignored.outcome,"no_recipient");
   assert.equal(await db.refund.count(),0);
   assert.equal(await db.physicalReturnReceipt.count(),0);
+});
+
+test("R3b accepted request links multiple actual receipts without doubling claim quantity, cash or stock",async()=>{
+  const orderId=await fixture("PHYSICAL-LINK");
+  const claim=await service.create("customer-a","link-create","link-create-req",body(orderId,"1.5"));
+  await service.decide("admin-commerce",claim.id,"link-accept","link-accept-req",{
+    decision:"accept",reviewNote:"Accepted for separate verification of actual returned goods.",
+  });
+  const receive=(suffix:string,qty:string,claimId:string|null=claim.id)=>physical.receive(
+    "admin-commerce","physical-link-"+suffix,"physical-link-req-"+suffix,{
+      orderId,reason:"Customer physically brought back the recorded product",
+      evidenceNote:"Staff witnessed, counted and confirmed the physical handover of goods",
+      ...(claimId?{customerClaimId:claimId}:{}),
+      lines:[{orderLineId:orderId+"-rice",quantity:qty,condition:"opened"}],
+    });
+  const first=await receive("part-one","1");
+  assert.equal(first.customerClaimId,claim.id);
+  assert.equal(first.lines[0]?.quantity,"1");
+  assert.equal((await service.eligibility("customer-a",orderId)).lines[0]?.availableQuantity,"0.5");
+  const second=await receive("part-two","0.5");
+  assert.equal(second.customerClaimId,claim.id);
+  await assert.rejects(()=>receive("over-approved","0.001"),
+    (e:any)=>e?.getStatus?.()===409);
+  await assert.rejects(()=>physical.receive("admin-commerce","wrong-claimed-line","wrong-line-req",{
+    orderId,customerClaimId:claim.id,reason:"Customer physically brought a different item",
+    evidenceNote:"A staff member witnessed the item and counted its quantity",
+    lines:[{orderLineId:orderId+"-salt",quantity:"1",condition:"sealed"}],
+  }),(e:any)=>e?.getStatus?.()===409);
+  await assert.rejects(()=>db.physicalReturnReceipt.update({where:{id:first.id},
+    data:{customerClaimId:null}}));
+  const third=await receive("independent-remaining","0.5",null);
+  assert.equal(third.customerClaimId,null);
+  await assert.rejects(()=>receive("independent-over","0.001",null));
+  assert.equal(await db.refund.count(),0);
+  assert.equal(await db.stockReceipt.count(),0);
+  assert.equal(await db.stockMovement.count(),0);
+  assert.equal((await service.eligibility("customer-a",orderId)).lines[0]?.availableQuantity,"0");
+});
+
+test("R3b rejects linking an unaccepted request or unrelated order",async()=>{
+  const first=await fixture("PENDING");
+  const pending=await service.create("customer-a","pending-link","pending-link-req",body(first));
+  await assert.rejects(()=>physical.receive("admin-commerce","pending-physical","pending-physical-req",{
+    orderId:first,customerClaimId:pending.id,
+    reason:"Cannot receive against a pending approval",
+    evidenceNote:"No claim approval has yet been recorded by an administrator",
+    lines:[{orderLineId:first+"-rice",quantity:"1",condition:"unknown"}],
+  }),(e:any)=>e?.getStatus?.()===422);
+  await service.decide("admin-commerce",pending.id,"accept-physical","accept-physical-req",{
+    decision:"accept",reviewNote:"Request accepted only for physical staff review.",
+  });
+  const unrelated=await fixture("UNRELATED");
+  await assert.rejects(()=>physical.receive("admin-commerce","wrong-order","wrong-order-req",{
+    orderId:unrelated,customerClaimId:pending.id,
+    reason:"This claim belongs to a different original order",
+    evidenceNote:"Different order identifiers were intentionally presented for testing",
+    lines:[{orderLineId:unrelated+"-rice",quantity:"1",condition:"opened"}],
+  }),(e:any)=>e?.getStatus?.()===422);
+  assert.equal(await db.physicalReturnReceipt.count(),0);
+});
+
+test("R3b default-off claim linking refuses physical intake without changing stock",async()=>{
+  const orderId=await fixture("LINK-OFF");
+  const claim=await service.create("customer-a","off-claim","off-claim-req",body(orderId));
+  await service.decide("admin-commerce",claim.id,"off-accept","off-accept-req",{
+    decision:"accept",reviewNote:"Accepted only for separate inspection after activation.",
+  });
+  const off=await createApplication(readConfig({
+    DATABASE_URL:process.env.DATABASE_URL!,WEB_ORIGINS:"http://localhost:3000",
+    API_STOCK_LOCATION_ID:"loc_accra",API_INSECURE_COOKIES:"true",
+    PHYSICAL_RETURNS_INTAKE_ENABLED:"true",CUSTOMER_RETURN_CLAIMS_ENABLED:"true",
+    PHYSICAL_RETURN_CLAIM_LINK_ENABLED:"false",
+  }));
+  try{
+    await assert.rejects(()=>off.get(PhysicalReturnsService).receive(
+      "admin-commerce","off-phys","off-phys-req",{
+        orderId,customerClaimId:claim.id,reason:"Verified goods cannot be recorded against disabled claim link",
+        evidenceNote:"Staff physically saw and counted goods but feature is disabled",
+        lines:[{orderLineId:orderId+"-rice",quantity:"1",condition:"unknown"}],
+      }),(e:any)=>e?.getStatus?.()===503);
+  }finally{await off.close();}
+  assert.equal(await db.physicalReturnReceipt.count(),0);
+  assert.equal(await db.refund.count(),0);
+  assert.equal(await db.stockMovement.count(),0);
 });
 
 test("undelivered or piece-fraction returns are rejected before claiming anything",async()=>{

@@ -96,6 +96,7 @@ export interface ApiConfig {
   customerPickupEnabled: boolean;
   physicalReturnsEnabled: boolean;
   customerReturnClaimsEnabled: boolean;
+  physicalReturnClaimLinkEnabled: boolean;
   physicalReturnCustodyEnabled: boolean;
   physicalReturnResaleEnabled: boolean;
   physicalReturnResaleAllowedVariants: string[];
@@ -153,6 +154,12 @@ export function readConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
     !["true","false"].includes(rawPhysicalReturnsEnabled))
     throw new Error("PHYSICAL_RETURNS_INTAKE_ENABLED must be true or false");
   const physicalReturnsEnabled=rawPhysicalReturnsEnabled==="true";
+  const rawClaimLinkEnabled=env.PHYSICAL_RETURN_CLAIM_LINK_ENABLED;
+  if(rawClaimLinkEnabled!==undefined&&!["true","false"].includes(rawClaimLinkEnabled))
+    throw new Error("PHYSICAL_RETURN_CLAIM_LINK_ENABLED must be true or false");
+  const physicalReturnClaimLinkEnabled=rawClaimLinkEnabled==="true";
+  if(physicalReturnClaimLinkEnabled&&(!physicalReturnsEnabled||!customerReturnClaimsEnabled))
+    throw new Error("PHYSICAL_RETURN_CLAIM_LINK_ENABLED requires claim and physical-return intake");
   const custodyFlag=env.PHYSICAL_RETURNS_CUSTODY_ENABLED;
   if(custodyFlag!==undefined&&!["true","false"].includes(custodyFlag))
     throw new Error("PHYSICAL_RETURNS_CUSTODY_ENABLED must be true or false");
@@ -635,6 +642,7 @@ export function readConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
     customerPickupEnabled,
     physicalReturnsEnabled,
     customerReturnClaimsEnabled,
+    physicalReturnClaimLinkEnabled,
     physicalReturnCustodyEnabled,
     physicalReturnResaleEnabled,
     physicalReturnResaleAllowedVariants,

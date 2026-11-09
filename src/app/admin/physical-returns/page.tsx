@@ -44,6 +44,7 @@ function PhysicalReturnsWorkspace(){
   const {can}=useStaff();
   const isAdmin=can("returns.decide");
   const [orderId,setOrderId]=useState(params.get("orderId")??"");
+  const [customerClaimId,setCustomerClaimId]=useState(params.get("customerClaimId")??"");
   const [order,setOrder]=useState<PublicOrder|null>(null);
   const [orderError,setOrderError]=useState<string|null>(null);
   const [orderLoading,setOrderLoading]=useState(false);
@@ -75,6 +76,7 @@ function PhysicalReturnsWorkspace(){
   const resaleReplay=useReplayIntent();
   const enabled=list?.enabled===true;
   const canMutate=isAdmin&&enabled;
+  const canReceiveForClaim=!customerClaimId.trim()||list?.claimLinkEnabled===true;
   const canRecordCustody=canMutate&&list?.custodyEnabled===true;
   const canReviewResale=canMutate&&list?.resaleEnabled===true;
 
@@ -103,9 +105,11 @@ function PhysicalReturnsWorkspace(){
   },[params,lookupOrder]);
 
   async function receive(){
-    if(!order||busy||!canMutate||!physicallyPresent)return;
+    if(!order||busy||!canMutate||!physicallyPresent||!canReceiveForClaim)return;
     const payload:PhysicalReturnReceive={
-      orderId:order.id,reason:reason.trim(),evidenceNote:evidence.trim(),
+      orderId:order.id,
+      ...(customerClaimId.trim()?{customerClaimId:customerClaimId.trim()}:{}),
+      reason:reason.trim(),evidenceNote:evidence.trim(),
       lines:order.lines.filter(l=>lines[l.id]?.selected).map(l=>({
         orderLineId:l.id,quantity:lines[l.id].quantity.trim(),condition:lines[l.id].condition,
       })),
@@ -118,6 +122,7 @@ function PhysicalReturnsWorkspace(){
     try{
       const receipt=await apiOps.physicalReturnReceive(parsed.data,receiveReplay.key(parsed.data));
       receiveReplay.clear();setReason("");setEvidence("");setPhysicallyPresent(false);
+      setCustomerClaimId("");
       setOrder(null);setLines({});
       setNotice(`Physical receipt ${receipt.reference} recorded. All goods remain off-sale pending inspection; no refund or stock addition was made.`);
       await refresh();
@@ -274,6 +279,21 @@ function PhysicalReturnsWorkspace(){
           onClick={()=>void lookupOrder(orderId)}>{orderLoading?"Checking…":"Load order"}</Button>
       </div>
       {orderError?<p role="alert" className="mt-3 text-sm text-destructive">{orderError}</p>:null}
+      {customerClaimId.trim()&&!list?.claimLinkEnabled?<p role="status"
+        className="mt-3 rounded-md border border-amber-400/50 p-3 text-sm">
+        Linking customer requests is disabled by the server. This accepted request cannot
+        be recorded against a physical receipt until that authority is approved.
+      </p>:null}
+      {list?.claimLinkEnabled?<div className="mt-3">
+        <Label htmlFor="physical-customer-claim">Accepted customer return request ID (optional)</Label>
+        <Input id="physical-customer-claim" className="mt-1" value={customerClaimId}
+          disabled={!canMutate||busy} onChange={e=>setCustomerClaimId(e.target.value)}
+          placeholder="Paste the accepted return request ID"/>
+        <p className="mt-1 text-xs text-muted-foreground">
+          Use the exact accepted request from the admin queue. The server checks order ownership,
+          item identities and cumulative quantities. No refund is created.
+        </p>
+      </div>:null}
       {order?<div className="mt-4 space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border p-3 text-sm">
           <div><p className="font-semibold">{order.reference}</p>
@@ -316,7 +336,7 @@ function PhysicalReturnsWorkspace(){
           <Checkbox checked={physicallyPresent} disabled={!canMutate||busy} onCheckedChange={v=>setPhysicallyPresent(v===true)}/>
           <span>I confirm the goods are physically present and the quantities have been checked. This does not approve resale or refund.</span>
         </label>
-        <Button disabled={!canMutate||busy||!physicallyPresent||!order.lines.some(l=>lines[l.id]?.selected)}
+        <Button disabled={!canMutate||busy||!canReceiveForClaim||!physicallyPresent||!order.lines.some(l=>lines[l.id]?.selected)}
           onClick={()=>void receive()}>{busy?"Recording…":"Record received goods"}</Button>
       </div>:null}
     </section>
@@ -329,6 +349,8 @@ function PhysicalReturnsWorkspace(){
         <div className="flex flex-wrap items-start justify-between gap-2">
           <div><p className="font-semibold">{r.reference}</p>
             <p className="text-sm text-muted-foreground">Order {r.orderReference} · {r.locationId} · {r.status}</p>
+            {r.customerClaimId?<p className="text-xs text-muted-foreground break-all">
+              Linked request: {r.customerClaimId} · physically received only, no refund</p>:null}
             <p className="text-xs text-muted-foreground">Received {new Date(r.receivedAt).toLocaleString("en-GH")}</p></div>
           {r.status==="received"&&canMutate?
             <Button size="sm" onClick={()=>startInspection(r)} disabled={busy}>
