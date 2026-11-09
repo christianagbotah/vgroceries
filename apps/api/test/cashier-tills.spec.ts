@@ -134,6 +134,17 @@ test("database guard rejects forged cashier role, invalid location, and closed-s
     sessionId:one.id,kind:"cash_in",amountMinor:1,
     note:"Direct SQL customer forgery",actorUserId:"customer-a",
   }}));
+  // A direct writer must not forge a closed till with missing counted cash or
+  // a missing difference: SQL CHECK must reject NULL, not treat it as success.
+  await assert.rejects(()=>db.cashierTillSession.update({where:{id:one.id},data:{
+    status:"closed",closedAt:new Date(),closedByUserId:"admin-commerce",
+    closingExpectedMinor:100,closeNote:"Incomplete closing record",
+  }}));
+  await assert.rejects(()=>db.cashierTillSession.update({where:{id:one.id},data:{
+    status:"closed",closedAt:new Date(),closedByUserId:"admin-commerce",
+    closingCountedMinor:100,closingExpectedMinor:100,closingDifferenceMinor:2,
+    closeNote:"Forged arithmetic closing record",
+  }}));
   await tills.close("admin-commerce",one.id,"guard-close-001","close",{
     countedCashMinor:100,note:"Drawer counts checked and written",
   });
