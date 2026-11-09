@@ -6,7 +6,7 @@ import { resolve } from "node:path";
 const doc = JSON.parse(readFileSync(resolve(process.cwd(), "../../docs/openapi-foundation.json"), "utf8"));
 
 test("L3 enriches both existing secure order endpoints without adding a public route", () => {
-  assert.equal(Object.keys(doc.paths).length, 120);
+  assert.equal(Object.keys(doc.paths).length, 123);
   const track = doc.paths["/api/v1/orders/track"].post;
   const detail = doc.paths["/api/v1/orders/{orderId}"].get;
   assert.deepEqual(track.responses["200"].content["application/json"].schema, { $ref: "#/components/schemas/PublicOrderEnvelope" });
@@ -79,4 +79,27 @@ test("pickup calendar closure endpoints are administrator-only, strict, replay-p
   const serialized=JSON.stringify(doc.components.schemas.PickupCentreClosureView);
   for(const secret of ["updatedBy","customerUserId","customerPhone","orderId","actorId","paymentStatus"])
     assert.ok(!serialized.includes('"'+secret+'"'));
+});
+
+test("Physical Returns R1 publishes admin-only replay-protected receipts and inspection, without refund or stock writes",()=>{
+  for(const path of ["/api/v1/admin/physical-returns",
+    "/api/v1/admin/physical-returns/{returnId}",
+    "/api/v1/admin/physical-returns/{returnId}/inspect"]){
+    assert.ok(doc.paths[path],`missing physical-return authority path ${path}`);
+  }
+  const root=doc.paths["/api/v1/admin/physical-returns"];
+  assert.deepEqual(root.get.security,[{cookieAuth:[]},{bearerAuth:[]}]);
+  assert.deepEqual(root.post.security,[{cookieAuth:[]},{bearerAuth:[]}]);
+  for(const op of [root.post,doc.paths["/api/v1/admin/physical-returns/{returnId}/inspect"].post]){
+    assert.ok(op.parameters.some((x:any)=>x.name==="Idempotency-Key"&&x.required));
+    assert.ok(op.parameters.some((x:any)=>x.name==="X-CSRF-Token"));
+    assert.ok(/no|without/i.test(op.description));
+  }
+  assert.deepEqual(root.post.requestBody.content["application/json"].schema,
+    {$ref:"#/components/schemas/PhysicalReturnReceive"});
+  assert.deepEqual(doc.paths["/api/v1/admin/physical-returns/{returnId}/inspect"].post.requestBody.content["application/json"].schema,
+    {$ref:"#/components/schemas/PhysicalReturnInspect"});
+  const view=JSON.stringify(doc.components.schemas.PhysicalReturnView);
+  for(const secret of ["customerPhone","verificationCode","merchantReference","paymentAttemptId","cashCollectedAt"])
+    assert.ok(!view.includes('"'+secret+'"'));
 });

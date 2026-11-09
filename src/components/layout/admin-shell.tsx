@@ -80,6 +80,7 @@ const GROUPS: NavGroup[] = [
     title: "Service",
     items: [
       { href: "/admin/returns", label: "Returns", permission: "returns.view", icon: RotateCcw },
+      { href: "/admin/physical-returns", label: "Physical intake", permission: "returns.view", icon: ClipboardCheck },
       { href: "/admin/refunds", label: "Refunds", permission: "refunds.view", icon: CreditCard },
       { href: "/admin/customers", label: "Customers", permission: "customers.view", icon: UserRound },
       { href: "/admin/payments", label: "Payments", permission: "payments.view", icon: CreditCard },

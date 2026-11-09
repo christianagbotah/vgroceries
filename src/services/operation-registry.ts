@@ -192,6 +192,10 @@ export const operationMeta: Record<string, OperationMeta> = {
   "admin.providers": { tags: CONF },
 
   /* staff: returns, refunds, payments, customers */
+  "admin.physical-returns": { tags: [...RET, ...STOCK] },
+  "admin.physical-return.receive": { invalidates: [...RET, ...STOCK, ...ORD] },
+  "admin.physical-return.detail": { tags: [...RET, ...STOCK] },
+  "admin.physical-return.inspect": { invalidates: [...RET, ...STOCK, ...ORD] },
   "admin.returns": { tags: [...RET, ...PAY] },
   "admin.return.action": { invalidates: [...RET, ...PAY, ...STOCK, ...CAT, ...ORD] },
   "admin.refunds": { tags: [...PAY, ...RET] },
