@@ -804,6 +804,24 @@ export function productionOpenApi(app: INestApplication): OpenAPIObject {
     get:readOperation("Administrator-only cash sale receipt facts, original server price snapshots and stock depletion reference.",
       "PosCashSaleViewEnvelope",[posSaleId]),
   };
+  doc.paths["/api/v1/admin/pos/cash-sales/{saleId}/print"]={
+    get:{
+      security,
+      description:"Administrator-only, no-store 80mm HTML cash receipt using immutable product labels as at sale completion. Internal cash confirmation only; NOT a tax invoice.",
+      parameters:[posSaleId],
+      responses:{
+        "200":{
+          description:"Escaped, print-ready HTML receipt without active scripts or external resources.",
+          content:{"text/html":{schema:{type:"string"}}},
+        },
+        "401":errorResponse,
+        "403":errorResponse,
+        "404":errorResponse,
+        "409":errorResponse,
+        "503":errorResponse,
+      },
+    },
+  };
   doc.paths["/api/v1/admin/pos/holds"]={
     get:readOperation("Administrator-only recent POS cart reservations. No payment or sale authority.",
       "PosHoldListEnvelope"),
