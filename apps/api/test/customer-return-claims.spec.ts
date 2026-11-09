@@ -179,6 +179,17 @@ test("customer claim status appears in the owner's in-app inbox exactly once wit
   const notes=await db.notification.findMany({where:{orderId},orderBy:{createdAt:"asc"}});
   assert.equal(notes.length,2);
   assert.ok(notes.every(n=>n.recipientUserId==="customer-a"));
+  // Database guard must reject fabricated recipient/order or unrelated source
+  // independently of application-level routing and forged outbox payloads.
+  await assert.rejects(()=>db.notification.create({data:{
+    recipientUserId:"customer-b",orderId,sourceEventId:notes[0]!.sourceEventId,
+    kind:"order",title:"Wrong recipient",body:"Must never reach another customer",
+  }}));
+  const alienOrder=await fixture("ALIEN");
+  await assert.rejects(()=>db.notification.create({data:{
+    recipientUserId:"customer-a",orderId:alienOrder,sourceEventId:notes[0]!.sourceEventId,
+    kind:"order",title:"Wrong order",body:"Must never be attached to another order",
+  }}));
   assert.ok(notes.some(n=>n.title==="Return request received"));
   assert.ok(notes.some(n=>n.title==="Return request accepted for inspection"));
   assert.ok(notes.every(n=>!n.body.includes("NEVER_SHOW_SECRET")&&!n.body.includes("customer-b")));

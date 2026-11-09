@@ -76,7 +76,10 @@ must pass. Deploy with the flag **OFF** and verify frontend/API route and
 authorization smoke checks. Do not interpret a deployed page as an
 operational acceptance policy.
 
-**In-app inbox follow-up:** The R3a outbox now projects owner-scoped,
+**In-app inbox follow-up:** Migration `202611090033_return_claim_notification_source`
+extends the immutable notification-source database guard to verify the
+claim/order/customer relationship, while retaining the old order-event guard.
+The R3a outbox now projects owner-scoped,
 deduplicated requested/accepted/rejected/cancelled updates into the existing
 account inbox. Recipients are resolved from the stored claim and order, never
 the event payload. This is in-app only; SMS, email, physical receipt and
