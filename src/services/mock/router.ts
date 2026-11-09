@@ -1351,6 +1351,12 @@ export async function handleApi(req: ApiRequest): Promise<ApiResult> {
       case "admin.logistics.pickup-policy.save": {
         throw new OpError("UNAVAILABLE","Live centre appointment configuration requires the server.");
       }
+      case "admin.logistics.pickup-closures": {
+        return ok([]); // No invented holiday dates or working hours in demo mode.
+      }
+      case "admin.logistics.pickup-closures.save": {
+        throw new OpError("UNAVAILABLE","Live centre closure policy requires the server.");
+      }
       case "admin.logistics.node.update": {
         const node = store.logisticsNodes.find((row) => row.id === q("nodeId"));
         if (!node) throw new OpError("VALIDATION_FAILED", "Demo logistics node not found.");

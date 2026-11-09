@@ -2,7 +2,7 @@ import { Body,Controller,Get,HttpCode,Param,Post,Req,Res,UseGuards } from "@nest
 import { ApiTags } from "@nestjs/swagger";
 import type { Response } from "express";
 import { bookPickupAppointmentRequestSchema,cancelPickupAppointmentRequestSchema,
-  pickupAppointmentPolicyInputSchema,replayKeySchema } from "@variety/contracts";
+  pickupAppointmentPolicyInputSchema,pickupCentreClosureInputSchema,replayKeySchema } from "@variety/contracts";
 import { CheckoutPrincipalService } from "../commerce-identity/checkout-principal.service";
 import { ApiProblem,ApiRequest } from "../http/errors";
 import { AccessGuard } from "../identity/access.guard";
@@ -56,5 +56,27 @@ export class AdminPickupAppointmentPolicyController {
     this.admin(req);
     const input=valid(pickupAppointmentPolicyInputSchema,raw);
     return {ok:true,data:await this.appointments.savePolicy(nodeId,req.actor.id,key(req),input,req.requestId)};
+  }
+}
+
+@ApiTags("admin-pickup-closures")
+@Controller("admin/logistics/nodes/:nodeId/pickup-closures")
+@UseGuards(AccessGuard)
+export class AdminPickupCentreClosuresController {
+  constructor(private readonly appointments:PickupAppointmentService){}
+  private requireAdmin(req:AuthRequest){
+    if(req.actor.role!=="admin")
+      throw new ApiProblem(403,"FORBIDDEN","Administrator access required.");
+  }
+  @Get()
+  async list(@Param("nodeId") nodeId:string,@Req() req:AuthRequest){
+    this.requireAdmin(req);
+    return {ok:true,data:await this.appointments.closures(nodeId)};
+  }
+  @Post() @HttpCode(200)
+  async save(@Param("nodeId") nodeId:string,@Req() req:AuthRequest,@Body() raw:unknown){
+    this.requireAdmin(req);
+    const input=valid(pickupCentreClosureInputSchema,raw);
+    return {ok:true,data:await this.appointments.saveClosure(nodeId,req.actor.id,key(req),input,req.requestId)};
   }
 }

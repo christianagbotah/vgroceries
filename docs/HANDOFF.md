@@ -1,5 +1,13 @@
 # Handoff — current authorities and next integration wave
 
+> **Current context (9 November 2026):** Sections below preserve historical
+> L2/L3/L4 checkpoints and their at-the-time release claims. The deployed UAT
+> state is the merged pickup appointment release `9a8cafb`, while both
+> shipment and customer-pickup activation flags remain OFF. For active
+> limitations and new production workstreams, consult
+> `docs/RELEASE_COMPLETION_ROADMAP.md` and `docs/KNOWN_ISSUES.md`.
+
+
 This handoff includes the Wave L4 customer in-app inbox checkpoint on top of the Wave L3 tracking release. L3 enriches the existing secure PublicOrder response without new tracking endpoints or tables. L4 adds three authenticated customer-inbox endpoints plus the account screen and bounded projection timer, bringing generated production OpenAPI to **114 paths** on this branch. L2 shipment execution remains **disabled by default** until its separate rollout prerequisites are completed. Verification for this branch is recorded in docs/VERIFICATION.md.
 
 ## 1. Current backend authority boundary
@@ -131,3 +139,14 @@ verified staff handover completes any booked appointment atomically.
 No stock/payment side effects or fabricated demo availability. The global
 shipment and remote pickup flags remain OFF pending on-site acceptance.
 See `docs/PICKUP_APPOINTMENTS.md`.
+
+## Remaining programme & one-off centre closures (9 November 2026)
+
+An owner-approved delivery programme is tracked in
+`docs/RELEASE_COMPLETION_ROADMAP.md`: physical returns, POS, COD,
+external provider and notifications cutover, product and storefront
+readiness, AI guardrails, operational reconciliation and security.
+Holiday/closure dates for pickup centres are implemented in a separate
+default-off appointment slice; see `docs/PICKUP_CLOSURES.md`.
+Do not interpret a compiled feature as production provider acceptance or
+authorization to enable the shipment and remote-pickup flags.

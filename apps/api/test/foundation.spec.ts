@@ -987,7 +987,7 @@ test("foundation OpenAPI describes only implemented routes with cookie/native se
     "/api/v1/admin/customers",
     "/api/v1/admin/customers/{customerId}",
     "/api/v1/admin/logistics/nodes",
-    "/api/v1/admin/logistics/nodes/{nodeId}", "/api/v1/admin/logistics/nodes/{nodeId}/pickup-appointment-policy",
+    "/api/v1/admin/logistics/nodes/{nodeId}", "/api/v1/admin/logistics/nodes/{nodeId}/pickup-appointment-policy", "/api/v1/admin/logistics/nodes/{nodeId}/pickup-closures",
     "/api/v1/admin/logistics/lanes",
     "/api/v1/admin/logistics/lanes/{laneId}",
     "/api/v1/admin/logistics/workflows",

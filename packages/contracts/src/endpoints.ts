@@ -104,6 +104,8 @@ export const restEndpoints: Record<string, RestEndpoint> = {
   "admin.logistics.node.update": {"method": "POST", "path": "/admin/logistics/nodes/{nodeId}"},
   "admin.logistics.pickup-policy": {"method": "GET", "path": "/admin/logistics/nodes/{nodeId}/pickup-appointment-policy"},
   "admin.logistics.pickup-policy.save": {"method": "POST", "path": "/admin/logistics/nodes/{nodeId}/pickup-appointment-policy"},
+  "admin.logistics.pickup-closures": {"method": "GET", "path": "/admin/logistics/nodes/{nodeId}/pickup-closures"},
+  "admin.logistics.pickup-closures.save": {"method": "POST", "path": "/admin/logistics/nodes/{nodeId}/pickup-closures"},
   "admin.logistics.lanes": {"method": "GET", "path": "/admin/logistics/lanes"},
   "admin.logistics.lane": {"method": "GET", "path": "/admin/logistics/lanes/{laneId}"},
   "admin.logistics.lane.create": {"method": "POST", "path": "/admin/logistics/lanes"},

@@ -161,6 +161,8 @@ export const operationMeta: Record<string, OperationMeta> = {
   "admin.logistics.node.update": { invalidates: [...LOGISTICS, ...CONF] },
   "admin.logistics.pickup-policy": { tags: LOGISTICS },
   "admin.logistics.pickup-policy.save": { invalidates: [...LOGISTICS, ...CONF, ...ORD] },
+  "admin.logistics.pickup-closures": { tags: LOGISTICS },
+  "admin.logistics.pickup-closures.save": { invalidates: [...LOGISTICS, ...CONF, ...ORD] },
   "admin.logistics.lanes": { tags: LOGISTICS },
   "admin.logistics.lane": { tags: LOGISTICS },
   "admin.logistics.lane.create": { invalidates: [...LOGISTICS, ...CONF] },
