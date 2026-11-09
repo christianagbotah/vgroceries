@@ -76,6 +76,7 @@ import {
   pickupCentreClosureInputSchema,pickupCentreClosureViewSchema,pickupCentreClosureListSchema,
   physicalReturnReceiveSchema,physicalReturnInspectSchema,
   physicalReturnViewSchema,physicalReturnListSchema,
+  physicalReturnQuarantineRequestSchema,physicalReturnCustodyViewSchema,
   shipmentStatusSchema,
   shipmentListItemSchema,
   shipmentDetailViewSchema,
@@ -329,6 +330,8 @@ export function productionOpenApi(app: INestApplication): OpenAPIObject {
     PhysicalReturnInspect: json(physicalReturnInspectSchema),
     PhysicalReturnView: json(physicalReturnViewSchema),
     PhysicalReturnList: json(physicalReturnListSchema),
+    PhysicalReturnQuarantineRequest: json(physicalReturnQuarantineRequestSchema),
+    PhysicalReturnCustodyView: json(physicalReturnCustodyViewSchema),
     ShipmentListResponse: json(z.object({ items: z.array(shipmentListItemSchema), page: z.number().int().positive(), perPage: z.number().int().positive().max(100), total: z.number().int().nonnegative() }).strict()),
     ShipmentDetailView: json(shipmentDetailViewSchema),
     ShipmentActionResponse: json(shipmentActionResponseSchema),
@@ -398,6 +401,7 @@ export function productionOpenApi(app: INestApplication): OpenAPIObject {
     "PickupAppointmentPolicyView", "PickupAppointmentOptions", "PickupAppointmentMutationResponse",
     "PickupCentreClosureView","PickupCentreClosureList",
     "PhysicalReturnView","PhysicalReturnList",
+    "PhysicalReturnCustodyView",
     "CmsHomepage", "CmsHomepageAdminView", "CmsContentPage", "CmsContentPageAdminView", "CmsOverviewView",
   ])
     schemas[name + "Envelope"] = {
@@ -696,6 +700,13 @@ export function productionOpenApi(app: INestApplication): OpenAPIObject {
   };
   doc.paths["/api/v1/admin/physical-returns/{returnId}"]={
     get:readOperation("Administrator-only immutable return receipt, original quantities and inspection outcomes. No stock claim implied.","PhysicalReturnViewEnvelope",[physicalReturnId]),
+  };
+  doc.paths["/api/v1/admin/physical-returns/items/{itemId}/quarantine"]={
+    post:physicalReturnMutation(
+      "Administrator-only, idempotent storage of inspected returned goods in quarantined inventory. Requires single original depleted lot; creates non-saleable lot, immutable custody and a balancing inventory receipt. No resale, automatic restock approval, refund, payout or customer financial claim.",
+      "PhysicalReturnQuarantineRequest","PhysicalReturnCustodyViewEnvelope",
+      [{name:"itemId",in:"path",required:true,schema:{type:"string",minLength:1}}],
+    ),
   };
   doc.paths["/api/v1/admin/physical-returns/{returnId}/inspect"]={
     post:physicalReturnMutation("Administrator-only terminal inspection into quarantine or destroy. Receipt evidence is immutable; no automatic stock restoration or refund.","PhysicalReturnInspect","PhysicalReturnViewEnvelope",[physicalReturnId]),

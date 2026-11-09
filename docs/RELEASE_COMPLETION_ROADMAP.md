@@ -51,6 +51,9 @@ provider integrations or operations are already production-ready.
 - [x] R1 physical receipt against actual depleted order lines, immutable
   inspection notes, server-derived original location, full returned-quantity
   cap and quarantine/destroy results. Release remains default-off.
+- [x] R2a immutable, single-source-lot **non-saleable quarantine custody**
+  and receipt/movement provenance with a separate OFF rollout flag.
+  This is not permission to restock or refund. See `docs/PHYSICAL_RETURNS_R2A.md`.
 
 - [ ] Durable physical-return authorization with order-line quantity balance,
   traceable receipt and lot/condition evidence.

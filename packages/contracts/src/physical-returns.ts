@@ -26,12 +26,24 @@ export const physicalReturnInspectSchema=z.object({
     "Each received item may be inspected only once"),
 }).strict();
 export type PhysicalReturnInspect=z.infer<typeof physicalReturnInspectSchema>;
+export const physicalReturnQuarantineRequestSchema=z.object({
+  custodyNote:z.string().trim().min(15).max(1000),
+}).strict();
+export type PhysicalReturnQuarantineRequest=z.infer<typeof physicalReturnQuarantineRequestSchema>;
+export const physicalReturnCustodyViewSchema=z.object({
+  itemId:id,sourceLotId:id,sourceLotNumber:z.string(),
+  quarantineLotId:id,quarantineLotNumber:z.string(),
+  quantity,recordedAt:z.string().datetime({offset:true}),
+  custodyNote:z.string(),status:z.literal("quarantined"),
+}).strict();
+export type PhysicalReturnCustodyView=z.infer<typeof physicalReturnCustodyViewSchema>;
 export const physicalReturnLineViewSchema=z.object({
   id:id,orderLineId:id,variantId:id,productName:z.string(),
   variantName:z.string(),unit:z.string(),quantity,
   condition:physicalReturnConditionSchema,
   disposition:physicalReturnDispositionSchema,
   inspectionNote:z.string().nullable(),
+  custody:physicalReturnCustodyViewSchema.nullable().optional(),
   inspectedAt:z.string().datetime({offset:true}).nullable(),
 }).strict();
 export const physicalReturnViewSchema=z.object({
@@ -46,6 +58,7 @@ export const physicalReturnViewSchema=z.object({
 export type PhysicalReturnView=z.infer<typeof physicalReturnViewSchema>;
 export const physicalReturnListSchema=z.object({
   enabled:z.boolean(),
+  custodyEnabled:z.boolean().optional(),
   items:z.array(physicalReturnViewSchema),page:z.number().int().min(1),
   perPage:z.number().int().min(1).max(50),total:z.number().int().nonnegative(),
 }).strict();

@@ -169,3 +169,13 @@ inspections, without any inventory restock or refund. Staff UI lives at
 `PHYSICAL_RETURNS_INTAKE_ENABLED`. See `docs/PHYSICAL_RETURNS_R1.md` and issue
 #61. The prior Returns pages remain demo/non-authoritative until the full
 customer request and refund/disposition workflow is cut over.
+
+
+## Physical Returns R2a — off-sale quarantine stock provenance
+
+The follow-on R2a authority records final inspected returns into a separate
+`physical_return_quarantine` lot and stock movement with single-original-lot
+proof. The existing stock-availability predicate excludes these lots, so
+checkout availability is unchanged. A second OFF-by-default flag
+`PHYSICAL_RETURNS_CUSTODY_ENABLED` requires the R1 intake flag. No refunded
+money or saleable restock is implied. See `docs/PHYSICAL_RETURNS_R2A.md`.

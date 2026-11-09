@@ -6,8 +6,9 @@ import { useSearchParams } from "next/navigation";
 import { AlertTriangle, ClipboardCheck, PackageOpen, ShieldCheck, RefreshCw } from "lucide-react";
 import { apiOps, ApiError } from "@/services/client";
 import type { PublicOrder, PhysicalReturnInspect, PhysicalReturnList,
-  PhysicalReturnReceive, PhysicalReturnView } from "@/services/contracts";
-import { physicalReturnReceiveSchema, physicalReturnInspectSchema } from "@/services/contracts";
+  PhysicalReturnReceive, PhysicalReturnView,PhysicalReturnQuarantineRequest } from "@/services/contracts";
+import { physicalReturnReceiveSchema, physicalReturnInspectSchema,
+  physicalReturnQuarantineRequestSchema } from "@/services/contracts";
 import { useStaff } from "@/features/staff/role-context";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -56,10 +57,16 @@ function PhysicalReturnsWorkspace(){
   const [target,setTarget]=useState<PhysicalReturnView|null>(null);
   const [inspection,setInspection]=useState<Record<string,InspectionLine>>({});
   const [summary,setSummary]=useState("");
+  const [custodyItem,setCustodyItem]=useState<PhysicalReturnView["lines"][number]|null>(null);
+  const [custodyNote,setCustodyNote]=useState("");
+  const [custodyAcknowledged,setCustodyAcknowledged]=useState(false);
+
   const receiveReplay=useReplayIntent();
   const inspectReplay=useReplayIntent();
+  const custodyReplay=useReplayIntent();
   const enabled=list?.enabled===true;
   const canMutate=isAdmin&&enabled;
+  const canRecordCustody=canMutate&&list?.custodyEnabled===true;
 
   const refresh=useCallback(async()=>{
     try {
@@ -134,6 +141,28 @@ function PhysicalReturnsWorkspace(){
     }catch(e){setError(friendly(e));}
     finally{setBusy(false);}
   }
+  function startCustody(item:PhysicalReturnView["lines"][number]){
+    if(!canRecordCustody||busy||item.disposition!=="quarantine"||item.custody)return;
+    setCustodyItem(item);setCustodyNote("");setCustodyAcknowledged(false);
+    setNotice(null);setError(null);
+  }
+  async function recordCustody(){
+    if(!custodyItem||!custodyAcknowledged||!canRecordCustody||busy)return;
+    const payload:PhysicalReturnQuarantineRequest={custodyNote:custodyNote.trim()};
+    const parsed=physicalReturnQuarantineRequestSchema.safeParse(payload);
+    if(!parsed.success){
+      setError(parsed.error.issues.map(x=>x.message).join("; "));return;
+    }
+    setBusy(true);setError(null);setNotice(null);
+    try{
+      const evidence=await apiOps.physicalReturnQuarantine(custodyItem.id,parsed.data,
+        custodyReplay.key({itemId:custodyItem.id,...parsed.data}));
+      custodyReplay.clear();setCustodyItem(null);setCustodyNote("");setCustodyAcknowledged(false);
+      setNotice(`Custody confirmed: ${evidence.quantity} units recorded in quarantined lot ${evidence.quarantineLotNumber}. These goods are NOT available to sell; no refund or stock release was made.`);
+      await refresh();
+    }catch(e){setError(friendly(e));}
+    finally{setBusy(false);}
+  }
   return <div className="min-w-0 space-y-5 pb-12">
     <header className="flex flex-wrap items-center justify-between gap-3">
       <div>
@@ -161,6 +190,9 @@ function PhysicalReturnsWorkspace(){
         until the rollout has been approved. Historical receipts remain readable by administrators.
       </p>
     </div>:null}
+    {enabled&&!list?.custodyEnabled?<p className="rounded-lg border p-3 text-sm text-muted-foreground" role="status">
+      Quarantine stock custody is not activated. Inspected goods cannot be added to inventory until this separate server authority is approved.
+    </p>:null}
     {error?<p className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive" role="alert">{error}</p>:null}
     {notice?<p className="rounded-lg border bg-muted/40 p-3 text-sm" role="status">{notice}</p>:null}
 
@@ -246,17 +278,51 @@ function PhysicalReturnsWorkspace(){
         <div className="overflow-x-auto">
           <table className="w-full min-w-[34rem] text-left text-sm">
             <thead><tr className="border-b text-xs text-muted-foreground"><th className="py-1">Item</th>
-              <th className="py-1">Quantity</th><th className="py-1">Condition</th><th className="py-1">Disposition</th></tr></thead>
+              <th className="py-1">Quantity</th><th className="py-1">Condition</th><th className="py-1">Disposition / custody</th></tr></thead>
             <tbody>{r.lines.map(l=><tr key={l.id} className="border-b last:border-0">
               <td className="py-2">{l.productName} · {l.variantName}</td>
               <td className="py-2">{l.quantity} {l.unit}</td>
-              <td className="py-2">{l.condition}</td><td className="py-2">{l.disposition.replaceAll("_"," ")}</td>
+              <td className="py-2">{l.condition}</td>
+              <td className="py-2">
+                <span className="block">{l.disposition.replaceAll("_"," ")}</span>
+                {l.custody?<span className="mt-1 block break-all text-xs text-muted-foreground">
+                  Off-sale quarantine lot: {l.custody.quarantineLotNumber} · original lot {l.custody.sourceLotNumber}
+                </span>:r.status==="inspected"&&l.disposition==="quarantine"&&canRecordCustody?
+                  <Button type="button" variant="outline" size="sm" className="mt-2 min-h-9 whitespace-normal text-left"
+                    disabled={busy} onClick={()=>startCustody(l)}>Record quarantine custody</Button>:null}
+              </td>
             </tr>)}</tbody>
           </table>
         </div>
         {r.inspectionSummary?<p className="text-xs text-muted-foreground">Inspection: {r.inspectionSummary}</p>:null}
       </article>)}
     </section>
+    {custodyItem?<section className="space-y-3 rounded-xl border bg-card p-4 sm:p-5"
+      aria-label="Confirm non-saleable quarantine stock custody">
+      <h2 className="font-semibold">Record off-sale quarantine custody</h2>
+      <p className="text-sm text-muted-foreground">
+        {custodyItem.productName} · {custodyItem.quantity} {custodyItem.unit}. This records
+        inspected goods in a new quarantined lot linked to the original stock handover.
+        It does not restock saleable inventory, approve a refund, or mark cash collected.
+      </p>
+      <div><Label htmlFor="return-custody-note">Physical storage evidence (15–1000 characters)</Label>
+        <Textarea id="return-custody-note" className="mt-1" rows={3} maxLength={1000}
+          disabled={!canRecordCustody||busy} value={custodyNote}
+          onChange={e=>setCustodyNote(e.target.value)}
+          placeholder="Describe the sealed quarantine shelf/location, counted quantity and custody handover."/>
+      </div>
+      <label className="flex items-start gap-3 rounded-md border p-3 text-sm">
+        <Checkbox checked={custodyAcknowledged} disabled={!canRecordCustody||busy}
+          onCheckedChange={v=>setCustodyAcknowledged(v===true)}/>
+        <span>I have physically secured the inspected goods in a separate quarantine area.
+          They must not be selected for customer orders or resold.</span>
+      </label>
+      <div className="flex flex-wrap gap-2">
+        <Button type="button" disabled={!canRecordCustody||busy||!custodyAcknowledged||custodyNote.trim().length<15}
+          onClick={()=>void recordCustody()}>{busy?"Recording…":"Confirm off-sale custody"}</Button>
+        <Button type="button" variant="outline" disabled={busy} onClick={()=>setCustodyItem(null)}>Cancel</Button>
+      </div>
+    </section>:null}
     {target?<section className="space-y-3 rounded-xl border bg-card p-4 sm:p-5" aria-label="Final return inspection">
       <div><h2 className="font-semibold">Final inspection · {target.reference}</h2>
         <p className="text-xs text-muted-foreground">

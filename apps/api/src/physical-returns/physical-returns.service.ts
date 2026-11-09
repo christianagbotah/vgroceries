@@ -3,7 +3,8 @@ import { API_CONFIG, type ApiConfig } from "../config";
 import { randomUUID, createHash } from "node:crypto";
 import { Prisma } from "@prisma/client";
 import {
-  physicalReturnViewSchema, physicalReturnListSchema,
+  physicalReturnViewSchema, physicalReturnListSchema, physicalReturnCustodyViewSchema,
+  type PhysicalReturnQuarantineRequest,
   type PhysicalReturnReceive, type PhysicalReturnInspect,
   type PhysicalReturnView,
 } from "@variety/contracts";
@@ -26,7 +27,13 @@ export class PhysicalReturnsService {
   private async view(tx:Tx,id:string):Promise<PhysicalReturnView>{
     const row=await tx.physicalReturnReceipt.findUnique({
       where:{id},include:{order:{select:{reference:true}},items:{
-        include:{orderLine:{select:{productName:true,variantName:true,unit:true}}},
+        include:{
+          orderLine:{select:{productName:true,variantName:true,unit:true}},
+          custody:{include:{
+            sourceLot:{select:{lotNumber:true}},
+            quarantineLot:{select:{lotNumber:true}},
+          }},
+        },
         orderBy:{orderLineId:"asc"},
       }},
     });
@@ -43,6 +50,15 @@ export class PhysicalReturnsService {
         unit:item.orderLine.unit,quantity:item.quantity.toString(),
         condition:item.condition,disposition:item.disposition,
         inspectionNote:item.inspectionNote,inspectedAt:item.inspectedAt?.toISOString()??null,
+        custody:item.custody?{
+          itemId:item.id,sourceLotId:item.custody.sourceLotId,
+          sourceLotNumber:item.custody.sourceLot.lotNumber,
+          quarantineLotId:item.custody.quarantineLotId,
+          quarantineLotNumber:item.custody.quarantineLot.lotNumber,
+          quantity:item.custody.quantity.toString(),
+          recordedAt:item.custody.recordedAt.toISOString(),
+          custodyNote:item.custody.custodyNote,status:"quarantined" as const,
+        }:null,
       })),
     });
   }
@@ -60,8 +76,94 @@ export class PhysicalReturnsService {
     return physicalReturnListSchema.parse({
       items,page:query.page,perPage:query.perPage,total,
       enabled:this.config.physicalReturnsEnabled,
+      custodyEnabled:this.config.physicalReturnCustodyEnabled,
     });
   }
+  /** One-way, off-sale receipt of an already-inspected return item.
+   * This never changes the original depleted lot or creates a refund.
+   * Restrict to a single original source lot until per-lot returns are built.
+   */
+  async quarantine(actorId:string,itemId:string,key:string,requestId:string,input:PhysicalReturnQuarantineRequest){
+    this.ensureEnabled();
+    if(!this.config.physicalReturnCustodyEnabled)
+      throw new ApiProblem(503,"PHYSICAL_RETURN_CUSTODY_DISABLED",
+        "Quarantined return inventory custody is not enabled for this environment.");
+    const operation=`physical-return.quarantine:${itemId}`;
+    const hash=digest({itemId,...input});
+    return this.db.$transaction(async tx=>{
+      await tx.$queryRaw`SELECT 1 AS locked FROM pg_advisory_xact_lock(hashtextextended(${JSON.stringify([actorId,operation,key])},0))`;
+      const where={actorId_operation_key:{actorId,operation,key}};
+      const previous=await tx.idempotency.findUnique({where});
+      if(previous){
+        if(previous.requestHash!==hash)throw new ApiProblem(409,"IDEMPOTENCY_CONFLICT",
+          "Custody replay key has already been used for different evidence.");
+        return physicalReturnCustodyViewSchema.parse(previous.outcome);
+      }
+      const locked=await tx.$queryRaw<{id:string}[]>`SELECT id FROM "PhysicalReturnItem" WHERE id=${itemId} FOR UPDATE`;
+      if(!locked.length)throw new ApiProblem(404,"NOT_FOUND","Physical return item not found.");
+      const item=await tx.physicalReturnItem.findUniqueOrThrow({where:{id:itemId},
+        include:{receipt:true,custody:true}});
+      if(item.receipt.status!=="inspected"||!item.inspectedAt||item.disposition!=="quarantine")
+        throw new ApiProblem(422,"RETURN_NOT_READY_FOR_QUARANTINE",
+          "Only a fully inspected and quarantined return item can enter stock custody.");
+      if(item.custody)throw new ApiProblem(409,"RETURN_ALREADY_IN_STOCK_CUSTODY",
+        "This physically returned item has already been recorded in quarantine inventory.");
+      const depleted=await tx.stockDepletion.findUnique({where:{
+        claimType_claimId:{claimType:"order",claimId:item.receipt.orderId},
+      },include:{lines:true}});
+      const matches=depleted?.lines.filter(line=>
+        line.claimLineId===item.orderLineId&&line.variantId===item.variantId)??[];
+      const sourceIds=[...new Set(matches.map(line=>line.lotId))];
+      if(!depleted||depleted.locationId!==item.receipt.locationId||sourceIds.length!==1||
+        matches.reduce((sum,line)=>sum.plus(line.quantity),new Prisma.Decimal(0)).lt(item.quantity))
+        throw new ApiProblem(422,"RETURN_LOT_PROVENANCE_UNVERIFIED",
+          "Cannot establish one immutable original stock lot for these returned goods.");
+      const sourceLot=await tx.stockLot.findUnique({where:{id:sourceIds[0]},
+        include:{position:true}});
+      if(!sourceLot||sourceLot.position.variantId!==item.variantId||
+        sourceLot.position.locationId!==item.receipt.locationId)
+        throw new ApiProblem(422,"RETURN_LOT_PROVENANCE_UNVERIFIED",
+          "The original stock lot does not match the depleted order line and location.");
+      const receipt=await tx.stockReceipt.create({data:{
+        receivedBy:actorId,
+        note:`Physical return ${item.receipt.reference}: quarantined stock, NOT saleable or refunded`,
+        poRef:`PHYSICAL_RETURN:${item.id}`,
+      }});
+      const quarantineLot=await tx.stockLot.create({data:{
+        positionId:sourceLot.positionId,receiptId:receipt.id,
+        lotNumber:`RET-${item.receipt.reference}-${item.id.slice(0,8)}`,
+        quantity:item.quantity,expiryDate:sourceLot.expiryDate,
+        unitCostMinor:sourceLot.unitCostMinor,
+        kind:"physical_return_quarantine",quarantined:true,
+      }});
+      await tx.stockMovement.create({data:{
+        lotId:quarantineLot.id,receiptId:receipt.id,
+        delta:item.quantity,resultingQty:item.quantity,
+        actorId,reason:"physical_return_quarantine",
+      }});
+      const custody=await tx.physicalReturnCustody.create({data:{
+        itemId,sourceLotId:sourceLot.id,quarantineLotId:quarantineLot.id,
+        stockReceiptId:receipt.id,quantity:item.quantity,
+        custodyNote:input.custodyNote,recordedBy:actorId,
+      }});
+      const result=physicalReturnCustodyViewSchema.parse({
+        itemId,sourceLotId:sourceLot.id,sourceLotNumber:sourceLot.lotNumber,
+        quarantineLotId:quarantineLot.id,quarantineLotNumber:quarantineLot.lotNumber,
+        quantity:item.quantity.toString(),recordedAt:custody.recordedAt.toISOString(),
+        custodyNote:custody.custodyNote,status:"quarantined",
+      });
+      await tx.auditEvent.create({data:{actorId,action:"physical_return.quarantine_recorded",
+        entityId:itemId,requestId,
+        details:{returnId:item.receiptId,orderId:item.receipt.orderId,stockReceiptId:receipt.id,
+          sourceLotId:sourceLot.id,quarantineLotId:quarantineLot.id,quantity:item.quantity.toString()}}});
+      await tx.outboxEvent.create({data:{type:"physical_return.quarantine_recorded",
+        aggregateId:item.receiptId,payload:{returnId:item.receiptId,itemId,
+          quarantineLotId:quarantineLot.id}}});
+      await tx.idempotency.create({data:{actorId,operation,key,requestHash:hash,outcome:result}});
+      return result;
+    },{timeout:15000});
+  }
+
   async receive(actorId:string,key:string,requestId:string,input:PhysicalReturnReceive){
     this.ensureEnabled();
     const operation="physical-return.receive";

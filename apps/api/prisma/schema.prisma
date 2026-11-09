@@ -216,6 +216,8 @@ model StockLot {
   reservations Reservation[]
   fulfilmentPicks FulfilmentPick[]
   depletionLines StockDepletionLine[]
+  originalPhysicalReturnCustodies PhysicalReturnCustody[] @relation("PhysicalReturnOriginalLot")
+  quarantinedPhysicalReturnCustody PhysicalReturnCustody? @relation("PhysicalReturnQuarantineLot")
   @@unique([id, positionId])
   @@index([positionId, kind, quarantined, expiryDate])
 }
@@ -250,6 +252,7 @@ model StockReceipt {
   createdAt DateTime @default(now()) @db.Timestamptz(3)
   lots StockLot[]
   movements StockMovement[]
+  physicalReturnCustodies PhysicalReturnCustody[]
 }
 
 model StockMovement {
@@ -483,8 +486,27 @@ model PhysicalReturnItem {
   inspectionNote String?
   inspectedBy String?
   inspectedAt DateTime? @db.Timestamptz(3)
+  custody PhysicalReturnCustody?
   @@unique([receiptId, orderLineId])
   @@index([orderLineId, disposition])
+}
+
+/// An immutable, exactly-once transfer into NON-SELLABLE quarantine inventory.
+/// No automatic refund or saleable restocking can originate from this record.
+model PhysicalReturnCustody {
+  itemId String @id
+  item PhysicalReturnItem @relation(fields: [itemId], references: [id], onDelete: Restrict)
+  sourceLotId String
+  sourceLot StockLot @relation("PhysicalReturnOriginalLot", fields: [sourceLotId], references: [id], onDelete: Restrict)
+  quarantineLotId String @unique
+  quarantineLot StockLot @relation("PhysicalReturnQuarantineLot", fields: [quarantineLotId], references: [id], onDelete: Restrict)
+  stockReceiptId String
+  stockReceipt StockReceipt @relation(fields: [stockReceiptId], references: [id], onDelete: Restrict)
+  quantity Decimal @db.Decimal(15, 3)
+  custodyNote String
+  recordedBy String
+  recordedAt DateTime @default(now()) @db.Timestamptz(3)
+  @@index([stockReceiptId])
 }
 
 model PickupAppointmentPolicy {

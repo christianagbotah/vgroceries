@@ -50,6 +50,7 @@ import type {
   PickupCentreClosureInput, PickupCentreClosureView,
   PhysicalReturnReceive, PhysicalReturnInspect,
   PhysicalReturnView, PhysicalReturnList,
+  PhysicalReturnQuarantineRequest,PhysicalReturnCustodyView,
   CompleteOrderResponse,
   DashboardView,
   DoneResponse,
@@ -218,6 +219,10 @@ export const apiOps = {
   physicalReturnReceive: (body:PhysicalReturnReceive,idempotencyKey:string) =>
     api<PhysicalReturnView>("admin.physical-return.receive",{
       body:body as unknown as Record<string,unknown>,idempotencyKey,
+    }),
+  physicalReturnQuarantine: (itemId:string,body:PhysicalReturnQuarantineRequest,idempotencyKey:string) =>
+    api<PhysicalReturnCustodyView>("admin.physical-return.quarantine",{
+      query:{itemId},body:body as unknown as Record<string,unknown>,idempotencyKey,
     }),
   physicalReturnDetail: (returnId:string) =>
     api<PhysicalReturnView>("admin.physical-return.detail",{query:{returnId}}),
