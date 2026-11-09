@@ -16,10 +16,11 @@ test("verified till report exposes only read operations",()=>{
 
 test("real till report uses cookie-authenticated GET with no writes",async()=>{
   const calls:{url:string;init:RequestInit}[]=[];
-  globalThis.fetch=async(input,init)=>{
+  // Bun 1.4.4 adds fetch.preconnect to the global callable type.
+  globalThis.fetch=Object.assign(async(input: RequestInfo | URL,init?: RequestInit)=>{
     calls.push({url:String(input),init:init??{}});
     return Response.json({ok:true,data:{source:"server_cash_ledger"}});
-  };
+  },{preconnect:()=>{}});
   const api=new HttpServiceAdapter("https://api.varietygroceries.com/api/v1",{
     credentials:"include",kind:"http:api",
   });
