@@ -988,6 +988,7 @@ test("foundation OpenAPI describes only implemented routes with cookie/native se
     "/api/v1/admin/pos/tills",
     "/api/v1/admin/pos/tills/{sessionId}",
     "/api/v1/admin/pos/tills/{sessionId}/reconciliation",
+    "/api/v1/admin/pos/tills/{sessionId}/reconciliation.csv",
     "/api/v1/admin/pos/tills/{sessionId}/movements",
     "/api/v1/admin/pos/tills/{sessionId}/close",
     "/api/v1/admin/dashboard",
