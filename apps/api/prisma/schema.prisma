@@ -906,6 +906,7 @@ model StockDepletion {
   requestId String
   createdAt DateTime @default(now()) @db.Timestamptz(3)
   lines StockDepletionLine[]
+  posCashSale PosCashSale?
   @@unique([claimType, claimId])
   @@index([locationId, createdAt])
 }
@@ -1353,6 +1354,7 @@ model CashierTillSession {
   closeNote String?
   movements CashierTillMovement[]
   stockHolds PosStockHold[]
+  cashSales PosCashSale[]
   @@index([locationId, status, openedAt])
   @@index([openedByUserId, openedAt])
 }
@@ -1387,6 +1389,7 @@ model PosStockHold {
   releasedAt DateTime? @db.Timestamptz(3)
   releaseNote String?
   lines PosStockHoldLine[]
+  cashSale PosCashSale?
   @@index([tillSessionId, status, expiresAt])
   @@index([locationId, createdAt])
 }
@@ -1400,4 +1403,31 @@ model PosStockHoldLine {
   unitPriceMinor Int
   lineTotalMinor Int
   @@unique([holdId, variantId])
+}
+
+/**
+ * P0c1: immutable, physically counted CASH sale and handover against an
+ * existing POS reservation. No electronic payment claims or tax invoices.
+ * Once inserted, consumed stock and recorded cash cannot be silently undone.
+ */
+model PosCashSale {
+  id String @id @default(uuid())
+  reference String @unique
+  holdId String @unique
+  hold PosStockHold @relation(fields: [holdId], references: [id], onDelete: Restrict)
+  tillSessionId String
+  till CashierTillSession @relation(fields: [tillSessionId], references: [id], onDelete: Restrict)
+  locationId String
+  soldByUserId String
+  stockDepletionId String @unique
+  depletion StockDepletion @relation(fields: [stockDepletionId], references: [id], onDelete: Restrict)
+  subtotalMinor Int
+  cashReceivedMinor Int
+  changeGivenMinor Int
+  handoverNote String
+  cashCountConfirmed Boolean
+  goodsHandedOver Boolean
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  @@index([tillSessionId, createdAt])
+  @@index([locationId, createdAt])
 }

@@ -36,7 +36,10 @@ export class PosHoldsService {
   }
   private async view(tx:Tx,id:string){
     const row=await tx.posStockHold.findUnique({where:{id},
-      include:{lines:{orderBy:[{variantId:"asc"},{id:"asc"}]}}});
+      include:{
+        cashSale:{select:{id:true}},
+        lines:{orderBy:[{variantId:"asc"},{id:"asc"}]},
+      }});
     if(!row)throw new ApiProblem(404,"NOT_FOUND","Reserved counter cart not found.");
     const currentlyHeld=row.status==="held"&&row.expiresAt.getTime()>Date.now();
     return posHoldViewSchema.parse({
@@ -48,7 +51,9 @@ export class PosHoldsService {
       releasedAt:row.releasedAt?.toISOString()??null,
       releaseNote:row.releaseNote,
       stockReserved:currentlyHeld,
-      orderCreated:false,paymentVerified:false,goodsHandedOver:false,
+      orderCreated:false,paymentVerified:false,
+      cashSaleRecorded:row.status==="consumed"&&row.cashSale!==null,
+      goodsHandedOver:row.status==="consumed"&&row.cashSale!==null,
       lines:row.lines.map(x=>({
         id:x.id,variantId:x.variantId,quantity:x.quantity.toString(),
         unitPriceMinor:x.unitPriceMinor,lineTotalMinor:x.lineTotalMinor,
@@ -204,6 +209,9 @@ export class PosHoldsService {
         expiresAt:Date}>>`SELECT id,status,"expiresAt" FROM "PosStockHold"
         WHERE id=${id} FOR UPDATE`;
       if(!locked)throw new ApiProblem(404,"NOT_FOUND","Reserved counter cart not found.");
+      if(locked.status==="consumed")
+        throw new ApiProblem(409,"POS_SALE_COMPLETED",
+          "This cart has already been sold and handed over; it cannot be released.");
       if(locked.status==="held"){
         const expired=locked.expiresAt.getTime()<=Date.now();
         if(expired){

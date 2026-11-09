@@ -389,6 +389,8 @@ export function foundationOpenApi(app: INestApplication) {
         "/admin/pos/tills/{sessionId}/movements",
         "/admin/pos/tills/{sessionId}/close",
         "/admin/pos/quote",
+        "/admin/pos/cash-sales",
+        "/admin/pos/cash-sales/{saleId}",
         "/admin/pos/holds",
         "/admin/pos/holds/{holdId}",
         "/admin/pos/holds/{holdId}/release",
