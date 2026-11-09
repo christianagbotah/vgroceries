@@ -25,6 +25,7 @@ export * from "./returns";
 export * from "./inventory";
 export * from "./pos";
 export * from "./cashier-tills";
+export * from "./pos-quote";
 export * from "./dispatch";
 export * from "./logistics";
 export * from "./rider";
