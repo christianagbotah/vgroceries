@@ -83,6 +83,7 @@ import {
   customerReturnClaimsListSchema,customerReturnClaimEligibilitySchema,
   cashierTillOpenSchema,cashierTillMoveSchema,cashierTillCloseSchema,
   cashierTillSessionViewSchema,cashierTillListSchema,
+  posTillReconciliationViewSchema,
   posQuoteRequestSchema,posQuoteViewSchema,
   posHoldCreateSchema,posHoldReleaseSchema,posHoldViewSchema,posHoldListSchema,
   posCashSaleCompleteSchema,posCashSaleViewSchema,posCashSaleListSchema,
@@ -355,6 +356,7 @@ export function productionOpenApi(app: INestApplication): OpenAPIObject {
     CashierTillClose:json(cashierTillCloseSchema),
     CashierTillSessionView:json(cashierTillSessionViewSchema),
     CashierTillList:json(cashierTillListSchema),
+    PosTillReconciliationView:json(posTillReconciliationViewSchema),
     PosQuoteRequest:json(posQuoteRequestSchema),
     PosQuoteView:json(posQuoteViewSchema),
     PosHoldCreate:json(posHoldCreateSchema),
@@ -437,7 +439,7 @@ export function productionOpenApi(app: INestApplication): OpenAPIObject {
     "PhysicalReturnResaleReviewView",
     "CustomerReturnClaimView","CustomerReturnClaimsList",
     "CustomerReturnClaimEligibility",
-    "CashierTillSessionView","CashierTillList","PosQuoteView",
+    "CashierTillSessionView","CashierTillList","PosTillReconciliationView","PosQuoteView",
     "PosHoldView","PosHoldList","PosCashSaleView","PosCashSaleList",
     "CmsHomepage", "CmsHomepageAdminView", "CmsContentPage", "CmsContentPageAdminView", "CmsOverviewView",
   ])
@@ -849,6 +851,10 @@ export function productionOpenApi(app: INestApplication): OpenAPIObject {
   doc.paths["/api/v1/admin/pos/tills/{sessionId}"]={
     get:readOperation("Administrator-only immutable till detail, including cash movements but no sale totals.",
       "CashierTillSessionViewEnvelope",[tillId]),
+  };
+  doc.paths["/api/v1/admin/pos/tills/{sessionId}/reconciliation"]={
+    get:readOperation("Administrator-only, read-only same-snapshot CASH drawer reconciliation: opening float, manual cash in/out/drops, completed counter cash sales, recent receipt references, active holds and any closing difference. Excludes electronic payments, refunds, tax and general ledger.",
+      "PosTillReconciliationViewEnvelope",[tillId]),
   };
   doc.paths["/api/v1/admin/pos/tills/{sessionId}/movements"]={
     post:physicalReturnMutation("Administrator-only cash-in/out/drop recording with immutable evidence and replay safety; no POS payment truth.",

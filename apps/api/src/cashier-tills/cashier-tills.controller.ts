@@ -6,6 +6,7 @@ import {AccessGuard} from "../identity/access.guard";
 import type {AuthRequest} from "../identity/identity.service";
 import {ApiProblem,ApiRequest} from "../http/errors";
 import {CashierTillsService} from "./cashier-tills.service";
+import {PosTillReconciliationService} from "./pos-till-reconciliation.service";
 
 const replay=(req:ApiRequest)=>{
   const p=replayKeySchema.safeParse(req.get("idempotency-key"));
@@ -18,7 +19,8 @@ const replay=(req:ApiRequest)=>{
 @Controller("admin/pos/tills")
 @UseGuards(AccessGuard)
 export class CashierTillsController {
-  constructor(private readonly tills:CashierTillsService){}
+  constructor(private readonly tills:CashierTillsService,
+    private readonly reconciliation:PosTillReconciliationService){}
   private admin(req:AuthRequest){
     if(req.actor.role!=="admin")throw new ApiProblem(403,"FORBIDDEN",
       "Only authorised administrators may manage preliminary till records.");
@@ -28,6 +30,11 @@ export class CashierTillsController {
   async list(@Req() req:AuthRequest){
     this.admin(req);
     return {ok:true,data:await this.tills.list()};
+  }
+  @Get(":sessionId/reconciliation")
+  async reconciliationPreview(@Req() req:AuthRequest,@Param("sessionId") id:string){
+    this.admin(req);
+    return {ok:true,data:await this.reconciliation.preview(id)};
   }
   @Get(":sessionId")
   async detail(@Req() req:AuthRequest,@Param("sessionId") id:string){
