@@ -132,8 +132,13 @@ test("counter holds reject tampered line prices, duplicate units and unauthorise
   const off=new PosHoldsService(db,cfg(false),app.get(AllocationService));
   await assert.rejects(()=>off.create("admin-commerce","off-pos-001","req",valid),
     (e:any)=>e?.getStatus?.()===503);
-  assert.throws(()=>readConfig({POS_STOCK_HOLDS_ENABLED:"true"}),
-    /POS_STOCK_HOLDS_ENABLED requires/);
+  assert.throws(()=>readConfig({
+    DATABASE_URL:process.env.DATABASE_URL!,
+    WEB_ORIGINS:"http://localhost:3000",
+    API_STOCK_LOCATION_ID:"loc_accra",
+    API_INSECURE_COOKIES:"true",
+    POS_STOCK_HOLDS_ENABLED:"true",
+  }),/POS_STOCK_HOLDS_ENABLED requires/);
 });
 
 test("online checkout and POS hold cannot both reserve the same last stock",async()=>{
