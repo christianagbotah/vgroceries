@@ -76,9 +76,15 @@ must pass. Deploy with the flag **OFF** and verify frontend/API route and
 authorization smoke checks. Do not interpret a deployed page as an
 operational acceptance policy.
 
+**In-app inbox follow-up:** The R3a outbox now projects owner-scoped,
+deduplicated requested/accepted/rejected/cancelled updates into the existing
+account inbox. Recipients are resolved from the stored claim and order, never
+the event payload. This is in-app only; SMS, email, physical receipt and
+financial settlement are not implied.
+
 **Next (R3b/R3c):** Link accepted claims to actual staff-verified physical
-receipts and reconcile accepted quantity against that receipt; add customer
-status notifications and approved private evidence storage; then implement
+receipts and reconcile accepted quantity against that receipt; add approved
+private evidence storage; then implement
 verified-capture and per-line financial amount calculation with refunds
 generated exclusively through the Refund Authority. Preserve the
 payment/stock/customer ownership separation throughout. Policy on
