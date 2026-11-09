@@ -9,6 +9,7 @@ import {API_CONFIG,type ApiConfig} from "../config";
 import {Database} from "../database/database";
 import {ApiProblem} from "../http/errors";
 import {StockDepletionService} from "../inventory/stock-depletion.service";
+import {renderPosCashReceiptHtml} from "./pos-receipt-html";
 
 type Tx=Prisma.TransactionClient;
 const hash=(x:unknown)=>createHash("sha256").update(JSON.stringify(x)).digest("hex");
@@ -56,6 +57,30 @@ export class PosCashSalesService {
     });
   }
   async detail(id:string){this.ensureOn();return this.view(this.db as Tx,id);}
+  async printReceipt(id:string){
+    this.ensureOn();
+    const row=await this.db.posCashSale.findUnique({
+      where:{id},include:{
+        till:{select:{tillCode:true}},
+        receiptLines:{orderBy:[{variantId:"asc"},{id:"asc"}]},
+      },
+    });
+    if(!row)throw new ApiProblem(404,"NOT_FOUND","Counter cash sale not found.");
+    if(row.receiptLines.length===0)
+      throw new ApiProblem(409,"POS_RECEIPT_SNAPSHOT_UNAVAILABLE",
+        "This historical sale predates immutable product descriptions; do not print an inaccurate receipt.");
+    return renderPosCashReceiptHtml({
+      reference:row.reference,tillCode:row.till.tillCode,
+      createdAt:row.createdAt,subtotalMinor:row.subtotalMinor,
+      cashReceivedMinor:row.cashReceivedMinor,
+      changeGivenMinor:row.changeGivenMinor,
+      lines:row.receiptLines.map(l=>({
+        productName:l.productName,variantName:l.variantName,unit:l.unit,
+        quantity:l.quantity.toString(),unitPriceMinor:l.unitPriceMinor,
+        lineTotalMinor:l.lineTotalMinor,
+      })),
+    });
+  }
   async list(){
     this.ensureOn();
     const rows=await this.db.posCashSale.findMany({
@@ -133,11 +158,13 @@ export class PosCashSalesService {
       type CatalogRow={
         id:string;priceMinor:number;variantActive:boolean;
         productPublished:boolean;categoryActive:boolean;
+        productName:string;variantName:string;unit:string;
       };
       const current=new Map<string,CatalogRow>();
       for(const line of lines){
         const [row]=await tx.$queryRaw<CatalogRow[]>`SELECT
-          v.id,v."priceMinor",v.active AS "variantActive",
+          v.id,v."priceMinor",v.name AS "variantName",v.unit,
+          p.name AS "productName",v.active AS "variantActive",
           p.published AS "productPublished",c.active AS "categoryActive"
           FROM "Variant" v JOIN "Product" p ON p.id=v."productId"
           JOIN "Category" c ON c.id=p."categoryId"
@@ -184,6 +211,17 @@ export class PosCashSalesService {
         cashCountConfirmed:true,goodsHandedOver:true,
         handoverNote:canonical.handoverNote,
       }});
+      // Immutable product labels live in the same transaction as the sale.
+      // Reprints never look up product names from a subsequently changed catalog.
+      await tx.posCashReceiptLine.createMany({data:lines.map(l=>{
+        const catalog=current.get(l.variantId)!;
+        return {
+          saleId:sale.id,holdLineId:l.id,variantId:l.variantId,
+          productName:catalog.productName,variantName:catalog.variantName,
+          unit:catalog.unit,quantity:l.quantity,
+          unitPriceMinor:l.unitPriceMinor,lineTotalMinor:l.lineTotalMinor,
+        };
+      })});
       await tx.posStockHold.update({where:{id:locked.id},data:{
         status:"consumed",
       }});
