@@ -1,7 +1,8 @@
 import { Body,Controller,Get,HttpCode,Param,Post,Query,Req,UseGuards } from "@nestjs/common";
 import { ApiTags } from "@nestjs/swagger";
 import { physicalReturnReceiveSchema,physicalReturnInspectSchema,
-  physicalReturnQuerySchema,physicalReturnQuarantineRequestSchema,replayKeySchema,
+  physicalReturnQuerySchema,physicalReturnQuarantineRequestSchema,
+  physicalReturnResaleProposeSchema,physicalReturnResaleDecisionSchema,replayKeySchema,
   type PhysicalReturnReceive,type PhysicalReturnInspect } from "@variety/contracts";
 import { ApiProblem } from "../http/errors";
 import { AccessGuard } from "../identity/access.guard";
@@ -47,6 +48,22 @@ export class PhysicalReturnsController {
     if(!parsed.success)throw new ApiProblem(400,"VALIDATION_FAILED",
       "Provide verified physical quarantine custody evidence.",parsed.error.issues);
     return {ok:true,data:await this.returns.quarantine(req.actor.id,itemId,this.key(req),req.requestId,parsed.data)};
+  }
+  @Post("items/:itemId/resale-review") @HttpCode(200)
+  async resaleReview(@Req() req:AuthRequest,@Param("itemId") itemId:string,@Body() raw:unknown){
+    this.requireAdmin(req);
+    const parsed=physicalReturnResaleProposeSchema.safeParse(raw);
+    if(!parsed.success)throw new ApiProblem(400,"VALIDATION_FAILED",
+      "Complete all verified non-food factory-sealed safety attestations.",parsed.error.issues);
+    return {ok:true,data:await this.returns.proposeResale(req.actor.id,itemId,this.key(req),req.requestId,parsed.data)};
+  }
+  @Post("items/:itemId/resale-decision") @HttpCode(200)
+  async resaleDecision(@Req() req:AuthRequest,@Param("itemId") itemId:string,@Body() raw:unknown){
+    this.requireAdmin(req);
+    const parsed=physicalReturnResaleDecisionSchema.safeParse(raw);
+    if(!parsed.success)throw new ApiProblem(400,"VALIDATION_FAILED",
+      "Provide a final independent resale decision with evidence.",parsed.error.issues);
+    return {ok:true,data:await this.returns.decideResale(req.actor.id,itemId,this.key(req),req.requestId,parsed.data)};
   }
   @Get(":returnId")
   async detail(@Req() req:AuthRequest,@Param("returnId") id:string){

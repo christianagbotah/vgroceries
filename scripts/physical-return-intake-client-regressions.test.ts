@@ -5,6 +5,8 @@ import {
   physicalReturnReceiveSchema,physicalReturnInspectSchema,physicalReturnViewSchema,
   physicalReturnListSchema,physicalReturnQuarantineRequestSchema,
   physicalReturnCustodyViewSchema,
+  physicalReturnResaleProposeSchema,physicalReturnResaleDecisionSchema,
+  physicalReturnResaleReviewViewSchema,
 } from "../packages/contracts/src/physical-returns";
 import { restEndpoints } from "../packages/contracts/src/endpoints";
 import { validateRequest } from "../packages/contracts/src/validation";
@@ -138,5 +140,78 @@ describe("Physical Returns R2a non-saleable quarantine stock",()=>{
     expect(page).toContain("Quarantine stock custody is not activated");
     expect(page).toContain("These goods are NOT available to sell");
     expect(page).not.toContain('type="button">Approve cash refund');
+  });
+});
+
+describe("Physical Returns R2b independent non-food resale release",()=>{
+  test("strict safety attestations cannot be omitted or bypassed with money fields",()=>{
+    const valid={
+      safetyClassification:"non_food_factory_sealed" as const,
+      factorySealIntact:true as const,tamperAndContaminationAbsent:true as const,
+      sourceTraceabilityVerified:true as const,expiryAndStorageVerified:true as const,
+      evidenceNote:"Factory sealed non-food product verified by stock staff against original lot and minimum shelf life",
+    };
+    expect(physicalReturnResaleProposeSchema.safeParse(valid).success).toBe(true);
+    for(const invalid of [
+      {...valid,factorySealIntact:false},
+      {...valid,tamperAndContaminationAbsent:false},
+      {...valid,sourceTraceabilityVerified:false},
+      {...valid,expiryAndStorageVerified:false},
+      {...valid,safetyClassification:"shelf_stable_food"},
+      {...valid,saleableLotId:"browser-selected-lot"},
+      {...valid,refundMinor:1000},
+      {...valid,evidenceNote:"too short"},
+    ])expect(physicalReturnResaleProposeSchema.safeParse(invalid).success).toBe(false);
+    expect(validateRequest("admin.physical-return.resale-propose",{
+      ...valid,idempotencyKey:"review-proposal-001",
+    }).ok).toBe(true);
+  });
+  test("independent decision is only approve or reject with verified evidence, no amount",()=>{
+    const valid={decision:"reject" as const,decisionNote:"Unsafe goods must remain in quarantine for inspection"};
+    expect(physicalReturnResaleDecisionSchema.safeParse(valid).success).toBe(true);
+    for(const invalid of [
+      {...valid,decision:"release_all"},
+      {...valid,decisionNote:"bad"},
+      {...valid,quantity:"500"},
+      {...valid,refundMinor:2000},
+      {...valid,sourceLotId:"arbitrary"},
+    ])expect(physicalReturnResaleDecisionSchema.safeParse(invalid).success).toBe(false);
+    const review={
+      itemId:"item-one",status:"pending" as const,
+      proposedBy:"admin-a",proposedAt:"2026-11-09T10:00:00.000Z",
+      evidenceNote:"Factory intact shelf-stable non-food item with documented original expiry",
+      decidedBy:null,decidedAt:null,decisionNote:null,
+      saleableLotId:null,transferReceiptId:null,
+    };
+    expect(physicalReturnResaleReviewViewSchema.safeParse(review).success).toBe(true);
+    expect(physicalReturnResaleReviewViewSchema.safeParse({...review,paidAmountMinor:400}).success).toBe(false);
+  });
+  test("two real admin operations are write-only authority with stock and catalogue cache invalidation",async()=>{
+    expect(restEndpoints["admin.physical-return.resale-propose"].path)
+      .toBe("/admin/physical-returns/items/{itemId}/resale-review");
+    expect(restEndpoints["admin.physical-return.resale-decision"].path)
+      .toBe("/admin/physical-returns/items/{itemId}/resale-decision");
+    expect(restEndpoints["admin.physical-return.resale-decision"].method).toBe("POST");
+    expect(invalidatesTags("admin.physical-return.resale-decision")).toContain("stock");
+    const mock=new MockServiceAdapter();
+    for(const op of ["admin.physical-return.resale-propose","admin.physical-return.resale-decision"] as const)
+      await expect(mock.request({op,query:{itemId:"fake"},
+        idempotencyKey:"no-physical-proof",
+        body:op.endsWith("propose")?
+          {safetyClassification:"non_food_factory_sealed",factorySealIntact:true,
+            tamperAndContaminationAbsent:true,sourceTraceabilityVerified:true,
+            expiryAndStorageVerified:true,evidenceNote:"Cannot use fictional returns for safety approvals"}:
+          {decision:"reject",decisionNote:"Cannot approve phantom returned goods"},
+      })).rejects.toMatchObject({code:"UNAVAILABLE"});
+  });
+  test("staff UI demands independent sign-off and explicitly limits release to non-food",()=>{
+    const page=readFileSync("src/app/admin/physical-returns/page.tsx","utf8");
+    expect(page).toContain("physicalReturnResalePropose");
+    expect(page).toContain("physicalReturnResaleDecision");
+    expect(page).toContain("resaleConfirmed");
+    expect(page).toContain("factory-sealed");
+    expect(page).toContain("Food, opened goods and perishable groceries must remain unavailable for resale");
+    expect(page).toContain("The proposer, physical receiver, inspector and custodian cannot approve");
+    expect(page).not.toContain("refundMinor");
   });
 });

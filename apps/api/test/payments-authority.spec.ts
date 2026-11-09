@@ -27,7 +27,7 @@ test("production OpenAPI exposes exactly the five Payments Authority routes and 
   for (const path of paymentPaths) assert.ok(document.paths[path], `missing ${path}`);
   assert.equal(document.paths["/api/v1/orders/{orderId}/payment-outcome"], undefined);
   assert.equal(document.paths["/api/v1/payments/fake/events"], undefined);
-  assert.equal(Object.keys(document.paths).length, 124);
+  assert.equal(Object.keys(document.paths).length, 126);
 });
 
 test("eTranzact hosted return is public provider evidence and redirects only after server processing", () => {

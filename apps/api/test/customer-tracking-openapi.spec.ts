@@ -6,7 +6,7 @@ import { resolve } from "node:path";
 const doc = JSON.parse(readFileSync(resolve(process.cwd(), "../../docs/openapi-foundation.json"), "utf8"));
 
 test("L3 enriches both existing secure order endpoints without adding a public route", () => {
-  assert.equal(Object.keys(doc.paths).length, 124);
+  assert.equal(Object.keys(doc.paths).length, 126);
   const track = doc.paths["/api/v1/orders/track"].post;
   const detail = doc.paths["/api/v1/orders/{orderId}"].get;
   assert.deepEqual(track.responses["200"].content["application/json"].schema, { $ref: "#/components/schemas/PublicOrderEnvelope" });
@@ -120,4 +120,25 @@ test("R2a quarantined-stock custody endpoint is admin-only, replay protected, an
   for(const unsafe of ["/api/v1/admin/physical-returns/items/{itemId}/release",
     "/api/v1/admin/physical-returns/items/{itemId}/refund"])
     assert.equal(doc.paths[unsafe],undefined);
+});
+
+test("R2b independent non-food resale review is secured with replay and CSRF and no refund authority",()=>{
+  const definitions=[
+    ["/api/v1/admin/physical-returns/items/{itemId}/resale-review","PhysicalReturnResalePropose"],
+    ["/api/v1/admin/physical-returns/items/{itemId}/resale-decision","PhysicalReturnResaleDecision"],
+  ];
+  for(const [path,schema] of definitions){
+    const operation=doc.paths[path].post;
+    assert.deepEqual(operation.security,[{cookieAuth:[]},{bearerAuth:[]}]);
+    assert.ok(operation.parameters.some((p:any)=>p.name==="Idempotency-Key"&&p.required));
+    assert.ok(operation.parameters.some((p:any)=>p.name==="X-CSRF-Token"));
+    assert.ok(operation.parameters.some((p:any)=>p.name==="itemId"&&p.required));
+    assert.deepEqual(operation.requestBody.content["application/json"].schema,
+      {$ref:"#/components/schemas/"+schema});
+    assert.ok(!JSON.stringify(operation).includes("refundAmountMinor"));
+  }
+  assert.equal(doc.paths["/api/v1/admin/physical-returns/items/{itemId}/refund"],undefined);
+  const projection=JSON.stringify(doc.components.schemas.PhysicalReturnResaleReviewView);
+  for(const forbidden of ["customerPhone","payoutReference","cashCollected","refundProviderReference"])
+    assert.ok(!projection.includes('"'+forbidden+'"'));
 });

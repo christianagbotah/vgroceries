@@ -2,7 +2,7 @@
 
 This document separates implemented authority from deliberately unconnected
 production capabilities. **As of 9 November 2026**, the source API has
-**124 paths** in this source branch (R1 deployed in UAT; R2a not yet
+**126 paths** in this source branch (R1 and R2a deployed in UAT; R2b not yet
 released), including customer pickup appointments, physical-return receipt
 and inspection, and one new administrator-only quarantine custody action.
 The former Wave L3/L4 tracking/in-app-notification code, appointment
@@ -33,9 +33,12 @@ completed-order, quantity-bounded staff physical receipts and terminal
 quarantine/destroy inspections. **R2a quarantine custody is implemented in a
 separate default-off branch**: only inspected quarantined goods with one
 verified source lot receive an immutable, non-saleable stock lot and receipt.
-**Not yet implemented:** safe-to-sell restock release, full customer request
-authorization, provider-money refunds tied to returned line quantities and
-cross-location/multi-lot evidence. Shipment returns still do not restore
+**R2b source branch** adds *independently approved, allowlisted,
+sealed non-food-only* release with 30-day minimum expiry and balanced stock
+movements behind a third OFF flag. **Not yet implemented:** food resale
+authority, customer return request authorization, provider-money refunds
+tied to returned quantities, safety-incident evidence, and
+cross-location/multi-lot provenance. Shipment returns still do not restore
 inventory. Neither an R1 inspection nor R2a custody is permission to resell
 food or create a refund.
 5. **POS cashier sales are not yet a production API authority.** POS must reuse exactly-once depletion and add cashier/session/payment controls.
