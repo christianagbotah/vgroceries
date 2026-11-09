@@ -41,11 +41,13 @@ export const cashierTillSessionViewSchema=z.object({
   closeNote:z.string().nullable(),
   // This is a drawer-only balance. Sales and payment settlement are excluded.
   expectedDrawerOnlyMinor:money,
-  includesSales:z.literal(false),
+  cashSalesMinor:money.optional(),
+  expectedDrawerCashMinor:money.optional(),
+  includesSales:z.boolean(),
   movements:z.array(cashierTillMovementViewSchema),
 }).strict();
 export type CashierTillSessionView=z.infer<typeof cashierTillSessionViewSchema>;
 export const cashierTillListSchema=z.object({
-  enabled:z.boolean(), includesSales:z.literal(false),
+  enabled:z.boolean(), includesSales:z.boolean(),
   sessions:z.array(cashierTillSessionViewSchema),
 }).strict();

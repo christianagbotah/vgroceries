@@ -25,7 +25,13 @@ export class CashierTillsService {
     const entries=await tx.cashierTillMovement.groupBy({
       by:["kind"],where:{sessionId},_sum:{amountMinor:true},
     });
-    return entries.reduce((sum,x)=>sum+(x.kind==="cash_in"?1:-1)*(x._sum.amountMinor??0),opening);
+    const drawerOnly=entries.reduce((sum,x)=>
+      sum+(x.kind==="cash_in"?1:-1)*(x._sum.amountMinor??0),opening);
+    const cashSales=await tx.posCashSale.aggregate({
+      where:{tillSessionId:sessionId},_sum:{subtotalMinor:true},
+    });
+    const cashSalesMinor=cashSales._sum.subtotalMinor??0;
+    return {drawerOnly,cashSalesMinor,drawerCash:drawerOnly+cashSalesMinor};
   }
   private async view(tx:Tx,id:string){
     const row=await tx.cashierTillSession.findUnique({
@@ -41,7 +47,10 @@ export class CashierTillsService {
       closedByUserId:row.closedByUserId,closingCountedMinor:row.closingCountedMinor,
       closingExpectedMinor:row.closingExpectedMinor,
       closingDifferenceMinor:row.closingDifferenceMinor,closeNote:row.closeNote,
-      expectedDrawerOnlyMinor:expected,includesSales:false,
+      expectedDrawerOnlyMinor:expected.drawerOnly,
+      cashSalesMinor:expected.cashSalesMinor,
+      expectedDrawerCashMinor:expected.drawerCash,
+      includesSales:expected.cashSalesMinor>0,
       movements:row.movements.map(x=>({
         id:x.id,kind:x.kind,amountMinor:x.amountMinor,note:x.note,
         actorUserId:x.actorUserId,createdAt:x.createdAt.toISOString(),
@@ -53,7 +62,8 @@ export class CashierTillsService {
       orderBy:[{openedAt:"desc"},{id:"desc"}],take:50,select:{id:true},
     });
     return cashierTillListSchema.parse({
-      enabled:this.cfg.posTillFoundationEnabled,includesSales:false,
+      enabled:this.cfg.posTillFoundationEnabled,
+      includesSales:(await this.db.posCashSale.count())>0,
       sessions:await Promise.all(rows.map(r=>this.view(this.db as Tx,r.id))),
     });
   }
@@ -111,7 +121,8 @@ export class CashierTillsService {
       if(!row)throw new ApiProblem(404,"NOT_FOUND","Till session not found.");
       if(row.status!=="open")throw new ApiProblem(409,"TILL_CLOSED","This till is already closed.");
       const previous=await this.expected(tx,id,row.openingFloatMinor);
-      const next=previous+(input.kind==="cash_in"?input.amountMinor:-input.amountMinor);
+      const next=previous.drawerCash+
+        (input.kind==="cash_in"?input.amountMinor:-input.amountMinor);
       if(next<0||next>LIMIT)throw new ApiProblem(409,"TILL_BALANCE_INVALID",
         "Cash movements cannot overdraw or exceed the permitted drawer limit.");
       await tx.cashierTillMovement.create({data:{
@@ -122,7 +133,9 @@ export class CashierTillsService {
       await tx.auditEvent.create({data:{
         actorId,action:"pos_till.movement",entityId:id,requestId,
         details:{kind:input.kind,amountMinor:input.amountMinor,
-          note:input.note,expectedDrawerOnlyMinor:next,includesSales:false},
+          note:input.note,expectedDrawerCashMinor:next,
+          cashSalesMinor:previous.cashSalesMinor,
+          includesSales:previous.cashSalesMinor>0},
       }});
       await this.remember(tx,actorId,operation,key,hash,outcome);
       return outcome;
@@ -146,15 +159,20 @@ export class CashierTillsService {
       const expected=await this.expected(tx,id,row.openingFloatMinor);
       await tx.cashierTillSession.update({where:{id},data:{
         status:"closed",closedAt:new Date(),closedByUserId:actorId,
-        closingCountedMinor:input.countedCashMinor,closingExpectedMinor:expected,
-        closingDifferenceMinor:input.countedCashMinor-expected,closeNote:input.note,
+        closingCountedMinor:input.countedCashMinor,
+        closingExpectedMinor:expected.drawerCash,
+        closingDifferenceMinor:input.countedCashMinor-expected.drawerCash,
+        closeNote:input.note,
       }});
       const outcome=await this.view(tx,id);
       await tx.auditEvent.create({data:{
         actorId,action:"pos_till.drawer_closed",entityId:id,requestId,
-        details:{countedCashMinor:input.countedCashMinor,expectedDrawerOnlyMinor:expected,
-          drawerDifferenceMinor:input.countedCashMinor-expected,
-          includesSales:false,notBusinessReconciliation:true},
+        details:{countedCashMinor:input.countedCashMinor,
+          expectedDrawerCashMinor:expected.drawerCash,
+          cashSalesMinor:expected.cashSalesMinor,
+          drawerDifferenceMinor:input.countedCashMinor-expected.drawerCash,
+          includesSales:expected.cashSalesMinor>0,
+          notBusinessReconciliation:true},
       }});
       await this.remember(tx,actorId,operation,key,hash,outcome);
       return outcome;

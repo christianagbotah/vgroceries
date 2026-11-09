@@ -85,6 +85,7 @@ import {
   cashierTillSessionViewSchema,cashierTillListSchema,
   posQuoteRequestSchema,posQuoteViewSchema,
   posHoldCreateSchema,posHoldReleaseSchema,posHoldViewSchema,posHoldListSchema,
+  posCashSaleCompleteSchema,posCashSaleViewSchema,posCashSaleListSchema,
   shipmentStatusSchema,
   shipmentListItemSchema,
   shipmentDetailViewSchema,
@@ -360,6 +361,9 @@ export function productionOpenApi(app: INestApplication): OpenAPIObject {
     PosHoldRelease:json(posHoldReleaseSchema),
     PosHoldView:json(posHoldViewSchema),
     PosHoldList:json(posHoldListSchema),
+    PosCashSaleComplete:json(posCashSaleCompleteSchema),
+    PosCashSaleView:json(posCashSaleViewSchema),
+    PosCashSaleList:json(posCashSaleListSchema),
     ShipmentListResponse: json(z.object({ items: z.array(shipmentListItemSchema), page: z.number().int().positive(), perPage: z.number().int().positive().max(100), total: z.number().int().nonnegative() }).strict()),
     ShipmentDetailView: json(shipmentDetailViewSchema),
     ShipmentActionResponse: json(shipmentActionResponseSchema),
@@ -434,7 +438,7 @@ export function productionOpenApi(app: INestApplication): OpenAPIObject {
     "CustomerReturnClaimView","CustomerReturnClaimsList",
     "CustomerReturnClaimEligibility",
     "CashierTillSessionView","CashierTillList","PosQuoteView",
-    "PosHoldView","PosHoldList",
+    "PosHoldView","PosHoldList","PosCashSaleView","PosCashSaleList",
     "CmsHomepage", "CmsHomepageAdminView", "CmsContentPage", "CmsContentPageAdminView", "CmsOverviewView",
   ])
     schemas[name + "Envelope"] = {
@@ -783,6 +787,22 @@ export function productionOpenApi(app: INestApplication): OpenAPIObject {
   // as storefront checkout; they cannot be paid, handed over or invoiced.
   const posHoldId:ParameterObject={
     name:"holdId",in:"path",required:true,schema:{type:"string",format:"uuid"},
+  };
+  // P0c1: physical cash only. Atomic stock handover and immutable
+  // till cash evidence. Never represent this as electronic settlement.
+  const posSaleId:ParameterObject={
+    name:"saleId",in:"path",required:true,schema:{type:"string",format:"uuid"},
+  };
+  doc.paths["/api/v1/admin/pos/cash-sales"]={
+    get:readOperation("Administrator-only completed physical CASH sales and immutable receipt facts.",
+      "PosCashSaleListEnvelope"),
+    post:physicalReturnMutation(
+      "One-time, cash-counted sale and physical handover of a reserved POS cart. Requires cash count and handover attestation; no MoMo/card claim or tax invoice.",
+      "PosCashSaleComplete","PosCashSaleViewEnvelope"),
+  };
+  doc.paths["/api/v1/admin/pos/cash-sales/{saleId}"]={
+    get:readOperation("Administrator-only cash sale receipt facts, original server price snapshots and stock depletion reference.",
+      "PosCashSaleViewEnvelope",[posSaleId]),
   };
   doc.paths["/api/v1/admin/pos/holds"]={
     get:readOperation("Administrator-only recent POS cart reservations. No payment or sale authority.",

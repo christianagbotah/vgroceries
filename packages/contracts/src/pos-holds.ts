@@ -30,7 +30,7 @@ export type PosHoldRelease=z.infer<typeof posHoldReleaseSchema>;
 export const posHoldViewSchema=z.object({
   id,tillSessionId:id,locationId:z.string().min(1),
   createdByUserId:z.string().min(1),
-  status:z.enum(["held","released","expired"]),
+  status:z.enum(["held","released","expired","consumed"]),
   subtotalMinor:minor,createdAt:z.string().datetime({offset:true}),
   expiresAt:z.string().datetime({offset:true}),
   releasedAt:z.string().datetime({offset:true}).nullable(),
@@ -38,7 +38,8 @@ export const posHoldViewSchema=z.object({
   stockReserved:z.boolean(),
   orderCreated:z.literal(false),
   paymentVerified:z.literal(false),
-  goodsHandedOver:z.literal(false),
+  cashSaleRecorded:z.boolean(),
+  goodsHandedOver:z.boolean(),
   lines:z.array(z.object({
     id,variantId:z.string().min(1),
     quantity:z.string(),unitPriceMinor:minor,lineTotalMinor:minor,

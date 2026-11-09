@@ -100,6 +100,7 @@ export interface ApiConfig {
   posTillFoundationEnabled: boolean;
   posQuoteEnabled: boolean;
   posStockHoldsEnabled: boolean;
+  posCashSalesEnabled: boolean;
   posStockHoldTtlSeconds: number;
   physicalReturnCustodyEnabled: boolean;
   physicalReturnResaleEnabled: boolean;
@@ -169,6 +170,12 @@ export function readConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
   const posStockHoldsEnabled=rawPosHolds==="true";
   if(posStockHoldsEnabled&&!posQuoteEnabled)
     throw new Error("POS_STOCK_HOLDS_ENABLED requires POS_QUOTE_ENABLED");
+  const rawPosCash=env.POS_CASH_SALES_ENABLED;
+  if(rawPosCash!==undefined&&!["true","false"].includes(rawPosCash))
+    throw new Error("POS_CASH_SALES_ENABLED must be true or false");
+  const posCashSalesEnabled=rawPosCash==="true";
+  if(posCashSalesEnabled&&!posStockHoldsEnabled)
+    throw new Error("POS_CASH_SALES_ENABLED requires POS_STOCK_HOLDS_ENABLED");
   const posStockHoldTtlSeconds=Number(env.POS_STOCK_HOLD_TTL_SECONDS??"300");
   if(!Number.isInteger(posStockHoldTtlSeconds)||posStockHoldTtlSeconds<1||posStockHoldTtlSeconds>300)
     throw new Error("POS_STOCK_HOLD_TTL_SECONDS must be an integer between 1 and 300");
@@ -669,6 +676,7 @@ export function readConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
     posTillFoundationEnabled,
     posQuoteEnabled,
     posStockHoldsEnabled,
+    posCashSalesEnabled,
     posStockHoldTtlSeconds,
     physicalReturnCustodyEnabled,
     physicalReturnResaleEnabled,
