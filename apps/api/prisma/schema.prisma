@@ -1352,6 +1352,7 @@ model CashierTillSession {
   closingDifferenceMinor Int?
   closeNote String?
   movements CashierTillMovement[]
+  stockHolds PosStockHold[]
   @@index([locationId, status, openedAt])
   @@index([openedByUserId, openedAt])
 }
@@ -1366,4 +1367,37 @@ model CashierTillMovement {
   actorUserId String
   createdAt DateTime @default(now()) @db.Timestamptz(3)
   @@index([sessionId, createdAt])
+}
+
+/**
+ * P0b2: short-lived POS cart reservation, not a sale, refund, payment,
+ * till movement or physical handover. Uses the same Reservation rows as
+ * online orders, with claimType=pos_draft and immutable line identity.
+ */
+model PosStockHold {
+  id String @id @default(uuid())
+  tillSessionId String
+  till CashierTillSession @relation(fields: [tillSessionId], references: [id], onDelete: Restrict)
+  locationId String
+  createdByUserId String
+  status String @default("held")
+  subtotalMinor Int
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  expiresAt DateTime @db.Timestamptz(3)
+  releasedAt DateTime? @db.Timestamptz(3)
+  releaseNote String?
+  lines PosStockHoldLine[]
+  @@index([tillSessionId, status, expiresAt])
+  @@index([locationId, createdAt])
+}
+
+model PosStockHoldLine {
+  id String @id @default(uuid())
+  holdId String
+  hold PosStockHold @relation(fields: [holdId], references: [id], onDelete: Restrict)
+  variantId String
+  quantity Decimal @db.Decimal(15,3)
+  unitPriceMinor Int
+  lineTotalMinor Int
+  @@unique([holdId, variantId])
 }
