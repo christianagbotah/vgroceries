@@ -99,6 +99,8 @@ export interface ApiConfig {
   physicalReturnClaimLinkEnabled: boolean;
   posTillFoundationEnabled: boolean;
   posQuoteEnabled: boolean;
+  posStockHoldsEnabled: boolean;
+  posStockHoldTtlSeconds: number;
   physicalReturnCustodyEnabled: boolean;
   physicalReturnResaleEnabled: boolean;
   physicalReturnResaleAllowedVariants: string[];
@@ -161,6 +163,15 @@ export function readConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
   const posQuoteEnabled=rawPosQuote==="true";
   if(posQuoteEnabled&&!posTillFoundationEnabled)
     throw new Error("POS_QUOTE_ENABLED requires POS_TILL_FOUNDATION_ENABLED");
+  const rawPosHolds=env.POS_STOCK_HOLDS_ENABLED;
+  if(rawPosHolds!==undefined&&!["true","false"].includes(rawPosHolds))
+    throw new Error("POS_STOCK_HOLDS_ENABLED must be true or false");
+  const posStockHoldsEnabled=rawPosHolds==="true";
+  if(posStockHoldsEnabled&&!posQuoteEnabled)
+    throw new Error("POS_STOCK_HOLDS_ENABLED requires POS_QUOTE_ENABLED");
+  const posStockHoldTtlSeconds=Number(env.POS_STOCK_HOLD_TTL_SECONDS??"300");
+  if(!Number.isInteger(posStockHoldTtlSeconds)||posStockHoldTtlSeconds<1||posStockHoldTtlSeconds>300)
+    throw new Error("POS_STOCK_HOLD_TTL_SECONDS must be an integer between 1 and 300");
   const rawPhysicalReturnsEnabled=env.PHYSICAL_RETURNS_INTAKE_ENABLED;
   if(rawPhysicalReturnsEnabled!==undefined&&
     !["true","false"].includes(rawPhysicalReturnsEnabled))
@@ -657,6 +668,8 @@ export function readConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
     physicalReturnClaimLinkEnabled,
     posTillFoundationEnabled,
     posQuoteEnabled,
+    posStockHoldsEnabled,
+    posStockHoldTtlSeconds,
     physicalReturnCustodyEnabled,
     physicalReturnResaleEnabled,
     physicalReturnResaleAllowedVariants,

@@ -84,6 +84,7 @@ import {
   cashierTillOpenSchema,cashierTillMoveSchema,cashierTillCloseSchema,
   cashierTillSessionViewSchema,cashierTillListSchema,
   posQuoteRequestSchema,posQuoteViewSchema,
+  posHoldCreateSchema,posHoldReleaseSchema,posHoldViewSchema,posHoldListSchema,
   shipmentStatusSchema,
   shipmentListItemSchema,
   shipmentDetailViewSchema,
@@ -355,6 +356,10 @@ export function productionOpenApi(app: INestApplication): OpenAPIObject {
     CashierTillList:json(cashierTillListSchema),
     PosQuoteRequest:json(posQuoteRequestSchema),
     PosQuoteView:json(posQuoteViewSchema),
+    PosHoldCreate:json(posHoldCreateSchema),
+    PosHoldRelease:json(posHoldReleaseSchema),
+    PosHoldView:json(posHoldViewSchema),
+    PosHoldList:json(posHoldListSchema),
     ShipmentListResponse: json(z.object({ items: z.array(shipmentListItemSchema), page: z.number().int().positive(), perPage: z.number().int().positive().max(100), total: z.number().int().nonnegative() }).strict()),
     ShipmentDetailView: json(shipmentDetailViewSchema),
     ShipmentActionResponse: json(shipmentActionResponseSchema),
@@ -429,6 +434,7 @@ export function productionOpenApi(app: INestApplication): OpenAPIObject {
     "CustomerReturnClaimView","CustomerReturnClaimsList",
     "CustomerReturnClaimEligibility",
     "CashierTillSessionView","CashierTillList","PosQuoteView",
+    "PosHoldView","PosHoldList",
     "CmsHomepage", "CmsHomepageAdminView", "CmsContentPage", "CmsContentPageAdminView", "CmsOverviewView",
   ])
     schemas[name + "Envelope"] = {
@@ -772,6 +778,27 @@ export function productionOpenApi(app: INestApplication): OpenAPIObject {
       requestBody:{required:true,content:{"application/json":{schema:ref("PosQuoteRequest")}}},
       responses:authorityResponses("PosQuoteViewEnvelope"),
     },
+  };
+  // P0b2: temporary stock holds allocated through the same lot engine
+  // as storefront checkout; they cannot be paid, handed over or invoiced.
+  const posHoldId:ParameterObject={
+    name:"holdId",in:"path",required:true,schema:{type:"string",format:"uuid"},
+  };
+  doc.paths["/api/v1/admin/pos/holds"]={
+    get:readOperation("Administrator-only recent POS cart reservations. No payment or sale authority.",
+      "PosHoldListEnvelope"),
+    post:physicalReturnMutation(
+      "Reserve up to five minutes of shared online/counter inventory in one open till. No order, tender, printed receipt, or physical handover.",
+      "PosHoldCreate","PosHoldViewEnvelope"),
+  };
+  doc.paths["/api/v1/admin/pos/holds/{holdId}"]={
+    get:readOperation("Administrator-only POS reservation status and exact immutable server-priced lines.",
+      "PosHoldViewEnvelope",[posHoldId]),
+  };
+  doc.paths["/api/v1/admin/pos/holds/{holdId}/release"]={
+    post:physicalReturnMutation(
+      "Release a POS cart reservation, or record its expiry. No refund, cash or stock receipt.",
+      "PosHoldRelease","PosHoldViewEnvelope",[posHoldId]),
   };
   doc.paths["/api/v1/admin/pos/tills"]={
     get:readOperation(
