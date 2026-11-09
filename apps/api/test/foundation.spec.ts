@@ -1151,6 +1151,16 @@ test("foundation OpenAPI defines complete response data and inventory location s
       }
       const content = op.responses[responseCode].content;
       if (!content["application/json"]) {
+        // The POS print route deliberately serves a private, script-free
+        // HTML document rather than a JSON envelope. Do not weaken the
+        // JSON schema check for any other operational API.
+        if (path === "/api/v1/admin/pos/cash-sales/{saleId}/print") {
+          assert.equal(method, "get");
+          assert.equal(content["text/html"]?.schema?.type, "string");
+          assert.ok(op.description.includes("NOT a tax invoice"));
+          assert.ok(op.security.some((s: any) => "bearerAuth" in s));
+          continue;
+        }
         assert.ok(
           path === "/api/v1/admin/catalog/media/{mediaId}/content" &&
           Object.keys(content).some((type) => type.startsWith("image/")),
