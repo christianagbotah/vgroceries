@@ -12,7 +12,7 @@ export const posQuoteRequestSchema=z.object({
   sessionId:z.string().uuid(),
   lines:z.array(z.object({
     variantId:z.string().trim().min(1).max(128),
-    quantity:z.string().regex(/^\\d+(\\.\\d{1,3})?$/),
+    quantity:z.string().regex(/^\d+(\.\d{1,3})?$/),
   }).strict()).min(1).max(100),
 }).strict();
 export type PosQuoteRequest=z.infer<typeof posQuoteRequestSchema>;
