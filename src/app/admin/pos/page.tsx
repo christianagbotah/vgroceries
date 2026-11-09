@@ -24,7 +24,7 @@ type SearchResult = Awaited<ReturnType<typeof apiOps.posSearch>>[number];
 type Session = Awaited<ReturnType<typeof apiOps.sessions>>[number];
 interface Receipt { receiptNo: string; atLabel: string; method: string; totalLabel: string; cashierName: string; orderId: string; orderReference: string; lines: { productName: string; variantName: string; quantity: string; unitPriceMinor: number; lineTotalMinor: number }[]; totalMinor: number; businessName: string; changeLabel?: string }
 
-export default function AdminPosPage() {
+function DemoPosPage() {
   const { user, can } = useStaff();
   const { toast } = useToast();
   const searchRef = useRef<HTMLInputElement>(null);
@@ -129,7 +129,7 @@ export default function AdminPosPage() {
       if (m === null || m < 0) throw new ApiError("VALIDATION_FAILED", "Enter a valid opening float.");
       const r = await apiOps.sessionOpen(user.id, m);
       await boot();
-      toast({ title: "Session opened", description: `Opening float ${formatMoney(m)}` });
+      toast({ title: "Demo session opened", description: `Simulated opening float ${formatMoney(m)}` });
       void r;
     } catch (e) {
       toast({ title: "Could not open session", description: e instanceof ApiError ? e.message : undefined, variant: "destructive" });
@@ -177,7 +177,7 @@ export default function AdminPosPage() {
       setCustomerPhone("");
       setDiscount("");
       setCashReceived("");
-      toast({ title: `Sale completed · ${r.receiptNo}`, description: "Stock consumed once; storefront availability updated." });
+      toast({ title: `Demo sale completed · ${r.receiptNo}`, description: "Simulation only — no real payment, stock depletion or financial entry." });
     } catch (e) {
       toast({ title: "Sale failed", description: e instanceof ApiError ? e.message : "The service rejected the sale — nothing was deducted.", variant: "destructive" });
     } finally {
@@ -194,7 +194,7 @@ export default function AdminPosPage() {
       setCustomerName("");
       const d = await apiOps.posDrafts(session.id);
       setDrafts(d);
-      toast({ title: "Sale held", description: "Stock stays reserved for 20 minutes — the same expiry rules apply." });
+      toast({ title: "Demo cart held", description: "Simulation only: demo stock hold, not a real inventory reservation." });
     } catch (e) {
       toast({ title: "Could not hold", description: e instanceof ApiError ? e.message : undefined, variant: "destructive" });
     }
@@ -246,7 +246,11 @@ export default function AdminPosPage() {
   if (!session) {
     return (
       <div className="mx-auto max-w-md space-y-4 pt-10">
-        <h1 className="font-serif text-2xl font-bold">Counter sales (POS)</h1>
+        <h1 className="font-serif text-2xl font-bold">Counter sales (POS) · Demo</h1>
+        <p role="note" className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm leading-relaxed text-amber-950">
+          Training simulation only. This session, its stock movements, payments and receipts are not live business records.
+          Do not accept customer payments or hand over goods using this demo.
+        </p>
         <div className="space-y-4 rounded-xl border bg-card p-5">
           <div className="space-y-1">
             <h2 className="font-semibold">Open a cashier session</h2>
@@ -273,9 +277,13 @@ export default function AdminPosPage() {
 
   return (
     <div className="space-y-4">
+      <p role="note" className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm font-medium leading-relaxed text-amber-950">
+        DEMO ONLY — Simulated counter sales, reservations, inventory deductions and receipts.
+        No live payment is collected and no production stock changes. Never use this screen for real customer transactions.
+      </p>
       <div className="flex flex-wrap items-end justify-between gap-2">
         <div>
-          <h1 className="font-serif text-2xl font-bold">Counter sales (POS)</h1>
+          <h1 className="font-serif text-2xl font-bold">Counter sales (POS) · Demo</h1>
           <p className="text-sm text-muted-foreground">
             Session {session.id} · {session.cashierName} · opened {session.openedAtLabel} UTC
           </p>
@@ -600,4 +608,42 @@ export default function AdminPosPage() {
       </Dialog>
     </div>
   );
+}
+
+/**
+ * The existing POS screen uses the legacy in-memory demo operation contract.
+ * It must NEVER run behind the production REST API: secure P0b/P0c calls
+ * require their own authenticated, verified, idempotent cutover.
+ *
+ * The production transport flag is compiled at build time by Next.js.
+ * Until that cutover is complete, no sale, payment or simulated inventory
+ * mutation is offered through the production POS screen.
+ */
+export default function AdminPosPage() {
+  if (process.env.NEXT_PUBLIC_API_BASE_URL?.trim()) {
+    return (
+      <section role="status" className="mx-auto max-w-2xl space-y-4 pt-8">
+        <h1 className="font-serif text-2xl font-bold">Counter sales — Launch pending</h1>
+        <div className="rounded-xl border bg-card p-5">
+          <h2 className="text-lg font-semibold">Production POS is not yet activated</h2>
+          <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+            The secure cashier, shared-stock reservation, cash handover and
+            receipt APIs are being prepared for a controlled live rollout.
+            The earlier POS simulator is intentionally unavailable on a
+            production API connection, so simulated payments and inventory
+            updates cannot be mistaken for actual business transactions.
+          </p>
+          <p className="mt-3 text-sm font-medium">
+            Continue using the approved operational sales process until
+            real cashier permissions, tax treatment, payment verification
+            and end-of-day reconciliation have passed live acceptance tests.
+          </p>
+          <Button asChild variant="outline" className="mt-4">
+            <Link href="/admin">Return to administration</Link>
+          </Button>
+        </div>
+      </section>
+    );
+  }
+  return <DemoPosPage />;
 }
