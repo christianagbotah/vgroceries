@@ -2,7 +2,7 @@
 
 This document separates implemented authority from deliberately unconnected
 production capabilities. **As of 9 November 2026**, the source API has
-**126 paths** in this source branch (R1 and R2a deployed in UAT; R2b not yet
+**132 paths** in this source branch (R1 and R2a deployed in UAT; R2b not yet
 released), including customer pickup appointments, physical-return receipt
 and inspection, and one new administrator-only quarantine custody action.
 The former Wave L3/L4 tracking/in-app-notification code, appointment
@@ -120,3 +120,12 @@ Local whole-branch frontend/build/acceptance verification is complete; fresh Git
   Late arrivals, no-show state, SMS reminder, third-party calendar
   integration, and delivery ETA remain unimplemented. Do not activate
   either logistics flag on code completion alone.
+
+
+- **R3a customer return claims**: repository code introduces order-owned,
+  replay-safe request/cancellation and terminal staff accept/reject with a
+  separate OFF feature flag, plus replaces the customer mock Returns page
+  with a real authority view. It has no link yet to the R1 physically
+  verified receipt workflow and no new refund/payment authority. Customer
+  return-policy time limits, food safety and source line capture refunds
+  still require approved policy and technical integration.

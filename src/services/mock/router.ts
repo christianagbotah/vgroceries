@@ -1594,6 +1594,17 @@ export async function handleApi(req: ApiRequest): Promise<ApiResult> {
         throw new OpError("UNAVAILABLE","Physical receipt history requires authenticated production stock evidence.");
       }
       case "admin.physical-return.receive":
+      case "account.return-claims":
+      case "account.return-claim":
+      case "account.return-claim.eligibility":
+      case "admin.return-claims": {
+        throw new OpError("UNAVAILABLE","Verified return requests require authenticated original order and stock evidence.");
+      }
+      case "account.return-claim.create":
+      case "account.return-claim.cancel":
+      case "admin.return-claim.decision": {
+        throw new OpError("UNAVAILABLE","Customer return claims cannot be fabricated in the demo stock or refund system.");
+      }
       case "admin.physical-return.resale-propose":
       case "admin.physical-return.resale-decision": {
         throw new OpError("UNAVAILABLE","Saleable returned-goods release requires real independently approved non-food stock evidence.");

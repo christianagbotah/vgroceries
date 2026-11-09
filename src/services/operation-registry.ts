@@ -193,6 +193,13 @@ export const operationMeta: Record<string, OperationMeta> = {
 
   /* staff: returns, refunds, payments, customers */
   "admin.physical-returns": { tags: [...RET, ...STOCK] },
+  "account.return-claims": { tags: [...RET, ...ORD] },
+  "account.return-claim": { tags: [...RET, ...ORD] },
+  "account.return-claim.eligibility": { tags: [...RET, ...ORD] },
+  "admin.return-claims": { tags: [...RET, ...ORD] },
+  "account.return-claim.create": { invalidates: [...RET, ...ORD] },
+  "account.return-claim.cancel": { invalidates: [...RET, ...ORD] },
+  "admin.return-claim.decision": { invalidates: [...RET, ...ORD] },
   "admin.physical-return.receive": { invalidates: [...RET, ...STOCK, ...ORD] },
   "admin.physical-return.detail": { tags: [...RET, ...STOCK] },
   "admin.physical-return.inspect": { invalidates: [...RET, ...STOCK, ...ORD] },

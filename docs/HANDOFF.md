@@ -192,3 +192,17 @@ same quantity into a new regular lot with balanced stock movements, without
 changing total physical stock or customer payments. See
 `docs/PHYSICAL_RETURNS_R2B.md`. Food resale, refunds and customer return
 claims are still not authorized.
+
+
+## R3a customer-owned return request authority — OFF by default
+
+A new `CUSTOMER_RETURN_CLAIMS_ENABLED=false` flag independently gates
+customer-owned claim submission/cancellation and staff accept/reject.
+Server eligibility is derived from completed original order stock depletion
+less active requests and physically returned goods, with aggregate PostgreSQL
+guards and serialized competing claims. The storefront Returns page now uses
+the owned production endpoints instead of prototype mock refund amounts.
+The separate admin queue only accepts or rejects requests; it never marks
+physically received goods, cash or refunds. See
+`docs/CUSTOMER_RETURN_CLAIMS_R3A.md`. Binding accepted claims to actual
+physical custody and payment-capture-verified refunds is unfinished.

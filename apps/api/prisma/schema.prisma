@@ -27,6 +27,7 @@ model User {
   locations UserLocation[]
   customerAddresses CustomerAddress[]
   orders Order[]
+  customerReturnClaims CustomerReturnClaim[]
   notifications Notification[]
   riderProfile RiderProfile?
 }
@@ -445,6 +446,7 @@ model Order {
   shipments Shipment[]
   collectionReceipts ShipmentCollectionReceipt[]
   physicalReturnReceipts PhysicalReturnReceipt[]
+  customerReturnClaims CustomerReturnClaim[]
   notifications Notification[]
   @@index([customerUserId, createdAt])
   @@index([guestSessionId, createdAt])
@@ -455,6 +457,40 @@ model Order {
 /// Staff-verified physical possession of returned customer goods; never a
 /// stock increment or a payment/refund obligation. One receipt may cover
 /// several order lines. Disposition is a separate, guarded inspection step.
+/// R3a customer-submitted return request, not physically received stock
+/// and not a refund authorization. No orders, lots or money are mutated.
+model CustomerReturnClaim {
+  id String @id @default(uuid())
+  reference String @unique
+  orderId String
+  order Order @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  customerUserId String
+  customer User @relation(fields: [customerUserId], references: [id], onDelete: Restrict)
+  status String @default("requested") // requested | accepted | rejected | cancelled
+  reason String
+  evidenceNote String?
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  reviewedAt DateTime? @db.Timestamptz(3)
+  reviewedBy String?
+  reviewNote String?
+  cancelledAt DateTime? @db.Timestamptz(3)
+  lines CustomerReturnClaimLine[]
+  @@index([customerUserId, createdAt])
+  @@index([orderId, status])
+  @@index([status, createdAt])
+}
+
+model CustomerReturnClaimLine {
+  claimId String
+  claim CustomerReturnClaim @relation(fields: [claimId], references: [id], onDelete: Restrict)
+  orderLineId String
+  orderLine OrderLine @relation(fields: [orderLineId], references: [id], onDelete: Restrict)
+  quantity Decimal @db.Decimal(15, 3)
+  reason String
+  @@id([claimId, orderLineId])
+  @@index([orderLineId])
+}
+
 model PhysicalReturnReceipt {
   id String @id @default(uuid())
   reference String @unique
@@ -626,6 +662,7 @@ model OrderLine {
   lineTotalMinor Int
   createdAt DateTime @default(now()) @db.Timestamptz(3)
   physicalReturnItems PhysicalReturnItem[]
+  customerReturnClaimLines CustomerReturnClaimLine[]
   @@index([orderId, id])
   @@index([variantId])
 }

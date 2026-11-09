@@ -15,6 +15,8 @@
  */
 
 import { z } from "zod";
+import { customerReturnClaimRequestSchema,customerReturnClaimDecisionSchema,
+  customerReturnClaimCancelSchema } from "./customer-return-claims";
 import { physicalReturnReceiveSchema,physicalReturnInspectSchema,physicalReturnQuarantineRequestSchema,
   physicalReturnResaleProposeSchema,physicalReturnResaleDecisionSchema } from "./physical-returns";
 import { pickupAppointmentViewSchema,bookPickupAppointmentRequestSchema,
@@ -673,6 +675,9 @@ export const requestSchemas: Record<string, z.ZodTypeAny> = {
   "pickup.appointment.cancel": withoutTransportReplay(cancelPickupAppointmentRequestSchema),
   "admin.logistics.pickup-policy.save": withoutTransportReplay(pickupAppointmentPolicyInputSchema),
   "admin.logistics.pickup-closures.save": withoutTransportReplay(pickupCentreClosureInputSchema),
+  "account.return-claim.create": withoutTransportReplay(customerReturnClaimRequestSchema),
+  "account.return-claim.cancel": withoutTransportReplay(customerReturnClaimCancelSchema),
+  "admin.return-claim.decision": withoutTransportReplay(customerReturnClaimDecisionSchema),
   "admin.physical-return.receive": withoutTransportReplay(physicalReturnReceiveSchema),
   "admin.physical-return.inspect": withoutTransportReplay(physicalReturnInspectSchema),
   "admin.physical-return.quarantine": withoutTransportReplay(physicalReturnQuarantineRequestSchema),

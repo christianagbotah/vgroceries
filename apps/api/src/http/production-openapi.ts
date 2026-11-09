@@ -78,6 +78,9 @@ import {
   physicalReturnViewSchema,physicalReturnListSchema,
   physicalReturnQuarantineRequestSchema,physicalReturnCustodyViewSchema,
   physicalReturnResaleProposeSchema,physicalReturnResaleDecisionSchema,physicalReturnResaleReviewViewSchema,
+  customerReturnClaimRequestSchema,customerReturnClaimCancelSchema,
+  customerReturnClaimDecisionSchema,customerReturnClaimViewSchema,
+  customerReturnClaimsListSchema,customerReturnClaimEligibilitySchema,
   shipmentStatusSchema,
   shipmentListItemSchema,
   shipmentDetailViewSchema,
@@ -336,6 +339,12 @@ export function productionOpenApi(app: INestApplication): OpenAPIObject {
     PhysicalReturnResalePropose:json(physicalReturnResaleProposeSchema),
     PhysicalReturnResaleDecision:json(physicalReturnResaleDecisionSchema),
     PhysicalReturnResaleReviewView:json(physicalReturnResaleReviewViewSchema),
+    CustomerReturnClaimRequest:json(customerReturnClaimRequestSchema),
+    CustomerReturnClaimCancel:json(customerReturnClaimCancelSchema),
+    CustomerReturnClaimDecision:json(customerReturnClaimDecisionSchema),
+    CustomerReturnClaimView:json(customerReturnClaimViewSchema),
+    CustomerReturnClaimsList:json(customerReturnClaimsListSchema),
+    CustomerReturnClaimEligibility:json(customerReturnClaimEligibilitySchema),
     ShipmentListResponse: json(z.object({ items: z.array(shipmentListItemSchema), page: z.number().int().positive(), perPage: z.number().int().positive().max(100), total: z.number().int().nonnegative() }).strict()),
     ShipmentDetailView: json(shipmentDetailViewSchema),
     ShipmentActionResponse: json(shipmentActionResponseSchema),
@@ -407,6 +416,8 @@ export function productionOpenApi(app: INestApplication): OpenAPIObject {
     "PhysicalReturnView","PhysicalReturnList",
     "PhysicalReturnCustodyView",
     "PhysicalReturnResaleReviewView",
+    "CustomerReturnClaimView","CustomerReturnClaimsList",
+    "CustomerReturnClaimEligibility",
     "CmsHomepage", "CmsHomepageAdminView", "CmsContentPage", "CmsContentPageAdminView", "CmsOverviewView",
   ])
     schemas[name + "Envelope"] = {
@@ -695,6 +706,47 @@ export function productionOpenApi(app: INestApplication): OpenAPIObject {
     requestBody:{required:true,content:{"application/json":{schema:ref(input)}}},
     responses:authorityResponses(output),
   });
+  // R3a: authenticated customer request history and final staff decisions.
+  // These operations do not create a refund, stock lot or physical receipt.
+  const returnClaimId:ParameterObject={name:"claimId",in:"path",required:true,
+    schema:{type:"string",minLength:1}};
+  const returnClaimOrderId:ParameterObject={name:"orderId",in:"path",required:true,
+    schema:{type:"string",minLength:1}};
+  doc.paths["/api/v1/account/return-claims"]={
+    get:readOperation("Authenticated customer-only return requests; no refund/payment or physical stock authority.",
+      "CustomerReturnClaimsListEnvelope",[
+        {name:"page",in:"query",schema:{type:"integer",minimum:1,default:1}},
+        {name:"perPage",in:"query",schema:{type:"integer",minimum:1,maximum:50,default:20}},
+      ]),
+    post:physicalReturnMutation(
+      "Customer-owned completed order and stock-depletion proof required; request quantity is capped against all pending/accepted claims and actual physical returns. No refund is created.",
+      "CustomerReturnClaimRequest","CustomerReturnClaimViewEnvelope"),
+  };
+  doc.paths["/api/v1/account/return-claims/orders/{orderId}/eligibility"]={
+    get:readOperation("Authenticated customer-only source-order line balances; completed delivery, depletion and prior requests determine eligible units. No refund quote.",
+      "CustomerReturnClaimEligibilityEnvelope",[returnClaimOrderId]),
+  };
+  doc.paths["/api/v1/account/return-claims/{claimId}"]={
+    get:readOperation("Return request detail exclusively for its authenticated customer owner.",
+      "CustomerReturnClaimViewEnvelope",[returnClaimId]),
+  };
+  doc.paths["/api/v1/account/return-claims/{claimId}/cancel"]={
+    post:physicalReturnMutation(
+      "Customer-only cancellation while requested. Rejected/accepted requests are final; no inventory or refund mutation.",
+      "CustomerReturnClaimCancel","CustomerReturnClaimViewEnvelope",[returnClaimId]),
+  };
+  doc.paths["/api/v1/admin/return-claims"]={
+    get:readOperation("Administrator-only paginated customer claim queue; no unverified refund projections.",
+      "CustomerReturnClaimsListEnvelope",[
+        {name:"page",in:"query",schema:{type:"integer",minimum:1,default:1}},
+        {name:"perPage",in:"query",schema:{type:"integer",minimum:1,maximum:50,default:20}},
+      ]),
+  };
+  doc.paths["/api/v1/admin/return-claims/{claimId}/decision"]={
+    post:physicalReturnMutation(
+      "Admin-only final accept/reject of pending customer claim, with required note and replay-safe audit. Acceptance is NOT physical receipt or money/refund approval.",
+      "CustomerReturnClaimDecision","CustomerReturnClaimViewEnvelope",[returnClaimId]),
+  };
   doc.paths["/api/v1/admin/physical-returns"]={
     get:readOperation("Administrator-only physical return receipts with bounded pagination and optional source order filter; never a customer-facing refund promise.","PhysicalReturnListEnvelope",[
       {name:"orderId",in:"query",schema:{type:"string"}},

@@ -6,7 +6,7 @@ import { resolve } from "node:path";
 const doc = JSON.parse(readFileSync(resolve(process.cwd(), "../../docs/openapi-foundation.json"), "utf8"));
 
 test("L3 enriches both existing secure order endpoints without adding a public route", () => {
-  assert.equal(Object.keys(doc.paths).length, 126);
+  assert.equal(Object.keys(doc.paths).length, 132);
   const track = doc.paths["/api/v1/orders/track"].post;
   const detail = doc.paths["/api/v1/orders/{orderId}"].get;
   assert.deepEqual(track.responses["200"].content["application/json"].schema, { $ref: "#/components/schemas/PublicOrderEnvelope" });
@@ -141,4 +141,39 @@ test("R2b independent non-food resale review is secured with replay and CSRF and
   const projection=JSON.stringify(doc.components.schemas.PhysicalReturnResaleReviewView);
   for(const forbidden of ["customerPhone","payoutReference","cashCollected","refundProviderReference"])
     assert.ok(!projection.includes('"'+forbidden+'"'));
+});
+
+test("R3a authenticated return claim routes use strict customer/admin authorization, replay and no monetary fields",()=>{
+  const paths=[
+    "/api/v1/account/return-claims",
+    "/api/v1/account/return-claims/orders/{orderId}/eligibility",
+    "/api/v1/account/return-claims/{claimId}",
+    "/api/v1/account/return-claims/{claimId}/cancel",
+    "/api/v1/admin/return-claims",
+    "/api/v1/admin/return-claims/{claimId}/decision",
+  ];
+  assert.equal(Object.keys(doc.paths).length,132);
+  for(const path of paths){
+    const op=doc.paths[path];
+    assert.ok(op,"missing "+path);
+    for(const method of ["get","post"]){
+      if(!op[method])continue;
+      assert.deepEqual(op[method].security,[{cookieAuth:[]},{bearerAuth:[]}]);
+      if(method==="post"){
+        assert.ok(op[method].parameters.some((x:any)=>x.name==="Idempotency-Key"&&x.required));
+        assert.ok(op[method].parameters.some((x:any)=>x.name==="X-CSRF-Token"));
+      }
+    }
+  }
+  for(const schema of [
+    doc.components.schemas.CustomerReturnClaimRequest,
+    doc.components.schemas.CustomerReturnClaimDecision,
+    doc.components.schemas.CustomerReturnClaimView,
+  ]){
+    assert.ok(schema.additionalProperties===false);
+    const content=JSON.stringify(schema);
+    for(const secret of ["refundMinor","sourceLotId","paymentAttemptId","cashCollected","customerPhone"])
+      assert.ok(!content.includes('"'+secret+'"'));
+  }
+  assert.equal(doc.paths["/api/v1/account/return-claims/{claimId}/refund"],undefined);
 });
