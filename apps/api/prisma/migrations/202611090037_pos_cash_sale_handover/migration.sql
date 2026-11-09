@@ -172,7 +172,26 @@ BEGIN
       WHERE d.id=cash_sale."stockDepletionId" AND d."claimType"='pos_draft'
         AND d."claimId"=source_hold.id
     )
-  THEN RAISE EXCEPTION 'completed POS sale requires consumed original hold and stock'
+    OR EXISTS(
+      SELECT 1 FROM "PosStockHoldLine" held_line
+      LEFT JOIN "StockDepletionLine" depleted
+        ON depleted."depletionId"=cash_sale."stockDepletionId"
+        AND depleted."claimLineId"=held_line.id
+        AND depleted."variantId"=held_line."variantId"
+      WHERE held_line."holdId"=source_hold.id
+      GROUP BY held_line.id,held_line.quantity
+      HAVING COALESCE(sum(depleted.quantity),0)<>held_line.quantity
+    )
+    OR EXISTS(
+      SELECT 1 FROM "StockDepletionLine" depleted
+      LEFT JOIN "PosStockHoldLine" held_line
+        ON held_line.id=depleted."claimLineId"
+        AND held_line."variantId"=depleted."variantId"
+        AND held_line."holdId"=source_hold.id
+      WHERE depleted."depletionId"=cash_sale."stockDepletionId"
+        AND held_line.id IS NULL
+    )
+  THEN RAISE EXCEPTION 'completed POS sale requires exact original hold-line stock depletion'
     USING ERRCODE='23514'; END IF;
   RETURN NULL;
 END; $$ LANGUAGE plpgsql;
