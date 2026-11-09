@@ -6,6 +6,7 @@ import {createApplication} from "../src/bootstrap";
 import {readConfig} from "../src/config";
 import {Database} from "../src/database/database";
 import {CashierTillsService} from "../src/cashier-tills/cashier-tills.service";
+import {PosTillReconciliationService} from "../src/cashier-tills/pos-till-reconciliation.service";
 import {PosHoldsService} from "../src/cashier-tills/pos-holds.service";
 import {PosCashSalesService} from "../src/cashier-tills/pos-cash-sales.service";
 import {CheckoutQuoteService} from "../src/orders/checkout-quote.service";
@@ -168,6 +169,17 @@ test("one counted cash sale atomically depletes reserved goods and updates till 
     });
   assert.equal(closing.closingExpectedMinor,1423);
   assert.equal(closing.closingDifferenceMinor,0);
+  const reconciled=await app.get(PosTillReconciliationService).preview(till.id);
+  assert.equal(reconciled.cashSalesCount,1);
+  assert.equal(reconciled.cashSalesMinor,523);
+  assert.equal(reconciled.openingFloatMinor,1000);
+  assert.equal(reconciled.manualCashDropsMinor,100);
+  assert.equal(reconciled.expectedDrawerCashMinor,1423);
+  assert.equal(reconciled.actualCountedCashMinor,1423);
+  assert.equal(reconciled.closingMatchesLedger,true);
+  assert.equal(reconciled.recentCashSales[0]?.reference,sale.reference);
+  assert.equal(reconciled.electronicPaymentsReconciled,false);
+  assert.equal(reconciled.refundsReconciled,false);
 });
 
 test("unauthorised, fabricated tender, missing attestation and insufficient cash are rejected",async()=>{
