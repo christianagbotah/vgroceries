@@ -21,7 +21,12 @@ CREATE TABLE "CashierTillSession" (
     (status='open' AND "closedAt" IS NULL AND "closedByUserId" IS NULL
      AND "closingCountedMinor" IS NULL AND "closingExpectedMinor" IS NULL
      AND "closingDifferenceMinor" IS NULL AND "closeNote" IS NULL)
-    OR (status='closed' AND "closedAt">="openedAt" AND "closedByUserId" IS NOT NULL
+    OR (status='closed' AND "closedAt" IS NOT NULL AND "closedAt">="openedAt"
+     AND "closedByUserId" IS NOT NULL
+     AND "closingCountedMinor" IS NOT NULL
+     AND "closingExpectedMinor" IS NOT NULL
+     AND "closingDifferenceMinor" IS NOT NULL
+     AND "closeNote" IS NOT NULL
      AND "closingCountedMinor" BETWEEN 0 AND 100000000
      AND "closingExpectedMinor" BETWEEN 0 AND 100000000
      AND "closingDifferenceMinor"="closingCountedMinor"-"closingExpectedMinor"
