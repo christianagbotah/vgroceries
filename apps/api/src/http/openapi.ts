@@ -388,6 +388,7 @@ export function foundationOpenApi(app: INestApplication) {
         "/admin/pos/tills/{sessionId}",
         "/admin/pos/tills/{sessionId}/movements",
         "/admin/pos/tills/{sessionId}/close",
+        "/admin/pos/quote",
       ].includes(suffix);
       if (productionExtension || documentedProviderReturn || documentedPosTill) continue;
       throw new Error(`Undocumented foundation endpoint: ${path}`);
