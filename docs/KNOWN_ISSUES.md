@@ -2,10 +2,11 @@
 
 This document separates implemented authority from deliberately unconnected
 production capabilities. **As of 9 November 2026**, the source API has
-**120 paths**, including customer pickup appointments and one additional
-administrator-only centre closure calendar path. The former Wave L3/L4
-tracking/in-app-notification code and the appointment interface are deployed
-to UAT. **Shipment execution and remote customer pickup still remain OFF in
+**124 paths** in this source branch (R1 deployed in UAT; R2a not yet
+released), including customer pickup appointments, physical-return receipt
+and inspection, and one new administrator-only quarantine custody action.
+The former Wave L3/L4 tracking/in-app-notification code, appointment
+interface and R1 physical receipt/inspection are deployed to UAT. **Shipment execution and remote customer pickup still remain OFF in
 UAT**; available code does not imply an activated logistics service.
 See `docs/RELEASE_COMPLETION_ROADMAP.md` for a current, dependency-ordered
 backlog. Historical verification figures below refer to their old checkpoints.
@@ -27,7 +28,16 @@ projection timer are implemented. Rows are projected from committed events.
 No live Email/SMS/WhatsApp, external provider receipts/preferences/retries or
 push delivery are claimed.
 3. **COD cash collection and rider remittance are not implemented.** Delivery remains independent from customer cash, rider liability and remittance/reconciliation.
-4. **Physical Returns Authority is not implemented.** Dispatch physical-return receipt may restore the Shipment to `final_mile_ready` for reassignment, but it does not restore inventory; goods still require future Returns inspection/disposition before any restock. Shipment return history remains append-only.
+4. **Physical Returns R1 is deployed but disabled in UAT**, providing actual
+completed-order, quantity-bounded staff physical receipts and terminal
+quarantine/destroy inspections. **R2a quarantine custody is implemented in a
+separate default-off branch**: only inspected quarantined goods with one
+verified source lot receive an immutable, non-saleable stock lot and receipt.
+**Not yet implemented:** safe-to-sell restock release, full customer request
+authorization, provider-money refunds tied to returned line quantities and
+cross-location/multi-lot evidence. Shipment returns still do not restore
+inventory. Neither an R1 inspection nor R2a custody is permission to resell
+food or create a refund.
 5. **POS cashier sales are not yet a production API authority.** POS must reuse exactly-once depletion and add cashier/session/payment controls.
 6. **External courier APIs are not connected.** Manual-provider evidence exists, but booking/status/webhooks are not API-live.
 7. **Live GPS/ETA authority does not exist.** Route configuration and Shipment movement events must never fabricate GPS or ETA.
@@ -47,7 +57,10 @@ push delivery are claimed.
 - Fulfilment and Dispatch/Rider screens must render backend truth.
 - `/admin/logistics` has production L1 configuration authority and a published L2 Shipment API, but a complete operator Shipment-execution UI is not implied by the API alone.
 - L3 provides a customer-safe route-aware timeline through the existing secure order responses. It does not expose the admin Shipment API; legacy no-shipment orders show only recorded order history.
-- Returns and POS screens remain non-authoritative until their backend authorities land.
+- The original mock Returns and POS workflows remain non-authoritative.
+  The separate Physical Returns R1 administration workspace uses PostgreSQL
+  authority behind its own OFF flag; R2a adds an independently OFF-gated
+  quarantine-custody step, with no resale or money operations.
 - Product Media UAT is not identical to final production object-storage/provider hosting.
 - Storefront CMS has PostgreSQL/NestJS draft/publish authority and public published reads; live portal use still requires migration/API/web deployment parity.
 - Reports and AI are derivative and may not become hidden writers of stock/payment/refund/return/media/dispatch/logistics truth.

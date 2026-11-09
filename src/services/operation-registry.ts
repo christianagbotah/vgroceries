@@ -196,6 +196,7 @@ export const operationMeta: Record<string, OperationMeta> = {
   "admin.physical-return.receive": { invalidates: [...RET, ...STOCK, ...ORD] },
   "admin.physical-return.detail": { tags: [...RET, ...STOCK] },
   "admin.physical-return.inspect": { invalidates: [...RET, ...STOCK, ...ORD] },
+  "admin.physical-return.quarantine": { invalidates: [...RET, ...STOCK, ...ORD] },
   "admin.returns": { tags: [...RET, ...PAY] },
   "admin.return.action": { invalidates: [...RET, ...PAY, ...STOCK, ...CAT, ...ORD] },
   "admin.refunds": { tags: [...PAY, ...RET] },

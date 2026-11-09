@@ -1,7 +1,7 @@
 import { Body,Controller,Get,HttpCode,Param,Post,Query,Req,UseGuards } from "@nestjs/common";
 import { ApiTags } from "@nestjs/swagger";
 import { physicalReturnReceiveSchema,physicalReturnInspectSchema,
-  physicalReturnQuerySchema,replayKeySchema,
+  physicalReturnQuerySchema,physicalReturnQuarantineRequestSchema,replayKeySchema,
   type PhysicalReturnReceive,type PhysicalReturnInspect } from "@variety/contracts";
 import { ApiProblem } from "../http/errors";
 import { AccessGuard } from "../identity/access.guard";
@@ -39,6 +39,14 @@ export class PhysicalReturnsController {
       "Invalid physical receipt evidence.",parsed.error.issues);
     return {ok:true,data:await this.returns.receive(req.actor.id,this.key(req),req.requestId,
       parsed.data as PhysicalReturnReceive)};
+  }
+  @Post("items/:itemId/quarantine") @HttpCode(200)
+  async quarantine(@Req() req:AuthRequest,@Param("itemId") itemId:string,@Body() raw:unknown){
+    this.requireAdmin(req);
+    const parsed=physicalReturnQuarantineRequestSchema.safeParse(raw);
+    if(!parsed.success)throw new ApiProblem(400,"VALIDATION_FAILED",
+      "Provide verified physical quarantine custody evidence.",parsed.error.issues);
+    return {ok:true,data:await this.returns.quarantine(req.actor.id,itemId,this.key(req),req.requestId,parsed.data)};
   }
   @Get(":returnId")
   async detail(@Req() req:AuthRequest,@Param("returnId") id:string){

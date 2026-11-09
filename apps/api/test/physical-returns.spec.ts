@@ -2,6 +2,7 @@ import {after,before,beforeEach,test} from "node:test";
 import type { PhysicalReturnReceive } from "@variety/contracts";
 import assert from "node:assert/strict";
 import {randomUUID} from "node:crypto";
+import { Prisma } from "@prisma/client";
 import type {INestApplication} from "@nestjs/common";
 import {createApplication} from "../src/bootstrap";
 import {readConfig} from "../src/config";
@@ -14,6 +15,7 @@ const env=()=>readConfig({
   DATABASE_URL:process.env.DATABASE_URL!,WEB_ORIGINS:"http://localhost:3000",
   API_STOCK_LOCATION_ID:"loc_accra",API_INSECURE_COOKIES:"true",
   PHYSICAL_RETURNS_INTAKE_ENABLED:"true",
+  PHYSICAL_RETURNS_CUSTODY_ENABLED:"true",
 });
 const body=(id:string,qty="1"):PhysicalReturnReceive=>({
   orderId:id,reason:"Customer returned an item",
@@ -259,4 +261,188 @@ test("direct SQL cannot partly inspect an item while the parent remains uninspec
   }}));
   assert.equal((await service.detail(r.id)).status,"received");
   assert.equal((await service.detail(r.id)).lines[0]?.disposition,"awaiting_inspection");
+});
+
+
+async function inspectedQuarantine(tag:string,quantity="1"){
+  const x=await fixture(tag);
+  const received=await service.receive("admin-commerce","receive-"+tag,"receive-"+tag+"-req",body(x.id,quantity));
+  const inspected=await service.inspect("admin-commerce",received.id,"inspect-"+tag,"inspect-"+tag+"-req",{
+    summary:"Physical goods inspected and separated into off-sale storage",
+    lines:received.lines.map(line=>({itemId:line.id,disposition:"quarantine",
+      note:"Goods physically inspected and quarantined from saleable inventory" })),
+  });
+  return {order:x,receipt:inspected,item:inspected.lines[0]!};
+}
+
+test("R2a: exact original lot creates a quarantined, non-saleable stock receipt with custody evidence",async()=>{
+  const {receipt,item}=await inspectedQuarantine("CUSTODY");
+  const before=await db.$queryRaw<{sellablePhysical:Prisma.Decimal;availableToSell:Prisma.Decimal}[]>`
+    SELECT "sellablePhysical","availableToSell" FROM variant_availability WHERE "positionId"='pos-rice'`;
+  const oldLot=await db.stockLot.findUniqueOrThrow({where:{id:"lot-rice"}});
+  const outcome=await service.quarantine("admin-commerce",item.id,"r2-quarantine-key","r2-custody-request",
+    {custodyNote:"Sealed off-sale returns shelf A2; stock confirmed by responsible administrator."});
+  assert.equal(outcome.itemId,item.id);
+  assert.equal(outcome.quantity,item.quantity);
+  assert.equal(outcome.sourceLotId,"lot-rice");
+  assert.equal(outcome.sourceLotNumber,"RICE");
+  assert.equal(outcome.status,"quarantined");
+  const physical=await db.stockLot.findUniqueOrThrow({where:{id:outcome.quarantineLotId}});
+  assert.equal(physical.kind,"physical_return_quarantine");
+  assert.equal(physical.quarantined,true);
+  assert.equal(physical.positionId,oldLot.positionId);
+  assert.equal(physical.quantity.toString(),item.quantity);
+  assert.equal((await db.stockLot.findUniqueOrThrow({where:{id:"lot-rice"}})).quantity.toString(),oldLot.quantity.toString());
+  const movement=await db.stockMovement.findMany({where:{lotId:physical.id}});
+  assert.equal(movement.length,1);
+  assert.equal(movement[0].reason,"physical_return_quarantine");
+  assert.equal(movement[0].delta.toString(),item.quantity);
+  const after=await db.$queryRaw<{sellablePhysical:Prisma.Decimal;availableToSell:Prisma.Decimal}[]>`
+    SELECT "sellablePhysical","availableToSell" FROM variant_availability WHERE "positionId"='pos-rice'`;
+  assert.equal(after[0].sellablePhysical.toString(),before[0].sellablePhysical.toString());
+  assert.equal(after[0].availableToSell.toString(),before[0].availableToSell.toString());
+  const projected=await service.detail(receipt.id);
+  assert.equal(projected.lines[0]?.custody?.quarantineLotId,physical.id);
+  assert.equal(await db.refund.count(),0);
+  assert.equal(await db.paymentAttempt.count(),0);
+});
+
+test("R2a: identical replay is safe and other keys cannot record the same returned goods twice",async()=>{
+  const {item}=await inspectedQuarantine("REPLAY");
+  const note={custodyNote:"Return sealed in quarantined cage and counting ledger cross-checked."};
+  const first=await service.quarantine("admin-commerce",item.id,"custody-once","custody-once-req",note);
+  assert.deepEqual(await service.quarantine("admin-commerce",item.id,"custody-once","custody-once-req",note),first);
+  await assert.rejects(()=>service.quarantine("admin-commerce",item.id,"custody-once",
+    "custody-conflict-req",{custodyNote:"Changed custody note cannot reuse the same transport replay token"}),
+    (error:any)=>error?.getStatus?.()===409);
+  await assert.rejects(()=>service.quarantine("admin-commerce",item.id,"custody-other",
+    "custody-other-req",note),(error:any)=>error?.getStatus?.()===409);
+  assert.equal(await db.physicalReturnCustody.count(),1);
+  assert.equal(await db.stockMovement.count(),1);
+  assert.equal(await db.auditEvent.count({where:{action:"physical_return.quarantine_recorded"}}),1);
+});
+
+test("R2a: destroyed or uninspected goods cannot be placed into quarantine inventory",async()=>{
+  const x=await fixture("DESTROYED");
+  const r=await service.receive("admin-commerce","destroy-receive","destroy-receive-req",body(x.id));
+  await assert.rejects(()=>service.quarantine("admin-commerce",r.lines[0].id,"early-key",
+    "early-req",{custodyNote:"Not yet inspected, so physical stock admission must fail"}),
+    (error:any)=>error?.getStatus?.()===422);
+  await service.inspect("admin-commerce",r.id,"destroy-inspect","destroy-inspect-req",{
+    summary:"Goods found unsuitable for quarantine and held for disposal",
+    lines:[{itemId:r.lines[0].id,disposition:"destroy",
+      note:"Package destroyed and held for controlled disposal"}],
+  });
+  await assert.rejects(()=>service.quarantine("admin-commerce",r.lines[0].id,"destroy-key",
+    "destroy-req",{custodyNote:"Destroyed goods must not become on-hand return inventory"}),
+    (error:any)=>error?.getStatus?.()===422);
+  assert.equal(await db.stockMovement.count(),0);
+  assert.equal(await db.physicalReturnCustody.count(),0);
+});
+
+test("R2a: concurrent different custody keys create exactly one lot, one movement and one record",async()=>{
+  const {item}=await inspectedQuarantine("RACE-R2");
+  const note={custodyNote:"Stock quarantined and witnessed in designated receiving cage"};
+  const results=await Promise.allSettled([
+    service.quarantine("admin-commerce",item.id,"r2-race-a","r2-a-request",note),
+    service.quarantine("admin-commerce",item.id,"r2-race-b","r2-b-request",note),
+  ]);
+  assert.equal(results.filter(r=>r.status==="fulfilled").length,1);
+  assert.equal(await db.physicalReturnCustody.count(),1);
+  assert.equal(await db.stockMovement.count(),1);
+  assert.equal(await db.stockLot.count({where:{kind:"physical_return_quarantine"}}),1);
+  assert.equal(await db.refund.count(),0);
+});
+
+test("R2a: SQL rejects forged quarantine lot without evidence, and forbids resale or destructive mutations",async()=>{
+  await assert.rejects(()=>db.stockLot.create({data:{
+    positionId:"pos-rice",quantity:"1",lotNumber:"SQL-FORGED-QUARANTINE",
+    quarantined:true,kind:"physical_return_quarantine",
+  }}));
+  const {item}=await inspectedQuarantine("SQL-IMMUTABLE");
+  const result=await service.quarantine("admin-commerce",item.id,"r2-sql-test",
+    "r2-sql-test-req",{custodyNote:"Quarantine cage logged with physical counting control note"});
+  await assert.rejects(()=>db.stockLot.update({where:{id:result.quarantineLotId},data:{
+    quarantined:false,kind:"regular",
+  }}));
+  await assert.rejects(()=>db.stockLot.update({where:{id:result.quarantineLotId},data:{quantity:"500"}}));
+  await assert.rejects(()=>db.stockLot.delete({where:{id:result.quarantineLotId}}));
+  await assert.rejects(()=>db.physicalReturnCustody.delete({where:{itemId:item.id}}));
+  await assert.rejects(()=>db.physicalReturnCustody.update({where:{itemId:item.id},data:{quantity:"500"}}));
+  assert.equal((await db.stockLot.findUniqueOrThrow({where:{id:result.quarantineLotId}})).quarantined,true);
+});
+
+test("R2a: source lot ambiguity fails closed without creating saleable or quarantined stock",async()=>{
+  const {item,order}=await inspectedQuarantine("AMBIGUOUS");
+  // A second immutable original source lot for this same handed-over line
+  // makes historical provenance ambiguous; R2a requires unambiguous proof.
+  const second=await db.stockLot.create({data:{positionId:"pos-rice",
+    lotNumber:"SECOND-LOT-ORIGINAL",quantity:"4",kind:"regular",quarantined:false}});
+  const rs=await db.reservation.create({data:{
+    positionId:"pos-rice",lotId:second.id,claimType:"order",
+    claimId:order.id,claimLineId:order.id+"-rice",generation:2,
+    quantity:"0.5",state:"consumed",expiresAt:new Date(Date.now()+3600000),
+  }});
+  const depleted=await db.stockDepletion.findUniqueOrThrow({where:{
+    claimType_claimId:{claimType:"order",claimId:order.id},
+  }});
+  await db.stockDepletionLine.create({data:{
+    depletionId:depleted.id,reservationId:rs.id,claimLineId:order.id+"-rice",
+    variantId:"var-rice",lotId:second.id,quantity:"0.5",
+    lotQuantityBefore:"4",lotQuantityAfter:"3.5",
+  }});
+  await assert.rejects(()=>service.quarantine("admin-commerce",item.id,"r2-ambiguous",
+    "r2-ambiguous-req",{custodyNote:"Must not infer which of two original depleted stock lots was returned"}),
+    (error:any)=>error?.getStatus?.()===422);
+  assert.equal(await db.physicalReturnCustody.count(),0);
+  assert.equal(await db.stockMovement.count(),0);
+});
+
+test("R2a: independent server flag refuses custody even if physical intake is enabled",async()=>{
+  const {item}=await inspectedQuarantine("R2-FLAG");
+  const closed=await createApplication(readConfig({
+    DATABASE_URL:process.env.DATABASE_URL!,WEB_ORIGINS:"http://localhost:3000",
+    API_STOCK_LOCATION_ID:"loc_accra",API_INSECURE_COOKIES:"true",
+    PHYSICAL_RETURNS_INTAKE_ENABLED:"true",PHYSICAL_RETURNS_CUSTODY_ENABLED:"false",
+  }));
+  try{
+    const disabled=closed.get(PhysicalReturnsService);
+    await assert.rejects(()=>disabled.quarantine("admin-commerce",item.id,"r2-closed",
+      "r2-closed-request",{custodyNote:"Physical stock is present, but this environment is not approved"}),
+      (error:any)=>error?.getStatus?.()===503);
+    assert.equal((await disabled.list({page:1,perPage:20})).custodyEnabled,false);
+  }finally{await closed.close();}
+  assert.equal(await db.physicalReturnCustody.count(),0);
+  assert.equal(await db.stockMovement.count(),0);
+});
+
+test("R2a: authenticated administrator-only custody route requires strict note and replay key",async()=>{
+  const {item}=await inspectedQuarantine("R2-HTTP");
+  const admin=await token("admin-commerce@example.test");
+  const customer=await token("customer-a@example.test");
+  const route="/admin/physical-returns/items/"+item.id+"/quarantine";
+  const body={custodyNote:"Custody bay marked off-sale and quantity verified"};
+  assert.equal((await request("POST",route,undefined,body,"r2-no-auth")).status,401);
+  assert.equal((await request("POST",route,customer,body,"r2-customer")).status,403);
+  assert.equal((await request("POST",route,admin,{...body,refundMinor:100},"r2-extra")).status,400);
+  assert.equal((await request("POST",route,admin,{custodyNote:"too short"},"r2-short")).status,400);
+  const accepted=await request("POST",route,admin,body,"r2-http-success");
+  assert.equal(accepted.status,200,JSON.stringify(accepted.body));
+  assert.equal(accepted.body.data.status,"quarantined");
+  assert.equal((await request("POST",route,admin,body,"r2-http-success")).status,200);
+});
+
+test("R2a: direct SQL cannot duplicate or alter a quarantined stock movement",async()=>{
+  const {item}=await inspectedQuarantine("MOVEMENT");
+  const result=await service.quarantine("admin-commerce",item.id,"r2-movement",
+    "r2-movement-req",{custodyNote:"Goods held in secure off-sale bay with verified count"});
+  const movement=await db.stockMovement.findFirstOrThrow({where:{lotId:result.quarantineLotId}});
+  await assert.rejects(()=>db.stockMovement.create({data:{
+    lotId:result.quarantineLotId,receiptId:movement.receiptId,
+    delta:"1",resultingQty:"2",reason:"physical_return_quarantine",actorId:"admin-commerce",
+  }}));
+  await assert.rejects(()=>db.stockMovement.update({where:{id:movement.id},
+    data:{delta:"500",resultingQty:"501"}}));
+  await assert.rejects(()=>db.stockMovement.delete({where:{id:movement.id}}));
+  assert.equal(await db.stockMovement.count({where:{lotId:result.quarantineLotId}}),1);
 });

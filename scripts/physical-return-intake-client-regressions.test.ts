@@ -3,7 +3,8 @@ import { test,expect,describe } from "bun:test";
 import { readFileSync } from "node:fs";
 import {
   physicalReturnReceiveSchema,physicalReturnInspectSchema,physicalReturnViewSchema,
-  physicalReturnListSchema,
+  physicalReturnListSchema,physicalReturnQuarantineRequestSchema,
+  physicalReturnCustodyViewSchema,
 } from "../packages/contracts/src/physical-returns";
 import { restEndpoints } from "../packages/contracts/src/endpoints";
 import { validateRequest } from "../packages/contracts/src/validation";
@@ -87,5 +88,55 @@ describe("Physical Returns R1 browser authority",()=>{
     expect(page).toContain("Quarantined and destroyed goods are not saleable stock");
     expect(page).not.toContain('disposition:"restock_saleable"');
     expect(returns).toContain('href="/admin/physical-returns"');
+  });
+});
+
+describe("Physical Returns R2a non-saleable quarantine stock",()=>{
+  test("strict quarantine custody note cannot request resale, new source lot, refunds or amounts",()=>{
+    const valid={custodyNote:"Goods secured in the off-sale quarantine shelf, counted and separated"};
+    expect(physicalReturnQuarantineRequestSchema.safeParse(valid).success).toBe(true);
+    for(const invalid of [
+      {custodyNote:"short"},
+      {...valid,lotId:"arbitrary-lot"},
+      {...valid,saleable:true},
+      {...valid,refundMinor:250},
+      {...valid,custodyNote:"x".repeat(1001)},
+    ])expect(physicalReturnQuarantineRequestSchema.safeParse(invalid).success).toBe(false);
+    expect(validateRequest("admin.physical-return.quarantine",{
+      ...valid,idempotencyKey:"custody-replay-001",
+    }).ok).toBe(true);
+  });
+  test("client cannot forge inspected item ownership or quarantined lot projection",()=>{
+    const row={
+      itemId:"return-item-1",sourceLotId:"source-1",sourceLotNumber:"SOURCE-001",
+      quarantineLotId:"off-sale-1",quarantineLotNumber:"RET-001",
+      quantity:"1.25",recordedAt:"2026-11-09T09:00:00.000Z",
+      custodyNote:"Physical quarantine cage evidence confirmed and counted",
+      status:"quarantined" as const,
+    };
+    expect(physicalReturnCustodyViewSchema.safeParse(row).success).toBe(true);
+    expect(physicalReturnCustodyViewSchema.safeParse({...row,refundId:"fabricated-refund"}).success).toBe(false);
+    expect(physicalReturnCustodyViewSchema.safeParse({...row,status:"sellable"}).success).toBe(false);
+    expect(physicalReturnCustodyViewSchema.safeParse({...row,quantity:"-1"}).success).toBe(false);
+  });
+  test("quarantine is a staff-only mutation, never a development-mock inventory transaction",async()=>{
+    expect(restEndpoints["admin.physical-return.quarantine"].path)
+      .toBe("/admin/physical-returns/items/{itemId}/quarantine");
+    expect(restEndpoints["admin.physical-return.quarantine"].method).toBe("POST");
+    expect(invalidatesTags("admin.physical-return.quarantine")).toContain("stock");
+    const mock=new MockServiceAdapter();
+    await expect(mock.request({
+      op:"admin.physical-return.quarantine",query:{itemId:"fake-item"},
+      body:{custodyNote:"Mock must refuse fabricated quarantine stock custody"},
+      idempotencyKey:"fake-custody",
+    })).rejects.toMatchObject({code:"UNAVAILABLE"});
+  });
+  test("staff UI confirms separate physical custody, no saleable or payment action",()=>{
+    const page=readFileSync("src/app/admin/physical-returns/page.tsx","utf8");
+    expect(page).toContain("physicalReturnQuarantine");
+    expect(page).toContain("custodyAcknowledged");
+    expect(page).toContain("Quarantine stock custody is not activated");
+    expect(page).toContain("These goods are NOT available to sell");
+    expect(page).not.toContain('type="button">Approve cash refund');
   });
 });

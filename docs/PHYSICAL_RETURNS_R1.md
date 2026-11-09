@@ -54,7 +54,7 @@ inspection or inventory reconciliation. The new administrator workspace under
 
 ## Deployment gates
 
-Regenerate the production OpenAPI and verify **123 paths**; check all role,
+Regenerate the production OpenAPI and verify **124 paths**; check all role,
 Origin/CSRF, idempotency, source handover, concurrent cap and SQL-integrity
 cases. Test on isolated PostgreSQL; review full GitHub checks; restore current
 UAT backup in a separate database and rehearse the migration before any
@@ -62,3 +62,12 @@ live schema action. Keep the feature flag off in UAT until real staff procedures
 and return policy are approved. The earlier remote pickup flags stay off.
 
 Related: GitHub #61, `docs/RELEASE_COMPLETION_ROADMAP.md`.
+
+
+## R2a quarantine custody extension — read the current R2a runbook
+
+The forthcoming custody slice records goods already inspected as quarantined
+in a separate, immutable, non-saleable stock lot. It has a second
+default-OFF feature flag and requires verified one-lot depletion provenance.
+See `docs/PHYSICAL_RETURNS_R2A.md`. No resale, restock approval or refund
+is implemented by that extension.

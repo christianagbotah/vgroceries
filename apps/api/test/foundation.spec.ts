@@ -984,6 +984,7 @@ test("foundation OpenAPI describes only implemented routes with cookie/native se
     "/api/v1/admin/physical-returns",
     "/api/v1/admin/physical-returns/{returnId}",
     "/api/v1/admin/physical-returns/{returnId}/inspect",
+    "/api/v1/admin/physical-returns/items/{itemId}/quarantine",
     "/api/v1/admin/products",
     "/api/v1/admin/products/{productId}",
     "/api/v1/admin/categories",
