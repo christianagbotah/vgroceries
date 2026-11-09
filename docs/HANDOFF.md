@@ -150,3 +150,12 @@ Holiday/closure dates for pickup centres are implemented in a separate
 default-off appointment slice; see `docs/PICKUP_CLOSURES.md`.
 Do not interpret a compiled feature as production provider acceptance or
 authorization to enable the shipment and remote-pickup flags.
+
+## Order-owned pickup appointment inbox confirmations (9 November 2026)
+
+Committed `pickup.appointment_booked` and `pickup.appointment_cancelled`
+outbox events now project into existing customer-owned in-app notifications
+with an immutable source receipt and no recipient inference from payload.
+Guests without accounts produce no fake inbox. This is not an SMS, email,
+WhatsApp message, or a time-based reminder. See `docs/NOTIFICATIONS_L4.md`.
+Remote pickup flags remain OFF pending real-centre acceptance.

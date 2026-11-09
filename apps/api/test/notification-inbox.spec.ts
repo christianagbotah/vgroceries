@@ -220,3 +220,55 @@ test("database writes cannot change message evidence or redirect it to another a
   await assert.rejects(() => db.notification.update({ where: { id: row.id }, data: { readAt: null } }));
   await assert.rejects(() => db.notificationOutboxReceipt.update({ where: { sourceEventId: source.id }, data: { outcome: "no_recipient" } }));
 });
+
+test("committed pickup booking/cancellation events create owner-only in-app confirmations without leaked payload",async()=>{
+  await createOrder("notif-pickup-a","customer-a","VG-PICKUP-ONE");
+  const sourceA=await db.outboxEvent.create({data:{
+    type:"pickup.appointment_booked",aggregateId:"notif-pickup-a",
+    payload:{customerUserId:"customer-b",verificationCode:"SECRET-NOT-EXPOSED",providerPhone:"+233999999999"},
+  }});
+  const sourceB=await db.outboxEvent.create({data:{
+    type:"pickup.appointment_cancelled",aggregateId:"notif-pickup-a",
+    payload:{receiverName:"HIDDEN-RECEIVER",paymentStatus:"not-a-financial-record"},
+  }});
+  assert.deepEqual(await inbox.projectBatch(),{scanned:3,created:3,busy:false});
+  assert.deepEqual(await inbox.projectBatch(),{scanned:0,created:0,busy:false});
+  const records=await db.notification.findMany({where:{orderId:"notif-pickup-a"}});
+  assert.equal(records.length,3);
+  assert.ok(records.every(row=>row.recipientUserId==="customer-a"));
+  const booked=records.find(row=>row.sourceEventId===sourceA.id);
+  const cancelled=records.find(row=>row.sourceEventId===sourceB.id);
+  assert.equal(booked?.title,"Collection appointment booked");
+  assert.equal(cancelled?.title,"Collection appointment cancelled");
+  assert.equal(booked?.kind,"delivery");
+  assert.ok(booked?.body.includes("View order details"));
+  assert.ok(cancelled?.body.includes("Your order is not cancelled"));
+  assert.ok(records.every(row=>!/SECRET-NOT-EXPOSED|HIDDEN-RECEIVER|233999999999|payment confirmed|guaranteed arrival/i.test(row.body)));
+  assert.equal(await db.notificationOutboxReceipt.count({where:{outcome:"created"}}),3);
+  const tokenA=await token("customer-a@example.test");
+  const tokenB=await token("customer-b@example.test");
+  assert.equal((await request("/account/notifications",tokenA)).body.data.unreadCount,3);
+  assert.equal((await request("/account/notifications",tokenB)).body.data.unreadCount,0);
+});
+test("guest pickup appointment events are acknowledged without manufacturing an account inbox",async()=>{
+  await createOrder("notif-guest-pickup",null,"VG-GUEST-PICKUP");
+  for(const type of ["pickup.appointment_booked","pickup.appointment_cancelled"]){
+    await db.outboxEvent.create({data:{type,aggregateId:"notif-guest-pickup",payload:{customerUserId:"customer-a"}}});
+  }
+  assert.deepEqual(await inbox.projectBatch(),{scanned:3,created:0,busy:false});
+  assert.equal(await db.notification.count(),0);
+  assert.equal(await db.notificationOutboxReceipt.count({where:{outcome:"no_recipient"}}),3);
+});
+test("pickup confirmation source cannot be redirected to another customer by a direct database write",async()=>{
+  await createOrder("notif-pickup-integrity","customer-a","VG-PICKUP-INTEGRITY");
+  const source=await db.outboxEvent.create({data:{
+    type:"pickup.appointment_booked",aggregateId:"notif-pickup-integrity",payload:{},
+  }});
+  await assert.rejects(()=>db.notification.create({data:{
+    recipientUserId:"customer-b",orderId:"notif-pickup-integrity",sourceEventId:source.id,
+    kind:"delivery",title:"Forged booking",body:"Cannot redirect an appointment.",
+  }}));
+  const projected=await inbox.projectBatch();
+  assert.equal(projected.created,2);
+  assert.equal(await db.notification.count({where:{recipientUserId:"customer-b"}}),0);
+});

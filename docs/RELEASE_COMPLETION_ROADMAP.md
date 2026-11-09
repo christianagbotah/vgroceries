@@ -39,6 +39,8 @@ provider integrations or operations are already production-ready.
   silently displacing existing bookings. **First new implementation slice.**
 - [ ] Staff missed-appointment and late-arrival recording, customer-rebooking
   workflow, exception reason codes and retention; no automatic order refunds.
+- [x] Customer-owned in-app booking/cancellation confirmations with deduplicated
+  outbox projection; no external provider is claimed.
 - [ ] Order-owned pickup readiness/appointment reminders in the in-app inbox;
   suppress duplicates; no pretend external SMS provider.
 - [ ] Real centre/zone staffing configuration, operating hours, test parcels,

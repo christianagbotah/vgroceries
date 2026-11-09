@@ -35,3 +35,20 @@ Rollback stops/disables the notification timer before switching API/web symlinks
 
 - Provider-neutral delivery-attempt ledger, verified adapters, opt-in/preferences/suppression, retries, receipts, channel settings, template management and delivery observability remain subsequent slices. No external provider or WhatsApp integration is connected now.
 - No schema changes to orders, stock, shipment, payment or refund authorities.
+
+## Pickup appointment in-app confirmation extension (9 November 2026)
+
+The existing durable, idempotent in-app projector now recognizes
+`pickup.appointment_booked` and `pickup.appointment_cancelled`, emitted only
+after committed order-owned appointment mutations. It resolves the recipient
+from the stored order/customer identity, **not** the event payload, and never
+copies the order verification code, receiver name or any financial claim.
+The customer can open the existing order detail for date, time and centre;
+the inbox does not duplicate private scheduling or generate transport ETA.
+Guests without customer accounts are recorded as `no_recipient` (not an invented
+account). Replays remain exact-once by source-event receipts.
+
+This slice does **not** send an email, WhatsApp message or SMS, and it is **not**
+a scheduled appointment reminder. Time-based reminders, consent, delivery
+provider receipts, no-show/late handling and opt-out controls remain tracked
+in GitHub issues #64 and #66.

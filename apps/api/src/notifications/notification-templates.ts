@@ -5,6 +5,8 @@ export const customerNotificationTypes = [
   "delivery.out_for_delivery", "delivery.delivered", "delivery.failed",
   "delivery.rescheduled", "delivery.return_to_store", "delivery.returned_goods_received",
   "delivery.provider_out_for_delivery", "delivery.provider_delivered", "delivery.provider_failed",
+  // Strictly order-bound booking/cancellation evidence. Never a transport ETA.
+  "pickup.appointment_booked", "pickup.appointment_cancelled",
 ] as const;
 export type CustomerNotificationType = typeof customerNotificationTypes[number];
 
@@ -40,5 +42,11 @@ export function customerNotificationCopy(type: CustomerNotificationType, referen
       return { kind: "delivery", title: "Returning to store", body: prefix + "Your delivery parcel is returning to the store." };
     case "delivery.returned_goods_received":
       return { kind: "delivery", title: "Parcel returned", body: prefix + "Your parcel has returned to our delivery team. View order details for the next steps." };
+    case "pickup.appointment_booked":
+      return { kind: "delivery", title: "Collection appointment booked",
+        body: prefix + "Your collection appointment has been reserved. View order details for the confirmed time and pickup centre. This is not a transport ETA." };
+    case "pickup.appointment_cancelled":
+      return { kind: "delivery", title: "Collection appointment cancelled",
+        body: prefix + "Your collection appointment was cancelled. Your order is not cancelled; view order details for available collection arrangements." };
   }
 }
