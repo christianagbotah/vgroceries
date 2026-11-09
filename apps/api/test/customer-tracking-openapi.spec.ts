@@ -6,7 +6,7 @@ import { resolve } from "node:path";
 const doc = JSON.parse(readFileSync(resolve(process.cwd(), "../../docs/openapi-foundation.json"), "utf8"));
 
 test("L3 enriches both existing secure order endpoints without adding a public route", () => {
-  assert.equal(Object.keys(doc.paths).length, 142);
+  assert.equal(Object.keys(doc.paths).length, 143);
   const track = doc.paths["/api/v1/orders/track"].post;
   const detail = doc.paths["/api/v1/orders/{orderId}"].get;
   assert.deepEqual(track.responses["200"].content["application/json"].schema, { $ref: "#/components/schemas/PublicOrderEnvelope" });
@@ -152,7 +152,7 @@ test("R3a authenticated return claim routes use strict customer/admin authorizat
     "/api/v1/admin/return-claims",
     "/api/v1/admin/return-claims/{claimId}/decision",
   ];
-  assert.equal(Object.keys(doc.paths).length,142);
+  assert.equal(Object.keys(doc.paths).length,143);
   for(const path of paths){
     const op=doc.paths[path];
     assert.ok(op,"missing "+path);
