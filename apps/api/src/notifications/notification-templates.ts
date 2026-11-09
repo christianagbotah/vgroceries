@@ -7,6 +7,9 @@ export const customerNotificationTypes = [
   "delivery.provider_out_for_delivery", "delivery.provider_delivered", "delivery.provider_failed",
   // Strictly order-bound booking/cancellation evidence. Never a transport ETA.
   "pickup.appointment_booked", "pickup.appointment_cancelled",
+  // R3a customer-return claim status only: no goods, refund or settlement authority.
+  "customer_return_claim.requested", "customer_return_claim.accepted",
+  "customer_return_claim.rejected", "customer_return_claim.cancelled",
 ] as const;
 export type CustomerNotificationType = typeof customerNotificationTypes[number];
 
@@ -48,5 +51,17 @@ export function customerNotificationCopy(type: CustomerNotificationType, referen
     case "pickup.appointment_cancelled":
       return { kind: "delivery", title: "Collection appointment cancelled",
         body: prefix + "Your collection appointment was cancelled. Your order is not cancelled; view order details for available collection arrangements." };
+    case "customer_return_claim.requested":
+      return { kind: "order", title: "Return request received",
+        body: prefix + "Your return request has been recorded. This does not mean goods have been received or a refund approved. See Returns in your account." };
+    case "customer_return_claim.accepted":
+      return { kind: "order", title: "Return request accepted for inspection",
+        body: prefix + "Staff accepted your request for further physical inspection. No physical receipt or refund is confirmed. See Returns in your account." };
+    case "customer_return_claim.rejected":
+      return { kind: "order", title: "Return request declined",
+        body: prefix + "Staff declined your return request. See Returns in your account for the review explanation." };
+    case "customer_return_claim.cancelled":
+      return { kind: "order", title: "Return request cancelled",
+        body: prefix + "Your pending return request was cancelled. The order and any payment remain separate. See Returns in your account." };
   }
 }

@@ -25,14 +25,23 @@ export class NotificationService {
       });
       let created = 0;
       for (const event of events) {
-        // Never resolve a recipient from user-provided payload data, phone, or email.
-        const order = await tx.order.findUnique({
+        // Customer claim outbox events are claim-owned, not order-owned.
+        // Resolve the recipient through authoritative claim + order relations,
+        // never through an outbox payload, phone, email or staff-supplied user ID.
+        const isReturnClaim = event.type.startsWith("customer_return_claim.");
+        const claim = isReturnClaim ? await tx.customerReturnClaim.findUnique({
           where: { id: event.aggregateId },
+          select: { orderId: true, customerUserId: true },
+        }) : null;
+        const orderId = isReturnClaim ? claim?.orderId : event.aggregateId;
+        const order = orderId ? await tx.order.findUnique({
+          where: { id: orderId },
           select: { id: true, reference: true, fulfilment: true,
             customerUser: { select: { id: true, role: true, active: true } } },
-        });
+        }) : null;
         const recipient = order?.customerUser;
-        const canNotify = !!(order && recipient?.role === "customer" && recipient.active);
+        const canNotify = !!(order && recipient?.role === "customer" && recipient.active
+          && (!isReturnClaim || claim?.customerUserId === recipient.id));
         const copy = canNotify && order
           ? customerNotificationCopy(event.type as CustomerNotificationType, order.reference, order.fulfilment)
           : null;

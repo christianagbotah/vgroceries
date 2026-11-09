@@ -6,9 +6,10 @@ import {createApplication} from "../src/bootstrap";
 import {readConfig} from "../src/config";
 import {Database} from "../src/database/database";
 import {CustomerReturnClaimsService} from "../src/customer-return-claims/customer-return-claims.service";
+import {NotificationService} from "../src/notifications/notification.service";
 import {commerceTestPassword,seedCommerceFixtures} from "./commerce-fixtures";
 
-let app:INestApplication,db:Database,service:CustomerReturnClaimsService,base:string;
+let app:INestApplication,db:Database,service:CustomerReturnClaimsService,inbox:NotificationService,base:string;
 const env=()=>readConfig({
   DATABASE_URL:process.env.DATABASE_URL!,WEB_ORIGINS:"http://localhost:3000",
   API_STOCK_LOCATION_ID:"loc_accra",API_INSECURE_COOKIES:"true",
@@ -77,6 +78,7 @@ before(async()=>{
     throw Error("Use an isolated customer claim test database");
   app=await createApplication(env());await app.listen(0,"127.0.0.1");
   base=await app.getUrl();db=app.get(Database);service=app.get(CustomerReturnClaimsService);
+  inbox=app.get(NotificationService);
 });
 beforeEach(async()=>{await seedCommerceFixtures(db);});
 after(async()=>{await app?.close();});
@@ -159,6 +161,43 @@ test("admin accept/reject is final and replay-safe; no refund, COD or physical r
     decision:"reject",reviewNote:"The return request does not pass the staff's eligibility review."});
   assert.equal(rejected.status,"rejected");
   assert.equal((await service.eligibility("customer-a",id)).lines.find(x=>x.orderLineId===id+"-salt")?.availableQuantity,"2");
+});
+
+test("customer claim status appears in the owner's in-app inbox exactly once without money or physical-collection claims",async()=>{
+  const orderId=await fixture("INBOX");
+  const claim=await service.create("customer-a","inbox-create","inbox-create-req",body(orderId));
+  await service.decide("admin-commerce",claim.id,"inbox-accept","inbox-accept-req",{
+    decision:"accept",reviewNote:"Request accepted for separate physical inspection only.",
+  });
+  const forged=await db.outboxEvent.create({data:{
+    type:"customer_return_claim.accepted",aggregateId:"not-an-existing-return-claim",
+    payload:{orderId,customerUserId:"customer-b",secret:"NEVER_SHOW_SECRET"},
+  }});
+  const projected=await inbox.projectBatch();
+  assert.deepEqual(projected,{scanned:3,created:2,busy:false});
+  assert.deepEqual(await inbox.projectBatch(),{scanned:0,created:0,busy:false});
+  const notes=await db.notification.findMany({where:{orderId},orderBy:{createdAt:"asc"}});
+  assert.equal(notes.length,2);
+  assert.ok(notes.every(n=>n.recipientUserId==="customer-a"));
+  // Database guard must reject fabricated recipient/order or unrelated source
+  // independently of application-level routing and forged outbox payloads.
+  await assert.rejects(()=>db.notification.create({data:{
+    recipientUserId:"customer-b",orderId,sourceEventId:notes[0]!.sourceEventId,
+    kind:"order",title:"Wrong recipient",body:"Must never reach another customer",
+  }}));
+  const alienOrder=await fixture("ALIEN");
+  await assert.rejects(()=>db.notification.create({data:{
+    recipientUserId:"customer-a",orderId:alienOrder,sourceEventId:notes[0]!.sourceEventId,
+    kind:"order",title:"Wrong order",body:"Must never be attached to another order",
+  }}));
+  assert.ok(notes.some(n=>n.title==="Return request received"));
+  assert.ok(notes.some(n=>n.title==="Return request accepted for inspection"));
+  assert.ok(notes.every(n=>!n.body.includes("NEVER_SHOW_SECRET")&&!n.body.includes("customer-b")));
+  assert.ok(notes.every(n=>!/refund (?:was|has been) (?:issued|paid)|goods (?:were|have been) received\./i.test(n.body)));
+  const ignored=await db.notificationOutboxReceipt.findUniqueOrThrow({where:{sourceEventId:forged.id}});
+  assert.equal(ignored.outcome,"no_recipient");
+  assert.equal(await db.refund.count(),0);
+  assert.equal(await db.physicalReturnReceipt.count(),0);
 });
 
 test("undelivered or piece-fraction returns are rejected before claiming anything",async()=>{
