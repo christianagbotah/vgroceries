@@ -852,6 +852,24 @@ export function productionOpenApi(app: INestApplication): OpenAPIObject {
     get:readOperation("Administrator-only immutable till detail, including cash movements but no sale totals.",
       "CashierTillSessionViewEnvelope",[tillId]),
   };
+  doc.paths["/api/v1/admin/pos/tills/{sessionId}/reconciliation.csv"]={
+    get:{
+      security,
+      description:"Administrator-only, no-store CSV export of the same read-only cash drawer reconciliation. Amounts are exact integer pesewas and dynamic text is spreadsheet-formula protected. Not verified electronic settlement, refunds, tax, or bank/GL data.",
+      parameters:[tillId],
+      responses:{
+        "200":{
+          description:"UTF-8 CSV, one metric/value per row and up to 20 recent cash-sale references; aggregates include all completed cash sales.",
+          content:{"text/csv":{schema:{type:"string"}}},
+        },
+        "401":errorResponse,
+        "403":errorResponse,
+        "404":errorResponse,
+        "409":errorResponse,
+        "503":errorResponse,
+      },
+    },
+  };
   doc.paths["/api/v1/admin/pos/tills/{sessionId}/reconciliation"]={
     get:readOperation("Administrator-only, read-only same-snapshot CASH drawer reconciliation: opening float, manual cash in/out/drops, completed counter cash sales, recent receipt references, active holds and any closing difference. Excludes electronic payments, refunds, tax and general ledger.",
       "PosTillReconciliationViewEnvelope",[tillId]),
