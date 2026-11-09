@@ -1,6 +1,14 @@
 # Known issues, incomplete work & integration limits
 
-This document separates implemented authority from deliberately unconnected production capabilities. At the Wave L4 in-app notification development checkpoint, the generated production OpenAPI contains **114 paths** (111 previous paths plus three customer-notification endpoints). L3 tracking still enriches the existing PublicOrder response without new tracking endpoints or tables. Shipment execution code is implemented but the rollout flag defaults off; live API/web release and L2 activation remain separate steps.
+This document separates implemented authority from deliberately unconnected
+production capabilities. **As of 9 November 2026**, the source API has
+**120 paths**, including customer pickup appointments and one additional
+administrator-only centre closure calendar path. The former Wave L3/L4
+tracking/in-app-notification code and the appointment interface are deployed
+to UAT. **Shipment execution and remote customer pickup still remain OFF in
+UAT**; available code does not imply an activated logistics service.
+See `docs/RELEASE_COMPLETION_ROADMAP.md` for a current, dependency-ordered
+backlog. Historical verification figures below refer to their old checkpoints.
 
 ## 1. Production/backend authorities already implemented
 
@@ -13,7 +21,11 @@ Operationally, `LOGISTICS_SHIPMENT_EXECUTION_ENABLED` remains `false` by default
 ## 2. Backend/integration authorities still deliberately closed
 
 1. **Advanced customer tracking (L3) is deployed to the UAT portal as release `f635f3f`.** The dedicated customer-safe projection enriches PublicOrder and shares presentation across track, checkout status and account order detail. Operational Shipment detail remains administrator-only. L3 adds no separate tracking endpoints; the L4 account inbox links to the existing secure account-order detail.
-2. **L4 in-app inbox requires a coordinated API/database/web release.** Customer-owned message snapshots, cursor pagination, read-one/read-all, the account inbox screen and a bounded projection timer are implemented. Rows are projected from committed order/fulfilment/delivery outbox events. No live Email/SMS/WhatsApp, external delivery ledger/provider receipts, preferences, retries or push delivery are claimed. Running API/web services do not include this branch until a verified coordinated release.
+2. **L4 in-app inbox is deployed to UAT.** Customer-owned message snapshots,
+cursor pagination, read-one/read-all, the account inbox screen and a bounded
+projection timer are implemented. Rows are projected from committed events.
+No live Email/SMS/WhatsApp, external provider receipts/preferences/retries or
+push delivery are claimed.
 3. **COD cash collection and rider remittance are not implemented.** Delivery remains independent from customer cash, rider liability and remittance/reconciliation.
 4. **Physical Returns Authority is not implemented.** Dispatch physical-return receipt may restore the Shipment to `final_mile_ready` for reassignment, but it does not restore inventory; goods still require future Returns inspection/disposition before any restock. Shipment return history remains append-only.
 5. **POS cashier sales are not yet a production API authority.** POS must reuse exactly-once depletion and add cashier/session/payment controls.
@@ -73,20 +85,22 @@ Local whole-branch frontend/build/acceptance verification is complete; fresh Git
   verified payment-provider outcomes. The interface is ready for tests,
   but `LOGISTICS_SHIPMENT_EXECUTION_ENABLED` and
   `LOGISTICS_CUSTOMER_PICKUP_ENABLED` must remain disabled pending signoff.
-- Current customer tracking intentionally shows confirmed pickup readiness
-  but does not provide separate collection appointment slots or a full
-  static pickup-centre directions card. Those require a deliberately scoped
-  customer-safe projection and scheduling policy.
+- Customer tracking displays confirmed pickup readiness. Separate
+  appointment slots now exist, but they require enabled logistics flags,
+  a centre policy and a genuinely ready paid shipment. A richer
+  directions/navigation handoff still needs on-site validation.
 
 
-- Dedicated **customer collection appointments** (centre opening hours,
-  pickup-day/time capacity, missed-appointment rescheduling) remain out of
-  scope even though transport windows and explicit centre transport charges
-  now exist. Do not advertise the transport slot as a pickup appointment.
+- Dedicated **customer collection appointments** have been implemented with
+  separate centre hours, per-slot capacity, booking/rescheduling/cancellation
+  and verified staff collection. They are **not yet activated** in UAT.
+  Missed-appointment, late-arrival and reminder handling remains incomplete.
+  Do not advertise the transport slot as a customer collection appointment.
 
 - Remote pickup appointments are not enabled in UAT; the new policy and
-  booking UI require operational verification of real centre staffing,
-  holidays, late arrivals and missed appointments. No automated no-show,
-  SMS reminder, third-party calendar integration, centre holiday closure
-  or delivery ETA is implemented. Do not activate both logistics flags
-  on code completion alone.
+  booking UI require operational verification of real centre staffing.
+  Explicit one-off holiday/closure dates are built, with existing-booking
+  conflict checks; they do not auto-notify/reschedule or affect transport.
+  Late arrivals, no-show state, SMS reminder, third-party calendar
+  integration, and delivery ETA remain unimplemented. Do not activate
+  either logistics flag on code completion alone.

@@ -6,7 +6,7 @@ import { resolve } from "node:path";
 const doc = JSON.parse(readFileSync(resolve(process.cwd(), "../../docs/openapi-foundation.json"), "utf8"));
 
 test("L3 enriches both existing secure order endpoints without adding a public route", () => {
-  assert.equal(Object.keys(doc.paths).length, 119);
+  assert.equal(Object.keys(doc.paths).length, 120);
   const track = doc.paths["/api/v1/orders/track"].post;
   const detail = doc.paths["/api/v1/orders/{orderId}"].get;
   assert.deepEqual(track.responses["200"].content["application/json"].schema, { $ref: "#/components/schemas/PublicOrderEnvelope" });
@@ -61,4 +61,22 @@ test("appointment routes use strict owned-customer/guest or administrator securi
   const surface=JSON.stringify(doc.components.schemas.PickupAppointmentOptions);
   for(const sensitive of ["paymentAttemptId","receiptId","staffActorId","verificationCode","customerUserId"])
     assert.ok(!surface.includes('"'+sensitive+'"'));
+});
+
+test("pickup calendar closure endpoints are administrator-only, strict, replay-protected and have no customer authority",()=>{
+  const path=doc.paths["/api/v1/admin/logistics/nodes/{nodeId}/pickup-closures"];
+  assert.ok(path);
+  for(const operation of [path.get,path.post]){
+    assert.deepEqual(operation.security,[{cookieAuth:[]},{bearerAuth:[]}]);
+    assert.ok(operation.parameters.some((parameter:any)=>parameter.name==="nodeId"&&parameter.required));
+  }
+  assert.ok(path.post.parameters.some((parameter:any)=>parameter.name==="Idempotency-Key"&&parameter.required));
+  assert.ok(path.post.parameters.some((parameter:any)=>parameter.name==="X-CSRF-Token"));
+  assert.deepEqual(path.get.responses["200"].content["application/json"].schema,
+    {$ref:"#/components/schemas/PickupCentreClosureListEnvelope"});
+  assert.deepEqual(path.post.requestBody.content["application/json"].schema,
+    {$ref:"#/components/schemas/PickupCentreClosureInput"});
+  const serialized=JSON.stringify(doc.components.schemas.PickupCentreClosureView);
+  for(const secret of ["updatedBy","customerUserId","customerPhone","orderId","actorId","paymentStatus"])
+    assert.ok(!serialized.includes('"'+secret+'"'));
 });

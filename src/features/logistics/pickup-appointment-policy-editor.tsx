@@ -10,6 +10,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { PickupCentreClosureCalendar } from "./pickup-centre-closure-calendar";
 
 const days = [
   {value:1,label:"Mon"}, {value:2,label:"Tue"}, {value:3,label:"Wed"},
@@ -127,6 +128,7 @@ export function PickupAppointmentPolicyEditor({nodeId,nodeName}:{nodeId:string;n
           Only whole 30- or 60-minute appointments fit within the centre&apos;s hours.
           Overnight hours are not supported. Existing bookings remain recorded if you later disable this policy.
         </p>
+        <PickupCentreClosureCalendar nodeId={nodeId} />
         <DialogFooter className="gap-2 sm:gap-0">
           <Button variant="outline" disabled={saving} onClick={()=>setOpen(false)}>Close</Button>
           <Button disabled={saving||!loaded} onClick={()=>void save()}>

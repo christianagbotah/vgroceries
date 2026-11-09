@@ -52,3 +52,24 @@ export const pickupAppointmentMutationResponseSchema=z.object({
   appointment:pickupAppointmentViewSchema,
 }).strict();
 export type PickupAppointmentMutationResponse=z.infer<typeof pickupAppointmentMutationResponseSchema>;
+
+/** A Ghana-local calendar day with no collection appointments offered.
+ * Administrative closure never cancels an existing paid order or booking.
+ */
+export const pickupCentreClosureInputSchema=z.object({
+  date:z.iso.date(),
+  closed:z.boolean(),
+  reason:z.string().trim().min(3).max(160).nullable(),
+}).strict().superRefine((row,ctx)=>{
+  if(row.closed&&!row.reason)
+    ctx.addIssue({code:"custom",path:["reason"],message:"A closure reason is required"});
+  if(!row.closed&&row.reason!==null)
+    ctx.addIssue({code:"custom",path:["reason"],message:"Reopening must clear the closure reason"});
+});
+export type PickupCentreClosureInput=z.infer<typeof pickupCentreClosureInputSchema>;
+export const pickupCentreClosureViewSchema=pickupCentreClosureInputSchema.safeExtend({
+  nodeId:z.string().min(1),
+  updatedAt:z.string().datetime({offset:true}),
+});
+export type PickupCentreClosureView=z.infer<typeof pickupCentreClosureViewSchema>;
+export const pickupCentreClosureListSchema=z.array(pickupCentreClosureViewSchema).max(400);

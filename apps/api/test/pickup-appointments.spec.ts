@@ -307,3 +307,137 @@ test("global release flags keep customer appointment availability and booking of
    {kind:"book",startsAt:new Date(Date.now()+86400_000).toISOString()},"req-flagged"),
    (e:any)=>e?.getStatus?.()===503);
 });
+
+test("admin-only centre holiday closures support validated replay-safe closure and reopening",async()=>{
+ const x=await ready("HOLIDAY");
+ const a=await auth("admin-commerce@example.test"),c=await auth("customer-a@example.test");
+ const date=(await appointment.options(x.order.id,owner)).slots[0]!.startsAt.slice(0,10);
+ const path=`/admin/logistics/nodes/${x.terminal.id}/pickup-closures`;
+ assert.equal((await request("GET",path,c)).status,403);
+ assert.equal((await request("POST",path,c,{date,closed:true,reason:"National holiday"},"holiday-role")).status,403);
+ assert.equal((await request("POST",path,a,{date,closed:true,reason:"x"},"holiday-invalid")).status,400);
+ const closed=await request("POST",path,a,{date,closed:true,reason:"National holiday"},"holiday-save");
+ assert.equal(closed.status,200,JSON.stringify(closed.body));
+ assert.deepEqual({date:closed.body.data.date,closed:closed.body.data.closed,reason:closed.body.data.reason},
+   {date,closed:true,reason:"National holiday"});
+ const replay=await request("POST",path,a,{date,closed:true,reason:"National holiday"},"holiday-save");
+ assert.equal(replay.status,200);
+ assert.deepEqual(replay.body.data,closed.body.data);
+ const conflict=await request("POST",path,a,{date,closed:true,reason:"Different event"},"holiday-save");
+ assert.equal(conflict.status,409);
+ const list=await request("GET",path,a);
+ assert.equal(list.status,200);
+ assert.ok(list.body.data.some((r:any)=>r.date===date&&r.closed===true));
+ assert.equal(await db.pickupCentreClosure.count({where:{nodeId:x.terminal.id}}),1);
+ const reopening=await request("POST",path,a,{date,closed:false,reason:null},"holiday-reopen");
+ assert.equal(reopening.status,200,JSON.stringify(reopening.body));
+ assert.equal(reopening.body.data.closed,false);
+ assert.equal(reopening.body.data.reason,null);
+ assert.equal(await db.pickupCentreClosure.count({where:{nodeId:x.terminal.id}}),1);
+ assert.equal(await db.auditEvent.count({where:{entityId:x.terminal.id,action:"pickup.centre.closure_saved"}}),2);
+});
+test("a closed pickup date disappears from availability, reopening restores slots without new stock writes",async()=>{
+ const x=await ready("SLOTS-CLOSED");
+ const all=(await appointment.options(x.order.id,owner)).slots;
+ const date=all[0]!.startsAt.slice(0,10);
+ const after=all.find(s=>s.startsAt.slice(0,10)!==date)!;
+ assert.ok(after);
+ const before=(await db.stockLot.findUniqueOrThrow({where:{id:"lot-rice"}})).quantity.toString();
+ await appointment.saveClosure(x.terminal.id,"admin-commerce","calendar-date-one",
+   {date,closed:true,reason:"Annual inventory count"},"calendar-date-req");
+ const closed=await appointment.options(x.order.id,owner);
+ assert.equal(closed.ready,true);
+ assert.ok(closed.slots.length>0);
+ assert.ok(closed.slots.every(slot=>slot.startsAt.slice(0,10)!==date));
+ assert.ok(closed.slots.some(slot=>slot.startsAt===after.startsAt));
+ await assert.rejects(()=>appointment.change(x.order.id,owner,"holiday-book",
+   {kind:"book",startsAt:all[0]!.startsAt},"holiday-book-req"),
+   (e:any)=>e?.getStatus?.()===422);
+ await assert.rejects(()=>db.pickupAppointment.create({data:{
+   orderId:x.order.id,nodeId:x.terminal.id,status:"booked",
+   startsAt:new Date(all[0]!.startsAt),endsAt:new Date(all[0]!.endsAt),
+ }}));
+ assert.equal(await db.pickupAppointment.count({where:{orderId:x.order.id}}),0);
+ await appointment.saveClosure(x.terminal.id,"admin-commerce","calendar-reopen",
+   {date,closed:false,reason:null},"calendar-reopen-req");
+ assert.ok((await appointment.options(x.order.id,owner)).slots.some(slot=>slot.startsAt===all[0]!.startsAt));
+ assert.equal((await db.stockLot.findUniqueOrThrow({where:{id:"lot-rice"}})).quantity.toString(),before);
+ assert.equal(await db.paymentAttempt.count({where:{orderId:x.order.id}}),0);
+});
+test("existing bookings stop closure, preserving customer visit and inventory",async()=>{
+ const x=await ready("HAS-BOOKING");
+ const slot=(await appointment.options(x.order.id,owner)).slots[0]!;
+ const date=slot.startsAt.slice(0,10);
+ const before=(await db.order.findUniqueOrThrow({where:{id:x.order.id}})).totalMinor;
+ await appointment.change(x.order.id,owner,"save-first",
+   {kind:"book",startsAt:slot.startsAt},"save-first-req");
+ await assert.rejects(()=>appointment.saveClosure(x.terminal.id,"admin-commerce","close-booked",
+   {date,closed:true,reason:"Unexpected maintenance"},"close-booked-req"),
+   (e:any)=>e?.getStatus?.()===409&&e?.getResponse?.()?.code==="PICKUP_CLOSURE_HAS_BOOKINGS");
+ await assert.rejects(()=>db.pickupCentreClosure.create({data:{
+   nodeId:x.terminal.id,date:new Date(date+"T00:00:00Z"),closed:true,
+   reason:"Direct SQL closure",updatedBy:"admin-commerce",
+ }}));
+ assert.equal(await db.pickupCentreClosure.count({where:{nodeId:x.terminal.id}}),0);
+ assert.equal((await db.pickupAppointment.findUniqueOrThrow({where:{orderId:x.order.id}})).status,"booked");
+ assert.equal((await db.order.findUniqueOrThrow({where:{id:x.order.id}})).totalMinor,before);
+ await appointment.change(x.order.id,owner,"cancel-first",{kind:"cancel"},"cancel-first-req");
+ const row=await appointment.saveClosure(x.terminal.id,"admin-commerce","close-after-cancel",
+   {date,closed:true,reason:"Unexpected maintenance"},"close-after-cancel-req");
+ assert.equal(row.closed,true);
+});
+test("simultaneous booking and calendar closure cannot both succeed for the same centre day",async()=>{
+ const x=await ready("RACE-CLOSURE");
+ const slot=(await appointment.options(x.order.id,owner)).slots[0]!;
+ const date=slot.startsAt.slice(0,10);
+ const results=await Promise.allSettled([
+   appointment.change(x.order.id,owner,"race-book-1",
+     {kind:"book",startsAt:slot.startsAt},"race-book-req"),
+   appointment.saveClosure(x.terminal.id,"admin-commerce","race-close-1",
+     {date,closed:true,reason:"Urgent facility maintenance"},"race-close-req"),
+ ]);
+ assert.equal(results.filter(r=>r.status==="fulfilled").length,1,JSON.stringify(results));
+ const booking=await db.pickupAppointment.findUnique({where:{orderId:x.order.id}});
+ const closure=await db.pickupCentreClosure.findUnique({where:{nodeId_date:{
+   nodeId:x.terminal.id,date:new Date(date+"T00:00:00Z"),
+ }}});
+ assert.ok(!(booking?.status==="booked"&&closure?.closed));
+});
+test("closure dates are bounded, cannot be added to a non-pickup node, and SQL rejects forged records",async()=>{
+ const x=await ready("CLOSURE-GUARD");
+ const tomorrow=new Date(Date.now()+86400_000).toISOString().slice(0,10);
+ const past=new Date(Date.now()-86400_000).toISOString().slice(0,10);
+ await assert.rejects(()=>appointment.saveClosure(x.terminal.id,"admin-commerce","invalid-past",
+   {date:past,closed:true,reason:"Already passed"},"invalid-past-req"),(e:any)=>e?.getStatus?.()===422);
+ await assert.rejects(()=>appointment.saveClosure(x.source.id,"admin-commerce","wrong-node",
+   {date:tomorrow,closed:true,reason:"Wrong kind"},"wrong-node-req"),(e:any)=>e?.getStatus?.()===422);
+ await assert.rejects(()=>db.pickupCentreClosure.create({data:{
+   nodeId:x.source.id,date:new Date(tomorrow+"T00:00:00Z"),closed:true,reason:"Bad node",updatedBy:"admin-commerce",
+ }}));
+ await assert.rejects(()=>db.pickupCentreClosure.create({data:{
+   nodeId:x.terminal.id,date:new Date(past+"T00:00:00Z"),closed:true,reason:"Past day",updatedBy:"admin-commerce",
+ }}));
+ assert.equal(await db.pickupCentreClosure.count(),0);
+});
+
+test("direct SQL closure and booking race serialize without leaving a booked closed day",async()=>{
+ const x=await ready("SQL-RACE");
+ const slot=(await appointment.options(x.order.id,owner)).slots[0]!;
+ const date=slot.startsAt.slice(0,10);
+ const results=await Promise.allSettled([
+   db.pickupAppointment.create({data:{
+     orderId:x.order.id,nodeId:x.terminal.id,status:"booked",
+     startsAt:new Date(slot.startsAt),endsAt:new Date(slot.endsAt),
+   }}),
+   db.pickupCentreClosure.create({data:{
+     nodeId:x.terminal.id,date:new Date(date+"T00:00:00Z"),
+     closed:true,reason:"Direct SQL race test",updatedBy:"admin-commerce",
+   }}),
+ ]);
+ assert.equal(results.filter(r=>r.status==="fulfilled").length,1);
+ const closure=await db.pickupCentreClosure.findUnique({where:{nodeId_date:{
+   nodeId:x.terminal.id,date:new Date(date+"T00:00:00Z"),
+ }}});
+ const booking=await db.pickupAppointment.findUnique({where:{orderId:x.order.id}});
+ assert.ok(!(closure?.closed&&booking?.status==="booked"));
+});

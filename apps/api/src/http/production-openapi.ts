@@ -73,6 +73,7 @@ import {
   pickupAppointmentPolicyInputSchema, pickupAppointmentPolicyViewSchema,
   pickupAppointmentOptionsSchema, bookPickupAppointmentRequestSchema,
   cancelPickupAppointmentRequestSchema, pickupAppointmentMutationResponseSchema,
+  pickupCentreClosureInputSchema,pickupCentreClosureViewSchema,pickupCentreClosureListSchema,
   shipmentStatusSchema,
   shipmentListItemSchema,
   shipmentDetailViewSchema,
@@ -319,6 +320,9 @@ export function productionOpenApi(app: INestApplication): OpenAPIObject {
     BookPickupAppointmentRequest: json(bookPickupAppointmentRequestSchema),
     CancelPickupAppointmentRequest: json(cancelPickupAppointmentRequestSchema),
     PickupAppointmentMutationResponse: json(pickupAppointmentMutationResponseSchema),
+    PickupCentreClosureInput: json(pickupCentreClosureInputSchema),
+    PickupCentreClosureView: json(pickupCentreClosureViewSchema),
+    PickupCentreClosureList: json(pickupCentreClosureListSchema),
     ShipmentListResponse: json(z.object({ items: z.array(shipmentListItemSchema), page: z.number().int().positive(), perPage: z.number().int().positive().max(100), total: z.number().int().nonnegative() }).strict()),
     ShipmentDetailView: json(shipmentDetailViewSchema),
     ShipmentActionResponse: json(shipmentActionResponseSchema),
@@ -386,6 +390,7 @@ export function productionOpenApi(app: INestApplication): OpenAPIObject {
     "ShipmentListResponse", "ShipmentDetailView", "ShipmentActionResponse",
     "PickupCollectResponse",
     "PickupAppointmentPolicyView", "PickupAppointmentOptions", "PickupAppointmentMutationResponse",
+    "PickupCentreClosureView","PickupCentreClosureList",
     "CmsHomepage", "CmsHomepageAdminView", "CmsContentPage", "CmsContentPageAdminView", "CmsOverviewView",
   ])
     schemas[name + "Envelope"] = {
@@ -658,6 +663,10 @@ export function productionOpenApi(app: INestApplication): OpenAPIObject {
   doc.paths["/api/v1/admin/logistics/nodes/{nodeId}/pickup-appointment-policy"] = {
     get: readOperation("Administrator-only centre collection appointment operating hours, service days, capacity, lead time and booking horizon. Configuration does not activate shipment execution.", "PickupAppointmentPolicyViewEnvelope", [logisticsNodeId]),
     post: logisticsMutation("Administrator-only audited centre appointment policy update. A disabled policy stops new bookings without modifying existing bookings. Does not override remote-pickup release flags.", "PickupAppointmentPolicyInput", "PickupAppointmentPolicyViewEnvelope", [logisticsNodeId]),
+  };
+  doc.paths["/api/v1/admin/logistics/nodes/{nodeId}/pickup-closures"] = {
+    get: readOperation("Administrator-only local-calendar pickup centre closures. Closed days never alter booked appointments or delivery transport windows.", "PickupCentreClosureListEnvelope", [logisticsNodeId]),
+    post: logisticsMutation("Administrator-only, replay-safe centre closure and reopening. Closing a date fails if customer appointments are already booked. No silent cancellation, inventory or payment changes.", "PickupCentreClosureInput", "PickupCentreClosureViewEnvelope", [logisticsNodeId]),
   };
   doc.paths["/api/v1/admin/logistics/lanes"] = {
     get: readOperation("Administrator-only Logistics L1 network-lane configuration read. A configured lane does not prove provider connectivity or a shipment transfer.", "LogisticsLaneListEnvelope"),

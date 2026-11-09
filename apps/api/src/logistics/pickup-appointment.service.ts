@@ -5,6 +5,8 @@ import {
   pickupAppointmentPolicyInputSchema,
   pickupAppointmentPolicyViewSchema,
   pickupAppointmentMutationResponseSchema,
+  pickupCentreClosureInputSchema, pickupCentreClosureViewSchema, pickupCentreClosureListSchema,
+  type PickupCentreClosureInput,
   type PickupAppointmentPolicyInput, type PickupAppointmentOptions,
   type PickupAppointmentMutationResponse, type PickupAppointmentView,
 } from "@variety/contracts";
@@ -28,6 +30,15 @@ function policyView(row:{nodeId:string;active:boolean;serviceDays:number[];opens
     opensAt:row.opensAt,closesAt:row.closesAt,slotMinutes:row.slotMinutes,
     capacity:row.capacity,minLeadMinutes:row.minLeadMinutes,
     maxDaysAhead:row.maxDaysAhead,updatedAt:row.updatedAt.toISOString(),
+  });
+}
+const isoDay=(date:Date)=>date.toISOString().slice(0,10);
+const fromDay=(day:string)=>new Date(day+"T00:00:00.000Z");
+const afterDay=(day:string)=>new Date(fromDay(day).getTime()+86_400_000);
+function closureView(row:{nodeId:string;date:Date;closed:boolean;reason:string|null;updatedAt:Date}) {
+  return pickupCentreClosureViewSchema.parse({
+    nodeId:row.nodeId,date:isoDay(row.date),closed:row.closed,
+    reason:row.reason,updatedAt:row.updatedAt.toISOString(),
   });
 }
 function view(a:{startsAt:Date;endsAt:Date;status:string;updatedAt:Date}):PickupAppointmentView {
@@ -114,6 +125,66 @@ export class PickupAppointmentService {
       return result;
     },{timeout:15000});
   }
+  /** Admin-only days the centre will not receive customers. Reopening is
+   * recorded, rather than deleting prior closure evidence. */
+  async closures(nodeId:string) {
+    const node=await this.db.logisticsNode.findUnique({where:{id:nodeId},
+      select:{kind:true}});
+    if(!node||node.kind!=="pickup_point")
+      this.failed("Closure calendar is only available for pickup centres.");
+    const today=isoDay(new Date());
+    const rows=await this.db.pickupCentreClosure.findMany({
+      where:{nodeId,date:{gte:fromDay(today)}},orderBy:{date:"asc"},take:400,
+    });
+    return pickupCentreClosureListSchema.parse(rows.map(closureView));
+  }
+  async saveClosure(nodeId:string,actorId:string,key:string,raw:unknown,requestId:string) {
+    const parsed=pickupCentreClosureInputSchema.safeParse(raw);
+    if(!parsed.success)throw new ApiProblem(400,"VALIDATION_FAILED",
+      "Invalid centre closure date or reason.",parsed.error.issues);
+    const input:PickupCentreClosureInput=parsed.data;
+    const day=fromDay(input.date);
+    const today=fromDay(isoDay(new Date()));
+    if(day.getTime()<today.getTime()||day.getTime()>today.getTime()+365*86_400_000)
+      this.failed("Centre closures must be dated today through the next 365 days.");
+    const operation=`pickup.centre.closure:${nodeId}:${input.date}`;
+    const hash=logisticsCommandHash({nodeId,...input});
+    return this.db.$transaction(async tx=>{
+      await tx.$queryRaw`SELECT 1 FROM pg_advisory_xact_lock(hashtextextended(${JSON.stringify([actorId,operation,key])},0))`;
+      const previous=await tx.idempotency.findUnique({where:{actorId_operation_key:{
+        actorId,operation,key}}});
+      if(previous) {
+        if(previous.requestHash!==hash)throw new ApiProblem(409,"IDEMPOTENCY_CONFLICT",
+          "This closure idempotency key was reused for different input.");
+        return pickupCentreClosureViewSchema.parse(previous.outcome);
+      }
+      const node=await tx.logisticsNode.findUnique({where:{id:nodeId},
+        select:{kind:true}});
+      if(!node||node.kind!=="pickup_point")
+        this.failed("Only configured pickup centres can manage collection closures.");
+      // Both operations must serialize with booking's FOR SHARE policy lock.
+      await tx.$queryRaw`SELECT "nodeId" FROM "PickupAppointmentPolicy"
+        WHERE "nodeId"=${nodeId} FOR UPDATE`;
+      if(input.closed){
+        const booked=await tx.pickupAppointment.count({where:{
+          nodeId,status:"booked",startsAt:{gte:day,lt:afterDay(input.date)},
+        }});
+        if(booked>0)throw new ApiProblem(409,"PICKUP_CLOSURE_HAS_BOOKINGS",
+          `Cannot close this day: ${booked} customer appointment(s) are already booked. Arrange changes first.`);
+      }
+      const row=await tx.pickupCentreClosure.upsert({where:{nodeId_date:{nodeId,date:day}},
+        create:{nodeId,date:day,closed:input.closed,reason:input.reason,updatedBy:actorId},
+        update:{closed:input.closed,reason:input.reason,updatedBy:actorId}});
+      const result=closureView(row);
+      await tx.auditEvent.create({data:{actorId,action:"pickup.centre.closure_saved",
+        entityId:nodeId,requestId,details:{date:input.date,closed:input.closed,reason:input.reason}}});
+      await tx.outboxEvent.create({data:{type:"pickup.centre.closure_saved",
+        aggregateId:nodeId,payload:{nodeId,date:input.date,closed:input.closed}}});
+      await tx.idempotency.create({data:{actorId,operation,key,requestHash:hash,outcome:result}});
+      return result;
+    },{timeout:15000});
+  }
+
   async options(orderId:string,principal:CheckoutPrincipal,now=new Date()):Promise<PickupAppointmentOptions>{
     const {o,policy,ready}=await this.evidence(this.db as Tx,orderId,principal);
     const appointment=o.pickupAppointment?view(o.pickupAppointment):null;
@@ -124,14 +195,25 @@ export class PickupAppointmentService {
     if(!windows.length)return pickupAppointmentOptionsSchema.parse({
       enabled:true,ready:true,timezone:"Africa/Accra",slots:[],appointment,
     });
+    const closureRows=await this.db.pickupCentreClosure.findMany({where:{
+      nodeId:policy.nodeId,closed:true,date:{
+        gte:fromDay(isoDay(windows[0].startsAt)),
+        lte:fromDay(isoDay(windows[windows.length-1].startsAt)),
+      },
+    },select:{date:true}});
+    const closedDates=new Set(closureRows.map(c=>isoDay(c.date)));
+    const openWindows=windows.filter(slot=>!closedDates.has(isoDay(slot.startsAt)));
+    if(!openWindows.length)return pickupAppointmentOptionsSchema.parse({
+      enabled:true,ready:true,timezone:"Africa/Accra",slots:[],appointment,
+    });
     const booked=await this.db.pickupAppointment.groupBy({
       by:["startsAt"],where:{nodeId:policy.nodeId,status:"booked",
-        startsAt:{gte:windows[0].startsAt,lte:windows[windows.length-1].startsAt}},
+        startsAt:{gte:openWindows[0].startsAt,lte:openWindows[openWindows.length-1].startsAt}},
       _count:{_all:true},
     });
     const counts=new Map(booked.map(row=>[row.startsAt.getTime(),row._count._all]));
     return pickupAppointmentOptionsSchema.parse({enabled:true,ready:true,timezone:"Africa/Accra",
-      slots:windows.map(w=>({...w,startsAt:w.startsAt.toISOString(),endsAt:w.endsAt.toISOString(),
+      slots:openWindows.map(w=>({...w,startsAt:w.startsAt.toISOString(),endsAt:w.endsAt.toISOString(),
         available:Math.max(0,policy.capacity-(counts.get(w.startsAt.getTime())??0)),capacity:policy.capacity})),
       appointment});
   }
@@ -163,6 +245,11 @@ export class PickupAppointmentService {
         const start=new Date(command.startsAt);
         const available=candidatePickupSlots(refreshed,at).find(slot=>slot.startsAt.getTime()===start.getTime());
         if(!available)this.failed("The requested collection appointment is no longer within opening hours.");
+        const closure=await tx.pickupCentreClosure.findUnique({where:{
+          nodeId_date:{nodeId:policy.nodeId,date:fromDay(isoDay(available.startsAt))},
+        }});
+        if(closure?.closed)this.failed("The collection centre is closed on the selected date.",
+          "PICKUP_CENTRE_CLOSED");
         // Order lock first, then a node+slot advisory lock. Concurrent customer
         // transactions cannot oversell capacity, even on separate API instances.
         await tx.$queryRaw`SELECT 1 FROM pg_advisory_xact_lock(hashtextextended(${JSON.stringify(["pickup-slot",policy.nodeId,available.startsAt.toISOString()])},0))`;

@@ -47,6 +47,7 @@ import type {
   CheckoutPickupOptionsResponse,
   PickupAppointmentOptions, PickupAppointmentMutationResponse,
   PickupAppointmentPolicyInput, PickupAppointmentPolicyView,
+  PickupCentreClosureInput, PickupCentreClosureView,
   CompleteOrderResponse,
   DashboardView,
   DoneResponse,
@@ -373,6 +374,12 @@ export const apiOps = {
     api<PickupAppointmentPolicyView | null>("admin.logistics.pickup-policy", { query: { nodeId } }),
   pickupAppointmentPolicySave: (nodeId: string, body: PickupAppointmentPolicyInput, idempotencyKey: string) =>
     api<PickupAppointmentPolicyView>("admin.logistics.pickup-policy.save", {
+      query: { nodeId }, body: body as unknown as Record<string, unknown>, idempotencyKey,
+    }),
+  pickupCentreClosures: (nodeId: string) =>
+    api<PickupCentreClosureView[]>("admin.logistics.pickup-closures", { query: { nodeId } }),
+  pickupCentreClosureSave: (nodeId: string, body: PickupCentreClosureInput, idempotencyKey: string) =>
+    api<PickupCentreClosureView>("admin.logistics.pickup-closures.save", {
       query: { nodeId }, body: body as unknown as Record<string, unknown>, idempotencyKey,
     }),
 

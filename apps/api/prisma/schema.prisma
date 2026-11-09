@@ -460,6 +460,20 @@ model PickupAppointmentPolicy {
   updatedAt DateTime @updatedAt @db.Timestamptz(3)
 }
 
+/// Explicit centre-specific local-calendar closure. An active closure must
+/// never silently displace an already booked collection appointment.
+model PickupCentreClosure {
+  nodeId String
+  node LogisticsNode @relation(fields: [nodeId], references: [id], onDelete: Restrict)
+  date DateTime @db.Date
+  closed Boolean @default(true)
+  reason String?
+  updatedBy String
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+  @@id([nodeId, date])
+  @@index([date, closed])
+}
+
 model PickupAppointment {
   orderId String @id
   order Order @relation(fields: [orderId], references: [id], onDelete: Restrict)
@@ -894,6 +908,7 @@ model LogisticsNode {
   collectionReceipts ShipmentCollectionReceipt[]
   orderPickupSnapshots OrderPickupSnapshot[]
   pickupAppointmentPolicy PickupAppointmentPolicy?
+  pickupCentreClosures PickupCentreClosure[]
   pickupAppointments PickupAppointment[]
   currentShipments Shipment[] @relation("ShipmentCurrentNode")
   shipmentStops ShipmentStop[] @relation("ShipmentStopNode")
