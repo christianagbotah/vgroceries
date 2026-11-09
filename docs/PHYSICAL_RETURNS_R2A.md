@@ -76,3 +76,13 @@ interpret the presence of the staff button as an activation approval.
 
 Related: `docs/PHYSICAL_RETURNS_R1.md`, `docs/RELEASE_COMPLETION_ROADMAP.md`,
 GitHub issue #61.
+
+
+## R2b reviewed stock transfer (subsequent separately gated phase)
+
+R2a quarantine lots remain type `physical_return_quarantine` and are
+never toggled directly into saleable regular lots. With a later independent,
+fully audited R2b approval, a quarantined lot may be depleted **once to
+zero** with a balancing negative movement and an exactly matching newly
+created regular lot. This is distinct from editing or deleting custody
+evidence. See `docs/PHYSICAL_RETURNS_R2B.md`.

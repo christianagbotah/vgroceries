@@ -4,6 +4,8 @@ import { randomUUID, createHash } from "node:crypto";
 import { Prisma } from "@prisma/client";
 import {
   physicalReturnViewSchema, physicalReturnListSchema, physicalReturnCustodyViewSchema,
+  physicalReturnResaleReviewViewSchema,
+  type PhysicalReturnResalePropose,type PhysicalReturnResaleDecision,
   type PhysicalReturnQuarantineRequest,
   type PhysicalReturnReceive, type PhysicalReturnInspect,
   type PhysicalReturnView,
@@ -30,9 +32,10 @@ export class PhysicalReturnsService {
         include:{
           orderLine:{select:{productName:true,variantName:true,unit:true}},
           custody:{include:{
-            sourceLot:{select:{lotNumber:true}},
+            sourceLot:{select:{lotNumber:true,expiryDate:true}},
             quarantineLot:{select:{lotNumber:true}},
           }},
+          resaleReview:true,
         },
         orderBy:{orderLineId:"asc"},
       }},
@@ -50,6 +53,13 @@ export class PhysicalReturnsService {
         unit:item.orderLine.unit,quantity:item.quantity.toString(),
         condition:item.condition,disposition:item.disposition,
         inspectionNote:item.inspectionNote,inspectedAt:item.inspectedAt?.toISOString()??null,
+        resaleReview:item.resaleReview?this.resaleReviewView(item.resaleReview):null,
+        resaleEligible:this.config.physicalReturnResaleEnabled
+          &&this.config.physicalReturnResaleAllowedVariants.includes(item.variantId)
+          &&item.condition==="sealed"&&item.disposition==="quarantine"
+          &&item.orderLine.unit==="piece"&&!!item.custody
+          &&!!item.custody.sourceLot.expiryDate
+          &&item.custody.sourceLot.expiryDate.getTime()>=Date.now()+30*86400000,
         custody:item.custody?{
           itemId:item.id,sourceLotId:item.custody.sourceLotId,
           sourceLotNumber:item.custody.sourceLot.lotNumber,
@@ -77,8 +87,195 @@ export class PhysicalReturnsService {
       items,page:query.page,perPage:query.perPage,total,
       enabled:this.config.physicalReturnsEnabled,
       custodyEnabled:this.config.physicalReturnCustodyEnabled,
+      resaleEnabled:this.config.physicalReturnResaleEnabled,
     });
   }
+  private ensureResale(){
+    this.ensureEnabled();
+    if(!this.config.physicalReturnCustodyEnabled||!this.config.physicalReturnResaleEnabled)
+      throw new ApiProblem(503,"RETURN_RESALE_DISABLED",
+        "Returned-goods resale approval has not been activated for this environment.");
+  }
+  private resaleReviewView(review:{
+    itemId:string;status:string;evidenceNote:string;proposedBy:string;proposedAt:Date;
+    decidedBy:string|null;decidedAt:Date|null;decisionNote:string|null;
+    saleableLotId:string|null;transferReceiptId:string|null;
+  }){
+    return physicalReturnResaleReviewViewSchema.parse({
+      itemId:review.itemId,status:review.status,
+      evidenceNote:review.evidenceNote,proposedBy:review.proposedBy,
+      proposedAt:review.proposedAt.toISOString(),decidedBy:review.decidedBy,
+      decidedAt:review.decidedAt?.toISOString()??null,decisionNote:review.decisionNote,
+      saleableLotId:review.saleableLotId,transferReceiptId:review.transferReceiptId,
+    });
+  }
+  private async checkedNonFoodItem(tx:Tx,itemId:string){
+    const item=await tx.physicalReturnItem.findUnique({where:{id:itemId},
+      include:{
+        receipt:true,
+        orderLine:true,
+        custody:{include:{sourceLot:true,quarantineLot:true}},
+        resaleReview:true,
+      }});
+    if(!item)throw new ApiProblem(404,"NOT_FOUND","Returned item not found.");
+    if(!item.custody||item.disposition!=="quarantine"||
+      item.receipt.status!=="inspected"||item.condition!=="sealed"||
+      !item.inspectedAt||item.orderLine.unit!=="piece")
+      throw new ApiProblem(422,"RETURN_RESALE_INELIGIBLE",
+        "Only fully inspected, factory-sealed, piece-counted quarantined goods are reviewable.");
+    if(!this.config.physicalReturnResaleAllowedVariants.includes(item.variantId))
+      throw new ApiProblem(422,"RETURN_RESALE_NOT_ALLOWLISTED",
+        "This product variant has no independently configured non-food resale authorization.");
+    const variant=await tx.variant.findUnique({where:{id:item.variantId},
+      include:{product:{include:{category:true}}}});
+    if(!variant?.active||!variant.product.published||
+      !["non-food","household","household-essentials","cleaning-supplies"]
+        .includes(variant.product.category.slug))
+      throw new ApiProblem(422,"RETURN_RESALE_UNSAFE_CATEGORY",
+        "Only approved non-food household and cleaning categories may be considered.");
+    if(item.custody.quarantineLot.kind!=="physical_return_quarantine"||
+      !item.custody.quarantineLot.quarantined||
+      !item.custody.quarantineLot.quantity.eq(item.custody.quantity))
+      throw new ApiProblem(422,"RETURN_RESALE_CUSTODY_CONFLICT",
+        "The original returned goods are no longer fully held in quarantine.");
+    const expiry=item.custody.sourceLot.expiryDate;
+    const minShelfDate=new Date(Date.now()+30*86400000);
+    if(!expiry||expiry.getTime()<minShelfDate.getTime()||
+      !item.custody.quarantineLot.expiryDate||
+      item.custody.quarantineLot.expiryDate.getTime()!==expiry.getTime())
+      throw new ApiProblem(422,"RETURN_RESALE_EXPIRY_UNVERIFIED",
+        "Traceable original expiry with at least 30 days remaining is required.");
+    const location=await tx.location.findUnique({where:{id:item.receipt.locationId}});
+    if(!location?.active)
+      throw new ApiProblem(422,"RETURN_RESALE_LOCATION_INACTIVE",
+        "The original physically verified return location is unavailable.");
+    return item;
+  }
+
+  /** One immutable proposed review: no saleable stock is changed here. */
+  async proposeResale(actorId:string,itemId:string,key:string,requestId:string,input:PhysicalReturnResalePropose){
+    this.ensureResale();
+    const operation=`physical-return.resale-propose:${itemId}`;
+    const hash=digest({itemId,...input});
+    return this.db.$transaction(async tx=>{
+      await tx.$queryRaw`SELECT 1 AS locked FROM pg_advisory_xact_lock(hashtextextended(${JSON.stringify([actorId,operation,key])},0))`;
+      const previous=await tx.idempotency.findUnique({where:{actorId_operation_key:{actorId,operation,key}}});
+      if(previous){
+        if(previous.requestHash!==hash)throw new ApiProblem(409,"IDEMPOTENCY_CONFLICT",
+          "Resale proposal replay key was used with different evidence.");
+        return physicalReturnResaleReviewViewSchema.parse(previous.outcome);
+      }
+      const locked=await tx.$queryRaw<{id:string}[]>`SELECT id FROM "PhysicalReturnItem" WHERE id=${itemId} FOR UPDATE`;
+      if(!locked.length)throw new ApiProblem(404,"NOT_FOUND","Returned item not found.");
+      const item=await this.checkedNonFoodItem(tx,itemId);
+      if(item.resaleReview)throw new ApiProblem(409,"RETURN_RESALE_REVIEW_EXISTS",
+        "This returned item already has a finalizable or completed resale review.");
+      const review=await tx.physicalReturnResaleReview.create({data:{
+        itemId,status:"pending",proposedBy:actorId,
+        evidenceNote:input.evidenceNote,
+        safetyClassification:input.safetyClassification,
+        factorySealIntact:input.factorySealIntact,
+        tamperAndContaminationAbsent:input.tamperAndContaminationAbsent,
+        sourceTraceabilityVerified:input.sourceTraceabilityVerified,
+        expiryAndStorageVerified:input.expiryAndStorageVerified,
+      }});
+      const outcome=this.resaleReviewView(review);
+      await tx.auditEvent.create({data:{actorId,action:"physical_return.resale_proposed",
+        entityId:itemId,requestId,
+        details:{returnId:item.receiptId,variantId:item.variantId,
+          sourceLotId:item.custody!.sourceLotId,quantity:item.quantity.toString(),
+          classification:input.safetyClassification}}});
+      await tx.outboxEvent.create({data:{type:"physical_return.resale_proposed",
+        aggregateId:item.receiptId,payload:{itemId,returnId:item.receiptId}}});
+      await tx.idempotency.create({data:{actorId,operation,key,requestHash:hash,outcome}});
+      return outcome;
+    },{timeout:15000});
+  }
+
+  /** Second, independent staff decision; approval is one atomic stock transfer. */
+  async decideResale(actorId:string,itemId:string,key:string,requestId:string,input:PhysicalReturnResaleDecision){
+    this.ensureResale();
+    const operation=`physical-return.resale-decision:${itemId}`;
+    const hash=digest({itemId,...input});
+    return this.db.$transaction(async tx=>{
+      await tx.$queryRaw`SELECT 1 AS locked FROM pg_advisory_xact_lock(hashtextextended(${JSON.stringify([actorId,operation,key])},0))`;
+      const previous=await tx.idempotency.findUnique({where:{actorId_operation_key:{actorId,operation,key}}});
+      if(previous){
+        if(previous.requestHash!==hash)throw new ApiProblem(409,"IDEMPOTENCY_CONFLICT",
+          "Resale decision replay key was used with different evidence.");
+        return physicalReturnResaleReviewViewSchema.parse(previous.outcome);
+      }
+      const locked=await tx.$queryRaw<{id:string}[]>`SELECT id FROM "PhysicalReturnItem" WHERE id=${itemId} FOR UPDATE`;
+      if(!locked.length)throw new ApiProblem(404,"NOT_FOUND","Returned item not found.");
+      // After release the quarantine lot correctly contains zero. Report the
+      // immutable terminal review conflict BEFORE rechecking pre-release
+      // eligibility, so a duplicate alternative key cannot masquerade as a
+      // stock provenance failure.
+      const current=await tx.physicalReturnResaleReview.findUnique({where:{itemId}});
+      if(!current||current.status!=="pending")
+        throw new ApiProblem(409,"RETURN_RESALE_NOT_PENDING",
+          "No pending independent resale review exists for this returned item.");
+      const item=await this.checkedNonFoodItem(tx,itemId);
+      const review=item.resaleReview!;
+      if([review.proposedBy,item.inspectedBy,item.receipt.receivedBy,item.custody!.recordedBy]
+        .includes(actorId))
+        throw new ApiProblem(403,"RETURN_RESALE_INDEPENDENT_APPROVAL_REQUIRED",
+          "A different administrator must decide; the proposer, inspector, receiver and custodian cannot approve.");
+      const now=new Date();
+      if(input.decision==="reject"){
+        const rejected=await tx.physicalReturnResaleReview.update({where:{itemId},
+          data:{status:"rejected",decidedBy:actorId,decidedAt:now,decisionNote:input.decisionNote}});
+        const outcome=this.resaleReviewView(rejected);
+        await tx.auditEvent.create({data:{actorId,action:"physical_return.resale_rejected",
+          entityId:itemId,requestId,details:{returnId:item.receiptId}}});
+        await tx.outboxEvent.create({data:{type:"physical_return.resale_rejected",
+          aggregateId:item.receiptId,payload:{itemId,returnId:item.receiptId}}});
+        await tx.idempotency.create({data:{actorId,operation,key,requestHash:hash,outcome}});
+        return outcome;
+      }
+      const custody=item.custody!;
+      const original=custody.quarantineLot;
+      const receipt=await tx.stockReceipt.create({data:{
+        receivedBy:actorId,
+        poRef:`NONFOOD_RETURN_RESALE:${itemId}`,
+        note:`Independent approved non-food factory-sealed resale transfer: ${item.receipt.reference}`,
+      }});
+      const saleable=await tx.stockLot.create({data:{
+        positionId:original.positionId,receiptId:receipt.id,
+        lotNumber:`RET-RESALE-${itemId.slice(0,16)}-${randomUUID().slice(0,8)}`,
+        kind:"regular",quarantined:false,quantity:custody.quantity,
+        expiryDate:custody.sourceLot.expiryDate,
+        unitCostMinor:custody.sourceLot.unitCostMinor,
+      }});
+      await tx.stockMovement.create({data:{
+        lotId:saleable.id,receiptId:receipt.id,
+        delta:custody.quantity,resultingQty:custody.quantity,
+        actorId,reason:"physical_return_resale_transfer_in",
+      }});
+      const approved=await tx.physicalReturnResaleReview.update({where:{itemId},
+        data:{status:"approved",decidedBy:actorId,decidedAt:now,
+          decisionNote:input.decisionNote,saleableLotId:saleable.id,
+          transferReceiptId:receipt.id}});
+      await tx.stockLot.update({where:{id:original.id},data:{quantity:"0"}});
+      await tx.stockMovement.create({data:{
+        lotId:original.id,receiptId:receipt.id,
+        delta:custody.quantity.negated(),resultingQty:"0",
+        actorId,reason:"physical_return_resale_transfer_out",
+      }});
+      const outcome=this.resaleReviewView(approved);
+      await tx.auditEvent.create({data:{actorId,action:"physical_return.resale_approved",
+        entityId:itemId,requestId,
+        details:{returnId:item.receiptId,sourceLotId:original.id,
+          saleableLotId:saleable.id,quantity:custody.quantity.toString(),
+          transferReceiptId:receipt.id,proposedBy:review.proposedBy}}});
+      await tx.outboxEvent.create({data:{type:"physical_return.resale_approved",
+        aggregateId:item.receiptId,payload:{itemId,returnId:item.receiptId,
+          saleableLotId:saleable.id}}});
+      await tx.idempotency.create({data:{actorId,operation,key,requestHash:hash,outcome}});
+      return outcome;
+    },{timeout:20000});
+  }
+
   /** One-way, off-sale receipt of an already-inspected return item.
    * This never changes the original depleted lot or creates a refund.
    * Restrict to a single original source lot until per-lot returns are built.

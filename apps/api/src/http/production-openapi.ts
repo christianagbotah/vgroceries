@@ -77,6 +77,7 @@ import {
   physicalReturnReceiveSchema,physicalReturnInspectSchema,
   physicalReturnViewSchema,physicalReturnListSchema,
   physicalReturnQuarantineRequestSchema,physicalReturnCustodyViewSchema,
+  physicalReturnResaleProposeSchema,physicalReturnResaleDecisionSchema,physicalReturnResaleReviewViewSchema,
   shipmentStatusSchema,
   shipmentListItemSchema,
   shipmentDetailViewSchema,
@@ -332,6 +333,9 @@ export function productionOpenApi(app: INestApplication): OpenAPIObject {
     PhysicalReturnList: json(physicalReturnListSchema),
     PhysicalReturnQuarantineRequest: json(physicalReturnQuarantineRequestSchema),
     PhysicalReturnCustodyView: json(physicalReturnCustodyViewSchema),
+    PhysicalReturnResalePropose:json(physicalReturnResaleProposeSchema),
+    PhysicalReturnResaleDecision:json(physicalReturnResaleDecisionSchema),
+    PhysicalReturnResaleReviewView:json(physicalReturnResaleReviewViewSchema),
     ShipmentListResponse: json(z.object({ items: z.array(shipmentListItemSchema), page: z.number().int().positive(), perPage: z.number().int().positive().max(100), total: z.number().int().nonnegative() }).strict()),
     ShipmentDetailView: json(shipmentDetailViewSchema),
     ShipmentActionResponse: json(shipmentActionResponseSchema),
@@ -402,6 +406,7 @@ export function productionOpenApi(app: INestApplication): OpenAPIObject {
     "PickupCentreClosureView","PickupCentreClosureList",
     "PhysicalReturnView","PhysicalReturnList",
     "PhysicalReturnCustodyView",
+    "PhysicalReturnResaleReviewView",
     "CmsHomepage", "CmsHomepageAdminView", "CmsContentPage", "CmsContentPageAdminView", "CmsOverviewView",
   ])
     schemas[name + "Envelope"] = {
@@ -705,6 +710,20 @@ export function productionOpenApi(app: INestApplication): OpenAPIObject {
     post:physicalReturnMutation(
       "Administrator-only, idempotent storage of inspected returned goods in quarantined inventory. Requires single original depleted lot; creates non-saleable lot, immutable custody and a balancing inventory receipt. No resale, automatic restock approval, refund, payout or customer financial claim.",
       "PhysicalReturnQuarantineRequest","PhysicalReturnCustodyViewEnvelope",
+      [{name:"itemId",in:"path",required:true,schema:{type:"string",minLength:1}}],
+    ),
+  };
+  doc.paths["/api/v1/admin/physical-returns/items/{itemId}/resale-review"]={
+    post:physicalReturnMutation(
+      "Admin-only non-food factory-sealed returned-goods safety proposal: audited, immutable evidence; original quarantine and saleable inventory remain unchanged. Requires an explicitly allowlisted variant, approved non-food category, verified intact seal and source expiry at least 30 days ahead.",
+      "PhysicalReturnResalePropose","PhysicalReturnResaleReviewViewEnvelope",
+      [{name:"itemId",in:"path",required:true,schema:{type:"string",minLength:1}}],
+    ),
+  };
+  doc.paths["/api/v1/admin/physical-returns/items/{itemId}/resale-decision"]={
+    post:physicalReturnMutation(
+      "Independent second administrator must approve or reject a pending review. Approval atomically transfers all held quantity from immutable quarantine into a new, traceable regular lot; no refund, COD collection or external payment action.",
+      "PhysicalReturnResaleDecision","PhysicalReturnResaleReviewViewEnvelope",
       [{name:"itemId",in:"path",required:true,schema:{type:"string",minLength:1}}],
     ),
   };

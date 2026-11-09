@@ -96,6 +96,8 @@ export interface ApiConfig {
   customerPickupEnabled: boolean;
   physicalReturnsEnabled: boolean;
   physicalReturnCustodyEnabled: boolean;
+  physicalReturnResaleEnabled: boolean;
+  physicalReturnResaleAllowedVariants: string[];
   payments: PaymentConfig | null;
   hubtelPayment: HubtelPaymentConfig | null;
   hubtelRefund: HubtelRefundConfig | null;
@@ -152,6 +154,18 @@ export function readConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
   const physicalReturnCustodyEnabled=custodyFlag==="true";
   if(physicalReturnCustodyEnabled&&!physicalReturnsEnabled)
     throw new Error("PHYSICAL_RETURNS_CUSTODY_ENABLED requires physical return intake");
+  const rawResaleEnabled=env.PHYSICAL_RETURNS_RESALE_ENABLED;
+  if(rawResaleEnabled!==undefined&&!["true","false"].includes(rawResaleEnabled))
+    throw new Error("PHYSICAL_RETURNS_RESALE_ENABLED must be true or false");
+  const physicalReturnResaleEnabled=rawResaleEnabled==="true";
+  if(physicalReturnResaleEnabled&&(!physicalReturnsEnabled||!physicalReturnCustodyEnabled))
+    throw new Error("PHYSICAL_RETURNS_RESALE_ENABLED requires both physical intake and custody");
+  const physicalReturnResaleAllowedVariants=[...new Set(
+    (env.PHYSICAL_RETURNS_RESALE_ALLOWED_VARIANTS??"").split(",")
+      .map(x=>x.trim()).filter(Boolean),
+  )];
+  if(physicalReturnResaleAllowedVariants.some(x=>!/^[-a-zA-Z0-9_]{1,128}$/.test(x)))
+    throw new Error("PHYSICAL_RETURNS_RESALE_ALLOWED_VARIANTS contains invalid IDs");
   if (customerPickupEnabled && !shipmentExecutionEnabled)
     throw new Error("LOGISTICS_CUSTOMER_PICKUP_ENABLED requires shipment execution");
   const port = Number(env.PORT ?? 3010);
@@ -616,6 +630,8 @@ export function readConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
     customerPickupEnabled,
     physicalReturnsEnabled,
     physicalReturnCustodyEnabled,
+    physicalReturnResaleEnabled,
+    physicalReturnResaleAllowedVariants,
     payments,
     hubtelPayment,
     hubtelRefund,

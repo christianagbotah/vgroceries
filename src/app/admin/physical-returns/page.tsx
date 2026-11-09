@@ -6,9 +6,11 @@ import { useSearchParams } from "next/navigation";
 import { AlertTriangle, ClipboardCheck, PackageOpen, ShieldCheck, RefreshCw } from "lucide-react";
 import { apiOps, ApiError } from "@/services/client";
 import type { PublicOrder, PhysicalReturnInspect, PhysicalReturnList,
-  PhysicalReturnReceive, PhysicalReturnView,PhysicalReturnQuarantineRequest } from "@/services/contracts";
+  PhysicalReturnReceive, PhysicalReturnView,PhysicalReturnQuarantineRequest,
+  PhysicalReturnResalePropose,PhysicalReturnResaleDecision } from "@/services/contracts";
 import { physicalReturnReceiveSchema, physicalReturnInspectSchema,
-  physicalReturnQuarantineRequestSchema } from "@/services/contracts";
+  physicalReturnQuarantineRequestSchema,
+  physicalReturnResaleProposeSchema,physicalReturnResaleDecisionSchema } from "@/services/contracts";
 import { useStaff } from "@/features/staff/role-context";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -60,13 +62,21 @@ function PhysicalReturnsWorkspace(){
   const [custodyItem,setCustodyItem]=useState<PhysicalReturnView["lines"][number]|null>(null);
   const [custodyNote,setCustodyNote]=useState("");
   const [custodyAcknowledged,setCustodyAcknowledged]=useState(false);
+  const [resaleItem,setResaleItem]=useState<PhysicalReturnView["lines"][number]|null>(null);
+  const [resaleMode,setResaleMode]=useState<"propose"|"decide">("propose");
+  const [resaleEvidence,setResaleEvidence]=useState("");
+  const [resaleDecision,setResaleDecision]=useState<"approve"|"reject">("reject");
+  const [resaleConfirmed,setResaleConfirmed]=useState(false);
+
 
   const receiveReplay=useReplayIntent();
   const inspectReplay=useReplayIntent();
   const custodyReplay=useReplayIntent();
+  const resaleReplay=useReplayIntent();
   const enabled=list?.enabled===true;
   const canMutate=isAdmin&&enabled;
   const canRecordCustody=canMutate&&list?.custodyEnabled===true;
+  const canReviewResale=canMutate&&list?.resaleEnabled===true;
 
   const refresh=useCallback(async()=>{
     try {
@@ -163,6 +173,52 @@ function PhysicalReturnsWorkspace(){
     }catch(e){setError(friendly(e));}
     finally{setBusy(false);}
   }
+  function openResale(item:PhysicalReturnView["lines"][number],mode:"propose"|"decide"){
+    if(!canReviewResale||busy)return;
+    setResaleItem(item);setResaleMode(mode);setResaleEvidence("");
+    setResaleDecision("reject");setResaleConfirmed(false);
+    setError(null);setNotice(null);
+  }
+  async function submitResale(){
+    if(!resaleItem||busy||!canReviewResale||!resaleConfirmed)return;
+    setError(null);setNotice(null);
+    if(resaleMode==="propose"){
+      const payload:PhysicalReturnResalePropose={
+        safetyClassification:"non_food_factory_sealed",
+        factorySealIntact:true,tamperAndContaminationAbsent:true,
+        sourceTraceabilityVerified:true,expiryAndStorageVerified:true,
+        evidenceNote:resaleEvidence.trim(),
+      };
+      const parsed=physicalReturnResaleProposeSchema.safeParse(payload);
+      if(!parsed.success){setError(parsed.error.issues.map(x=>x.message).join("; "));return;}
+      setBusy(true);
+      try{
+        await apiOps.physicalReturnResalePropose(resaleItem.id,parsed.data,
+          resaleReplay.key({itemId:resaleItem.id,mode:"propose",...parsed.data}));
+        resaleReplay.clear();setResaleItem(null);setResaleConfirmed(false);
+        setNotice("Safety review proposed. The goods remain quarantined and are NOT saleable until a different administrator explicitly approves.");
+        await refresh();
+      }catch(e){setError(friendly(e));}
+      finally{setBusy(false);}
+    }else{
+      const payload:PhysicalReturnResaleDecision={
+        decision:resaleDecision,decisionNote:resaleEvidence.trim(),
+      };
+      const parsed=physicalReturnResaleDecisionSchema.safeParse(payload);
+      if(!parsed.success){setError(parsed.error.issues.map(x=>x.message).join("; "));return;}
+      setBusy(true);
+      try{
+        await apiOps.physicalReturnResaleDecision(resaleItem.id,parsed.data,
+          resaleReplay.key({itemId:resaleItem.id,mode:"decide",...parsed.data}));
+        resaleReplay.clear();setResaleItem(null);setResaleConfirmed(false);
+        setNotice(resaleDecision==="approve"?
+          "Independent approval recorded. The entire inspected non-food quantity was transferred from quarantine to a new saleable lot. No customer refund was issued.":
+          "Independent review rejected. The goods remain in quarantine, not available to sell; no refund was issued.");
+        await refresh();
+      }catch(e){setError(friendly(e));}
+      finally{setBusy(false);}
+    }
+  }
   return <div className="min-w-0 space-y-5 pb-12">
     <header className="flex flex-wrap items-center justify-between gap-3">
       <div>
@@ -190,6 +246,10 @@ function PhysicalReturnsWorkspace(){
         until the rollout has been approved. Historical receipts remain readable by administrators.
       </p>
     </div>:null}
+    {enabled&&list?.custodyEnabled&&!list?.resaleEnabled?
+      <p className="rounded-lg border p-3 text-sm text-muted-foreground" role="status">
+        Independent non-food resale review is not activated. No quarantined return can be released to the shop.
+      </p>:null}
     {enabled&&!list?.custodyEnabled?<p className="rounded-lg border p-3 text-sm text-muted-foreground" role="status">
       Quarantine stock custody is not activated. Inspected goods cannot be added to inventory until this separate server authority is approved.
     </p>:null}
@@ -290,6 +350,22 @@ function PhysicalReturnsWorkspace(){
                 </span>:r.status==="inspected"&&l.disposition==="quarantine"&&canRecordCustody?
                   <Button type="button" variant="outline" size="sm" className="mt-2 min-h-9 whitespace-normal text-left"
                     disabled={busy} onClick={()=>startCustody(l)}>Record quarantine custody</Button>:null}
+                {l.resaleReview?<span className="mt-1 block text-xs font-medium">
+                  Resale review: {l.resaleReview.status.replaceAll("_"," ")}
+                  {l.resaleReview.status==="pending"&&canReviewResale?
+                    <Button type="button" variant="outline" size="sm" className="mt-2 min-h-9 whitespace-normal"
+                      disabled={busy} onClick={()=>openResale(l,"decide")}>
+                      Independent decision
+                    </Button>:null}
+                  {l.resaleReview.status==="approved"?
+                    <span className="block break-all text-xs text-muted-foreground">
+                      Released lot: {l.resaleReview.saleableLotId}
+                    </span>:null}
+                </span>:l.custody&&l.resaleEligible&&canReviewResale?
+                  <Button type="button" size="sm" variant="outline" className="mt-2 min-h-9 whitespace-normal"
+                    disabled={busy} onClick={()=>openResale(l,"propose")}>
+                    Request non-food resale review
+                  </Button>:null}
               </td>
             </tr>)}</tbody>
           </table>
@@ -297,6 +373,54 @@ function PhysicalReturnsWorkspace(){
         {r.inspectionSummary?<p className="text-xs text-muted-foreground">Inspection: {r.inspectionSummary}</p>:null}
       </article>)}
     </section>
+    {resaleItem?<section className="space-y-3 rounded-xl border bg-card p-4 sm:p-5"
+      aria-label="Independent returned-goods resale review">
+      <h2 className="font-semibold">{resaleMode==="propose"?"Propose non-food resale release":"Independent resale decision"}</h2>
+      <p className="text-sm text-muted-foreground">
+        {resaleItem.productName} · {resaleItem.quantity} {resaleItem.unit}.
+        Only verified factory-sealed, uncontaminated, traceable non-food goods with
+        an original recorded expiry at least 30 days ahead can qualify.
+        Food, opened goods and perishable groceries must remain unavailable for resale.
+      </p>
+      {resaleMode==="decide"?
+        <div><Label htmlFor="physical-resale-decision">Reviewer decision</Label>
+          <select id="physical-resale-decision" className="mt-1 h-10 w-full rounded-md border bg-background px-2 text-sm"
+            value={resaleDecision} disabled={!canReviewResale||busy}
+            onChange={e=>setResaleDecision(e.target.value as "approve"|"reject")}>
+            <option value="reject">Reject — keep in quarantine</option>
+            <option value="approve">Approve — transfer complete quantity to saleable lot</option>
+          </select>
+          <p className="mt-1 text-xs text-muted-foreground">
+            The proposer, physical receiver, inspector and custodian cannot approve their own goods.
+            The server will independently recheck all eligibility and expiry conditions.
+          </p>
+        </div>:null}
+      <div><Label htmlFor="physical-resale-evidence">
+        {resaleMode==="propose"?"Verified safety and traceability evidence (30–1500 characters)":
+          "Independent decision evidence (20–1000 characters)"}
+        </Label>
+        <Textarea id="physical-resale-evidence" className="mt-1" rows={4}
+          maxLength={resaleMode==="propose"?1500:1000}
+          value={resaleEvidence} disabled={!canReviewResale||busy}
+          onChange={e=>setResaleEvidence(e.target.value)}
+          placeholder="Specify sealed pack verification, original lot/expiry, contamination check and storage condition."/>
+      </div>
+      <label className="flex items-start gap-3 rounded-lg border p-3 text-sm">
+        <Checkbox checked={resaleConfirmed} disabled={!canReviewResale||busy}
+          onCheckedChange={v=>setResaleConfirmed(v===true)}/>
+        <span>{resaleMode==="propose"?
+          "I physically verified an intact factory seal, no tampering/contamination, source lot traceability and sufficient verified shelf life. I confirm this is a non-food product.":
+          "I am an independent administrator, different from the proposer, receiver, inspector and custodian. I have personally rechecked the evidence and understand that approval immediately makes the verified non-food quantity saleable."}</span>
+      </label>
+      <div className="flex flex-wrap gap-2">
+        <Button type="button" disabled={!canReviewResale||busy||!resaleConfirmed||resaleEvidence.trim().length<(resaleMode==="propose"?30:20)}
+          onClick={()=>void submitResale()}>
+          {busy?"Recording…":resaleMode==="propose"?"Submit for independent review":
+            resaleDecision==="approve"?"Approve and transfer to saleable lot":"Reject resale release"}
+        </Button>
+        <Button type="button" variant="outline" disabled={busy} onClick={()=>setResaleItem(null)}>Cancel</Button>
+      </div>
+    </section>:null}
     {custodyItem?<section className="space-y-3 rounded-xl border bg-card p-4 sm:p-5"
       aria-label="Confirm non-saleable quarantine stock custody">
       <h2 className="font-semibold">Record off-sale quarantine custody</h2>

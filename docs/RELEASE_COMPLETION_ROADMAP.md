@@ -54,6 +54,12 @@ provider integrations or operations are already production-ready.
 - [x] R2a immutable, single-source-lot **non-saleable quarantine custody**
   and receipt/movement provenance with a separate OFF rollout flag.
   This is not permission to restock or refund. See `docs/PHYSICAL_RETURNS_R2A.md`.
+- [x] R2b **reviewed non-food, sealed-package stock release**, with different
+  proposing/approving administrators, server-owned non-food category and
+  default-empty variant allowlist, original lot expiry and a balanced
+  quarantined-to-regular stock transfer. A third rollout flag remains OFF.
+  This is not a grocery food-return or refund policy. See
+  `docs/PHYSICAL_RETURNS_R2B.md`.
 
 - [ ] Durable physical-return authorization with order-line quantity balance,
   traceable receipt and lot/condition evidence.

@@ -1594,6 +1594,10 @@ export async function handleApi(req: ApiRequest): Promise<ApiResult> {
         throw new OpError("UNAVAILABLE","Physical receipt history requires authenticated production stock evidence.");
       }
       case "admin.physical-return.receive":
+      case "admin.physical-return.resale-propose":
+      case "admin.physical-return.resale-decision": {
+        throw new OpError("UNAVAILABLE","Saleable returned-goods release requires real independently approved non-food stock evidence.");
+      }
       case "admin.physical-return.quarantine": {
         throw new OpError("UNAVAILABLE","Quarantined stock custody requires verified inspected goods and real inventory.");
       }

@@ -218,6 +218,7 @@ model StockLot {
   depletionLines StockDepletionLine[]
   originalPhysicalReturnCustodies PhysicalReturnCustody[] @relation("PhysicalReturnOriginalLot")
   quarantinedPhysicalReturnCustody PhysicalReturnCustody? @relation("PhysicalReturnQuarantineLot")
+  physicalReturnResaleReview PhysicalReturnResaleReview?
   @@unique([id, positionId])
   @@index([positionId, kind, quarantined, expiryDate])
 }
@@ -253,6 +254,7 @@ model StockReceipt {
   lots StockLot[]
   movements StockMovement[]
   physicalReturnCustodies PhysicalReturnCustody[]
+  physicalReturnResaleReviews PhysicalReturnResaleReview[]
 }
 
 model StockMovement {
@@ -487,6 +489,7 @@ model PhysicalReturnItem {
   inspectedBy String?
   inspectedAt DateTime? @db.Timestamptz(3)
   custody PhysicalReturnCustody?
+  resaleReview PhysicalReturnResaleReview?
   @@unique([receiptId, orderLineId])
   @@index([orderLineId, disposition])
 }
@@ -507,6 +510,30 @@ model PhysicalReturnCustody {
   recordedBy String
   recordedAt DateTime @default(now()) @db.Timestamptz(3)
   @@index([stockReceiptId])
+}
+
+/// R2b two-person food-safety gate: no resale without independently
+/// reviewed custody, original lot expiry, non-food policy and stock transfer.
+model PhysicalReturnResaleReview {
+  itemId String @id
+  item PhysicalReturnItem @relation(fields: [itemId], references: [id], onDelete: Restrict)
+  status String @default("pending") // pending | approved | rejected
+  evidenceNote String
+  safetyClassification String
+  factorySealIntact Boolean
+  tamperAndContaminationAbsent Boolean
+  sourceTraceabilityVerified Boolean
+  expiryAndStorageVerified Boolean
+  proposedBy String
+  proposedAt DateTime @default(now()) @db.Timestamptz(3)
+  decidedBy String?
+  decidedAt DateTime? @db.Timestamptz(3)
+  decisionNote String?
+  saleableLotId String? @unique
+  saleableLot StockLot? @relation(fields: [saleableLotId], references: [id], onDelete: Restrict)
+  transferReceiptId String?
+  transferReceipt StockReceipt? @relation(fields: [transferReceiptId], references: [id], onDelete: Restrict)
+  @@index([status, proposedAt])
 }
 
 model PickupAppointmentPolicy {

@@ -37,6 +37,33 @@ export const physicalReturnCustodyViewSchema=z.object({
   custodyNote:z.string(),status:z.literal("quarantined"),
 }).strict();
 export type PhysicalReturnCustodyView=z.infer<typeof physicalReturnCustodyViewSchema>;
+export const physicalReturnResaleProposeSchema=z.object({
+  safetyClassification:z.literal("non_food_factory_sealed"),
+  factorySealIntact:z.literal(true),
+  tamperAndContaminationAbsent:z.literal(true),
+  sourceTraceabilityVerified:z.literal(true),
+  expiryAndStorageVerified:z.literal(true),
+  evidenceNote:z.string().trim().min(30).max(1500),
+}).strict();
+export type PhysicalReturnResalePropose=z.infer<typeof physicalReturnResaleProposeSchema>;
+export const physicalReturnResaleDecisionSchema=z.object({
+  decision:z.enum(["approve","reject"]),
+  decisionNote:z.string().trim().min(20).max(1000),
+}).strict();
+export type PhysicalReturnResaleDecision=z.infer<typeof physicalReturnResaleDecisionSchema>;
+export const physicalReturnResaleReviewViewSchema=z.object({
+  itemId:id,
+  status:z.enum(["pending","approved","rejected"]),
+  proposedBy:id,
+  proposedAt:z.string().datetime({offset:true}),
+  evidenceNote:z.string(),
+  decidedBy:id.nullable(),
+  decidedAt:z.string().datetime({offset:true}).nullable(),
+  decisionNote:z.string().nullable(),
+  saleableLotId:id.nullable(),
+  transferReceiptId:id.nullable(),
+}).strict();
+export type PhysicalReturnResaleReviewView=z.infer<typeof physicalReturnResaleReviewViewSchema>;
 export const physicalReturnLineViewSchema=z.object({
   id:id,orderLineId:id,variantId:id,productName:z.string(),
   variantName:z.string(),unit:z.string(),quantity,
@@ -44,6 +71,8 @@ export const physicalReturnLineViewSchema=z.object({
   disposition:physicalReturnDispositionSchema,
   inspectionNote:z.string().nullable(),
   custody:physicalReturnCustodyViewSchema.nullable().optional(),
+  resaleReview:physicalReturnResaleReviewViewSchema.nullable().optional(),
+  resaleEligible:z.boolean().optional(),
   inspectedAt:z.string().datetime({offset:true}).nullable(),
 }).strict();
 export const physicalReturnViewSchema=z.object({
@@ -59,6 +88,7 @@ export type PhysicalReturnView=z.infer<typeof physicalReturnViewSchema>;
 export const physicalReturnListSchema=z.object({
   enabled:z.boolean(),
   custodyEnabled:z.boolean().optional(),
+  resaleEnabled:z.boolean().optional(),
   items:z.array(physicalReturnViewSchema),page:z.number().int().min(1),
   perPage:z.number().int().min(1).max(50),total:z.number().int().nonnegative(),
 }).strict();

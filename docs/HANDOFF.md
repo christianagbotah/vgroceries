@@ -179,3 +179,16 @@ proof. The existing stock-availability predicate excludes these lots, so
 checkout availability is unchanged. A second OFF-by-default flag
 `PHYSICAL_RETURNS_CUSTODY_ENABLED` requires the R1 intake flag. No refunded
 money or saleable restock is implied. See `docs/PHYSICAL_RETURNS_R2A.md`.
+
+
+## Physical Returns R2b — independent review and limited non-food resale
+
+R2b introduces a **third** OFF-by-default gate and a default-empty
+variant-ID allowlist. Only sealed, traceable non-food household/cleaning
+goods with at least 30 days of original lot shelf life can be proposed for
+review. A different administrator must independently approve or reject.
+Approval atomically depletes the original quarantine lot and transfers the
+same quantity into a new regular lot with balanced stock movements, without
+changing total physical stock or customer payments. See
+`docs/PHYSICAL_RETURNS_R2B.md`. Food resale, refunds and customer return
+claims are still not authorized.

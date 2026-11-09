@@ -138,6 +138,8 @@ export const restEndpoints: Record<string, RestEndpoint> = {
   "admin.physical-return.detail": {"method": "GET", "path": "/admin/physical-returns/{returnId}"},
   "admin.physical-return.inspect": {"method": "POST", "path": "/admin/physical-returns/{returnId}/inspect"},
   "admin.physical-return.quarantine": {"method": "POST", "path": "/admin/physical-returns/items/{itemId}/quarantine"},
+  "admin.physical-return.resale-propose": {"method": "POST", "path": "/admin/physical-returns/items/{itemId}/resale-review"},
+  "admin.physical-return.resale-decision": {"method": "POST", "path": "/admin/physical-returns/items/{itemId}/resale-decision"},
   "admin.refunds": {"method": "GET", "path": "/refunds"},
   "admin.refund.action": {"method": "POST", "path": "/refunds/{refundId}/actions"},
   "admin.payments": {"method": "GET", "path": "/payments"},

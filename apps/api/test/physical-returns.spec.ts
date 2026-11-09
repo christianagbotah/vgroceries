@@ -16,6 +16,8 @@ const env=()=>readConfig({
   API_STOCK_LOCATION_ID:"loc_accra",API_INSECURE_COOKIES:"true",
   PHYSICAL_RETURNS_INTAKE_ENABLED:"true",
   PHYSICAL_RETURNS_CUSTODY_ENABLED:"true",
+  PHYSICAL_RETURNS_RESALE_ENABLED:"true",
+  PHYSICAL_RETURNS_RESALE_ALLOWED_VARIANTS:"var-soap",
 });
 const body=(id:string,qty="1"):PhysicalReturnReceive=>({
   orderId:id,reason:"Customer returned an item",
@@ -445,4 +447,296 @@ test("R2a: direct SQL cannot duplicate or alter a quarantined stock movement",as
     data:{delta:"500",resultingQty:"501"}}));
   await assert.rejects(()=>db.stockMovement.delete({where:{id:movement.id}}));
   assert.equal(await db.stockMovement.count({where:{lotId:result.quarantineLotId}}),1);
+});
+
+async function nonFoodResaleFixture(tag:string,sourceDays=120){
+  const x=await fixture("RESALE-"+tag);
+  await db.category.create({data:{id:"cat-household",slug:"household-essentials",name:"Household Essentials"}});
+  await db.product.create({data:{
+    id:"product-soap",slug:"resale-fixture-sealed-soap",name:"Factory sealed home cleaner",
+    categoryId:"cat-household",published:true,tags:["non-food"],
+    variants:{create:{id:"var-soap",sku:"FIXTURE-NONFOOD-SOAP",
+      name:"Sealed cleaner unit",unit:"piece",priceMinor:399}},
+  }});
+  const expiry=new Date(Date.now()+sourceDays*86400000);
+  expiry.setUTCHours(0,0,0,0);
+  await db.stockPosition.create({data:{
+    id:"pos-soap",variantId:"var-soap",locationId:"loc_accra",safetyStock:"0",
+    lots:{create:{id:"lot-soap",lotNumber:"SOAP-LOT-001",
+      quantity:"12",expiryDate:expiry,kind:"regular",quarantined:false,
+      unitCostMinor:250}},
+  }});
+  await db.orderLine.create({data:{
+    id:x.id+"-soap",orderId:x.id,variantId:"var-soap",productId:"product-soap",
+    productName:"Factory sealed home cleaner",variantName:"Sealed cleaner unit",
+    unit:"piece",quantity:"2",unitPriceMinor:399,lineTotalMinor:798,
+  }});
+  await db.reservation.create({data:{
+    id:x.id+"-res-soap",positionId:"pos-soap",lotId:"lot-soap",
+    claimType:"order",claimId:x.id,claimLineId:x.id+"-soap",
+    quantity:"2",state:"consumed",expiresAt:new Date(Date.now()+3600000),
+  }});
+  const depletion=await db.stockDepletion.findUniqueOrThrow({
+    where:{claimType_claimId:{claimType:"order",claimId:x.id}},
+  });
+  await db.stockDepletionLine.create({data:{
+    depletionId:depletion.id,reservationId:x.id+"-res-soap",claimLineId:x.id+"-soap",
+    variantId:"var-soap",lotId:"lot-soap",quantity:"2",
+    lotQuantityBefore:"12",lotQuantityAfter:"10",
+  }});
+  const received=await service.receive("admin-commerce","resale-receive-"+tag,
+    "resale-receive-req-"+tag,{
+      orderId:x.id,reason:"Sealed non-food cleaner returned by customer",
+      evidenceNote:"Factory sealed product physically counted at stock receiving quarantine bay",
+      lines:[{orderLineId:x.id+"-soap",quantity:"1",condition:"sealed"}],
+    });
+  await service.inspect("admin-commerce",received.id,
+    "resale-inspect-"+tag,"resale-inspect-req-"+tag,{
+      summary:"Non-food sealed cleaner inspected separately before quarantine placement",
+      lines:[{itemId:received.lines[0].id,disposition:"quarantine",
+        note:"Original unopened cleaner packaging examined and kept off the saleable shelf"}],
+    });
+  await service.quarantine("admin-commerce",received.lines[0].id,"resale-custody-"+tag,
+    "resale-custody-req-"+tag,{
+      custodyNote:"Sealed non-food cleaner held in segregated quarantine rack Q5, verified count",
+    });
+  const admin=await db.user.findUniqueOrThrow({where:{id:"admin-commerce"}});
+  await db.user.createMany({data:[
+    {id:"admin-proposer",email:"resale-proposer@example.test",name:"Resale proposer",
+      passwordHash:admin.passwordHash,role:"admin"},
+    {id:"admin-reviewer",email:"resale-reviewer@example.test",name:"Resale reviewer",
+      passwordHash:admin.passwordHash,role:"admin"},
+    {id:"admin-reviewer-2",email:"resale-reviewer-2@example.test",name:"Second reviewer",
+      passwordHash:admin.passwordHash,role:"admin"},
+  ]});
+  return {orderId:x.id,itemId:received.lines[0].id,sourceExpiry:expiry};
+}
+const resaleProposal=()=>({
+  safetyClassification:"non_food_factory_sealed" as const,
+  factorySealIntact:true as const,tamperAndContaminationAbsent:true as const,
+  sourceTraceabilityVerified:true as const,expiryAndStorageVerified:true as const,
+  evidenceNote:"I verified factory seals, clean packaging, original lot and expiry, and the separate non-food resale eligibility evidence.",
+});
+const approveDecision=()=>({
+  decision:"approve" as const,
+  decisionNote:"Second independent administrator verified intact packaging, origin, expiry and safety classification.",
+});
+
+test("R2b two-person approval transfers one sealed non-food lot without double-counting physical goods or creating refunds",async()=>{
+  const x=await nonFoodResaleFixture("GOOD");
+  const before=await db.$queryRaw<{physical:Prisma.Decimal;sellable:Prisma.Decimal}[]>`
+    SELECT (SELECT sum(quantity) FROM "StockLot" WHERE "positionId"='pos-soap') AS physical,
+      "sellablePhysical" AS sellable FROM variant_availability WHERE "positionId"='pos-soap'`;
+  const proposed=await service.proposeResale("admin-proposer",x.itemId,"r2b-good-propose","r2b-propose-req",resaleProposal());
+  assert.equal(proposed.status,"pending");
+  const untouched=await db.stockLot.findMany({where:{positionId:"pos-soap"}});
+  assert.equal(untouched.filter(l=>l.kind==="regular").length,1);
+  const approved=await service.decideResale("admin-reviewer",x.itemId,"r2b-good-approve",
+    "r2b-approve-req",approveDecision());
+  assert.equal(approved.status,"approved");
+  assert.equal(approved.proposedBy,"admin-proposer");
+  assert.equal(approved.decidedBy,"admin-reviewer");
+  assert.ok(approved.saleableLotId);
+  const q=await db.physicalReturnCustody.findUniqueOrThrow({where:{itemId:x.itemId}});
+  const qlot=await db.stockLot.findUniqueOrThrow({where:{id:q.quarantineLotId}});
+  const released=await db.stockLot.findUniqueOrThrow({where:{id:approved.saleableLotId!}});
+  assert.equal(qlot.quantity.toString(),"0");
+  assert.equal(qlot.quarantined,true);
+  assert.equal(qlot.kind,"physical_return_quarantine");
+  assert.equal(released.kind,"regular");
+  assert.equal(released.quarantined,false);
+  assert.equal(released.positionId,"pos-soap");
+  assert.equal(released.quantity.toString(),"1");
+  assert.equal(released.unitCostMinor,250);
+  assert.equal(released.expiryDate?.toISOString(),x.sourceExpiry.toISOString());
+  const stock=await db.$queryRaw<{physical:Prisma.Decimal;sellable:Prisma.Decimal}[]>`
+    SELECT (SELECT sum(quantity) FROM "StockLot" WHERE "positionId"='pos-soap') AS physical,
+      "sellablePhysical" AS sellable FROM variant_availability WHERE "positionId"='pos-soap'`;
+  assert.equal(stock[0].physical.toString(),before[0].physical.toString());
+  assert.equal(stock[0].sellable.minus(before[0].sellable).toString(),"1");
+  const movement=await db.stockMovement.findMany({where:{receiptId:approved.transferReceiptId!}});
+  assert.deepEqual(movement.map(m=>m.delta.toString()).sort(),["-1","1"]);
+  assert.equal(await db.refund.count(),0);
+  assert.equal(await db.paymentAttempt.count(),0);
+  const detail=await service.detail((await db.physicalReturnItem.findUniqueOrThrow({where:{id:x.itemId}})).receiptId);
+  assert.equal(detail.lines[0].resaleReview?.status,"approved");
+});
+
+test("R2b returns reject review does not change inventory availability and cannot be reversed",async()=>{
+  const x=await nonFoodResaleFixture("REJECT");
+  await service.proposeResale("admin-proposer",x.itemId,"reject-propose","reject-propose-req",resaleProposal());
+  const before=await db.stockLot.findMany({where:{positionId:"pos-soap"}});
+  const rejected=await service.decideResale("admin-reviewer",x.itemId,"reject-final","reject-final-req",{
+    decision:"reject",decisionNote:"Second reviewer could not establish safe resale conditions for this lot.",
+  });
+  assert.equal(rejected.status,"rejected");
+  assert.equal(rejected.saleableLotId,null);
+  assert.deepEqual((await db.stockLot.findMany({where:{positionId:"pos-soap"}}))
+    .map(l=>l.quantity.toString()),before.map(l=>l.quantity.toString()));
+  await assert.rejects(()=>service.decideResale("admin-reviewer-2",x.itemId,"reject-reopen",
+    "reject-reopen-req",approveDecision()),(e:any)=>e?.getStatus?.()===409);
+  assert.equal(await db.stockMovement.count({where:{reason:"physical_return_resale_transfer_in"}}),0);
+  assert.equal(await db.refund.count(),0);
+});
+
+test("R2b proposer, receiver, inspector or custodian cannot approve own saleable release",async()=>{
+  const x=await nonFoodResaleFixture("SELF");
+  await service.proposeResale("admin-proposer",x.itemId,"self-proposal","self-proposal-req",resaleProposal());
+  for(const actor of ["admin-proposer","admin-commerce"]){
+    await assert.rejects(()=>service.decideResale(actor,x.itemId,"self-decision-"+actor,
+      "self-decision-req-"+actor,approveDecision()),(e:any)=>e?.getStatus?.()===403);
+  }
+  assert.equal((await db.physicalReturnResaleReview.findUniqueOrThrow({where:{itemId:x.itemId}})).status,"pending");
+  assert.equal(await db.stockMovement.count({where:{reason:"physical_return_resale_transfer_in"}}),0);
+});
+
+test("R2b duplicate approve key replays safely while alternate or changed keys are refused",async()=>{
+  const x=await nonFoodResaleFixture("REPLAY");
+  const proposal=await service.proposeResale("admin-proposer",x.itemId,"replay-propose","replay-propose-req",resaleProposal());
+  assert.deepEqual(await service.proposeResale("admin-proposer",x.itemId,"replay-propose","replay-propose-req",resaleProposal()),proposal);
+  const approved=await service.decideResale("admin-reviewer",x.itemId,"replay-decision","replay-decision-req",approveDecision());
+  assert.deepEqual(await service.decideResale("admin-reviewer",x.itemId,"replay-decision","replay-decision-req",approveDecision()),approved);
+  await assert.rejects(()=>service.decideResale("admin-reviewer",x.itemId,"replay-decision",
+    "changed-replay-req",{decision:"reject",decisionNote:"This request is different from the previously committed approval."}),
+    (e:any)=>e?.getStatus?.()===409);
+  await assert.rejects(()=>service.decideResale("admin-reviewer-2",x.itemId,"another-approve",
+    "another-approve-req",approveDecision()),(e:any)=>e?.getStatus?.()===409);
+  assert.equal(await db.stockMovement.count({where:{reason:"physical_return_resale_transfer_in"}}),1);
+  assert.equal(await db.stockMovement.count({where:{reason:"physical_return_resale_transfer_out"}}),1);
+});
+
+test("R2b independent reviewers race: only one release, no double credit",async()=>{
+  const x=await nonFoodResaleFixture("RACE");
+  await service.proposeResale("admin-proposer",x.itemId,"race-proposal","race-proposal-req",resaleProposal());
+  const all=await Promise.allSettled([
+    service.decideResale("admin-reviewer",x.itemId,"race-a","race-a-req",approveDecision()),
+    service.decideResale("admin-reviewer-2",x.itemId,"race-b","race-b-req",approveDecision()),
+  ]);
+  assert.equal(all.filter(x=>x.status==="fulfilled").length,1,JSON.stringify(all));
+  assert.equal(await db.stockMovement.count({where:{reason:"physical_return_resale_transfer_in"}}),1);
+  assert.equal(await db.stockLot.count({where:{lotNumber:{startsWith:"RET-RESALE-"}}}),1);
+  assert.equal(await db.refund.count(),0);
+});
+
+test("R2b reject food/unallowlisted, unsealed and insufficient shelf-life, and never touch stock",async()=>{
+  const x=await nonFoodResaleFixture("UNSAFE");
+  await assert.rejects(()=>service.proposeResale("admin-proposer","not-an-item","missing","missing-req",resaleProposal()),
+    (e:any)=>e?.getStatus?.()===404);
+  await db.stockLot.update({where:{id:"lot-soap"},data:{expiryDate:new Date(Date.now()+5*86400000)}});
+  await assert.rejects(()=>service.proposeResale("admin-proposer",x.itemId,"expiry-short","expiry-short-req",resaleProposal()),
+    (e:any)=>e?.getStatus?.()===422);
+  assert.equal(await db.physicalReturnResaleReview.count(),0);
+  assert.equal(await db.stockMovement.count({where:{reason:"physical_return_resale_transfer_in"}}),0);
+});
+
+test("R2b direct SQL fails to forge approval or stock movements and preserves terminal review history",async()=>{
+  const x=await nonFoodResaleFixture("SQL");
+  await service.proposeResale("admin-proposer",x.itemId,"sql-propose","sql-propose-req",resaleProposal());
+  const fakeReceipt=await db.stockReceipt.create({data:{receivedBy:"admin-reviewer",note:"Fake"}});
+  await assert.rejects(()=>db.physicalReturnResaleReview.update({where:{itemId:x.itemId},data:{
+    status:"approved",decidedBy:"admin-reviewer",decidedAt:new Date(),
+    decisionNote:"Forged direct SQL approval with no matching transfer",
+    saleableLotId:"lot-soap",transferReceiptId:fakeReceipt.id,
+  }}));
+  await assert.rejects(()=>db.physicalReturnResaleReview.delete({where:{itemId:x.itemId}}));
+  await assert.rejects(()=>db.stockLot.create({data:{
+    positionId:"pos-soap",lotNumber:"RET-RESALE-FORGED",quantity:"1",
+    quarantined:false,kind:"regular",
+  }}));
+  const decision=await service.decideResale("admin-reviewer",x.itemId,"sql-real","sql-real-req",approveDecision());
+  const q=await db.physicalReturnCustody.findUniqueOrThrow({where:{itemId:x.itemId}});
+  await assert.rejects(()=>db.stockLot.update({where:{id:q.quarantineLotId},data:{quarantined:false,kind:"regular"}}));
+  await assert.rejects(()=>db.physicalReturnResaleReview.update({where:{itemId:x.itemId},data:{decisionNote:"Revised"}}));
+  await assert.rejects(()=>db.physicalReturnResaleReview.delete({where:{itemId:x.itemId}}));
+  await assert.rejects(()=>db.stockMovement.create({data:{
+    lotId:q.quarantineLotId,receiptId:decision.transferReceiptId!,
+    delta:"-1",resultingQty:"0",reason:"physical_return_resale_transfer_out",actorId:"admin-reviewer",
+  }}));
+  assert.equal(await db.refund.count(),0);
+});
+
+test("R2b HTTP requires administrator and rejects forged safety attestations",async()=>{
+  const x=await nonFoodResaleFixture("HTTP");
+  const admin=await token("resale-proposer@example.test");
+  const reviewer=await token("resale-reviewer@example.test");
+  const customer=await token("customer-a@example.test");
+  const proposalUrl="/admin/physical-returns/items/"+x.itemId+"/resale-review";
+  const decisionUrl="/admin/physical-returns/items/"+x.itemId+"/resale-decision";
+  assert.equal((await request("POST",proposalUrl,undefined,resaleProposal(),"no-auth")).status,401);
+  assert.equal((await request("POST",proposalUrl,customer,resaleProposal(),"customer")).status,403);
+  assert.equal((await request("POST",proposalUrl,admin,{...resaleProposal(),factorySealIntact:false},"unsafe-flag")).status,400);
+  assert.equal((await request("POST",proposalUrl,admin,{...resaleProposal(),refundMinor:100},"unsafe-money")).status,400);
+  const proposed=await request("POST",proposalUrl,admin,resaleProposal(),"http-propose");
+  assert.equal(proposed.status,200,JSON.stringify(proposed.body));
+  assert.equal(proposed.body.data.status,"pending");
+  assert.equal((await request("POST",decisionUrl,admin,approveDecision(),"self-review")).status,403);
+  const approved=await request("POST",decisionUrl,reviewer,approveDecision(),"http-decide");
+  assert.equal(approved.status,200,JSON.stringify(approved.body));
+  assert.equal(approved.body.data.status,"approved");
+  assert.equal((await request("POST",decisionUrl,reviewer,approveDecision(),"http-decide")).status,200);
+});
+
+test("R2b default-off flag prevents proposal and decisions when R1/R2a stay enabled",async()=>{
+  const x=await nonFoodResaleFixture("FLAG");
+  const closed=await createApplication(readConfig({
+    DATABASE_URL:process.env.DATABASE_URL!,WEB_ORIGINS:"http://localhost:3000",
+    API_STOCK_LOCATION_ID:"loc_accra",API_INSECURE_COOKIES:"true",
+    PHYSICAL_RETURNS_INTAKE_ENABLED:"true",PHYSICAL_RETURNS_CUSTODY_ENABLED:"true",
+    PHYSICAL_RETURNS_RESALE_ENABLED:"false",PHYSICAL_RETURNS_RESALE_ALLOWED_VARIANTS:"var-soap",
+  }));
+  try{
+    const api=closed.get(PhysicalReturnsService);
+    await assert.rejects(()=>api.proposeResale("admin-proposer",x.itemId,"off","off-req",resaleProposal()),
+      (e:any)=>e?.getStatus?.()===503);
+    await assert.rejects(()=>api.decideResale("admin-reviewer",x.itemId,"off-decide","off-decide-req",approveDecision()),
+      (e:any)=>e?.getStatus?.()===503);
+    assert.equal((await api.list({page:1,perPage:20})).resaleEnabled,false);
+  }finally{await closed.close();}
+  assert.equal(await db.physicalReturnResaleReview.count(),0);
+  assert.equal(await db.stockMovement.count({where:{reason:"physical_return_resale_transfer_in"}}),0);
+});
+
+test("R2b allowlist alone cannot relabel a grocery/food category for resale",async()=>{
+  const x=await nonFoodResaleFixture("FOOD-CATEGORY");
+  await db.product.update({where:{id:"product-soap"},data:{categoryId:"cat-commerce"}});
+  await assert.rejects(()=>service.proposeResale("admin-proposer",x.itemId,"wrong-category",
+    "wrong-category-req",resaleProposal()),(e:any)=>e?.getStatus?.()===422);
+  assert.equal(await db.physicalReturnResaleReview.count(),0);
+  assert.equal(await db.stockMovement.count({where:{reason:"physical_return_resale_transfer_in"}}),0);
+});
+
+test("R2b reviewer rechecks original expiry before release; expired proposal cannot raise sellable quantity",async()=>{
+  const x=await nonFoodResaleFixture("EXPIRED-DECISION");
+  await service.proposeResale("admin-proposer",x.itemId,"expiry-proposed",
+    "expiry-proposed-req",resaleProposal());
+  const before=await db.stockLot.findUniqueOrThrow({where:{id:"lot-soap"}});
+  await db.stockLot.update({where:{id:"lot-soap"},data:{
+    expiryDate:new Date(Date.now()+4*86400000),
+  }});
+  await assert.rejects(()=>service.decideResale("admin-reviewer",x.itemId,"expired-review",
+    "expired-review-req",approveDecision()),(e:any)=>e?.getStatus?.()===422);
+  const review=await db.physicalReturnResaleReview.findUniqueOrThrow({where:{itemId:x.itemId}});
+  assert.equal(review.status,"pending");
+  assert.equal(review.saleableLotId,null);
+  assert.equal(await db.stockLot.count({where:{kind:"physical_return_quarantine"}}),1);
+  assert.equal(await db.stockMovement.count({where:{reason:"physical_return_resale_transfer_in"}}),0);
+  assert.equal((await db.stockLot.findUniqueOrThrow({where:{id:"lot-soap"}})).quantity.toString(),before.quantity.toString());
+});
+
+test("R2b default-empty allowlist denies all inventory release even when the flag is enabled",async()=>{
+  const x=await nonFoodResaleFixture("EMPTY-ALLOWLIST");
+  const closed=await createApplication(readConfig({
+    DATABASE_URL:process.env.DATABASE_URL!,WEB_ORIGINS:"http://localhost:3000",
+    API_STOCK_LOCATION_ID:"loc_accra",API_INSECURE_COOKIES:"true",
+    PHYSICAL_RETURNS_INTAKE_ENABLED:"true",PHYSICAL_RETURNS_CUSTODY_ENABLED:"true",
+    PHYSICAL_RETURNS_RESALE_ENABLED:"true",PHYSICAL_RETURNS_RESALE_ALLOWED_VARIANTS:"",
+  }));
+  try{
+    const gated=closed.get(PhysicalReturnsService);
+    await assert.rejects(()=>gated.proposeResale("admin-proposer",x.itemId,
+      "no-variant-whitelist","no-variant-whitelist-req",resaleProposal()),
+      (e:any)=>e?.getStatus?.()===422);
+  }finally{await closed.close();}
+  assert.equal(await db.physicalReturnResaleReview.count(),0);
+  assert.equal(await db.stockMovement.count({where:{reason:"physical_return_resale_transfer_in"}}),0);
 });

@@ -51,6 +51,7 @@ import type {
   PhysicalReturnReceive, PhysicalReturnInspect,
   PhysicalReturnView, PhysicalReturnList,
   PhysicalReturnQuarantineRequest,PhysicalReturnCustodyView,
+  PhysicalReturnResalePropose,PhysicalReturnResaleDecision,PhysicalReturnResaleReviewView,
   CompleteOrderResponse,
   DashboardView,
   DoneResponse,
@@ -222,6 +223,14 @@ export const apiOps = {
     }),
   physicalReturnQuarantine: (itemId:string,body:PhysicalReturnQuarantineRequest,idempotencyKey:string) =>
     api<PhysicalReturnCustodyView>("admin.physical-return.quarantine",{
+      query:{itemId},body:body as unknown as Record<string,unknown>,idempotencyKey,
+    }),
+  physicalReturnResalePropose: (itemId:string,body:PhysicalReturnResalePropose,idempotencyKey:string) =>
+    api<PhysicalReturnResaleReviewView>("admin.physical-return.resale-propose",{
+      query:{itemId},body:body as unknown as Record<string,unknown>,idempotencyKey,
+    }),
+  physicalReturnResaleDecision: (itemId:string,body:PhysicalReturnResaleDecision,idempotencyKey:string) =>
+    api<PhysicalReturnResaleReviewView>("admin.physical-return.resale-decision",{
       query:{itemId},body:body as unknown as Record<string,unknown>,idempotencyKey,
     }),
   physicalReturnDetail: (returnId:string) =>
