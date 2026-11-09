@@ -83,6 +83,7 @@ import {
   customerReturnClaimsListSchema,customerReturnClaimEligibilitySchema,
   cashierTillOpenSchema,cashierTillMoveSchema,cashierTillCloseSchema,
   cashierTillSessionViewSchema,cashierTillListSchema,
+  posQuoteRequestSchema,posQuoteViewSchema,
   shipmentStatusSchema,
   shipmentListItemSchema,
   shipmentDetailViewSchema,
@@ -352,6 +353,8 @@ export function productionOpenApi(app: INestApplication): OpenAPIObject {
     CashierTillClose:json(cashierTillCloseSchema),
     CashierTillSessionView:json(cashierTillSessionViewSchema),
     CashierTillList:json(cashierTillListSchema),
+    PosQuoteRequest:json(posQuoteRequestSchema),
+    PosQuoteView:json(posQuoteViewSchema),
     ShipmentListResponse: json(z.object({ items: z.array(shipmentListItemSchema), page: z.number().int().positive(), perPage: z.number().int().positive().max(100), total: z.number().int().nonnegative() }).strict()),
     ShipmentDetailView: json(shipmentDetailViewSchema),
     ShipmentActionResponse: json(shipmentActionResponseSchema),
@@ -425,7 +428,7 @@ export function productionOpenApi(app: INestApplication): OpenAPIObject {
     "PhysicalReturnResaleReviewView",
     "CustomerReturnClaimView","CustomerReturnClaimsList",
     "CustomerReturnClaimEligibility",
-    "CashierTillSessionView","CashierTillList",
+    "CashierTillSessionView","CashierTillList","PosQuoteView",
     "CmsHomepage", "CmsHomepageAdminView", "CmsContentPage", "CmsContentPageAdminView", "CmsOverviewView",
   ])
     schemas[name + "Envelope"] = {
@@ -759,6 +762,17 @@ export function productionOpenApi(app: INestApplication): OpenAPIObject {
   // operations do not create sale/payment authority or decrement stock.
   const tillId:ParameterObject={name:"sessionId",in:"path",required:true,
     schema:{type:"string",minLength:1}};
+  // P0b1 previews use online checkout's exact pricing and available-to-sell stock.
+  // POST contains item lines but deliberately has no idempotency key: no mutation.
+  doc.paths["/api/v1/admin/pos/quote"]={
+    post:{
+      security,
+      description:"Admin-only quote for one open till at the shared commerce stock location. No order, reservation, cash movement, captured payment or handover. Availability is a non-binding snapshot.",
+      parameters:[csrf],
+      requestBody:{required:true,content:{"application/json":{schema:ref("PosQuoteRequest")}}},
+      responses:authorityResponses("PosQuoteViewEnvelope"),
+    },
+  };
   doc.paths["/api/v1/admin/pos/tills"]={
     get:readOperation(
       "Administrator-only till records; preliminary drawer movements exclude POS sales and merchant settlements.",

@@ -98,6 +98,7 @@ export interface ApiConfig {
   customerReturnClaimsEnabled: boolean;
   physicalReturnClaimLinkEnabled: boolean;
   posTillFoundationEnabled: boolean;
+  posQuoteEnabled: boolean;
   physicalReturnCustodyEnabled: boolean;
   physicalReturnResaleEnabled: boolean;
   physicalReturnResaleAllowedVariants: string[];
@@ -154,6 +155,12 @@ export function readConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
   if(rawPosTill!==undefined&&!["true","false"].includes(rawPosTill))
     throw new Error("POS_TILL_FOUNDATION_ENABLED must be true or false");
   const posTillFoundationEnabled=rawPosTill==="true";
+  const rawPosQuote=env.POS_QUOTE_ENABLED;
+  if(rawPosQuote!==undefined&&!["true","false"].includes(rawPosQuote))
+    throw new Error("POS_QUOTE_ENABLED must be true or false");
+  const posQuoteEnabled=rawPosQuote==="true";
+  if(posQuoteEnabled&&!posTillFoundationEnabled)
+    throw new Error("POS_QUOTE_ENABLED requires POS_TILL_FOUNDATION_ENABLED");
   const rawPhysicalReturnsEnabled=env.PHYSICAL_RETURNS_INTAKE_ENABLED;
   if(rawPhysicalReturnsEnabled!==undefined&&
     !["true","false"].includes(rawPhysicalReturnsEnabled))
@@ -649,6 +656,7 @@ export function readConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
     customerReturnClaimsEnabled,
     physicalReturnClaimLinkEnabled,
     posTillFoundationEnabled,
+    posQuoteEnabled,
     physicalReturnCustodyEnabled,
     physicalReturnResaleEnabled,
     physicalReturnResaleAllowedVariants,
