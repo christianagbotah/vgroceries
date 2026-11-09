@@ -988,6 +988,7 @@ test("foundation OpenAPI describes only implemented routes with cookie/native se
     "/api/v1/admin/pos/tills",
     "/api/v1/admin/pos/tills/{sessionId}",
     "/api/v1/admin/pos/tills/{sessionId}/reconciliation",
+    "/api/v1/admin/pos/tills/{sessionId}/reconciliation.csv",
     "/api/v1/admin/pos/tills/{sessionId}/movements",
     "/api/v1/admin/pos/tills/{sessionId}/close",
     "/api/v1/admin/dashboard",
@@ -1160,6 +1161,18 @@ test("foundation OpenAPI defines complete response data and inventory location s
           assert.equal(content["text/html"]?.schema?.type, "string");
           assert.ok(op.description.includes("NOT a tax invoice"));
           assert.ok(op.security.some((s: any) => "bearerAuth" in s));
+          continue;
+        }
+        // The reconciliation export is a read-only, exact-pesewa CSV
+        // rather than a fabricated JSON response envelope. Check the
+        // actual media type, schema, security and claims explicitly.
+        if (path === "/api/v1/admin/pos/tills/{sessionId}/reconciliation.csv") {
+          assert.equal(method, "get");
+          assert.equal(content["text/csv"]?.schema?.type, "string");
+          assert.ok(op.description.includes("integer pesewas"));
+          assert.ok(op.description.includes("Not verified electronic settlement"));
+          assert.ok(op.security.some((s: any) => "bearerAuth" in s));
+          assert.deepEqual(op.parameters.map((p: any) => p.name), ["sessionId"]);
           continue;
         }
         assert.ok(

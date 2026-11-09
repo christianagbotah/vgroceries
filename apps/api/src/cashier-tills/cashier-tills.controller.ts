@@ -1,4 +1,4 @@
-import {Body,Controller,Get,HttpCode,Param,Post,Req,UseGuards} from "@nestjs/common";
+import {Body,Controller,Get,Header,HttpCode,Param,Post,Req,UseGuards} from "@nestjs/common";
 import {ApiCookieAuth,ApiTags} from "@nestjs/swagger";
 import {cashierTillOpenSchema,cashierTillMoveSchema,cashierTillCloseSchema,replayKeySchema}
   from "@variety/contracts";
@@ -7,6 +7,7 @@ import type {AuthRequest} from "../identity/identity.service";
 import {ApiProblem,ApiRequest} from "../http/errors";
 import {CashierTillsService} from "./cashier-tills.service";
 import {PosTillReconciliationService} from "./pos-till-reconciliation.service";
+import {renderPosTillReconciliationCsv} from "./pos-till-reconciliation-csv";
 
 const replay=(req:ApiRequest)=>{
   const p=replayKeySchema.safeParse(req.get("idempotency-key"));
@@ -30,6 +31,16 @@ export class CashierTillsController {
   async list(@Req() req:AuthRequest){
     this.admin(req);
     return {ok:true,data:await this.tills.list()};
+  }
+  // Safe CSV: exact values in pesewas, without verified bank/MoMo or tax claims.
+  @Get(":sessionId/reconciliation.csv")
+  @Header("Content-Type","text/csv; charset=utf-8")
+  @Header("Cache-Control","private, no-store")
+  @Header("Content-Disposition","attachment; filename=\"vg-pos-cash-drawer.csv\"")
+  @Header("X-Content-Type-Options","nosniff")
+  async reconciliationCsv(@Req() req:AuthRequest,@Param("sessionId") id:string){
+    this.admin(req);
+    return renderPosTillReconciliationCsv(await this.reconciliation.preview(id));
   }
   @Get(":sessionId/reconciliation")
   async reconciliationPreview(@Req() req:AuthRequest,@Param("sessionId") id:string){

@@ -184,6 +184,21 @@ test("till reconciliation previews real cash movements without posting or changi
   };
   const openResult=await req("GET",route,admin);
   assert.equal(openResult.status,200,JSON.stringify(openResult.body));
+  const exportPath="/api/v1/admin/pos/tills/"+opened.id+"/reconciliation.csv";
+  const deniedCsv=await fetch(base+exportPath,{
+    headers:{authorization:"Bearer "+customer},
+  });
+  assert.equal(deniedCsv.status,403);
+  const csvResponse=await fetch(base+exportPath,{
+    headers:{authorization:"Bearer "+admin},
+  });
+  assert.equal(csvResponse.status,200);
+  assert.match(csvResponse.headers.get("content-type")??"",/text\/csv/);
+  assert.match(csvResponse.headers.get("cache-control")??"",/no-store/);
+  const csv=await csvResponse.text();
+  assert.ok(csv.includes('"expected_drawer_cash_minor",1500'));
+  assert.ok(csv.includes('"electronic_payments_reconciled","false"'));
+  assert.ok(csv.includes('"refunds_reconciled","false"'));
   const preview=openResult.body.data;
   assert.equal(preview.status,"open");
   assert.equal(preview.openingFloatMinor,1500);
