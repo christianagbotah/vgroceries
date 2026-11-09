@@ -1331,3 +1331,39 @@ model ShipmentCollectionReceipt {
   @@index([orderId, collectedAt])
   @@index([staffActorId, collectedAt])
 }
+
+/**
+ * POS P0a: cash drawer evidence only. This is not yet an order/payment ledger.
+ * Until unified POS sale authority is enabled, no sale proceeds may be inferred
+ * from these records or reported as a final business cash reconciliation.
+ */
+model CashierTillSession {
+  id String @id @default(uuid())
+  locationId String
+  tillCode String
+  openedByUserId String
+  status String @default("open")
+  openingFloatMinor Int
+  openedAt DateTime @default(now()) @db.Timestamptz(3)
+  closedAt DateTime? @db.Timestamptz(3)
+  closedByUserId String?
+  closingCountedMinor Int?
+  closingExpectedMinor Int?
+  closingDifferenceMinor Int?
+  closeNote String?
+  movements CashierTillMovement[]
+  @@index([locationId, status, openedAt])
+  @@index([openedByUserId, openedAt])
+}
+
+model CashierTillMovement {
+  id String @id @default(uuid())
+  sessionId String
+  session CashierTillSession @relation(fields: [sessionId], references: [id], onDelete: Restrict)
+  kind String
+  amountMinor Int
+  note String
+  actorUserId String
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  @@index([sessionId, createdAt])
+}
