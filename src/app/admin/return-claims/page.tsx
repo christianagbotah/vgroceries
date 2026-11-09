@@ -87,6 +87,11 @@ export default function AdminCustomerReturnClaimsPage(){
       {isAdmin&&list.enabled&&claim.status==="requested"?
         <Button type="button" variant="outline" size="sm" disabled={busy}
           onClick={()=>start(claim)}>Review request</Button>:null}
+      {isAdmin&&list.enabled&&claim.status==="accepted"?
+        <Link className="inline-flex min-h-9 items-center rounded-md border px-3 py-1.5 text-sm font-medium hover:bg-muted"
+          href={`/admin/physical-returns?orderId=${encodeURIComponent(claim.orderId)}&customerClaimId=${encodeURIComponent(claim.id)}`}>
+          Record physical receipt for this request
+        </Link>:null}
     </article>)}
     {selected&&list?.enabled?<section className="space-y-3 rounded-xl border bg-card p-4"
       aria-label="Review customer return claim">

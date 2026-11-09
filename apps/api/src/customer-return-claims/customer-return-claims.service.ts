@@ -62,8 +62,10 @@ export class CustomerReturnClaimsService {
     const active=await tx.customerReturnClaimLine.findMany({where:{
       claim:{orderId,status:{in:["requested","accepted"]}},
     },select:{orderLineId:true,quantity:true}});
+    // Claim-linked physical receipts are already reserved by their accepted
+    // claim. Counting them again would double-debit the customer's balance.
     const physicallyReturned=await tx.physicalReturnItem.findMany({where:{
-      receipt:{orderId},
+      receipt:{orderId,customerClaimId:null},
     },select:{orderLineId:true,quantity:true}});
     return orderLines.map(line=>{
       const originallyDepleted=depletion?.lines.filter(x=>

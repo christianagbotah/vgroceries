@@ -43,7 +43,8 @@ export class PhysicalReturnsService {
     if(!row)throw new ApiProblem(404,"NOT_FOUND","Physical return receipt not found.");
     return physicalReturnViewSchema.parse({
       id:row.id,reference:row.reference,orderId:row.orderId,
-      orderReference:row.order.reference,locationId:row.locationId,
+      orderReference:row.order.reference,customerClaimId:row.customerClaimId,
+      locationId:row.locationId,
       status:row.status,reason:row.reason,evidenceNote:row.evidenceNote,
       receivedAt:row.receivedAt.toISOString(),inspectedAt:row.inspectedAt?.toISOString()??null,
       inspectionSummary:row.inspectionSummary,
@@ -86,6 +87,7 @@ export class PhysicalReturnsService {
     return physicalReturnListSchema.parse({
       items,page:query.page,perPage:query.perPage,total,
       enabled:this.config.physicalReturnsEnabled,
+      claimLinkEnabled:this.config.physicalReturnClaimLinkEnabled,
       custodyEnabled:this.config.physicalReturnCustodyEnabled,
       resaleEnabled:this.config.physicalReturnResaleEnabled,
     });
@@ -363,6 +365,9 @@ export class PhysicalReturnsService {
 
   async receive(actorId:string,key:string,requestId:string,input:PhysicalReturnReceive){
     this.ensureEnabled();
+    if(input.customerClaimId&&!this.config.physicalReturnClaimLinkEnabled)
+      throw new ApiProblem(503,"RETURN_CLAIM_LINK_DISABLED",
+        "Physical intake against approved customer claims is not activated.");
     const operation="physical-return.receive";
     const lines=[...input.lines].sort((a,b)=>a.orderLineId.localeCompare(b.orderLineId))
       .map(line=>({...line,quantity:dec(line.quantity).toString()}));
@@ -390,6 +395,12 @@ export class PhysicalReturnsService {
         !order.stockConsumedAt || !["delivered","collected"].includes(order.fulfilmentStatus))
         throw new ApiProblem(422,"PHYSICAL_RETURN_INELIGIBLE",
           "Physical receipt requires completed delivery or collection and verified stock handover at the original location.");
+      const claim=input.customerClaimId?await tx.customerReturnClaim.findUnique({
+        where:{id:input.customerClaimId},include:{lines:true},
+      }):null;
+      if(input.customerClaimId&&(!claim||claim.orderId!==order.id||claim.status!=="accepted"))
+        throw new ApiProblem(422,"RETURN_CLAIM_NOT_ACCEPTED",
+          "This receipt requires an accepted request for the exact original order.");
       for(const line of lines){
         const original=order.lines.find(o=>o.id===line.orderLineId);
         if(!original)throw new ApiProblem(422,"PHYSICAL_RETURN_LINE_INVALID",
@@ -408,10 +419,21 @@ export class PhysicalReturnsService {
         if(!["kg","litre"].includes(original.unit)&&!quantity.isInteger())
           throw new ApiProblem(400,"VALIDATION_FAILED",
             "Packaged items require whole-unit return quantities.");
+        if(claim){
+          const requested=claim.lines.find(x=>x.orderLineId===line.orderLineId);
+          const received=await tx.physicalReturnItem.aggregate({
+            where:{orderLineId:line.orderLineId,receipt:{customerClaimId:claim.id}},
+            _sum:{quantity:true},
+          });
+          if(!requested||quantity.plus(received._sum.quantity??0).gt(requested.quantity))
+            throw new ApiProblem(409,"RETURN_CLAIM_RECEIPT_OVER_QUANTITY",
+              "Physical quantities exceed the approved request or include another item.");
+        }
       }
       const ref=`VGR-${randomUUID().replaceAll("-","").slice(0,12).toUpperCase()}`;
       const receipt=await tx.physicalReturnReceipt.create({data:{
         reference:ref,orderId:input.orderId,locationId:source.locationId,
+        customerClaimId:input.customerClaimId??null,
         reason:input.reason,evidenceNote:input.evidenceNote,receivedBy:actorId,
       }});
       for(const line of lines){
@@ -425,7 +447,8 @@ export class PhysicalReturnsService {
       const result=await this.view(tx,receipt.id);
       await tx.auditEvent.create({data:{actorId,action:"physical_return.received",
         entityId:receipt.id,requestId,
-        details:{orderId:input.orderId,locationId:source.locationId,lineCount:lines.length}}});
+        details:{orderId:input.orderId,locationId:source.locationId,
+          customerClaimId:input.customerClaimId??null,lineCount:lines.length}}});
       await tx.outboxEvent.create({data:{type:"physical_return.received",
         aggregateId:receipt.id,payload:{receiptId:receipt.id,orderId:input.orderId}}});
       await tx.idempotency.create({data:{actorId,operation,key,requestHash:hash,outcome:result}});
