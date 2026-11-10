@@ -21,8 +21,8 @@ const enabled = process.env.NEXT_PUBLIC_POS_COUNTER_UAT === "1";
 
 function describeError(cause: unknown): string {
   if (cause instanceof ApiError) {
-    if (cause.code === "UNAUTHENTICATED") return "Sign in as a real administrator to use the staged POS.";
-    if (cause.code === "FORBIDDEN") return "Only an authenticated administrator can perform these test transactions.";
+    if (cause.code === "UNAUTHENTICATED") return "Sign in as a real cashier or administrator to use the staged POS.";
+    if (cause.code === "FORBIDDEN") return "Only an assigned cashier or administrator can perform these test transactions.";
     if (cause.code === "POS_LOCATION_NOT_SUPPORTED") return "Choose a till at the configured test stock location.";
     return cause.message;
   }
@@ -56,12 +56,12 @@ export function VerifiedPosUat() {
     Promise.all([verifiedPosUat.session(), verifiedPosUat.tills(), verifiedPosUat.products()])
       .then(([session, list, catalogue]) => {
         if (!active) return;
-        if (session.actor.role !== "admin" || !session.csrfToken) {
-          setError("A real administrator session with CSRF protection is required.");
+        if (!["admin", "cashier"].includes(session.actor.role) || !session.csrfToken) {
+          setError("A real authorised cashier or administrator session with CSRF protection is required.");
           return;
         }
         setCsrf(session.csrfToken);
-        setActorName(session.actor.name);
+        setActorName(`${session.actor.name} (${session.actor.role})`);
         setTills(list);
         setProducts(catalogue);
         // Operators explicitly select the correct stock location; no silent default.
@@ -150,15 +150,15 @@ export function VerifiedPosUat() {
       <strong>Testing only — no real customers or tender.</strong> This screen records
       a simulated cash sale and deducts stock in the <strong>separate UAT database</strong>.
       It must never be used for actual cash, MoMo, card payments or physical goods handover.
-      Cashier roles remain read-only; this test is administrator-operated.
+      Cashiers are limited to assigned locations and carts they create. Administrators manage till opening, closing and movements.
     </section>
 
-    {loading && <p role="status" className="rounded-xl border p-4">Verifying the real administrator session…</p>}
+    {loading && <p role="status" className="rounded-xl border p-4">Verifying the real staff session…</p>}
     {error && <p role="alert" className="rounded-xl border border-destructive/40 p-4 text-sm text-destructive">{error}</p>}
     {notice && <p role="status" className="rounded-xl border p-4 text-sm">{notice}</p>}
     {!loading && !csrf && <Link href="/staff/login?next=%2Fadmin%2Fpos%2Fverified-uat"
       className="inline-flex min-h-11 items-center rounded-md border px-4 text-sm font-medium">
-      Sign in with your staging administrator account
+      Sign in with your staging staff account
     </Link>}
 
     {!loading && csrf && <>
@@ -167,7 +167,7 @@ export function VerifiedPosUat() {
           <h2 className="text-lg font-semibold">1. Choose an open till</h2>
           <Button type="button" variant="outline" disabled={busy} onClick={() => void refresh()}>Refresh stock and tills</Button>
         </div>
-        <p className="text-sm text-muted-foreground">Verified administrator: {actorName}. Test stock is restricted to its configured location. Select the matching open till explicitly before quoting.</p>
+        <p className="text-sm text-muted-foreground">Verified staff: {actorName}. Cashiers may sell only at their assigned, active location. Select the matching open till explicitly before quoting.</p>
         <label className="block space-y-1 text-sm font-medium">
           <span>Counter shift</span>
           <select value={tillId} disabled={!!hold || busy} onChange={event => {
