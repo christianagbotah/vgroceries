@@ -99,6 +99,84 @@ test("POS timestamps use UTC on every application database connection",async()=>
   for(const rows of sessions)assert.equal(rows[0]?.zone,"UTC");
 });
 
+test("assigned cashier can sell only own held cart in active branch, with immutable cash receipt",async()=>{
+  const passwordHash=(await db.user.findUniqueOrThrow({
+    where:{id:"admin-commerce"},select:{passwordHash:true},
+  })).passwordHash;
+  await db.user.createMany({data:[
+    {id:"cashier-accra",name:"UAT Accra Cashier",email:"cashier-accra@example.test",
+      passwordHash,role:"cashier",active:true},
+    {id:"cashier-second",name:"UAT Second Cashier",email:"cashier-second@example.test",
+      passwordHash,role:"cashier",active:true},
+  ]});
+  await db.userLocation.createMany({data:[
+    {userId:"cashier-accra",locationId:"loc_accra"},
+    {userId:"cashier-second",locationId:"loc_accra"},
+  ]});
+  await db.location.create({data:{id:"loc_kumasi",name:"Kumasi UAT",active:true}});
+  const ownTill=await open();
+  const otherTill=await tills.open("admin-commerce","cashier-other-location-till",
+    "cashier-other-location-request",{locationId:"loc_kumasi",
+      tillCode:"KUMASI-UAT",openingFloatMinor:1000});
+  const cashier=await token("cashier-accra@example.test");
+  const second=await token("cashier-second@example.test");
+  const customer=await token("customer-a@example.test");
+  const price=await api("POST","/admin/pos/quote",cashier,{
+    sessionId:ownTill.id,lines:cart,
+  },"cashier-quote");
+  assert.equal(price.status,200,JSON.stringify(price.payload));
+  assert.equal(price.payload.data.quoteOnly,true);
+  const catalog=await api("GET","/admin/pos/catalog",cashier);
+  assert.equal(catalog.status,200,JSON.stringify(catalog.payload));
+  assert.equal(catalog.payload.data.length,2);
+  assert.equal((await api("GET","/admin/pos/catalog",customer)).status,403);
+  assert.equal((await api("POST","/admin/pos/quote",cashier,{
+    sessionId:otherTill.id,lines:cart,
+  },"cashier-forged-branch-quote")).status,404);
+  assert.equal((await api("POST","/admin/pos/quote",customer,{
+    sessionId:ownTill.id,lines:cart,
+  },"cashier-customer-quote")).status,403);
+  const hold=await api("POST","/admin/pos/holds",cashier,{
+    tillSessionId:ownTill.id,lines:cart,
+  },"cashier-own-hold");
+  assert.equal(hold.status,200,JSON.stringify(hold.payload));
+  assert.equal(hold.payload.data.status,"held");
+  const holdId=hold.payload.data.id as string;
+  assert.equal((await api("POST","/admin/pos/holds",cashier,{
+    tillSessionId:otherTill.id,lines:cart,
+  },"cashier-forged-branch-hold")).status,404);
+  assert.equal((await api("GET",`/admin/pos/holds/${holdId}`,second)).status,404);
+  assert.equal((await api("POST","/admin/pos/cash-sales",second,
+    request(holdId),"cashier-second-stolen-hold")).status,404);
+  const sale=await api("POST","/admin/pos/cash-sales",cashier,
+    request(holdId),"cashier-own-cash-sale");
+  assert.equal(sale.status,200,JSON.stringify(sale.payload));
+  assert.equal(sale.payload.data.soldByUserId,"cashier-accra");
+  assert.equal(await db.posCashSale.count(),1);
+  assert.equal(await db.stockDepletion.count({where:{claimType:"pos_draft"}}),1);
+  const repeat=await api("POST","/admin/pos/cash-sales",cashier,
+    request(holdId),"cashier-own-cash-sale");
+  assert.equal(repeat.status,200);
+  assert.equal(repeat.payload.data.id,sale.payload.data.id);
+  assert.equal((await api("GET",`/admin/pos/cash-sales/${sale.payload.data.id}`,second)).status,404);
+  const receipt=await fetch(base+`/api/v1/admin/pos/cash-sales/${sale.payload.data.id}/print`,{
+    headers:{authorization:"Bearer "+cashier},
+  });
+  assert.equal(receipt.status,200);
+  assert.match(await receipt.text(),/NOT A TAX INVOICE/);
+  const drawer=await tills.detail(ownTill.id);
+  assert.equal(drawer.cashSalesMinor,523);
+  await db.userLocation.delete({
+    where:{userId_locationId:{userId:"cashier-accra",locationId:"loc_accra"}},
+  });
+  assert.equal((await api("GET",`/admin/pos/cash-sales/${sale.payload.data.id}`,cashier)).status,404);
+  assert.equal((await api("POST","/admin/pos/quote",cashier,{
+    sessionId:ownTill.id,lines:cart,
+  },"cashier-grant-revoked")).status,404);
+  assert.equal((await api("GET",`/admin/pos/cash-sales/${sale.payload.data.id}`,
+    await token("admin-commerce@example.test"))).status,200);
+});
+
 test("one counted cash sale atomically depletes reserved goods and updates till balance",async()=>{
   const {till,hold}=await held(),before=await untouched();
   const admin=await token("admin-commerce@example.test");
