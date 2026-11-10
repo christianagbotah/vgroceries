@@ -14,4 +14,7 @@ import {
 export const restEndpoints: Record<string, RestEndpoint> = {
   ...sharedRestEndpoints,
   "admin.categories.create": { method: "POST", path: "/admin/categories" },
+  // Separate, authenticated production POS read-only reporting contract.
+  "pos.tills.list": { method: "GET", path: "/admin/pos/tills" },
+  "pos.tills.reconciliation": { method: "GET", path: "/admin/pos/tills/{sessionId}/reconciliation" },
 };
