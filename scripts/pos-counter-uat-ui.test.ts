@@ -53,6 +53,57 @@ test("verified UAT checkout sends only exact REST bodies with CSRF and idempoten
   expect(new Set(headers.slice(1)).size).toBe(3);
 });
 
+test("admin till commands use strict POST bodies, CSRF and independent replay headers", async () => {
+  process.env.NEXT_PUBLIC_API_BASE_URL = "https://pos-uat.example.test/api/v1";
+  const calls: Array<{url:string;init:RequestInit}> = [];
+  globalThis.fetch=Object.assign(async(input:RequestInfo|URL,init?:RequestInit)=>{
+    calls.push({url:String(input),init:init??{}});
+    return Response.json({ok:true,data:{id:"session-1"}});
+  },{preconnect:()=>{}});
+  const csrf="test-csrf";
+  await verifiedPosUat.openTill(csrf,{
+    locationId:"loc_accra",tillCode:"UATACCRA02",openingFloatMinor:1000,
+  });
+  await verifiedPosUat.moveCash(csrf,"session-1",{
+    kind:"cash_in",amountMinor:250,note:"Sample safe float topup",
+  });
+  await verifiedPosUat.closeTill(csrf,"session-1",{
+    countedCashMinor:1250,note:"Counted all test drawer cash",
+  });
+  expect(calls.map(x=>x.url)).toEqual([
+    "https://pos-uat.example.test/api/v1/admin/pos/tills",
+    "https://pos-uat.example.test/api/v1/admin/pos/tills/session-1/movements",
+    "https://pos-uat.example.test/api/v1/admin/pos/tills/session-1/close",
+  ]);
+  const bodies=calls.map(x=>JSON.parse(String(x.init.body)) as Record<string,unknown>);
+  expect(bodies).toEqual([
+    {locationId:"loc_accra",tillCode:"UATACCRA02",openingFloatMinor:1000},
+    {kind:"cash_in",amountMinor:250,note:"Sample safe float topup"},
+    {countedCashMinor:1250,note:"Counted all test drawer cash"},
+  ]);
+  for(const {url,init} of calls){
+    const headers=init.headers as Record<string,string>;
+    expect(init.method).toBe("POST");
+    expect(init.credentials).toBe("include");
+    expect(headers["X-CSRF-Token"]).toBe(csrf);
+    expect(headers["Idempotency-Key"]?.length).toBeGreaterThan(20);
+    expect(url.includes("/api/mock/")).toBe(false);
+  }
+  expect(new Set(calls.map(x=>(x.init.headers as Record<string,string>)["Idempotency-Key"])).size).toBe(3);
+});
+
+test("private till management screen enforces stage flag and real administrator role",()=>{
+  const route=readFileSync("src/app/admin/pos/till-operations/page.tsx","utf8");
+  const ui=readFileSync("src/features/staff/verified-till-operations.tsx","utf8");
+  expect(route).toContain("VerifiedTillOperations");
+  expect(ui).toContain('NEXT_PUBLIC_POS_COUNTER_UAT === "1"');
+  expect(ui).toContain('session.actor.role!=="admin"');
+  expect(ui).toContain("window.confirm");
+  expect(ui).toContain("Confirm counted close");
+  expect(ui).not.toContain("/api/mock/");
+  expect(ui).not.toContain("resolveClientAdapter");
+});
+
 test("staged POS transport rejects missing verification or insecure remote API", async () => {
   process.env.NEXT_PUBLIC_API_BASE_URL = "http://example.test/api/v1";
   await expect(verifiedPosUat.tills()).rejects.toThrow("requires HTTPS");
