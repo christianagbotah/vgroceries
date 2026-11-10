@@ -13,7 +13,6 @@ import {
   type PosTillReconciliationView,
 } from "@/services/contracts";
 import { resolveProductionClientAdapter, ApiError } from "@/services/adapters/browser";
-import { useStaff } from "@/features/staff/role-context";
 import { formatMoney } from "@/lib/money";
 import { Button } from "@/components/ui/button";
 
@@ -25,7 +24,11 @@ const dateLabel = (iso: string) =>
   });
 
 function errorMessage(error: unknown): string {
-  if (error instanceof ApiError) return error.message;
+  if (error instanceof ApiError) {
+    if (error.code === "UNAUTHENTICATED") return "Please sign in with an authorised administrator account to view cash reports.";
+    if (error.code === "FORBIDDEN") return "Your account is not authorised to view cash reports.";
+    return error.message;
+  }
   return "The service response could not be verified. No cashier data has been assumed.";
 }
 
@@ -60,9 +63,8 @@ function TillItem({ till, onPreview, busy }: {
   </article>;
 }
 
+/** Real permissions are enforced by the authenticated API, never by demo role selection. */
 export function VerifiedCashDrawerReport() {
-  const { can } = useStaff();
-  const allowed = can("cash.session.manage");
   const [list, setList] = useState<TillList | null>(null);
   const [busy, setBusy] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -73,7 +75,6 @@ export function VerifiedCashDrawerReport() {
   const [reportError, setReportError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!allowed) return;
     let current = true;
     resolveProductionClientAdapter().request<unknown>({ op: "pos.tills.list" })
       .then(response => {
@@ -85,10 +86,10 @@ export function VerifiedCashDrawerReport() {
       })
       .finally(() => { if (current) setBusy(false); });
     return () => { current = false; };
-  }, [allowed, refreshKey]);
+  }, [refreshKey]);
 
   useEffect(() => {
-    if (!allowed || !selected) return;
+    if (!selected) return;
     let current = true;
     resolveProductionClientAdapter().request<unknown>({
       op: "pos.tills.reconciliation", query: { sessionId: selected },
@@ -99,7 +100,7 @@ export function VerifiedCashDrawerReport() {
       if (current) { setReport(null); setReportError(errorMessage(err)); }
     }).finally(() => { if (current) setReportBusy(false); });
     return () => { current = false; };
-  }, [allowed, selected, refreshKey]);
+  }, [selected, refreshKey]);
 
   const choose = useCallback((id: string) => {
     setSelected(id); setReport(null); setReportError(null);
@@ -123,16 +124,13 @@ export function VerifiedCashDrawerReport() {
       <Button type="button" variant="outline" onClick={() => {
         setSelected(null); setReport(null); setReportError(null);
         setReportBusy(false); setBusy(true); setRefreshKey(k => k + 1);
-      }} disabled={!allowed || busy}>Refresh records</Button>
+      }} disabled={busy}>Refresh records</Button>
     </div>
     <p role="note" className="rounded-xl border p-4 text-sm leading-relaxed">
       Cash-drawer totals do not verify MoMo, bank or card settlements, refunds,
       tax invoices or the general ledger. No transaction is recorded by this screen.
     </p>
-    {!allowed && <p role="alert" className="rounded-lg border p-4 text-sm">
-      Only authorised administrators may view real till reports.
-    </p>}
-    {allowed && busy && <p role="status">Loading authenticated till records…</p>}
+    {busy && <p role="status">Loading authenticated till records…</p>}
     {error && <p role="alert" className="rounded-lg border border-destructive/40 p-4 text-sm text-destructive">{error}</p>}
     {list && !list.enabled && <p role="status" className="rounded-lg border p-4 text-sm">
       Live cashier till operations are disabled in this environment. Nothing can be opened,
@@ -141,12 +139,12 @@ export function VerifiedCashDrawerReport() {
     {list?.enabled && list.sessions.length === 0 && <p className="rounded-lg border p-4 text-sm">
       No real cashier sessions have been recorded.
     </p>}
-    {allowed && list?.enabled && <div className="grid gap-3 lg:grid-cols-2">
+    {list?.enabled && <div className="grid gap-3 lg:grid-cols-2">
       {list.sessions.map(till => <TillItem key={till.id} till={till} onPreview={choose} busy={reportBusy}/>)}
     </div>}
     {selected && reportBusy && <p role="status">Checking cash-drawer ledger…</p>}
     {reportError && <p role="alert" className="rounded-lg border border-destructive/40 p-4 text-sm text-destructive">{reportError}</p>}
-    {allowed && report && <section aria-label="Selected till reconciliation" className="space-y-4 rounded-xl border bg-card p-4 sm:p-5">
+    {report && <section aria-label="Selected till reconciliation" className="space-y-4 rounded-xl border bg-card p-4 sm:p-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h2 className="text-lg font-semibold">Verified cash-drawer preview — {report.tillCode}</h2>
