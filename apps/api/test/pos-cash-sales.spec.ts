@@ -126,10 +126,10 @@ test("assigned cashier can sell only own held cart in active branch, with immuta
   },"cashier-quote");
   assert.equal(price.status,200,JSON.stringify(price.payload));
   assert.equal(price.payload.data.quoteOnly,true);
-  const catalog=await api("GET","/admin/pos/catalog",cashier);
+  const catalog=await api("GET","/admin/products",cashier);
   assert.equal(catalog.status,200,JSON.stringify(catalog.payload));
   assert.equal(catalog.payload.data.length,2);
-  assert.equal((await api("GET","/admin/pos/catalog",customer)).status,403);
+  assert.equal((await api("GET","/admin/products",customer)).status,403);
   assert.equal((await api("POST","/admin/pos/quote",cashier,{
     sessionId:otherTill.id,lines:cart,
   },"cashier-forged-branch-quote")).status,404);
