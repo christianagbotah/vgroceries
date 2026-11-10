@@ -8,5 +8,6 @@ import { CatalogAdminReadController } from "./catalog-admin-read.controller";
 @Module({
   controllers: [CatalogAdminController, CatalogAdminCategoryController, CatalogAdminReadController],
   providers: [CatalogAdminService, CatalogAdminCategoryService],
+  exports: [CatalogAdminService],
 })
 export class CatalogAdminModule {}
