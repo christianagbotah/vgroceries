@@ -1,12 +1,14 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { CashierTillSessionView, PosTillReconciliationView, SessionActor } from "@/services/contracts";
 import { ApiError } from "@/services/adapters/types";
 import { formatMoney } from "@/lib/money";
 import { Button } from "@/components/ui/button";
 import { cashierApiBase, createCashierReportClient } from "./cashier-report-client";
+import { clearDemoStaffSession } from "./staff-demo-session";
 
 type TillList = { enabled: boolean; includesSales: boolean; sessions: CashierTillSessionView[] };
 type ShiftFilter = "all" | "open" | "closed";
@@ -35,6 +37,8 @@ function Figure({label,amount}:{label:string;amount:number}) {
 }
 
 export function CashierWorkspace() {
+  const router = useRouter();
+  const [signingOut,setSigningOut] = useState(false);
   const [actor,setActor] = useState<SessionActor | null>(null);
   const [list,setList] = useState<TillList | null>(null);
   const [error,setError] = useState<string | null>(null);
@@ -86,6 +90,16 @@ export function CashierWorkspace() {
   const preview = useCallback((id:string)=>{
     setSelected(id);setReport(null);setReportError(null);setReportBusy(true);
   },[]);
+  const signOut=async()=>{
+    setSigningOut(true);setError(null);
+    try {
+      await createCashierReportClient(cashierApiBase()).signOut();
+      clearDemoStaffSession();
+      setActor(null);setList(null);setReport(null);setSelected(null);
+      router.replace("/staff/login");router.refresh();
+    } catch(cause) { setError(message(cause)); }
+    finally { setSigningOut(false); }
+  };
   const reload=()=>{
     setBusy(true);setSelected(null);setReport(null);setReportError(null);setReportBusy(false);
     setRefresh(value=>value+1);
@@ -108,7 +122,9 @@ export function CashierWorkspace() {
       </div>
       <div className="flex flex-wrap gap-2">
         <Button type="button" variant="outline" disabled={busy} onClick={reload} className="min-h-11">Refresh</Button>
-        <Link href="/staff/login" className="inline-flex min-h-11 items-center rounded-md border px-4 text-sm font-medium hover:bg-muted">Staff sign in</Link>
+        {actor ? <Button type="button" variant="outline" disabled={signingOut||busy} onClick={signOut} className="min-h-11">
+          {signingOut?"Signing out…":"Sign out"}
+        </Button> : <Link href="/staff/login?next=%2Fstaff%2Fcashier" className="inline-flex min-h-11 items-center rounded-md border px-4 text-sm font-medium hover:bg-muted">Staff sign in</Link>}
       </div>
     </header>
 
