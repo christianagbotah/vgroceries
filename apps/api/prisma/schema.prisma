@@ -10,6 +10,7 @@ datasource db {
 enum Role {
   admin
   inventory_manager
+  cashier
   customer
   rider
 }
