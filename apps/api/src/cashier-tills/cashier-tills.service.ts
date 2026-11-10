@@ -74,7 +74,7 @@ export class CashierTillsService {
     return cashierTillListSchema.parse({
       enabled:this.cfg.posTillFoundationEnabled,
       includesSales:(await this.db.posCashSale.count({where:filter}))>0,
-      sessions:await Promise.all(rows.map(r=>this.view(this.db as Tx,r.id))),
+      sessions:await Promise.all(rows.map(r=>this.view(this.db as Tx,r.id,scope))),
     });
   }
   async detail(id:string,scope:string[]|null=null){return this.view(this.db as Tx,id,scope);}
