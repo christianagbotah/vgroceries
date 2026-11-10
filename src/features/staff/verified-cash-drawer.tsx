@@ -15,6 +15,7 @@ import {
 import { resolveProductionClientAdapter, ApiError } from "@/services/adapters/browser";
 import { formatMoney } from "@/lib/money";
 import { Button } from "@/components/ui/button";
+import { filterCashTillSessions, type CashTillStatus } from "./cash-till-filters";
 
 type TillList = ReturnType<typeof cashierTillListSchema.parse>;
 
@@ -73,6 +74,9 @@ export function VerifiedCashDrawerReport() {
   const [report, setReport] = useState<PosTillReconciliationView | null>(null);
   const [reportBusy, setReportBusy] = useState(false);
   const [reportError, setReportError] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
+  const [status, setStatus] = useState<CashTillStatus>("all");
+  const shownSessions = list?.enabled ? filterCashTillSessions(list.sessions, search, status) : [];
 
   useEffect(() => {
     let current = true;
@@ -139,8 +143,35 @@ export function VerifiedCashDrawerReport() {
     {list?.enabled && list.sessions.length === 0 && <p className="rounded-lg border p-4 text-sm">
       No real cashier sessions have been recorded.
     </p>}
+    {list?.enabled && list.sessions.length > 0 && <section aria-label="Filter cashier shifts" className="space-y-3">
+      <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_12rem]">
+        <label className="block min-w-0 space-y-1 text-sm font-medium">
+          <span>Find a till or stock location</span>
+          <input type="search" value={search} onChange={e => setSearch(e.target.value)}
+            placeholder="Till code or location" autoComplete="off"
+            className="min-h-11 w-full rounded-md border bg-background px-3 text-base focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"/>
+        </label>
+        <label className="block min-w-0 space-y-1 text-sm font-medium">
+          <span>Shift status</span>
+          <select value={status} onChange={e => setStatus(e.target.value as CashTillStatus)}
+            className="min-h-11 w-full rounded-md border bg-background px-3 text-base focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+            <option value="all">All shifts</option>
+            <option value="open">Open</option>
+            <option value="closed">Closed</option>
+          </select>
+        </label>
+      </div>
+      <p aria-live="polite" className="text-sm text-muted-foreground">
+        Showing {shownSessions.length} of {list.sessions.length} most recently loaded shifts.
+        The server returns at most 50 records; these filters do not search older shifts.
+      </p>
+    </section>}
+    {list?.enabled && shownSessions.length === 0 && list.sessions.length > 0 &&
+      <p role="status" className="rounded-lg border p-4 text-sm">
+        No loaded shifts match these filters. Try another till code, location or status.
+      </p>}
     {list?.enabled && <div className="grid gap-3 lg:grid-cols-2">
-      {list.sessions.map(till => <TillItem key={till.id} till={till} onPreview={choose} busy={reportBusy}/>)}
+      {shownSessions.map(till => <TillItem key={till.id} till={till} onPreview={choose} busy={reportBusy}/>)}
     </div>}
     {selected && reportBusy && <p role="status">Checking cash-drawer ledger…</p>}
     {reportError && <p role="alert" className="rounded-lg border border-destructive/40 p-4 text-sm text-destructive">{reportError}</p>}
