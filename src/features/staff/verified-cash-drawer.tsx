@@ -6,6 +6,7 @@
  * open tills, move cash, create holds, issue receipts, or complete POS sales.
  */
 import { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
 import {
   cashierTillListSchema,
   posTillReconciliationViewSchema,
@@ -127,10 +128,17 @@ export function VerifiedCashDrawerReport() {
           making sales and changing cash movements are not activated here.
         </p>
       </div>
+      <div className="flex flex-wrap items-center gap-2">
+        {process.env.NEXT_PUBLIC_POS_COUNTER_UAT === "1" && <Link
+          href="/admin/pos/till-operations"
+          className="inline-flex min-h-10 items-center rounded-md border px-4 text-sm font-medium hover:bg-muted">
+          Manage test tills
+        </Link>}
       <Button type="button" variant="outline" onClick={() => {
         setSelected(null); setReport(null); setReportError(null);
         setReportBusy(false); setBusy(true); setRefreshKey(k => k + 1);
       }} disabled={busy}>Refresh records</Button>
+      </div>
     </div>
     <p role="note" className="rounded-xl border p-4 text-sm leading-relaxed">
       Cash-drawer totals do not verify MoMo, bank or card settlements, refunds,
