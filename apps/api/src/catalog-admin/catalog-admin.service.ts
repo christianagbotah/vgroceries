@@ -77,6 +77,32 @@ export class CatalogAdminService {
     });
   }
 
+  /**
+   * POS cashiers may see only published, active products, and only when a
+   * currently active UserLocation grant matches this API stock location.
+   * Detail, draft, categories and all catalogue mutations remain admin /
+   * inventory manager only. No extra OpenAPI route is introduced.
+   */
+  async cashierProducts(actorId: string, search = ""): Promise<AdminProductRow[]> {
+    const locationId = this.config.stockLocationId;
+    const assignment = await this.db.userLocation.findUnique({
+      where: { userId_locationId: { userId: actorId, locationId } },
+      include: {
+        user: { select: { active: true, role: true } },
+        location: { select: { active: true } },
+      },
+    });
+    if (!assignment || !assignment.user.active || assignment.user.role !== "cashier"
+      || !assignment.location.active) {
+      throw new ApiProblem(403, "FORBIDDEN", "Cashier catalogue access requires an active location assignment.");
+    }
+    const rows = await this.listProducts(search);
+    return rows.filter(product => product.isPublished).map(product => ({
+      ...product,
+      variants: product.variants.filter(variant => variant.isActive),
+    }));
+  }
+
   async productDetail(productId: string): Promise<AdminProductDetail> {
     const product = await this.db.product.findUnique({
       where: { id: productId },
