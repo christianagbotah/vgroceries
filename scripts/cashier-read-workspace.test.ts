@@ -58,7 +58,9 @@ test("cashier route is separated from admin layout and the demo role menu",()=>{
   expect(page).toContain("CashierWorkspace");
   expect(cashier).not.toContain("resolveClientAdapter");
   expect(cashier).not.toContain("/api/mock/");
-  expect(cashier).toContain("This workspace cannot create sales");
+  expect(cashier).toContain("This report screen never creates sales");
+  expect(cashier).toContain('href="/staff/pos"');
+  expect(login).toContain('candidate === "/staff/pos"');
   expect(login).toContain('candidate === "/staff/cashier"');
   expect(login).toContain("clearDemoStaffSession()");
   expect(login).toContain('session.actor.role === "cashier"');
