@@ -8,7 +8,9 @@ not a production activation, live payment collection, or merchant settlement.
 
 - Private HTTPS site: **https://pos-uat.varietygroceries.com/** (separate perimeter password, then an individual test staff login).
 - Staff login: **https://pos-uat.varietygroceries.com/staff/login**
-- Verified sample cash checkout (administrator only):
+- Real cashier sample cash checkout:
+  **https://pos-uat.varietygroceries.com/staff/pos**
+- Administrator sample cash checkout:
   **https://pos-uat.varietygroceries.com/admin/pos/verified-uat**
 - Cash-drawer reports (administrator):
   **https://pos-uat.varietygroceries.com/admin/cashier-sessions**
@@ -26,8 +28,11 @@ accounts or real customer details.
 ## Test a cash-only transaction
 
 1. Pass the private site access prompt, then sign in with the **individual
-   UAT administrator** account. Cashiers intentionally remain read-only.
-2. Open **Verified sample cash checkout**, not the older `/admin/pos` demo.
+   UAT cashier** account. Only active, assigned-location cashiers or
+   administrators can complete these stage-only sample cash transactions.
+2. Open **Counter checkout** from the cashier workspace (`/staff/pos`).
+   The older `/admin/pos` is a separate demo; `/admin/pos/verified-uat`
+   remains available for administrators.
 3. **Explicitly select the open UATACCRA01 till** before adding items.
    The screen does not silently select the newest till: a Kumasi shift belongs
    to the other location and would correctly fail the stock-location check.
@@ -46,8 +51,9 @@ accounts or real customer details.
 8. Repeat the flow with another basket, cancel a reservation to test releasing
    stock, and check the report export. These are synthetic test amounts, not
    deposits, payment confirmations or tax invoices.
-9. Sign out, then sign in with the **UAT cashier** account. Its own workspace
-   should show only the Accra shift and prevent counter-sale writes.
+9. Sign out, then log in as the **UAT administrator** to compare branch-wide
+   reports. A cashier can sell only using an assigned, active location and
+   its own held cart; another cashier’s cart and another location remain denied.
 
 ## What is enabled
 
@@ -67,9 +73,11 @@ customer checkout or physical goods handover is activated by this UAT page.
 - HTTPS uses a certificate issued specifically for the staging hostname.
 - An additional HTTP Basic authentication perimeter protects the staging
   web application and its API. Both are bound locally on the VPS behind Nginx.
-- Real administrator login and CSRF-protected POST requests are required for
-  any sample stock or cash change. Mock/demo sessions do **not** authorize
-  this route. A cashier role cannot record a sale.
+- Real cashier or administrator login and CSRF-protected POST requests are
+  required for sample stock or cash changes. Mock/demo sessions do **not**
+  authorize this route. A cashier can record **cash-only sales** for an
+  active, currently assigned location and a hold they created, not another
+  cashier’s cart or a different branch.
 - The API body excludes `idempotencyKey`; replay protection uses only the
   request header. A consumed reservation cannot be charged twice.
 - Database session connections explicitly request UTC. This closes a
@@ -83,9 +91,9 @@ customer checkout or physical goods handover is activated by this UAT page.
 
 ## Limits before production
 
-The current transaction flow is **administrator-operated**, not a complete
-cashier role workflow. Cashier till open/close/movement and real counter-sale
-permissions need dedicated assigned-location authorization, review and tests.
+The cash-only transaction flow is now available to assigned cashier accounts
+in the isolated stage. Cashier till opening, closing and drawer movements
+remain administrator-only, pending their own workflow and approval tests.
 The production checkout, provider payments, full returns/refunds, real handover,
 tax/accounting, branch reconciliation and data migration rehearsal are separate
 release gates. The private stage must never be used as a live store.
@@ -105,3 +113,22 @@ receipt journey passed, including login, branch isolation and logout.
 These automated acceptance results do not represent real-money transactions,
 merchant settlement or full operational approval. The private staging
 application is provided for interactive owner UAT, not live retail use.
+
+## Cashier transaction authorization upgrade — 10 November 2026
+
+- The single existing `GET /admin/products` endpoint supplies active,
+  published products to a cashier with a current, active grant at the
+  configured stock location. Cashiers are not permitted to inspect unpublished
+  drafts or modify products; the historical API route inventory is preserved.
+- A real assigned cashier can quote the branch's open till, reserve only
+  their own cart, complete a synthetic counted-cash sale and print their own
+  receipt. Server checks are repeated against the live database on each
+  action; revoking a location grant takes effect without waiting for logout.
+- PostgreSQL also verifies the active branch grant and cashier-owned hold
+  before allowing cash-sale and stock-hold inserts. Real tax invoices,
+  refunds, card/MoMo and till open/close are not included.
+- Focused NestJS API cash-sale suite: **8/8 passed** against a second isolated
+  test database. Regressions cover branch isolation, another cashier's cart,
+  replay, inactive/revoked permissions, receipt and drawer reconciliation.
+- The source remains a **draft release candidate PR**. Do not operate the
+  private stage as a live shop or enable production POS flags.
