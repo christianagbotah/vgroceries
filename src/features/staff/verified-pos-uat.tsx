@@ -32,6 +32,7 @@ function describeError(cause: unknown): string {
 export function VerifiedPosUat() {
   const [csrf, setCsrf] = useState("");
   const [actorName, setActorName] = useState("");
+  const [actorRole, setActorRole] = useState("");
   const [tills, setTills] = useState<CashierTillList | null>(null);
   const [products, setProducts] = useState<AdminProductRow[]>([]);
   const [tillId, setTillId] = useState("");
@@ -62,6 +63,7 @@ export function VerifiedPosUat() {
         }
         setCsrf(session.csrfToken);
         setActorName(`${session.actor.name} (${session.actor.role})`);
+        setActorRole(session.actor.role);
         setTills(list);
         setProducts(catalogue);
         // Operators explicitly select the correct stock location; no silent default.
@@ -141,7 +143,7 @@ export function VerifiedPosUat() {
           Real staging API · Synthetic grocery stock · Simulated cash only
         </p>
       </div>
-      <Link href="/admin/cashier-sessions" className="rounded-md border px-4 py-3 text-sm font-medium">
+      <Link href={actorRole === "cashier" ? "/staff/cashier" : "/admin/cashier-sessions"} className="rounded-md border px-4 py-3 text-sm font-medium">
         Cash drawer reports
       </Link>
     </header>
@@ -156,7 +158,7 @@ export function VerifiedPosUat() {
     {loading && <p role="status" className="rounded-xl border p-4">Verifying the real staff session…</p>}
     {error && <p role="alert" className="rounded-xl border border-destructive/40 p-4 text-sm text-destructive">{error}</p>}
     {notice && <p role="status" className="rounded-xl border p-4 text-sm">{notice}</p>}
-    {!loading && !csrf && <Link href="/staff/login?next=%2Fadmin%2Fpos%2Fverified-uat"
+    {!loading && !csrf && <Link href="/staff/login?next=%2Fstaff%2Fpos"
       className="inline-flex min-h-11 items-center rounded-md border px-4 text-sm font-medium">
       Sign in with your staging staff account
     </Link>}
