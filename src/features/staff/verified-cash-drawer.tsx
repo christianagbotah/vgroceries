@@ -12,7 +12,7 @@ import {
   type CashierTillSessionView,
   type PosTillReconciliationView,
 } from "@/services/contracts";
-import { resolveClientAdapter, ApiError } from "@/services/adapters/browser";
+import { resolveProductionClientAdapter, ApiError } from "@/services/adapters/browser";
 import { useStaff } from "@/features/staff/role-context";
 import { formatMoney } from "@/lib/money";
 import { Button } from "@/components/ui/button";
@@ -75,7 +75,7 @@ export function VerifiedCashDrawerReport() {
   useEffect(() => {
     if (!allowed) return;
     let current = true;
-    resolveClientAdapter().request<unknown>({ op: "pos.tills.list" })
+    resolveProductionClientAdapter().request<unknown>({ op: "pos.tills.list" })
       .then(response => {
         const verified = cashierTillListSchema.parse(response);
         if (current) { setList(verified); setError(null); }
@@ -90,7 +90,7 @@ export function VerifiedCashDrawerReport() {
   useEffect(() => {
     if (!allowed || !selected) return;
     let current = true;
-    resolveClientAdapter().request<unknown>({
+    resolveProductionClientAdapter().request<unknown>({
       op: "pos.tills.reconciliation", query: { sessionId: selected },
     }).then(response => {
       const verified = posTillReconciliationViewSchema.parse(response);
