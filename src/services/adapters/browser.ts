@@ -82,7 +82,8 @@ class CachingBrowserAdapter implements ServiceAdapter {
     const isMutation = req.formData !== undefined || normalizedRequestBody(req) !== undefined ||
       (Object.hasOwn(restEndpoints, req.op) && restEndpoints[req.op].method === "POST");
     if (!isMutation && TTL_MS > 0 && readTags(req.op).length > 0) {
-      const key = cacheKey(req);
+      // Never share cached read payloads between production and demo transports.
+      const key = JSON.stringify([this.kind, cacheKey(req)]);
       const hit = cache.get(key);
       if (hit && Date.now() - hit.at < TTL_MS) return hit.value as T;
       const epoch = cacheEpoch;
@@ -125,6 +126,7 @@ class CachingBrowserAdapter implements ServiceAdapter {
 }
 
 let productionBrowserAdapter: ServiceAdapter | undefined;
+let productionBrowserBase: string | undefined;
 let demoBrowserAdapter: ServiceAdapter | undefined;
 
 function demoAdapter(): ServiceAdapter {
@@ -140,12 +142,19 @@ function demoAdapter(): ServiceAdapter {
   return demoBrowserAdapter;
 }
 
-/** The adapter used by client components. Demo sessions are isolated to mock data. */
-export function resolveClientAdapter(): ServiceAdapter {
-  if (isDemoStaffSessionActive()) return demoAdapter();
-  if (productionBrowserAdapter) return productionBrowserAdapter;
-  const base = process.env.NEXT_PUBLIC_API_BASE_URL;
-  if (base) {
+/**
+ * Verified operational surfaces must never read demo data, even when a
+ * browser still has a legacy UAT demo-session flag.
+ * Fails closed if the real API is not configured.
+ */
+export function resolveProductionClientAdapter(): ServiceAdapter {
+  const base = process.env.NEXT_PUBLIC_API_BASE_URL?.trim();
+  if (!base) throw new ApiError("BAD_CONFIG", "The production API is not configured.");
+  if (!productionBrowserAdapter || productionBrowserBase !== base) {
+    // Cached read payloads must not cross a changed production API origin.
+    cacheEpoch++;
+    cache.clear();
+    latestReads.clear();
     productionBrowserAdapter = new CachingBrowserAdapter(
       new HttpServiceAdapter(base, {
         kind: "http:api",
@@ -156,10 +165,16 @@ export function resolveClientAdapter(): ServiceAdapter {
         },
       }),
     );
-  } else {
-    productionBrowserAdapter = demoAdapter();
+    productionBrowserBase = base;
   }
   return productionBrowserAdapter;
+}
+
+/** Demo-aware screens use the mock adapter only in an explicit demo session. */
+export function resolveClientAdapter(): ServiceAdapter {
+  if (isDemoStaffSessionActive()) return demoAdapter();
+  return process.env.NEXT_PUBLIC_API_BASE_URL?.trim()
+    ? resolveProductionClientAdapter() : demoAdapter();
 }
 
 export { ApiError };
