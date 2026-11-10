@@ -73,6 +73,13 @@ export const verifiedPosUat = {
     apiRequest<PosHoldView>("/admin/pos/holds", {
       method: "POST", csrf, key: crypto.randomUUID(), body: { tillSessionId, lines },
     }),
+  release: (csrf: string, holdId: string) =>
+    apiRequest<PosHoldView>(
+      `/admin/pos/holds/${encodeURIComponent(holdId)}/release`, {
+        method: "POST", csrf, key: crypto.randomUUID(),
+        body: { note: "UAT sample basket released without any simulated cash sale" },
+      },
+    ),
   sale: (csrf: string, holdId: string, cashReceivedMinor: number, handoverNote: string) =>
     apiRequest<PosCashSaleView>("/admin/pos/cash-sales", {
       method: "POST", csrf, key: crypto.randomUUID(),
