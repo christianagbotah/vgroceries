@@ -40,7 +40,7 @@ export const refreshRequestSchema = z.strictObject({
 export const sessionActorSchema = z.object({
   id: z.string(),
   name: z.string(),
-  role: z.enum(["admin", "inventory_manager", "customer", "rider"]),
+  role: z.enum(["admin", "inventory_manager", "cashier", "customer", "rider"]),
   locationIds: z.array(z.string()),
 });
 const secretSchema = z.string().regex(/^[a-f0-9]{64}$/);
