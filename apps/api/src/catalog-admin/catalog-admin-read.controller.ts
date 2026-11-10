@@ -19,6 +19,11 @@ export class CatalogAdminReadController {
   @Get("products")
   @ApiOperation({ summary: "List administrator catalogue products" })
   async products(@Req() req: AuthRequest, @Query("q") q = "") {
+    // Reuse the existing product-list route to keep contract and OpenAPI
+    // compatibility. Cashiers receive only published variants at their
+    // current, active stock-location grant.
+    if (req.actor.role === "cashier")
+      return { ok: true, data: await this.catalog.cashierProducts(req.actor.id, q) };
     this.requireReader(req);
     return { ok: true, data: await this.catalog.listProducts(q) };
   }
