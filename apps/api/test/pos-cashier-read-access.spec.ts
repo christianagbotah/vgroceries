@@ -78,7 +78,7 @@ before(async()=>{
 beforeEach(async()=>{await seedCommerceFixtures(db);});
 after(async()=>{await app?.close();});
 
-test("cashier identity is read-only and unauthorised roles cannot read reports",async()=>{
+test("cashier reads assigned reports while till management remains administrator-only",async()=>{
   const {accra}=await seedCashiers();
   const admin=await login("admin-commerce@example.test");
   const cashier=await login("cashier-accra@example.test");
@@ -97,13 +97,18 @@ test("cashier identity is read-only and unauthorised roles cannot read reports",
       {kind:"cash_in",amountMinor:100,note:"Unauthorised cash movement"}],
     ["/admin/pos/tills/"+accra.id+"/close",
       {countedCashMinor:1200,note:"Unauthorised shift close"}],
-    ["/admin/pos/quote",{tillSessionId:accra.id,lines:[]}],
-    ["/admin/pos/holds",{tillSessionId:accra.id,lines:[]}],
-    ["/admin/pos/cash-sales",{holdId:randomUUID()}],
   ] as const;
   for(const [endpoint,body] of invalidMutations){
     assert.equal((await request("POST",endpoint,cashier,body)).status,403,endpoint);
   }
+  // Cash-only checkout is allowed only for a valid assigned cashier cart.
+  // Invalid payloads still cannot invent a sale or stock transaction.
+  assert.equal((await request("POST","/admin/pos/quote",cashier,
+    {sessionId:accra.id,lines:[]})).status,400);
+  assert.equal((await request("POST","/admin/pos/holds",cashier,
+    {tillSessionId:accra.id,lines:[]})).status,400);
+  assert.equal((await request("POST","/admin/pos/cash-sales",cashier,
+    {holdId:randomUUID()})).status,400);
   assert.equal((await db.cashierTillSession.count()),2);
   assert.equal((await db.cashierTillMovement.count()),0);
   assert.equal((await db.posCashSale.count()),0);
