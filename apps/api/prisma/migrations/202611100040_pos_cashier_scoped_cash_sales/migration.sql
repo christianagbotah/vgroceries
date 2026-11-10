@@ -18,8 +18,8 @@ AS $$
     WHERE staff.id=staff_id AND staff.active
       AND (staff.role='admin' OR (
         staff.role='cashier' AND EXISTS(
-          SELECT 1 FROM "UserLocation" grant
-          WHERE grant."userId"=staff.id AND grant."locationId"=branch.id
+          SELECT 1 FROM "UserLocation" assignment
+          WHERE assignment."userId"=staff.id AND assignment."locationId"=branch.id
         )
       ))
   );
