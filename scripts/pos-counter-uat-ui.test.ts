@@ -69,6 +69,6 @@ test("UAT checkout page cannot use demo role or render cash actions without expl
   expect(ui).not.toContain("/api/mock/");
   expect(ui).toContain("session.actor.role !== \"admin\"");
   expect(ui).toContain("window.confirm");
-  expect(ui).toContain("No real customers or tender".toLowerCase().split(" ")[0] === "no" ? "no real customers or tender" : "Testing only");
+  expect(ui).toContain("no real customers or tender");
   expect(ui).toContain("Release reserved stock");
 });
