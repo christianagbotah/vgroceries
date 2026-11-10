@@ -64,7 +64,7 @@ async function apiRequest<T>(
 export const verifiedPosUat = {
   session: () => apiRequest<SessionLookupResponse>("/auth/me"),
   tills: () => apiRequest<CashierTillList>("/admin/pos/tills"),
-  products: () => apiRequest<AdminProductRow[]>("/admin/products"),
+  products: () => apiRequest<AdminProductRow[]>("/admin/pos/catalog"),
   quote: (csrf: string, sessionId: string, lines: { variantId: string; quantity: string }[]) =>
     apiRequest<PosQuoteView>("/admin/pos/quote", {
       method: "POST", csrf, body: { sessionId, lines },
