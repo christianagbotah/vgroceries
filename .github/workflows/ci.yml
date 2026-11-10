@@ -47,6 +47,10 @@ jobs:
       - name: Return stock and API boundary regressions
         run: bun test
 
+      - name: Verified cashier report transport isolation regressions
+        run: bun test src/services/adapters/pos-cash-report.test.ts
+
+
       - name: Shared contracts suite (request/response schemas + registry)
         run: bun scripts/contracts-check.ts http://localhost:3000/api/mock/v1
 
