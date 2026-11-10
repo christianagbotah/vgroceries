@@ -15,7 +15,7 @@ export class PosTillReconciliationService {
     @Inject(API_CONFIG) private readonly config:ApiConfig,
   ) {}
 
-  async preview(tillSessionId:string){
+  async preview(tillSessionId:string,scope:string[]|null=null){
     if(!this.config.posTillFoundationEnabled)
       throw new ApiProblem(503,"POS_TILL_DISABLED",
         "Cashier shift reconciliation is not enabled for this environment.");
@@ -24,7 +24,10 @@ export class PosTillReconciliationService {
       const till=await tx.cashierTillSession.findUnique({
         where:{id:tillSessionId},
       });
-      if(!till)throw new ApiProblem(404,"NOT_FOUND","Cashier till session not found.");
+      if(!till || (scope!==null && (
+        !scope.includes(till.locationId) ||
+        !await tx.location.count({where:{id:till.locationId,active:true}})
+      ))) throw new ApiProblem(404,"NOT_FOUND","Cashier till session not found.");
 
       const [movements,sales,recent,activeStockHoldsCount]=await Promise.all([
         tx.cashierTillMovement.groupBy({
