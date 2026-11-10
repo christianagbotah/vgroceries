@@ -14,6 +14,8 @@ not a production activation, live payment collection, or merchant settlement.
   **https://pos-uat.varietygroceries.com/admin/pos/verified-uat**
 - Cash-drawer reports (administrator):
   **https://pos-uat.varietygroceries.com/admin/cashier-sessions**
+- Till shift opening, cash movements and counted closing (staging administrator):
+  **https://pos-uat.varietygroceries.com/admin/pos/till-operations**
 - Assigned-location cashier reports (cashier account):
   **https://pos-uat.varietygroceries.com/staff/cashier**
 - Sample storefront: **https://pos-uat.varietygroceries.com/shop**
@@ -132,3 +134,32 @@ application is provided for interactive owner UAT, not live retail use.
   replay, inactive/revoked permissions, receipt and drawer reconciliation.
 - The source remains a **draft release candidate PR**. Do not operate the
   private stage as a live shop or enable production POS flags.
+
+## Administrator-controlled test till operations
+
+The private, explicitly enabled staging build now includes an administrator
+shift-management screen, alongside the cashier checkout:
+
+1. Sign in as the **individual staging administrator**, then open
+   `/admin/pos/till-operations`.
+2. Enter an **active stock location ID** (the synthetic Accra sample is
+   `loc_accra`), a new till code with only uppercase letters, digits,
+   hyphens or underscores, and the opening float in **₵**.
+3. Confirm **Open test till**. A second open till with the same code and
+   location is rejected by the API.
+4. Use **Cash movement** on the correct open shift, choose cash in,
+   cash out or cash drop, enter a positive amount and a descriptive
+   reason of at least 10 characters; confirm the change.
+5. After sample sales and all active reservations have been settled or
+   released, select **Count and close**, enter the counted drawer amount,
+   review the exact counted-minus-expected variance, write the explanation
+   and explicitly confirm closing.
+6. Read the immutable record and difference from the verified cash
+   drawer reports. Cashier users may see assigned reports and complete
+   their own sample cash sales, **but cannot perform these administrator
+   till-management actions**.
+
+This interface calls the existing idempotent, CSRF-protected API routes
+and creates no new public API route. Both browser and backend retain their
+production-off and administrator-only boundaries; neither this test screen
+nor its cash figures represent real cash movement, bank settlement or tax.
