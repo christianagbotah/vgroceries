@@ -65,6 +65,21 @@ export const verifiedPosUat = {
   session: () => apiRequest<SessionLookupResponse>("/auth/me"),
   tills: () => apiRequest<CashierTillList>("/admin/pos/tills"),
   products: () => apiRequest<AdminProductRow[]>("/admin/products"),
+  openTill: (csrf: string, data: { locationId: string; tillCode: string; openingFloatMinor: number }) =>
+    apiRequest<CashierTillSessionView>("/admin/pos/tills", {
+      method: "POST", csrf, key: crypto.randomUUID(), body: data,
+    }),
+  moveCash: (csrf: string, sessionId: string, data: {
+    kind: "cash_in" | "cash_out" | "drop"; amountMinor: number; note: string;
+  }) => apiRequest<CashierTillSessionView>(
+    `/admin/pos/tills/${encodeURIComponent(sessionId)}/movements`, {
+      method: "POST", csrf, key: crypto.randomUUID(), body: data,
+    }),
+  closeTill: (csrf: string, sessionId: string, data: { countedCashMinor: number; note: string }) =>
+    apiRequest<CashierTillSessionView>(
+      `/admin/pos/tills/${encodeURIComponent(sessionId)}/close`, {
+        method: "POST", csrf, key: crypto.randomUUID(), body: data,
+      }),
   quote: (csrf: string, sessionId: string, lines: { variantId: string; quantity: string }[]) =>
     apiRequest<PosQuoteView>("/admin/pos/quote", {
       method: "POST", csrf, body: { sessionId, lines },
