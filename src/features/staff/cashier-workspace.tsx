@@ -124,6 +124,10 @@ export function CashierWorkspace() {
         </div>
       </div>
       <div className="flex flex-wrap gap-2">
+        {actor && process.env.NEXT_PUBLIC_POS_COUNTER_UAT === "1" && <Link
+          href="/staff/pos" className="inline-flex min-h-11 items-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground hover:opacity-90">
+          Counter checkout
+        </Link>}
         <Button type="button" variant="outline" disabled={busy} onClick={reload} className="min-h-11">Refresh</Button>
         {actor ? <Button type="button" variant="outline" disabled={signingOut||busy} onClick={signOut} className="min-h-11">
           {signingOut?"Signing out…":"Sign out"}
@@ -132,8 +136,9 @@ export function CashierWorkspace() {
     </header>
 
     <p className="rounded-xl border bg-muted/30 p-4 text-sm leading-relaxed">
-      This workspace cannot create sales, collect payments, open or close tills, move cash, or
-      change stock. Cash-drawer totals do not verify MoMo, bank, card, refunds, tax or accounting.
+      This report screen never creates sales, receives payments, opens or closes tills, moves cash or
+      changes stock. Where enabled for staging, use Counter checkout to complete a separately
+      permissioned, cash-only sale. Reports do not verify MoMo, bank, card, refunds, tax or accounting.
     </p>
 
     {busy && <p role="status" className="rounded-xl border p-4">Checking your cashier session and assigned locations…</p>}
