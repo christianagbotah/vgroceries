@@ -30,7 +30,7 @@ describe("admin authentication boundary", () => {
     expect(form).toContain('session.actor.role === "admin"');
     expect(form).toContain('session.actor.role === "inventory_manager"');
     expect(form).toContain('session.actor.role === "cashier"');
-    expect(form).toContain('router.replace("/staff/cashier")');
+    expect(form).toContain('router.replace(returnPath === "/staff/pos" ? "/staff/pos" : "/staff/cashier")');
     expect(form).toContain("clearDemoStaffSession()");
     expect(form).toContain("/admin");
   });
