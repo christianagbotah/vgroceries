@@ -35,6 +35,18 @@ export function createCashierReportClient(base: string) {
         op: "pos.tills.reconciliation", query: { sessionId },
       }));
     },
+    /** End only the authenticated web session; never mutates POS cash or stock. */
+    async signOut() {
+      const identity = sessionLookupResponseSchema.parse(
+        await api.request<unknown>({ op: "auth.me" }),
+      );
+      if (!identity.csrfToken) throw new Error("A verified web session is required to sign out.");
+      const auth = new HttpServiceAdapter(base, {
+        kind: "http:cashier-auth", credentials: "include",
+        headers: () => ({ "X-CSRF-Token": identity.csrfToken! }),
+      });
+      await auth.request({ op: "account.logout", body: {} });
+    },
     cashCsvHref(sessionId: string) {
       // The same authenticated server endpoint authorises every CSV request.
       return `${base.replace(/\/+$/, "")}/admin/pos/tills/${encodeURIComponent(sessionId)}/reconciliation.csv`;
