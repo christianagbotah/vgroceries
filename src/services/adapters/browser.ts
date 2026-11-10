@@ -125,6 +125,7 @@ class CachingBrowserAdapter implements ServiceAdapter {
 }
 
 let productionBrowserAdapter: ServiceAdapter | undefined;
+let productionBrowserBase: string | undefined;
 let demoBrowserAdapter: ServiceAdapter | undefined;
 
 function demoAdapter(): ServiceAdapter {
@@ -149,7 +150,7 @@ function demoAdapter(): ServiceAdapter {
 export function resolveProductionClientAdapter(): ServiceAdapter {
   const base = process.env.NEXT_PUBLIC_API_BASE_URL?.trim();
   if (!base) throw new ApiError("BAD_CONFIG", "The production API is not configured.");
-  if (!productionBrowserAdapter) {
+  if (!productionBrowserAdapter || productionBrowserBase !== base) {
     productionBrowserAdapter = new CachingBrowserAdapter(
       new HttpServiceAdapter(base, {
         kind: "http:api",
@@ -160,6 +161,7 @@ export function resolveProductionClientAdapter(): ServiceAdapter {
         },
       }),
     );
+    productionBrowserBase = base;
   }
   return productionBrowserAdapter;
 }
