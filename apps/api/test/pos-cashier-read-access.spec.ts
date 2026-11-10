@@ -33,9 +33,7 @@ async function login(email:string){
     method:"POST",headers:{"content-type":"application/json",origin:"http://localhost:3000"},
     body:JSON.stringify({email,password:commerceTestPassword,client:"native"}),
   });
-  assert.equal(r.status,201,await r.text().catch(()=> ""));
-  // A second request is needed because the assertion above consumes
-  // the body on failure only (it is not consumed when status is 201).
+  if(r.status!==201)throw new Error("Cashier test login was rejected (HTTP "+r.status+").");
   return (await r.json()).data.accessToken as string;
 }
 const pathAt=(suffix:string)=>base+path(suffix);
