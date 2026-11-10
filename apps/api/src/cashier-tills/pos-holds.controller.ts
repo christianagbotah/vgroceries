@@ -6,6 +6,7 @@ import {AccessGuard} from "../identity/access.guard";
 import type {AuthRequest} from "../identity/identity.service";
 import {ApiProblem,type ApiRequest} from "../http/errors";
 import {PosHoldsService} from "./pos-holds.service";
+import {PosCashierAccess} from "./pos-cashier-access";
 
 const replay=(req:ApiRequest)=>{
   const p=replayKeySchema.safeParse(req.get("idempotency-key"));
@@ -19,7 +20,7 @@ const replay=(req:ApiRequest)=>{
 @UseGuards(AccessGuard)
 @Controller("admin/pos/holds")
 export class PosHoldsController {
-  constructor(private readonly holds:PosHoldsService){}
+  constructor(private readonly holds:PosHoldsService, private readonly access:PosCashierAccess){}
   private admin(req:AuthRequest){
     if(req.actor.role!=="admin")throw new ApiProblem(403,"FORBIDDEN",
       "Only authorised administrators can reserve a counter cart at this stage.");
@@ -32,23 +33,25 @@ export class PosHoldsController {
   }
   @Get(":holdId")
   async detail(@Req() req:AuthRequest,@Param("holdId") id:string){
-    this.admin(req);
+    await this.access.hold(req.actor,id);
     return {ok:true,data:await this.holds.detail(id)};
   }
   @Post() @HttpCode(200)
   async create(@Req() req:AuthRequest,@Body() raw:unknown){
-    const actorId=this.admin(req);
+    const actorId=req.actor.id;
     const p=posHoldCreateSchema.safeParse(raw);
     if(!p.success)throw new ApiProblem(400,"VALIDATION_FAILED",
       "Provide one open till and valid distinct product quantities.",p.error.issues);
+    await this.access.till(req.actor,p.data.tillSessionId);
     return {ok:true,data:await this.holds.create(actorId,replay(req),req.requestId,p.data)};
   }
   @Post(":holdId/release") @HttpCode(200)
   async release(@Req() req:AuthRequest,@Param("holdId") id:string,@Body() raw:unknown){
-    const actorId=this.admin(req);
+    const actorId=req.actor.id;
     const p=posHoldReleaseSchema.safeParse(raw);
     if(!p.success)throw new ApiProblem(400,"VALIDATION_FAILED",
       "A documented reason is required to release a reserved cart.",p.error.issues);
+    await this.access.hold(req.actor,id);
     return {ok:true,data:await this.holds.release(actorId,id,replay(req),req.requestId,p.data)};
   }
 }
