@@ -27,8 +27,11 @@ describe("admin authentication boundary", () => {
     expect(form).toContain("apiOps.staffLogin(email, password)");
     expect(form).toContain('type="email"');
     expect(form).toContain('type="password"');
-    expect(form).toContain('session.actor.role !== "admin"');
-    expect(form).toContain('session.actor.role !== "inventory_manager"');
+    expect(form).toContain('session.actor.role === "admin"');
+    expect(form).toContain('session.actor.role === "inventory_manager"');
+    expect(form).toContain('session.actor.role === "cashier"');
+    expect(form).toContain('router.replace("/staff/cashier")');
+    expect(form).toContain("clearDemoStaffSession()");
     expect(form).toContain("/admin");
   });
 
