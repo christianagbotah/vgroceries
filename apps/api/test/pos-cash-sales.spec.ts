@@ -90,6 +90,15 @@ before(async()=>{
 beforeEach(async()=>{await seedCommerceFixtures(db);});
 after(async()=>{await app?.close();});
 
+test("POS timestamps use UTC on every application database connection",async()=>{
+  // A VPS may initialise PostgreSQL in a local timezone. A connection-level
+  // UTC setting prevents a five-minute hold being interpreted hours ahead.
+  const sessions=await Promise.all(Array.from({length:3},()=>db.$queryRaw<
+    Array<{zone:string}>
+  >`SELECT current_setting('TimeZone') AS zone`));
+  for(const rows of sessions)assert.equal(rows[0]?.zone,"UTC");
+});
+
 test("one counted cash sale atomically depletes reserved goods and updates till balance",async()=>{
   const {till,hold}=await held(),before=await untouched();
   const admin=await token("admin-commerce@example.test");
