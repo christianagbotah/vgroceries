@@ -24,13 +24,13 @@ export function StaffLoginForm({ demoEnabled = false }: { demoEnabled?: boolean 
 
   useEffect(() => {
     const candidate = new URLSearchParams(window.location.search).get("next");
-    const safeReturnPath = candidate === "/staff/cashier" ? candidate
+    const safeReturnPath = candidate === "/staff/cashier" || candidate === "/staff/pos" ? candidate
       : candidate && /^\/admin(?:\/|$)/.test(candidate) ? candidate : "/admin";
     setReturnPath(safeReturnPath);
 
     // The cashier workspace always checks real server sessions, never mock identities.
     if (isDemoStaffSessionActive()) {
-      if (safeReturnPath !== "/staff/cashier") router.replace(safeReturnPath);
+      if (safeReturnPath !== "/staff/cashier" && safeReturnPath !== "/staff/pos") router.replace(safeReturnPath);
       return;
     }
 
@@ -38,7 +38,7 @@ export function StaffLoginForm({ demoEnabled = false }: { demoEnabled?: boolean 
     apiOps.staffSession().then((session) => {
       if (!active) return;
       if (session.actor.role === "cashier") {
-        router.replace("/staff/cashier");
+        router.replace(safeReturnPath === "/staff/pos" ? "/staff/pos" : "/staff/cashier");
       } else if (session.actor.role === "admin" || session.actor.role === "inventory_manager") {
         router.replace(safeReturnPath);
       }
@@ -51,7 +51,7 @@ export function StaffLoginForm({ demoEnabled = false }: { demoEnabled?: boolean 
     if (!account) return;
     startDemoStaffSession(account.role);
     setError(null);
-    router.replace(returnPath === "/staff/cashier" ? "/admin" : returnPath);
+    router.replace(returnPath.startsWith("/staff/") ? "/admin" : returnPath);
     router.refresh();
   };
 
@@ -64,9 +64,9 @@ export function StaffLoginForm({ demoEnabled = false }: { demoEnabled?: boolean 
       clearDemoStaffSession();
       const session = await apiOps.staffLogin(email, password);
       if (session.actor.role === "cashier") {
-        router.replace("/staff/cashier");
+        router.replace(returnPath === "/staff/pos" ? "/staff/pos" : "/staff/cashier");
       } else if (session.actor.role === "admin" || session.actor.role === "inventory_manager") {
-        router.replace(returnPath);
+        router.replace(session.actor.role === "inventory_manager" && returnPath === "/staff/pos" ? "/admin" : returnPath);
       } else {
         await apiOps.staffLogout().catch(() => undefined);
         setError("This account does not have staff access.");
@@ -89,7 +89,7 @@ export function StaffLoginForm({ demoEnabled = false }: { demoEnabled?: boolean 
           <p className="mt-1 text-sm text-muted-foreground">Open the back office with a demo role or sign in as real staff.</p>
         </div>
 
-        {demoEnabled && returnPath !== "/staff/cashier" && UAT_DEMO_ACCOUNTS.length > 0 ? (
+        {demoEnabled && !["/staff/cashier", "/staff/pos"].includes(returnPath) && UAT_DEMO_ACCOUNTS.length > 0 ? (
           <Card className="border-primary/25 bg-primary/[0.03]">
             <CardHeader className="pb-3">
               <CardTitle className="flex items-center gap-2 text-lg">
