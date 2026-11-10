@@ -141,7 +141,6 @@ function demoAdapter(): ServiceAdapter {
   return demoBrowserAdapter;
 }
 
-/** The adapter used by client components. Demo sessions are isolated to mock data. */
 /**
  * Verified operational surfaces must never read demo data, even when a
  * browser still has a legacy UAT demo-session flag.
@@ -151,6 +150,10 @@ export function resolveProductionClientAdapter(): ServiceAdapter {
   const base = process.env.NEXT_PUBLIC_API_BASE_URL?.trim();
   if (!base) throw new ApiError("BAD_CONFIG", "The production API is not configured.");
   if (!productionBrowserAdapter || productionBrowserBase !== base) {
+    // Cached read payloads must not cross a changed production API origin.
+    cacheEpoch++;
+    cache.clear();
+    latestReads.clear();
     productionBrowserAdapter = new CachingBrowserAdapter(
       new HttpServiceAdapter(base, {
         kind: "http:api",
@@ -166,7 +169,7 @@ export function resolveProductionClientAdapter(): ServiceAdapter {
   return productionBrowserAdapter;
 }
 
-/** Legacy demo routing remains available only to explicitly demo-enabled screens. */
+/** Demo-aware screens use the mock adapter only in an explicit demo session. */
 export function resolveClientAdapter(): ServiceAdapter {
   if (isDemoStaffSessionActive()) return demoAdapter();
   return process.env.NEXT_PUBLIC_API_BASE_URL?.trim()
