@@ -63,3 +63,35 @@ test("cashier route is separated from admin layout and the demo role menu",()=>{
   expect(login).toContain("clearDemoStaffSession()");
   expect(login).toContain('session.actor.role === "cashier"');
 });
+
+test("cashier sign-out sends the session CSRF token but no POS mutation", async () => {
+  const calls: {url:string;init:RequestInit}[]=[];
+  const token="a".repeat(64);
+  globalThis.fetch=Object.assign(async (input:RequestInfo|URL,init?:RequestInit)=>{
+    const url=String(input);calls.push({url,init:init??{}});
+    if (url.endsWith("/auth/me"))return Response.json({
+      ok:true,data:{actor:{id:"cashier-one",name:"Cashier",role:"cashier",
+        locationIds:["loc_accra"]},csrfToken:token},
+    });
+    if (url.endsWith("/auth/logout"))return Response.json({ok:true,data:{done:true}});
+    throw new Error("Unexpected request: "+url);
+  },{preconnect:()=>{}});
+  await createCashierReportClient("https://example.invalid/api/v1").signOut();
+  expect(calls.map(x=>x.url)).toEqual([
+    "https://example.invalid/api/v1/auth/me",
+    "https://example.invalid/api/v1/auth/logout",
+  ]);
+  expect(calls[0]?.init.method).toBe("GET");
+  expect(calls[1]?.init.method).toBe("POST");
+  expect((calls[1]?.init.headers as Record<string,string>)["X-CSRF-Token"]).toBe(token);
+  expect(calls[1]?.init.credentials).toBe("include");
+  expect(calls.every(x=>!x.url.includes("/pos/"))).toBe(true);
+});
+
+test("cashier sign-out fails closed without a CSRF-bearing web session", async () => {
+  globalThis.fetch=Object.assign(async()=>Response.json({ok:true,data:{
+    actor:{id:"cashier-one",name:"Cashier",role:"cashier",locationIds:["loc_accra"]},
+  }}),{preconnect:()=>{}});
+  await expect(createCashierReportClient("https://example.invalid/api/v1").signOut())
+    .rejects.toThrow("A verified web session is required to sign out.");
+});
