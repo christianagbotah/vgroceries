@@ -82,7 +82,8 @@ class CachingBrowserAdapter implements ServiceAdapter {
     const isMutation = req.formData !== undefined || normalizedRequestBody(req) !== undefined ||
       (Object.hasOwn(restEndpoints, req.op) && restEndpoints[req.op].method === "POST");
     if (!isMutation && TTL_MS > 0 && readTags(req.op).length > 0) {
-      const key = cacheKey(req);
+      // Never share cached read payloads between production and demo transports.
+      const key = JSON.stringify([this.kind, cacheKey(req)]);
       const hit = cache.get(key);
       if (hit && Date.now() - hit.at < TTL_MS) return hit.value as T;
       const epoch = cacheEpoch;
