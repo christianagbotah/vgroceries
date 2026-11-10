@@ -33,11 +33,14 @@ export class CashierTillsService {
     const cashSalesMinor=cashSales._sum.subtotalMinor??0;
     return {drawerOnly,cashSalesMinor,drawerCash:drawerOnly+cashSalesMinor};
   }
-  private async view(tx:Tx,id:string){
+  private async view(tx:Tx,id:string,scope:string[]|null=null){
     const row=await tx.cashierTillSession.findUnique({
       where:{id},include:{movements:{orderBy:[{createdAt:"asc"},{id:"asc"}]}},
     });
-    if(!row)throw new ApiProblem(404,"NOT_FOUND","Till session not found.");
+    if(!row || (scope!==null && (
+      !scope.includes(row.locationId) ||
+      !await tx.location.count({where:{id:row.locationId,active:true}})
+    ))) throw new ApiProblem(404,"NOT_FOUND","Till session not found.");
     const expected=await this.expected(tx,id,row.openingFloatMinor);
     return cashierTillSessionViewSchema.parse({
       id:row.id,locationId:row.locationId,tillCode:row.tillCode,
@@ -57,17 +60,24 @@ export class CashierTillsService {
       })),
     });
   }
-  async list(){
+  async list(scope:string[]|null=null){
+    // Never trust a location id supplied by the browser. Scope comes from
+    // the freshly authenticated UserLocation grants on the server.
+    const locationIds=scope===null?null:(await this.db.location.findMany({
+      where:{id:{in:scope},active:true},select:{id:true},
+    })).map(x=>x.id);
+    const filter=locationIds===null?{}:{locationId:{in:locationIds}};
     const rows=await this.db.cashierTillSession.findMany({
+      where:filter,
       orderBy:[{openedAt:"desc"},{id:"desc"}],take:50,select:{id:true},
     });
     return cashierTillListSchema.parse({
       enabled:this.cfg.posTillFoundationEnabled,
-      includesSales:(await this.db.posCashSale.count())>0,
+      includesSales:(await this.db.posCashSale.count({where:filter}))>0,
       sessions:await Promise.all(rows.map(r=>this.view(this.db as Tx,r.id))),
     });
   }
-  async detail(id:string){return this.view(this.db as Tx,id);}
+  async detail(id:string,scope:string[]|null=null){return this.view(this.db as Tx,id,scope);}
   private async replay(tx:Tx,actorId:string,operation:string,key:string,hash:string){
     const prev=await tx.idempotency.findUnique({where:{
       actorId_operation_key:{actorId,operation,key},
