@@ -47,6 +47,9 @@ jobs:
       - name: Return stock and API boundary regressions
         run: bun test
 
+      - name: Validate staging cashier probe syntax
+        run: node --check scripts/pos-cashier-staging-smoke.mjs
+
       - name: Shared contracts suite (request/response schemas + registry)
         run: bun scripts/contracts-check.ts http://localhost:3000/api/mock/v1
 
