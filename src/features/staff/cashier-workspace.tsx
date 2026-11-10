@@ -97,8 +97,11 @@ export function CashierWorkspace() {
       clearDemoStaffSession();
       setActor(null);setList(null);setReport(null);setSelected(null);
       router.replace("/staff/login");router.refresh();
-    } catch(cause) { setError(message(cause)); }
-    finally { setSigningOut(false); }
+    } catch(cause) {
+      // Financial reports must disappear if sign-out cannot reverify the session.
+      setActor(null);setList(null);setReport(null);setSelected(null);
+      setError(message(cause));
+    } finally { setSigningOut(false); }
   };
   const reload=()=>{
     setBusy(true);setSelected(null);setReport(null);setReportError(null);setReportBusy(false);
