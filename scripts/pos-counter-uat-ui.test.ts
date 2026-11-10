@@ -64,10 +64,12 @@ test("UAT checkout page cannot use demo role or render cash actions without expl
   const route=readFileSync("src/app/admin/pos/verified-uat/page.tsx","utf8");
   const ui=readFileSync("src/features/staff/verified-pos-uat.tsx","utf8");
   expect(route).toContain("VerifiedPosUat");
+  const staffRoute=readFileSync("src/app/staff/pos/page.tsx","utf8");
+  expect(staffRoute).toContain("VerifiedPosUat");
   expect(ui).toContain('NEXT_PUBLIC_POS_COUNTER_UAT === "1"');
   expect(ui).not.toContain("resolveClientAdapter");
   expect(ui).not.toContain("/api/mock/");
-  expect(ui).toContain("session.actor.role !== \"admin\"");
+  expect(ui).toContain('!["admin", "cashier"].includes(session.actor.role)');
   expect(ui).toContain("window.confirm");
   expect(ui).toContain("no real customers or tender");
   expect(ui).toContain("Release reserved stock");
