@@ -14,6 +14,10 @@
 - Every refresh checks the authenticated session again, then fetches the
   server's location-scoped till list. Any failure clears previously displayed
   cashier data; it does not show an old balance as current.
+- Sign-out verifies the real web session's CSRF token and calls only
+  `POST /api/v1/auth/logout`. This is an identity operation, not a POS mutation.
+  The screen clears previously viewed cash records if the session cannot be
+  reverified during sign-out.
 - The interface includes loading, denied/expired, disabled, empty, filtered,
   report-error and ledger-mismatch states.
 - Local filters affect only the latest **50 authorised sessions** returned
@@ -47,8 +51,9 @@ this workspace. All POS transaction flags remain off.
    cannot bypass real server authentication.
 7. Verify mobile widths 360, 768 and 1440 px, keyboard focus, generated
    CSV, Ghana-local dates and money formatting.
-8. Confirm network calls are GET-only for the workspace and that there is
-   no sale, cash movement, stock or payment mutation.
+8. Confirm all **cash-report** network operations are GET-only.
+   Signing out may POST only to the CSRF-protected `/auth/logout` endpoint.
+   No sale, cash movement, stock, refund or payment mutation is permitted.
 
 Do not claim authenticated staging UAT has passed until these are
 actually exercised with approved test accounts and isolated test data.
