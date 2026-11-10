@@ -80,7 +80,8 @@ export function VerifiedCashDrawerReport() {
 
   useEffect(() => {
     let current = true;
-    resolveProductionClientAdapter().request<unknown>({ op: "pos.tills.list" })
+    Promise.resolve()
+      .then(() => resolveProductionClientAdapter().request<unknown>({ op: "pos.tills.list" }))
       .then(response => {
         const verified = cashierTillListSchema.parse(response);
         if (current) { setList(verified); setError(null); }
@@ -95,9 +96,10 @@ export function VerifiedCashDrawerReport() {
   useEffect(() => {
     if (!selected) return;
     let current = true;
-    resolveProductionClientAdapter().request<unknown>({
-      op: "pos.tills.reconciliation", query: { sessionId: selected },
-    }).then(response => {
+    Promise.resolve()
+      .then(() => resolveProductionClientAdapter().request<unknown>({
+        op: "pos.tills.reconciliation", query: { sessionId: selected },
+      })).then(response => {
       const verified = posTillReconciliationViewSchema.parse(response);
       if (current) { setReport(verified); setReportError(null); }
     }).catch(err => {
