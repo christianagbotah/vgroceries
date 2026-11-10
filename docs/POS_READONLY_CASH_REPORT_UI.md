@@ -7,7 +7,7 @@ Instead, the browser's existing cookie-authenticated `HttpServiceAdapter` calls 
 - `/api/v1/admin/pos/tills` — authenticated administrator-only list.
 - `/api/v1/admin/pos/tills/{sessionId}/reconciliation` — one read-only, PostgreSQL-backed cash-drawer snapshot.
 
-The web validates both server responses against the shared strict Zod schemas before displaying figures. It shows opening float, manual cash movements, actual cash-only sales, expected drawer cash, closing difference, active holds, recent cash-sale references, and ledger integrity warning. The existing server-authorised CSV link is available only when a verified report is displayed. Dates are shown in Ghana local time and currency as ₵.
+The web validates both server responses against the shared strict Zod schemas before displaying figures. It shows opening float, manual cash movements, actual cash-only sales, expected drawer cash, closing difference, active holds, recent cash-sale references, and ledger integrity warning. The cashier shift list supports accessible till-code/location search and open/closed status filtering over the server's **latest 50 sessions only**; it explicitly discloses this limit instead of implying historical coverage. The existing server-authorised CSV link is available only when a verified report is displayed. Dates are shown in Ghana local time and currency as ₵.
 
 ## Boundaries
 
