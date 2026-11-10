@@ -6,7 +6,7 @@ not a production activation, live payment collection, or merchant settlement.
 
 ## Access
 
-- Private HTTPS site: **https://pos-uat.varietygroceries.com/**
+- Private HTTPS site: **https://pos-uat.varietygroceries.com/** (separate perimeter password, then an individual test staff login).
 - Staff login: **https://pos-uat.varietygroceries.com/staff/login**
 - Verified sample cash checkout (administrator only):
   **https://pos-uat.varietygroceries.com/admin/pos/verified-uat**
@@ -28,9 +28,11 @@ accounts or real customer details.
 1. Pass the private site access prompt, then sign in with the **individual
    UAT administrator** account. Cashiers intentionally remain read-only.
 2. Open **Verified sample cash checkout**, not the older `/admin/pos` demo.
-3. Choose the open **UATACCRA01** till, which belongs to the configured
-   UAT stock location. The Kumasi test location is deliberately unassigned
-   to the cashier and has no sample stock.
+3. **Explicitly select the open UATACCRA01 till** before adding items.
+   The screen does not silently select the newest till: a Kumasi shift belongs
+   to the other location and would correctly fail the stock-location check.
+   The Kumasi test location is deliberately unassigned to the cashier
+   and has no sample stock.
 4. Add **UAT Sample Rice** (e.g. quantity 2) and **UAT Sample Salt**
    (e.g. quantity 1). Check the quoted total and availability.
 5. Click **Reserve sample stock**. The test reservation must report a real
@@ -87,3 +89,19 @@ permissions need dedicated assigned-location authorization, review and tests.
 The production checkout, provider payments, full returns/refunds, real handover,
 tax/accounting, branch reconciliation and data migration rehearsal are separate
 release gates. The private stage must never be used as a live store.
+
+## Real-browser acceptance on protected HTTPS
+
+On 10 November 2026, the isolated UAT API completed the real quote, stock
+reservation, simulated cash sale, receipt and reconciliation sequence using
+sample products. It also passed a regression with the PostgreSQL database
+configured in a non-UTC timezone and the application pool explicitly using UTC.
+The exact public HTTPS `/staff/login`, `/staff/cashier`, administrator cash
+report and **`/admin/pos/verified-uat`** flows were exercised in real headless
+Chromium at **375, 768 and 1440 pixel** viewports. Across all three sizes,
+the UAT-only basket → quote → reserve → complete simulated sale → printable
+receipt journey passed, including login, branch isolation and logout.
+
+These automated acceptance results do not represent real-money transactions,
+merchant settlement or full operational approval. The private staging
+application is provided for interactive owner UAT, not live retail use.
