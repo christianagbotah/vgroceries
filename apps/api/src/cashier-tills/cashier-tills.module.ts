@@ -11,9 +11,8 @@ import {PosTillReconciliationService} from "./pos-till-reconciliation.service";
 import {PosCashSalesService} from "./pos-cash-sales.service";
 import {PosCashSalesController} from "./pos-cash-sales.controller";
 import {PosCashierAccess} from "./pos-cashier-access";
-import {CatalogAdminModule} from "../catalog-admin/catalog-admin.module";
 @Module({
-  imports:[OrdersModule,InventoryModule,CatalogAdminModule],
+  imports:[OrdersModule,InventoryModule],
   controllers:[
     CashierTillsController,PosQuoteController,PosHoldsController,
     PosCashSalesController,
