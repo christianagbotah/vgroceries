@@ -1,9 +1,11 @@
 import { ApiError } from "@/services/adapters/types";
 import type {
-  AdminProductRow, CashierTillList, PosQuoteView,
+  AdminProductRow, CashierTillSessionView, PosQuoteView,
   PosHoldView, PosCashSaleView, PosTillReconciliationView,
   SessionLookupResponse,
 } from "@/services/contracts";
+
+export type CashierTillList = { enabled: boolean; includesSales: boolean; sessions: CashierTillSessionView[] };
 
 function serverBase(): string {
   const value = process.env.NEXT_PUBLIC_API_BASE_URL?.trim();
