@@ -64,7 +64,8 @@ export function VerifiedPosUat() {
         setActorName(session.actor.name);
         setTills(list);
         setProducts(catalogue);
-        setTillId(list.sessions.find(x => x.status === "open")?.id ?? "");
+        // Operators explicitly select the correct stock location; no silent default.
+        setTillId("");
       })
       .catch(cause => { if (active) setError(describeError(cause)); })
       .finally(() => { if (active) setLoading(false); });
@@ -105,7 +106,7 @@ export function VerifiedPosUat() {
       const [list, catalogue] = await Promise.all([verifiedPosUat.tills(), verifiedPosUat.products()]);
       setTills(list); setProducts(catalogue);
       if (!list.sessions.some(x => x.id === tillId && x.status === "open")) {
-        setTillId(list.sessions.find(x => x.status === "open")?.id ?? "");
+        setTillId("");
         if (!hold) { setQuote(null); setCart([]); }
       }
       setNotice("Verified till and sample-stock records refreshed.");
@@ -166,7 +167,7 @@ export function VerifiedPosUat() {
           <h2 className="text-lg font-semibold">1. Choose an open till</h2>
           <Button type="button" variant="outline" disabled={busy} onClick={() => void refresh()}>Refresh stock and tills</Button>
         </div>
-        <p className="text-sm text-muted-foreground">Verified administrator: {actorName}. Test stock is restricted to its configured location.</p>
+        <p className="text-sm text-muted-foreground">Verified administrator: {actorName}. Test stock is restricted to its configured location. Select the matching open till explicitly before quoting.</p>
         <label className="block space-y-1 text-sm font-medium">
           <span>Counter shift</span>
           <select value={tillId} disabled={!!hold || busy} onChange={event => {
