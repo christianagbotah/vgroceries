@@ -25,7 +25,7 @@ function isObject(x: unknown): x is Record<string, unknown> {
   return typeof x === "object" && x !== null && !Array.isArray(x);
 }
 
-async function apiRequest<T>(
+export async function apiRequest<T>(
   path: string,
   options: { method?: "GET" | "POST"; body?: Record<string, unknown>; csrf?: string; key?: string } = {},
 ): Promise<T> {
