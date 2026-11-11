@@ -52,7 +52,7 @@ These source-controlled units describe the **isolated** staging instance. Keep t
 
    A valid archive and matching counts demonstrate a practical restore drill, **not** yet a production disaster-recovery certification.
 3. The old manually launched staging processes were cleanly stopped and handed over to **three enabled, active systemd services**. Both API readiness checks and both portal checks returned **HTTP 200** after migration.
-4. A deliberate `SIGKILL` to **only the systemd-managed staging web process** caused systemd to restart it. The replacement process returned **HTTP 200** on `/staff/pos`, while the public portal remained HTTP 200. No VPS reboot or public service restart was performed.
+4. A deliberate `SIGKILL` to **only the systemd-managed staging web process** caused systemd to restart it. The replacement process returned **HTTP 200** on `/staff/pos`, while the public portal remained HTTP 200. A separate deliberate `SIGKILL` against **only the systemd-managed staging API** also triggered a new process with `/api/v1/health/ready` **HTTP 200**. The existing public API remained HTTP 200. No VPS reboot or public service restart was performed.
 5. The new backup timer is **enabled and active**; `systemctl start vg-pos-staging-backup.service` returned `Result=success`, `ExecMainStatus=0` and produced a second verified archive.
 
 ## Safe health checks
@@ -83,6 +83,8 @@ The daily job runs `pg_dump` on the **isolated Unix socket** with the `lightworl
 It writes only into the isolated staging backup directory. The timer uses **UTC** and `Persistent=true`, so an eligible missed run is scheduled after startup. A backup failure remains visible in `journalctl -u vg-pos-staging-backup.service`; avoid claiming a successful backup without checking both systemd status and the actual archive.
 
 To rehearse another restore, create a *new, explicitly named and empty* staging-only database on port `55436` and restore the chosen archive with `pg_restore --exit-on-error --single-transaction`. Verify schema, migration history, sample products, stock, tills and sale counts. **Never restore over `variety_pos_staging` or any business database without an approved recovery procedure and current backup.**
+
+**Operator provisioning is still a separate release requirement:** the existing `/admin/team` page currently lists fictional demo identities and is not a real cashier onboarding, branch-assignment or deactivation console. Do not substitute manual synthetic user seeding for an approved production staff onboarding workflow.
 
 These copies live on the **same VPS**. If the whole host or disk is lost, on-host backups can be lost too. Before any production launch, configure encrypted off-host backup storage, tested restoration to another server, retention, key management, recovery objectives, monitoring and incident alerts. This runbook covers the synthetic staging database only.
 
