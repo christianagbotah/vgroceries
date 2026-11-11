@@ -1,0 +1,11 @@
+[Unit]
+Description=Daily isolated Variety Groceries POS staging backup
+
+[Timer]
+OnCalendar=*-*-* 03:20:00 UTC
+RandomizedDelaySec=5m
+Persistent=true
+Unit=vg-pos-staging-backup.service
+
+[Install]
+WantedBy=timers.target
