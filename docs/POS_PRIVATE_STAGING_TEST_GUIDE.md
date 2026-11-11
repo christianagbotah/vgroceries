@@ -143,7 +143,7 @@ shift-management screen, alongside the cashier checkout:
 1. Sign in as the **individual staging administrator**, then open
    `/admin/pos/till-operations`.
 2. Enter an **active stock location ID** (the synthetic Accra sample is
-   `loc_accra`), a new till code with only uppercase letters, digits,
+   `uat_accra_20261110`; this differs from the `loc_accra` ID used by disposable test fixtures), a new till code with only uppercase letters, digits,
    hyphens or underscores, and the opening float in **₵**.
 3. Confirm **Open test till**. A second open till with the same code and
    location is rejected by the API.
