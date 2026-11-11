@@ -163,3 +163,17 @@ This interface calls the existing idempotent, CSRF-protected API routes
 and creates no new public API route. Both browser and backend retain their
 production-off and administrator-only boundaries; neither this test screen
 nor its cash figures represent real cash movement, bank settlement or tax.
+
+## Automated recovery and backups
+
+The isolated staging PostgreSQL, NestJS API and Next.js portal now run as
+**enabled systemd services**, rather than manually launched processes. Both
+the staging web portal and API have passed controlled process-crash recovery
+checks. Daily PostgreSQL backup is scheduled in UTC; an on-host backup was
+successfully restored into a separate database with matching inventory,
+transaction and migration counts. The public services were not restarted.
+
+See [POS_STAGING_OPERATIONS_RECOVERY.md](POS_STAGING_OPERATIONS_RECOVERY.md)
+for the exact service names, source-controlled deployment files, health
+checks, backup scope, restore evidence, safety boundaries and remaining
+requirement for encrypted **off-host** backups before production.
