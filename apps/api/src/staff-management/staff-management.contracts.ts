@@ -5,7 +5,7 @@ const uniqueLocationIds = z.array(z.string().min(1).max(128)).min(1).max(10)
 
 export const createCashierSchema = z.strictObject({
   name: z.string().trim().min(2).max(120),
-  email: z.email().max(254).transform(email => email.trim().toLowerCase()),
+  email: z.email().max(254),
   phone: z.string().trim().max(20).optional().default(""),
   // Initial credential entered once by the administrator; never logged,
   // included in audit events, or returned by the API.
