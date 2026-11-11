@@ -1,0 +1,26 @@
+[Unit]
+Description=Variety Groceries isolated POS staging PostgreSQL 18
+Wants=network-online.target
+After=network-online.target
+StartLimitIntervalSec=120
+StartLimitBurst=8
+
+[Service]
+Type=exec
+User=lightworld
+Group=lightworld
+WorkingDirectory=/home/lightworld/workspaces/vgroceries-pos-staging-pg-20261110/data
+ExecStart=/usr/local/apps/pgsql18/bin/postgres -D /home/lightworld/workspaces/vgroceries-pos-staging-pg-20261110/data -h 127.0.0.1 -p 55436 -k /home/lightworld/workspaces/vgroceries-pos-staging-pg-20261110/sock
+ExecStartPost=/bin/sh -c 'i=0; until /usr/local/apps/pgsql18/bin/pg_isready -h /home/lightworld/workspaces/vgroceries-pos-staging-pg-20261110/sock -p 55436 -q; do i=$((i+1)); test "$i" -le 40 || exit 1; sleep 1; done'
+Restart=on-failure
+RestartSec=4s
+TimeoutStopSec=60s
+KillSignal=SIGTERM
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ReadWritePaths=/home/lightworld/workspaces/vgroceries-pos-staging-pg-20261110/data /home/lightworld/workspaces/vgroceries-pos-staging-pg-20261110/sock
+
+[Install]
+WantedBy=multi-user.target
