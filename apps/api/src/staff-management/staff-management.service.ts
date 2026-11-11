@@ -62,7 +62,7 @@ export class StaffManagementService {
         await this.assertActiveLocations(tx, body.locationIds);
         const created = await tx.user.create({
           data: {
-            name: body.name, email: body.email, phone: body.phone,
+            name: body.name, email: body.email.trim().toLowerCase(), phone: body.phone,
             passwordHash, role: "cashier", active: true,
             locations: { create: body.locationIds.map(locationId => ({ locationId })) },
           },
