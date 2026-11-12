@@ -1,6 +1,7 @@
-import { Body, Controller, Get, Param, Post, Req, UseGuards } from "@nestjs/common";
+import { Body, Controller, Get, Inject, Param, Post, Req, UseGuards } from "@nestjs/common";
 import { ApiCookieAuth, ApiOperation, ApiTags } from "@nestjs/swagger";
 import { ApiProblem } from "../http/errors";
+import { API_CONFIG, type ApiConfig } from "../config";
 import { AccessGuard } from "../identity/access.guard";
 import type { AuthRequest } from "../identity/identity.service";
 import { createCashierSchema, manageCashierSchema } from "./staff-management.contracts";
@@ -11,9 +12,14 @@ import { StaffManagementService } from "./staff-management.service";
 @Controller("admin/staff")
 @UseGuards(AccessGuard)
 export class StaffManagementController {
-  constructor(private readonly service: StaffManagementService) {}
+  constructor(
+    private readonly service: StaffManagementService,
+    @Inject(API_CONFIG) private readonly config: ApiConfig,
+  ) {}
 
   private requireAdmin(request: AuthRequest) {
+    if (!this.config.staffManagementEnabled)
+      throw new ApiProblem(503, "FEATURE_DISABLED", "Staff management is not enabled for this environment.");
     if (request.actor.role !== "admin")
       throw new ApiProblem(403, "FORBIDDEN", "Administrator-only staff management.");
   }
