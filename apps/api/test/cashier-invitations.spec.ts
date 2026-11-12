@@ -11,6 +11,7 @@ const adminPassword = "UAT_Administrator_Password_2026!";
 let app: INestApplication;
 let db: Database;
 let base: string;
+let adminAuth: Record<string,string>;
 
 type ApiReply = { status:number; payload:any; };
 async function request(path:string, method="GET", body?:unknown,
@@ -63,11 +64,14 @@ before(async()=>{
     {id:"invitation-inventory",name:"Test Inventory",email:"invite-inventory@example.test",
       phone:"",passwordHash,role:"inventory_manager",active:true},
   ]});
+  // Reuse one real administrator bearer session so the production login
+  // throttle is never disabled or bypassed merely for test convenience.
+  adminAuth = await login("invite-admin@example.test", adminPassword);
 });
 after(async()=>{await app?.close();});
 
 test("only administrators can issue invitations, and direct password account creation is off",async()=>{
-  const admin=await login("invite-admin@example.test",adminPassword);
+  const admin=adminAuth;
   const inventory=await login("invite-inventory@example.test",adminPassword);
   assert.equal((await invite(inventory,"blocked@example.test")).status,403);
   assert.equal((await invite({},"anonymous@example.test")).status,401);
@@ -85,7 +89,7 @@ test("only administrators can issue invitations, and direct password account cre
 });
 
 test("one-use cashier invitation stores only a digest and requires recipient's new password",async()=>{
-  const admin=await login("invite-admin@example.test",adminPassword);
+  const admin=adminAuth;
   const invited=await invite(admin,"new-cashier@example.test");
   assert.equal(invited.status,201,JSON.stringify(invited.payload));
   const {code,cashier,expiresAt}=invited.payload.data;
@@ -129,7 +133,7 @@ test("one-use cashier invitation stores only a digest and requires recipient's n
 });
 
 test("reissue invalidates an older unredeemed code and only latest one can activate",async()=>{
-  const admin=await login("invite-admin@example.test",adminPassword);
+  const admin=adminAuth;
   const first=await invite(admin,"renewed-cashier@example.test");
   assert.equal(first.status,201);
   const original=first.payload.data.code as string;
@@ -147,7 +151,7 @@ test("reissue invalidates an older unredeemed code and only latest one can activ
 });
 
 test("suspending a pending cashier revokes its invitation; administrator may reissue",async()=>{
-  const admin=await login("invite-admin@example.test",adminPassword);
+  const admin=adminAuth;
   const sent=await invite(admin,"suspended-invite@example.test");
   assert.equal(sent.status,201);
   const userId=sent.payload.data.cashier.id;
@@ -163,7 +167,7 @@ test("suspending a pending cashier revokes its invitation; administrator may rei
 });
 
 test("expired and inactive-location invitations cannot be used",async()=>{
-  const admin=await login("invite-admin@example.test",adminPassword);
+  const admin=adminAuth;
   const exp=await invite(admin,"expired-cashier@example.test");
   assert.equal(exp.status,201);
   await db.staffInvitation.update({
@@ -186,7 +190,7 @@ test("expired and inactive-location invitations cannot be used",async()=>{
 });
 
 test("concurrent redemption is single-use without a second activation or audit",async()=>{
-  const admin=await login("invite-admin@example.test",adminPassword);
+  const admin=adminAuth;
   const issued=await invite(admin,"concurrent-cashier@example.test");
   assert.equal(issued.status,201);
   const responses=await Promise.all([
