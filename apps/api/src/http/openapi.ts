@@ -402,7 +402,9 @@ export function foundationOpenApi(app: INestApplication) {
       // request/response schemas in the production API documentation.
       const documentedStaffManagement = [
         "/admin/staff",
+        "/admin/staff/invitations",
         "/admin/staff/{staffId}/actions",
+        "/auth/staff-invitations/accept",
       ].includes(suffix);
       if (productionExtension || documentedProviderReturn || documentedPosTill || documentedStaffManagement) continue;
       throw new Error(`Undocumented foundation endpoint: ${path}`);
