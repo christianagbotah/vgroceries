@@ -50,6 +50,7 @@ before(async()=>{
     API_STOCK_LOCATION_ID:"loc_accra",
     API_INSECURE_COOKIES:"true",
     STAFF_MANAGEMENT_ENABLED:"true",
+    STAFF_DIRECT_CASHIER_CREATE_ENABLED:"true",
   }));
   await app.listen(0,"127.0.0.1");
   base=await app.getUrl();
