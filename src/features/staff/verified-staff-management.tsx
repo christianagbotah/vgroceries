@@ -213,7 +213,7 @@ export function VerifiedStaffManagement() {
           </Button>
           <p className="text-xs text-muted-foreground">Do not share this code with anyone except its intended recipient.
             It cannot be retrieved after this page is closed.</p>
-        </div>
+        </div>}
       </section>
 
       {current && <section className="space-y-4 rounded-xl border border-primary/30 bg-card p-4">
