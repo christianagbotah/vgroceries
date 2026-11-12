@@ -49,6 +49,7 @@ before(async()=>{
     WEB_ORIGINS:origin,
     API_STOCK_LOCATION_ID:"loc_accra",
     API_INSECURE_COOKIES:"true",
+    STAFF_MANAGEMENT_ENABLED:"true",
   }));
   await app.listen(0,"127.0.0.1");
   base=await app.getUrl();
@@ -182,4 +183,27 @@ test("public OpenAPI documents both staff routes, strict schemas and actor-only 
   assert.deepEqual(actions.post.security,[{cookieAuth:[]},{bearerAuth:[]}]);
   assert.equal(JSON.stringify(doc.components?.schemas?.StaffRowEnvelope).includes("password"),false);
   assert.equal(Object.keys(doc.paths).length,147);
+});
+
+test("new staff endpoints are disabled by default on non-UAT API configurations",async()=>{
+  const admin=await webSession("admin-staff@example.test");
+  const off=await createApplication(readConfig({
+    DATABASE_URL:process.env.DATABASE_URL!,
+    WEB_ORIGINS:origin,
+    API_STOCK_LOCATION_ID:"loc_accra",
+    API_INSECURE_COOKIES:"true",
+  }));
+  try{
+    await off.listen(0,"127.0.0.1");
+    const url=await off.getUrl();
+    const get=await fetch(url+"/api/v1/admin/staff",{headers:admin});
+    assert.equal(get.status,503);
+    const post=await fetch(url+"/api/v1/admin/staff",{
+      method:"POST",headers:{...admin,"content-type":"application/json"},
+      body:JSON.stringify({name:"Should Not Exist",email:"disabled@example.test",
+        password,locationIds:["loc_accra"]}),
+    });
+    assert.equal(post.status,503);
+    assert.equal(await db.user.count({where:{email:"disabled@example.test"}}),0);
+  }finally{await off.close();}
 });
