@@ -37,6 +37,9 @@ export class StaffManagementController {
   @ApiOperation({ summary: "Provision one cashier with specified active branches (administrator)" })
   async create(@Req() request: AuthRequest, @Body() raw: unknown) {
     this.requireAdmin(request);
+    if (!this.config.staffDirectCashierCreateEnabled)
+      throw new ApiProblem(503, "FEATURE_DISABLED",
+        "Administrator-issued passwords are retired; use one-time cashier invitations.");
     const parsed = createCashierSchema.safeParse(raw);
     if (!parsed.success)
       throw new ApiProblem(400, "VALIDATION_FAILED", "Invalid cashier details.", parsed.error.issues);
