@@ -124,6 +124,15 @@ export class StaffManagementService {
           data: body.locationIds.map(locationId => ({ userId: staffId, locationId })),
         });
       } else if (body.action === "set_active") {
+        if (!body.active) {
+          const pending = await tx.staffInvitation.findUnique({
+            where: { userId: staffId }, select: { acceptedAt: true },
+          });
+          if (pending && !pending.acceptedAt)
+            await tx.staffInvitation.update({
+              where: { userId: staffId }, data: { revokedAt: new Date() },
+            });
+        }
         if (body.active) {
           const grants = await tx.userLocation.count({
             where: { userId: staffId, location: { active: true } },
