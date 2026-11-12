@@ -146,6 +146,22 @@ test("reissue invalidates an older unredeemed code and only latest one can activ
   assert.deepEqual(grant.map(x=>x.locationId),["loc_kumasi"]);
 });
 
+test("suspending a pending cashier revokes its invitation; administrator may reissue",async()=>{
+  const admin=await login("invite-admin@example.test",adminPassword);
+  const sent=await invite(admin,"suspended-invite@example.test");
+  assert.equal(sent.status,201);
+  const userId=sent.payload.data.cashier.id;
+  const stopped=await request(`/admin/staff/${userId}/actions`,"POST",{
+    action:"set_active",active:false,
+  },admin);
+  assert.equal(stopped.status,201);
+  assert.equal((await accept(sent.payload.data.code)).status,400);
+  const newOne=await invite(admin,"suspended-invite@example.test");
+  assert.equal(newOne.status,201);
+  assert.notEqual(newOne.payload.data.code,sent.payload.data.code);
+  assert.equal((await accept(newOne.payload.data.code)).status,201);
+});
+
 test("expired and inactive-location invitations cannot be used",async()=>{
   const admin=await login("invite-admin@example.test",adminPassword);
   const exp=await invite(admin,"expired-cashier@example.test");
