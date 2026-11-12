@@ -4,8 +4,9 @@ import { ApiProblem } from "../http/errors";
 import { API_CONFIG, type ApiConfig } from "../config";
 import { AccessGuard } from "../identity/access.guard";
 import type { AuthRequest } from "../identity/identity.service";
-import { createCashierSchema, manageCashierSchema } from "./staff-management.contracts";
+import { createCashierSchema, inviteCashierSchema, manageCashierSchema } from "./staff-management.contracts";
 import { StaffManagementService } from "./staff-management.service";
+import { CashierInvitationsService } from "./cashier-invitations.service";
 
 @ApiTags("admin-staff")
 @ApiCookieAuth()
@@ -14,6 +15,7 @@ import { StaffManagementService } from "./staff-management.service";
 export class StaffManagementController {
   constructor(
     private readonly service: StaffManagementService,
+    private readonly invitations: CashierInvitationsService,
     @Inject(API_CONFIG) private readonly config: ApiConfig,
   ) {}
 
@@ -40,6 +42,20 @@ export class StaffManagementController {
       throw new ApiProblem(400, "VALIDATION_FAILED", "Invalid cashier details.", parsed.error.issues);
     return {
       ok: true, data: await this.service.create(request.actor.id, request.requestId, parsed.data),
+    };
+  }
+
+  @Post("invitations")
+  @ApiOperation({ summary: "Issue or reissue a one-time cashier activation code (administrator)" })
+  async invite(@Req() request: AuthRequest, @Body() raw: unknown) {
+    this.requireAdmin(request);
+    const parsed = inviteCashierSchema.safeParse(raw);
+    if (!parsed.success)
+      throw new ApiProblem(400, "VALIDATION_FAILED",
+        "Invalid cashier invitation details.", parsed.error.issues);
+    return {
+      ok: true,
+      data: await this.invitations.issue(request.actor.id, request.requestId, parsed.data),
     };
   }
 
