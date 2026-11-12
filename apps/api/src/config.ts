@@ -97,6 +97,7 @@ export interface ApiConfig {
   physicalReturnsEnabled: boolean;
   customerReturnClaimsEnabled: boolean;
   physicalReturnClaimLinkEnabled: boolean;
+  staffManagementEnabled: boolean;
   posTillFoundationEnabled: boolean;
   posQuoteEnabled: boolean;
   posStockHoldsEnabled: boolean;
@@ -154,6 +155,10 @@ export function readConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
   if(rawReturnClaimsEnabled!==undefined&&!["true","false"].includes(rawReturnClaimsEnabled))
     throw new Error("CUSTOMER_RETURN_CLAIMS_ENABLED must be true or false");
   const customerReturnClaimsEnabled=rawReturnClaimsEnabled==="true";
+  const rawStaffManagement=env.STAFF_MANAGEMENT_ENABLED;
+  if(rawStaffManagement!==undefined&&!["true","false"].includes(rawStaffManagement))
+    throw new Error("STAFF_MANAGEMENT_ENABLED must be true or false");
+  const staffManagementEnabled=rawStaffManagement==="true";
   const rawPosTill=env.POS_TILL_FOUNDATION_ENABLED;
   if(rawPosTill!==undefined&&!["true","false"].includes(rawPosTill))
     throw new Error("POS_TILL_FOUNDATION_ENABLED must be true or false");
@@ -673,6 +678,7 @@ export function readConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
     physicalReturnsEnabled,
     customerReturnClaimsEnabled,
     physicalReturnClaimLinkEnabled,
+    staffManagementEnabled,
     posTillFoundationEnabled,
     posQuoteEnabled,
     posStockHoldsEnabled,
