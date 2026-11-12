@@ -13,6 +13,20 @@ export const createCashierSchema = z.strictObject({
   locationIds: uniqueLocationIds,
 });
 
+// Unlike legacy administrator-issued passwords, invitations let each
+// cashier choose their own credential, after a short-lived, one-use code.
+export const inviteCashierSchema = z.strictObject({
+  name: z.string().trim().min(2).max(120),
+  email: z.email().max(254),
+  phone: z.string().trim().max(20).optional().default(""),
+  locationIds: uniqueLocationIds,
+});
+
+export const acceptCashierInvitationSchema = z.strictObject({
+  code: z.string().regex(/^[a-f0-9]{64}$/),
+  password: z.string().min(12).max(256),
+});
+
 export const manageCashierSchema = z.discriminatedUnion("action", [
   z.strictObject({ action: z.literal("set_active"), active: z.boolean() }),
   z.strictObject({ action: z.literal("assign_locations"), locationIds: uniqueLocationIds }),
@@ -39,6 +53,8 @@ export const staffListSchema = z.strictObject({
   locations: z.array(staffLocationSchema),
   capped: z.boolean(),
 });
+export type InviteCashierRequest = z.infer<typeof inviteCashierSchema>;
+export type AcceptCashierInvitationRequest = z.infer<typeof acceptCashierInvitationSchema>;
 export type CreateCashierRequest = z.infer<typeof createCashierSchema>;
 export type ManageCashierRequest = z.infer<typeof manageCashierSchema>;
 export type StaffRow = z.infer<typeof staffRowSchema>;
