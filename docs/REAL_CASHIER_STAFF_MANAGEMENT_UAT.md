@@ -2,6 +2,22 @@
 
 **Workstream:** Replace fictional staff data on the administrator Team & Roles page with real user accounts, branch assignments and auditable access control.
 
+## Independent server-side rollout control
+
+The staff-management API is **disabled by default**, regardless of the
+public frontend or POS transaction flags. To enable these routes in the
+synthetic, private API only, set `STAFF_MANAGEMENT_ENABLED=true` in its
+restricted server environment file and restart that staging API. Missing
+or `false` returns `503 FEATURE_DISABLED` for authenticated requests to
+`GET /admin/staff`, `POST /admin/staff` and cashier actions; unsupported
+flag values fail configuration validation at startup. This is a separate
+authorization boundary from `NEXT_PUBLIC_POS_COUNTER_UAT`.
+
+**Do not set this flag in the existing public API deployment** before
+staff-account release requirements and acceptance are signed off.
+The integration test explicitly verifies that an ordinary config cannot
+list or create cashier accounts.
+
 ## Security boundary
 
 The administrator screen at `/admin/team` now uses **real authenticated server records**; it does not read `apiOps.team()` or locally fabricate employees. The new endpoints are:
