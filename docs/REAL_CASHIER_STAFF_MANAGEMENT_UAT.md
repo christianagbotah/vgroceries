@@ -1,63 +1,54 @@
-# Variety Groceries — real cashier staff management (controlled UAT)
+# Variety Groceries — real cashier onboarding and invitation UAT
 
-**Workstream:** Replace fictional staff data on the administrator Team & Roles page with real user accounts, branch assignments and auditable access control.
+**Date:** 12 November 2026 · **Status:** development branch and isolated, privately accessible staging; no production activation.
 
-## Independent server-side rollout control
+## How cashier onboarding now works
 
-The staff-management API is **disabled by default**, regardless of the
-public frontend or POS transaction flags. To enable these routes in the
-synthetic, private API only, set `STAFF_MANAGEMENT_ENABLED=true` in its
-restricted server environment file and restart that staging API. Missing
-or `false` returns `503 FEATURE_DISABLED` for authenticated requests to
-`GET /admin/staff`, `POST /admin/staff` and cashier actions; unsupported
-flag values fail configuration validation at startup. This is a separate
-authorization boundary from `NEXT_PUBLIC_POS_COUNTER_UAT`.
+A real administrator creates a cashier account in an inactive, invitation-pending state. The administrator supplies a name, email, optional phone and one or more **active** branch grants. The system then generates a **64-character, cryptographically random, one-use invitation code** with a **48-hour expiry**. Only a SHA-256 digest is stored; the raw code is returned exactly once to the administrator.
 
-**Do not set this flag in the existing public API deployment** before
-staff-account release requirements and acceptance are signed off.
-The integration test explicitly verifies that an ordinary config cannot
-list or create cashier accounts.
+The administrator shares the code privately with the intended **synthetic UAT** cashier. The cashier opens `/staff/activate`, enters that code and chooses a password (12–256 characters) they do **not** share with the administrator. Only a valid, unused, unexpired code for an inactive cashier with a currently active branch can activate the account. Invitation acceptance does not automatically create a session; the cashier signs in normally after activation.
 
-## Security boundary
+**No email or SMS delivery is connected.** The administrator must manually share the one-time code using an approved private channel. Do not place codes in URLs, public chats, repositories, logs or receipts. An administrator can reissue a pending/expired/revoked invitation using the same email; the old code stops working immediately.
 
-The administrator screen at `/admin/team` now uses **real authenticated server records**; it does not read `apiOps.team()` or locally fabricate employees. The new endpoints are:
+Invitations cannot turn an existing administrator, inventory manager, rider or customer into a cashier. A pending cashier cannot bypass the invitation by using the administrator's activation or password-reset buttons. Suspending a pending invitation revokes it; an explicit fresh issue is required to proceed.
 
-- `GET /api/v1/admin/staff`: bounded list of actual administrators, inventory managers, cashiers, riders and branch records, with no hashes, tokens or passwords.
-- `POST /api/v1/admin/staff`: create **cashier only**, after strict name/email/credential validation and explicit existing active branch grants.
-- `POST /api/v1/admin/staff/{staffId}/actions`: administrator-only cashier **branch reassignment**, **activate/deactivate** or **reset password**.
+## Release switches
 
-Non-admin callers are forbidden. Existing administrator, inventory-manager, rider and customer accounts cannot be mutated through cashier management. The API does not take a role from the browser when creating an account: it always creates `cashier`. Branch IDs are checked against current *active* location rows at mutation time.
+- `STAFF_MANAGEMENT_ENABLED=true`: explicitly enables the three administrator routes and the public activation route on a particular API environment. **Default OFF**.
+- `STAFF_DIRECT_CASHIER_CREATE_ENABLED=true`: allows the old administrator-issued-password creation route **only for separately authorized legacy test fixtures**. **Default OFF**, including private staging.
+- `NEXT_PUBLIC_POS_COUNTER_UAT=1`: shows real staff test screens in the **private staging frontend only**. It is **not** a substitute for server-side authorization.
+- Production POS checkout transaction feature switches remain OFF; this onboarding work does not authorize live sales.
 
-The SQL transaction includes an audit event and revokes the cashier's active cookie and bearer sessions whenever permission, account status or credential is updated. Password hashes use the existing scrypt implementation and are **never** returned in API responses or recorded in audit-event details.
+## Exact API paths
 
-## Private staging walkthrough
+- `GET /api/v1/admin/staff`: list real staff and locations; admin only.
+- `POST /api/v1/admin/staff/invitations`: issue or reissue a cashier invitation; admin only, CSRF-protected for web sessions.
+- `POST /api/v1/auth/staff-invitations/accept`: origin-restricted public code redemption with rate limiting. No existing staff session needed.
+- `POST /api/v1/admin/staff/{staffId}/actions`: branch changes, suspension/reactivation, password reset. All existing staff sessions are revoked on changes; admin only.
+- `POST /api/v1/admin/staff`: legacy direct creation, disabled unless **both** server switches explicitly permit it.
 
-The Team & Roles page is currently enabled **only** in the protected synthetic staging build via `NEXT_PUBLIC_POS_COUNTER_UAT=1`. The same username/password perimeter and real administrator identity from the POS UAT guide apply. Do not use this workflow to create actual employees before the invitation and first-login password change flows are implemented.
+The user-facing responses never expose password hashes or audit secrets. A successful invitation issuance response contains the raw activation code **once**, and the cashier activation response returns only `activated: true`.
 
-1. Sign in at `https://pos-uat.varietygroceries.com/staff/login` with a **real staging administrator**, then open `https://pos-uat.varietygroceries.com/admin/team`.
-2. Confirm the team table is based on real database accounts, including their active/suspended state and assigned branch IDs. No fictional demo contacts should appear.
-3. Use **Create an authorised cashier** with a synthetic name/email, a unique strong **test** password, and at least one existing active branch (e.g., `uat_accra_20261110`). Confirm account creation.
-4. Log out, then sign in as that synthetic cashier. Its `/staff/cashier` page must show only assigned tills; `/staff/pos` allows only its own held-cart cash simulation.
-5. Sign in as the admin again, select the cashier, modify branch grants and confirm that the cashier's previously authenticated session is invalidated. The cashier must sign in again to obtain current grants.
-6. Suspend the cashier: prior sessions must be revoked and future login denied. Reactivate only when a valid active branch remains assigned.
-7. Reset the synthetic cashier password: the old session and credential must fail; new credentials must work. Confirm audit entries do not expose passwords.
-8. Try opening or managing the page as a cashier, customer, inventory manager or rider and verify that the API blocks those operations. In particular, this workflow cannot modify administrator accounts.
+## Testing on the private HTTPS staging site
 
-## Current limitations and production release gates
+The HTTPS perimeter and the existing staging admin credentials are required. Never use actual employees or business passwords.
 
-- **Initial passwords are administered directly**; the platform does not yet implement signed, expiring staff invitations, email delivery, forced first-login password changes, self-service password recovery or MFA.
-- Staff listings currently cap at 500 results; pagination and filtering are required for large fleets.
-- Only cashier accounts can be created or edited. Inventory-manager, rider and administrator lifecycle management needs separate scoped workflows.
-- This feature is a draft development slice. No production real-account seeding, production POS write activation or public user migration should result from these changes.
-- Real payment settlement, tax/accounting, refunds, backup/restore under production data, support procedures, audit monitoring and formal operational acceptance are separate launch requirements.
+1. Sign in at `https://pos-uat.varietygroceries.com/staff/login` as the **staging administrator**.
+2. Visit `https://pos-uat.varietygroceries.com/admin/team`. Confirm the page uses genuine database rows, not fictional demo employees.
+3. Enter a synthetic full name/email, choose an active branch (the sample Accra location is `uat_accra_20261110`), and click **Issue cashier invitation**. Copy the one-time code while visible and note the expiry.
+4. On a separate browser session, open `https://pos-uat.varietygroceries.com/staff/activate` and enter the code, new password and confirmation. A successful activation should instruct you to sign in, rather than signing you in automatically.
+5. Sign in as the invited cashier. Confirm they can access their assigned cashier reports and synthetic POS checkout, but not the administrator Team & Roles page or other branch data.
+6. Try redeeming the same invitation a second time: it must fail. Reissue a pending invitation and verify the superseded code no longer works. Expired invitations must be rejected.
+7. As admin, reassign the active cashier, suspend or reset their password, and verify existing sessions become invalid. A pending invitation suspended by an administrator must also be invalidated.
+8. Test the legacy direct-create endpoint with staff management enabled but direct creation disabled: the server must return `503 FEATURE_DISABLED` without creating an account.
 
-## Verified acceptance — 11 November 2026
+## Safety and launch gaps
 
-- The real staff backend compiled and the **4 database-backed staff-management integration tests passed** using the disposable `variety_foundation_test` database. Tests covered administrator-only access, rejection of forged roles and inactive branches, hashed credentials, duplicate emails, branch reassignment, session invalidation, suspension/reactivation, password reset and audit records with no exposed secrets.
-- OpenAPI generation succeeded with **147 documented routes**, including exactly the two staff-management paths. The canonical `docs/openapi-foundation.json` was regenerated. GitHub frontend and API CI completed successfully at the feature release candidate.
-- A database backup was created before updating the **isolated** staging API and web portal. The staging API returned HTTP **200** on readiness and **401** for unauthenticated staff endpoints; the existing Variety API and public web portal both remained HTTP **200**.
-- The HTTPS staging portal was rebuilt with the staff management UI and started under its existing systemd service. It returned **200** at `/admin/team` over localhost; the public HTTPS perimeter still required authentication (**401** for anonymous requests).
-- Headless **Chromium, 375px**: logged in as the real staging administrator, rendered `Team & real access` and the existing synthetic cashier account from server data, displayed the genuine create-cashier form, and showed no fictional team grid. The same browser logged in as the staging cashier and confirmed they could **not** enter the administrator page or view the create-account form. Both checks passed.
-- **UAT gap:** actual new account creation and mutation were verified in the **disposable integration test database**, not through the administrator browser against the owner-facing staging DB. Interactive owner acceptance of new-account onboarding, branch changes, suspension, resets, and the complete invited-staff experience is still required.
+- Activation is a bearer-code handoff, not identity proof or automatic email/SMS verification. No actual invitations should be sent to customers or real employees before approved identity, communications and support procedures exist.
+- Recovery for lost codes is an **administrator reissue**, not an emailed reset link. No self-service password recovery, mandatory MFA, or verified first-party delivery is implemented yet.
+- Staff listing currently caps at 500; pagination and large-business workflows remain.
+- Only cashiers are managed by this workflow; managers and riders need separate least-privilege onboarding.
+- On-host backups and restore drills exist for synthetic staging; encrypted **off-host** backups and production recovery objectives are still open.
+- Real checkout provider settlement, tax/accounting, returns/refunds, production inventory, and formal release acceptance remain separate workstreams.
 
-These results do **not** approve production onboarding or real POS activation.
+See [POS_PRIVATE_STAGING_TEST_GUIDE.md](POS_PRIVATE_STAGING_TEST_GUIDE.md) and [POS_STAGING_OPERATIONS_RECOVERY.md](POS_STAGING_OPERATIONS_RECOVERY.md) for the existing cashier/till testing and disaster-recovery boundaries.
