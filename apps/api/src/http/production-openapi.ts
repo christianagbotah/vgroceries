@@ -102,6 +102,7 @@ import {
 import { z } from "zod";
 import {
   createCashierSchema, manageCashierSchema, staffListSchema, staffRowSchema,
+  inviteCashierSchema, acceptCashierInvitationSchema,
 } from "../staff-management/staff-management.contracts";
 import { foundationOpenApi } from "./openapi";
 
@@ -259,6 +260,19 @@ export function productionOpenApi(app: INestApplication): OpenAPIObject {
   const schemas = doc.components!.schemas as Record<string, SchemaObject>;
 
   Object.assign(schemas, {
+    InviteCashierRequest: json(inviteCashierSchema),
+    AcceptCashierInvitationRequest: json(acceptCashierInvitationSchema),
+    IssuedCashierInvitationEnvelope: json(z.object({
+      ok: z.literal(true),
+      data: z.object({
+        cashier: staffRowSchema,
+        code: z.string(),
+        expiresAt: z.iso.datetime(),
+      }),
+    })),
+    CashierInvitationAcceptedEnvelope: json(z.object({
+      ok: z.literal(true), data: z.object({ activated: z.literal(true) }),
+    })),
     CreateCashierRequest: json(createCashierSchema),
     ManageCashierRequest: json(manageCashierSchema),
     StaffListEnvelope: json(z.object({ ok: z.literal(true), data: staffListSchema })),
@@ -1092,6 +1106,23 @@ export function productionOpenApi(app: INestApplication): OpenAPIObject {
       parameters: [csrf],
       requestBody: { required: true, content: { "application/json": { schema: ref("CreateCashierRequest") } } },
       responses: authorityResponses("StaffRowEnvelope"),
+    },
+  };
+  doc.paths["/api/v1/admin/staff/invitations"] = {
+    post: {
+      security,
+      description: "Administrator-only creation or reissue of a one-use, 48-hour invitation. A raw activation code is returned exactly once and only its SHA-256 digest is stored. The cashier remains inactive until acceptance.",
+      parameters: [csrf],
+      requestBody: { required: true, content: { "application/json": { schema: ref("InviteCashierRequest") } } },
+      responses: authorityResponses("IssuedCashierInvitationEnvelope"),
+    },
+  };
+  doc.paths["/api/v1/auth/staff-invitations/accept"] = {
+    post: {
+      security: [],
+      description: "Public one-time activation using an approved browser Origin, short-lived code and staff-selected password. Does not create a login session. Code reuse or expiry is rejected; attempts are IP-throttled.",
+      requestBody: { required: true, content: { "application/json": { schema: ref("AcceptCashierInvitationRequest") } } },
+      responses: authorityResponses("CashierInvitationAcceptedEnvelope"),
     },
   };
   doc.paths["/api/v1/admin/staff/{staffId}/actions"] = {
