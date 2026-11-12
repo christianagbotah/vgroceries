@@ -7,7 +7,7 @@ import type {
 
 export type CashierTillList = { enabled: boolean; includesSales: boolean; sessions: CashierTillSessionView[] };
 
-function serverBase(): string {
+export function verifiedApiBase(): string {
   const value = process.env.NEXT_PUBLIC_API_BASE_URL?.trim();
   if (!value) throw new ApiError("BAD_CONFIG", "The verified POS API is not configured.");
   const url = new URL(value);
@@ -36,7 +36,7 @@ export async function apiRequest<T>(
   if (method === "POST" && !options.csrf) {
     throw new ApiError("UNAUTHENTICATED", "A verified web session is required to change a POS record.");
   }
-  const response = await fetch(serverBase() + path, {
+  const response = await fetch(verifiedApiBase() + path, {
     method, credentials: "include", cache: "no-store",
     headers: {
       Accept: "application/json",
@@ -106,5 +106,5 @@ export const verifiedPosUat = {
       `/admin/pos/tills/${encodeURIComponent(sessionId)}/reconciliation`,
     ),
   printReceipt: (saleId: string) =>
-    `${serverBase()}/admin/pos/cash-sales/${encodeURIComponent(saleId)}/print`,
+    `${verifiedApiBase()}/admin/pos/cash-sales/${encodeURIComponent(saleId)}/print`,
 };
