@@ -76,7 +76,9 @@ test("team route renders real, server-scoped account management instead of ficti
   expect(ui).toContain('NEXT_PUBLIC_POS_COUNTER_UAT === "1"');
   expect(ui).toContain('session.actor.role !== "admin"');
   expect(ui).toContain("window.confirm");
-  expect(ui).toContain("Cashier created with real credentials");
+  expect(ui).toContain("Invitation issued. Copy and share");
+  expect(ui).toContain('data-testid="staff-invitation-code"');
+  expect(ui).not.toContain("Initial password (12");
   expect(ui).not.toContain("UAT_DEMO_ACCOUNTS");
   expect(ui).not.toContain("/api/mock/");
 });
