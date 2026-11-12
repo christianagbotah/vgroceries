@@ -183,7 +183,7 @@ test("public OpenAPI documents both staff routes, strict schemas and actor-only 
   assert.deepEqual(staff.get.security,[{cookieAuth:[]},{bearerAuth:[]}]);
   assert.deepEqual(actions.post.security,[{cookieAuth:[]},{bearerAuth:[]}]);
   assert.equal(JSON.stringify(doc.components?.schemas?.StaffRowEnvelope).includes("password"),false);
-  assert.equal(Object.keys(doc.paths).length,147);
+  assert.equal(Object.keys(doc.paths).length,149);
 });
 
 test("new staff endpoints are disabled by default on non-UAT API configurations",async()=>{
