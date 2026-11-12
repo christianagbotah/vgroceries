@@ -39,8 +39,7 @@ export class CashierInvitationsService {
           // Reissue is possible only for a still-pending cashier; accepting,
           // suspended, or other-role accounts cannot be overwritten.
           if (existing.role !== "cashier" || existing.active ||
-              !existing.staffInvitation || existing.staffInvitation.acceptedAt ||
-              existing.staffInvitation.revokedAt)
+              !existing.staffInvitation || existing.staffInvitation.acceptedAt)
             throw new ApiProblem(409, "ACCOUNT_EXISTS", "Account cannot be invited again.");
 
           userId = existing.id;
@@ -55,7 +54,7 @@ export class CashierInvitationsService {
           await tx.staffInvitation.update({
             where: { userId },
             data: { tokenHash: digest, expiresAt, acceptedAt: null,
-              createdAt: new Date(), createdByUserId: adminId },
+              revokedAt: null, createdAt: new Date(), createdByUserId: adminId },
           });
           await tx.session.updateMany({
             where: { userId, revokedAt: null },
