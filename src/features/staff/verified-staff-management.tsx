@@ -7,6 +7,7 @@ import { ApiError } from "@/services/adapters/types";
 import { verifiedPosUat } from "./verified-pos-uat-transport";
 import {
   verifiedStaff, type VerifiedStaffRow, type VerifiedStaffList,
+  type VerifiedCashierInvitation,
   type VerifiedCashierAction,
 } from "./verified-staff-transport";
 
@@ -36,7 +37,7 @@ export function VerifiedStaffManagement() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
-  const [password, setPassword] = useState("");
+  const [invitation, setInvitation] = useState<VerifiedCashierInvitation | null>(null);
   const [createLocations, setCreateLocations] = useState<string[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [editLocations, setEditLocations] = useState<string[]>([]);
@@ -119,10 +120,11 @@ export function VerifiedStaffManagement() {
         branch grants and session revocation. This page never generates fictional identities.</p>
     </header>
     <p className="rounded-xl border border-amber-500/50 p-4 text-sm leading-6">
-      <strong>Staging only.</strong> Administrator account required. Credentials are set
-      directly for the staff member; no email invitation or mandatory first-login password
-      change has been implemented yet. Use synthetic UAT accounts only. Branch reassignment,
-      suspension and password resets immediately invalidate that cashier&apos;s active sessions.
+      <strong>Staging only.</strong> The cashier chooses their own password using a 48-hour
+      one-time invitation. No email provider is connected; pass the activation code securely
+      to the intended synthetic UAT cashier. The code appears only once and must not be shared
+      in public messages or stored in the repository. Branch reassignment, suspension and
+      password resets revoke that cashier&apos;s active sessions.
       This screen cannot create administrators or grant additional roles.
     </p>
     {loading && <p role="status" className="rounded-xl border p-4">Verifying real administrator access…</p>}
@@ -164,7 +166,8 @@ export function VerifiedStaffManagement() {
       </section>
 
       <section className="space-y-4 rounded-xl border bg-card p-4">
-        <h2 className="text-lg font-semibold">Create an authorised cashier</h2>
+        <h2 className="text-lg font-semibold">Invite an authorised cashier</h2>
+        <p className="text-sm text-muted-foreground">The account remains inactive until the cashier sets a password. Reissue an expired invitation using the same email and branch selection.</p>
         <div className="grid gap-3 sm:grid-cols-2">
           <label className="space-y-1 text-sm font-medium"><span>Full name</span>
             <Input autoComplete="off" value={name} disabled={busy} onChange={e => setName(e.target.value)} />
@@ -175,26 +178,42 @@ export function VerifiedStaffManagement() {
           <label className="space-y-1 text-sm font-medium"><span>Phone (optional)</span>
             <Input autoComplete="off" value={phone} disabled={busy} onChange={e => setPhone(e.target.value)} />
           </label>
-          <label className="space-y-1 text-sm font-medium"><span>Initial password (12–256 characters)</span>
-            <Input type="password" autoComplete="new-password" value={password} disabled={busy}
-              onChange={e => setPassword(e.target.value)} />
-          </label>
+
         </div>
         {locationSelector(createLocations, setCreateLocations, busy)}
         <Button type="button" disabled={busy || name.trim().length < 2 ||
-          !email.includes("@") || password.length < 12 || createLocations.length === 0}
+          !email.includes("@") || createLocations.length === 0}
           onClick={() => {
-            if (!window.confirm(`Create cashier ${name.trim()} with access only to the selected branches?`)) return;
+            if (!window.confirm(`Issue a single-use invitation for ${name.trim()} at the selected branches?`)) return;
+            setInvitation(null);
             void run(async () => {
-              await verifiedStaff.createCashier(csrf, {
+              const issued = await verifiedStaff.inviteCashier(csrf, {
                 name: name.trim(), email: email.trim(), phone: phone.trim(),
-                password, locationIds: createLocations,
+                locationIds: createLocations,
               });
-              setName(""); setEmail(""); setPhone(""); setPassword(""); setCreateLocations([]);
-            }, "Cashier created with real credentials and branch grants.");
+              setInvitation(issued);
+              setName(""); setEmail(""); setPhone(""); setCreateLocations([]);
+            }, "Invitation issued. Copy and share the one-time code privately.");
           }}>
-          Create cashier account
+          Issue cashier invitation
         </Button>
+        {invitation && <div className="space-y-2 rounded-md border p-3" role="status">
+          <p className="text-sm font-semibold">One-time invitation for {invitation.cashier.email}</p>
+          <p className="text-sm">Expires: {new Date(invitation.expiresAt).toLocaleString("en-GH")}.
+            The cashier opens <a className="underline" href="/staff/activate">Staff activation</a>
+            and enters this code to set their password.</p>
+          <code className="block break-all rounded bg-muted p-3 text-xs" data-testid="staff-invitation-code">{invitation.code}</code>
+          <Button type="button" variant="outline" onClick={() => {
+            void navigator.clipboard.writeText(invitation.code).catch(() => {
+              setError("Clipboard unavailable. Select and copy the displayed code manually.");
+            });
+          }}>Copy invitation code</Button>
+          <Button type="button" variant="outline" onClick={() => setInvitation(null)}>
+            Hide code permanently
+          </Button>
+          <p className="text-xs text-muted-foreground">Do not share this code with anyone except its intended recipient.
+            It cannot be retrieved after this page is closed.</p>
+        </div>
       </section>
 
       {current && <section className="space-y-4 rounded-xl border border-primary/30 bg-card p-4">
