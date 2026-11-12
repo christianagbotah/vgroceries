@@ -107,6 +107,16 @@ export class StaffManagementService {
       if (records[0]?.role !== "cashier")
         throw new ApiProblem(404, "NOT_FOUND", "Cashier account not found.");
 
+      if ((body.action === "set_active" && body.active) ||
+          body.action === "reset_password") {
+        const invitation = await tx.staffInvitation.findUnique({
+          where: { userId: staffId },
+          select: { acceptedAt: true },
+        });
+        if (invitation && !invitation.acceptedAt)
+          throw new ApiProblem(409, "INVITATION_PENDING",
+            "This cashier must redeem the one-time invitation before activation or password changes.");
+      }
       if (body.action === "assign_locations") {
         await this.assertActiveLocations(tx, body.locationIds);
         await tx.userLocation.deleteMany({ where: { userId: staffId } });
