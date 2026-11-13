@@ -98,6 +98,8 @@ export class CashierInvitationsService {
           role: staff.role, active: staff.active,
           createdAt: staff.createdAt.toISOString(),
           locationIds: staff.locations.map(x => x.locationId).sort(),
+          invitationStatus: "pending" as const,
+          invitationExpiresAt: expiresAt.toISOString(),
         },
         // Never persist the plaintext code, including in an audit record.
         code,
