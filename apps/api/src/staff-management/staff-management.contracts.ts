@@ -42,6 +42,8 @@ export const staffRowSchema = z.strictObject({
   active: z.boolean(),
   createdAt: z.iso.datetime(),
   locationIds: z.array(z.string()),
+  invitationStatus: z.enum(["not_applicable", "pending", "expired", "revoked", "accepted"]),
+  invitationExpiresAt: z.iso.datetime().nullable(),
 });
 export const staffLocationSchema = z.strictObject({
   id: z.string(),
