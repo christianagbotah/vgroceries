@@ -52,3 +52,18 @@ The HTTPS perimeter and the existing staging admin credentials are required. Nev
 - Real checkout provider settlement, tax/accounting, returns/refunds, production inventory, and formal release acceptance remain separate workstreams.
 
 See [POS_PRIVATE_STAGING_TEST_GUIDE.md](POS_PRIVATE_STAGING_TEST_GUIDE.md) and [POS_STAGING_OPERATIONS_RECOVERY.md](POS_STAGING_OPERATIONS_RECOVERY.md) for the existing cashier/till testing and disaster-recovery boundaries.
+
+## Verified staging acceptance — 13 November 2026
+
+The isolated production-build staging environment successfully completed the **real HTTPS** cashier invitation acceptance flow at a **375 px mobile viewport**. This was not a mocked frontend session:
+
+1. Administrator authenticated to the real Team & Roles page and verified the list contained actual database rows, not fictional staff.
+2. Administrator issued a **synthetic** cashier invitation for the active Accra UAT branch. A one-time code was returned in the private administrator UI, without exposing it in browser logs or source control.
+3. In a separate activation screen, that code was redeemed using the cashier's **self-selected password**. Successful acceptance did **not** sign the cashier in automatically.
+4. The cashier signed in using the new credentials and reached their branch-scoped cashier workspace.
+5. Navigating to the administrator Team & Roles area was blocked for the cashier.
+6. The administrator suspended the newly activated cashier through the audited UI. A cleanup pass verified **no active `vg-uat-invite-` synthetic test cashiers remained**, including those from earlier incomplete test runs.
+
+The private staging web, isolated API, pre-migration database backup and PostgreSQL migration were separately verified healthy. The complete frontend and API GitHub CI checks passed at the deployed invitation commit `18c8a81` before this documentation update.
+
+**Acceptance scope:** synthetic cashier invite, first-password activation, least-privilege login, prohibited admin access and account suspension. This does **not** verify automated email/SMS delivery, identity verification, production employee onboarding, provider settlement or real-money POS. The code is still restricted to the development pull request, and production transaction flags remain disabled.
