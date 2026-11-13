@@ -7,6 +7,7 @@ import { ApiProblem } from "../http/errors";
 import { AuthRequest } from "../identity/identity.service";
 import { tokenHash } from "../identity/crypto";
 import { randomUUID } from "node:crypto";
+import { classifyInventoryLot } from "./expiry-classification";
 
 @Injectable()
 export class InventoryService {
@@ -82,6 +83,57 @@ export class InventoryService {
       locationId,
     };
   }
+  /** Read-only lot exception reporting on the same authoritative inventory DB. */
+  async expiry(req: AuthRequest, locationId = this.config.stockLocationId) {
+    this.authorize(req, locationId);
+    const location = await this.db.location.findUnique({
+      where: { id: locationId }, select: { id: true, name: true, active: true },
+    });
+    if (!location?.active) {
+      throw new ApiProblem(404, "NOT_FOUND", "Active stock location not found.");
+    }
+    const lots = await this.db.stockLot.findMany({
+      where: { quantity: { gt: 0 }, position: { locationId } },
+      include: { position: { include: { variant: { include: { product: true } } } } },
+      orderBy: [{ expiryDate: "asc" }, { id: "asc" }],
+      take: 2001,
+    });
+    if (lots.length > 2000) {
+      throw new ApiProblem(409, "REPORT_TOO_LARGE",
+        "Too many active lots for this report. Filter or archive old stock before retrying.");
+    }
+    const queues: {
+      expired: Record<string, unknown>[];
+      soon: Record<string, unknown>[];
+      quarantined: Record<string, unknown>[];
+      damaged: Record<string, unknown>[];
+    } = { expired: [], soon: [], quarantined: [], damaged: [] };
+    const today = new Date().toISOString().slice(0, 10);
+    for (const lot of lots) {
+      const expiryDate = lot.expiryDate?.toISOString().slice(0, 10) ?? null;
+      const classification = classifyInventoryLot({
+        kind: lot.kind, quarantined: lot.quarantined, expiryDate,
+      }, today);
+      if (!classification) continue;
+      const row = {
+        id: lot.id,
+        productName: lot.position.variant.product.name,
+        variantName: lot.position.variant.name,
+        variantId: lot.position.variantId,
+        lotNumber: lot.lotNumber,
+        quantity: lot.quantity.toString(),
+        ...(expiryDate ? { expiryDate } : {}),
+        kind: lot.kind,
+        isQuarantined: lot.quarantined,
+        location: location.name,
+        ...(classification.daysLeft !== undefined
+          ? { daysLeft: classification.daysLeft } : {}),
+      };
+      queues[classification.queue].push(row);
+    }
+    return queues;
+  }
+
   async receive(req: AuthRequest, input: ReceiveRequest, key: string) {
     if (input.supplierId)
       throw new ApiProblem(

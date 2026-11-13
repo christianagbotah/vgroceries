@@ -56,6 +56,16 @@ export class InventoryController {
       ),
     };
   }
+  @Get("expiry")
+  @Permission("inventory.read")
+  async expiry(@Req() req: AuthRequest, @Query("locationId") locationId?: string) {
+    if (locationId !== undefined && (typeof locationId !== "string" ||
+      !/^[A-Za-z0-9_-]{1,128}$/.test(locationId))) {
+      throw new ApiProblem(400, "VALIDATION_FAILED", "Invalid stock location.");
+    }
+    return { ok: true, data: await this.inventory.expiry(req, locationId) };
+  }
+
   @Post("receive")
   @Permission("inventory.receive")
   @ApiHeader({
