@@ -1,0 +1,28 @@
+[Unit]
+Description=Variety Groceries isolated HTTPS POS staging portal
+After=vg-pos-staging-api.service network-online.target
+Wants=vg-pos-staging-api.service network-online.target
+StartLimitIntervalSec=120
+StartLimitBurst=8
+
+[Service]
+Type=exec
+User=lightworld
+Group=lightworld
+WorkingDirectory=/home/lightworld/workspaces/vgroceries-pos-integrated-20261110
+EnvironmentFile=/home/lightworld/workspaces/vgroceries-pos-integrated-20261110/.env.production.local
+Environment=NODE_ENV=production
+Environment=PORT=3051
+Environment=HOSTNAME=127.0.0.1
+ExecStart=/home/lightworld/runtime/node24/bin/node .next/standalone/server.js
+Restart=always
+RestartSec=4s
+TimeoutStopSec=30s
+KillSignal=SIGTERM
+UMask=0027
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+
+[Install]
+WantedBy=multi-user.target

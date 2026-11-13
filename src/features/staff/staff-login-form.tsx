@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { UAT_DEMO_ACCOUNTS } from "@/features/staff/uat-demo-accounts";
-import { isDemoStaffSessionActive, startDemoStaffSession } from "@/features/staff/staff-demo-session";
+import { clearDemoStaffSession, isDemoStaffSessionActive, startDemoStaffSession } from "@/features/staff/staff-demo-session";
 
 export function StaffLoginForm({ demoEnabled = false }: { demoEnabled?: boolean }) {
   const router = useRouter();
@@ -24,18 +24,22 @@ export function StaffLoginForm({ demoEnabled = false }: { demoEnabled?: boolean 
 
   useEffect(() => {
     const candidate = new URLSearchParams(window.location.search).get("next");
-    const safeReturnPath = candidate?.startsWith("/admin") && !candidate.startsWith("//") ? candidate : "/admin";
+    const safeReturnPath = candidate === "/staff/cashier" || candidate === "/staff/pos" ? candidate
+      : candidate && /^\/admin(?:\/|$)/.test(candidate) ? candidate : "/admin";
     setReturnPath(safeReturnPath);
 
+    // The cashier workspace always checks real server sessions, never mock identities.
     if (isDemoStaffSessionActive()) {
-      router.replace(safeReturnPath);
+      if (safeReturnPath !== "/staff/cashier" && safeReturnPath !== "/staff/pos") router.replace(safeReturnPath);
       return;
     }
 
     let active = true;
     apiOps.staffSession().then((session) => {
       if (!active) return;
-      if (session.actor.role === "admin" || session.actor.role === "inventory_manager") {
+      if (session.actor.role === "cashier") {
+        router.replace(safeReturnPath === "/staff/pos" ? "/staff/pos" : "/staff/cashier");
+      } else if (session.actor.role === "admin" || session.actor.role === "inventory_manager") {
         router.replace(safeReturnPath);
       }
     }).catch(() => undefined);
@@ -47,7 +51,7 @@ export function StaffLoginForm({ demoEnabled = false }: { demoEnabled?: boolean 
     if (!account) return;
     startDemoStaffSession(account.role);
     setError(null);
-    router.replace(returnPath);
+    router.replace(returnPath.startsWith("/staff/") ? "/admin" : returnPath);
     router.refresh();
   };
 
@@ -56,13 +60,18 @@ export function StaffLoginForm({ demoEnabled = false }: { demoEnabled?: boolean 
     setBusy(true);
     setError(null);
     try {
+      // Real sign-in must never inherit an old demo-only adapter session.
+      clearDemoStaffSession();
       const session = await apiOps.staffLogin(email, password);
-      if (session.actor.role !== "admin" && session.actor.role !== "inventory_manager") {
+      if (session.actor.role === "cashier") {
+        router.replace(returnPath === "/staff/pos" ? "/staff/pos" : "/staff/cashier");
+      } else if (session.actor.role === "admin" || session.actor.role === "inventory_manager") {
+        router.replace(session.actor.role === "inventory_manager" && returnPath === "/staff/pos" ? "/admin" : returnPath);
+      } else {
         await apiOps.staffLogout().catch(() => undefined);
-        setError("This account does not have back-office access.");
+        setError("This account does not have staff access.");
         return;
       }
-      router.replace(returnPath);
       router.refresh();
     } catch (cause) {
       setError(cause instanceof ApiError ? cause.message : "Could not sign in. Please try again.");
@@ -80,7 +89,7 @@ export function StaffLoginForm({ demoEnabled = false }: { demoEnabled?: boolean 
           <p className="mt-1 text-sm text-muted-foreground">Open the back office with a demo role or sign in as real staff.</p>
         </div>
 
-        {demoEnabled && UAT_DEMO_ACCOUNTS.length > 0 ? (
+        {demoEnabled && !["/staff/cashier", "/staff/pos"].includes(returnPath) && UAT_DEMO_ACCOUNTS.length > 0 ? (
           <Card className="border-primary/25 bg-primary/[0.03]">
             <CardHeader className="pb-3">
               <CardTitle className="flex items-center gap-2 text-lg">

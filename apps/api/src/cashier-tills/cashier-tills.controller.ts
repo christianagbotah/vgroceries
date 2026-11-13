@@ -3,6 +3,7 @@ import {ApiCookieAuth,ApiTags} from "@nestjs/swagger";
 import {cashierTillOpenSchema,cashierTillMoveSchema,cashierTillCloseSchema,replayKeySchema}
   from "@variety/contracts";
 import {AccessGuard} from "../identity/access.guard";
+import {hasPermission} from "../identity/permissions";
 import type {AuthRequest} from "../identity/identity.service";
 import {ApiProblem,ApiRequest} from "../http/errors";
 import {CashierTillsService} from "./cashier-tills.service";
@@ -27,10 +28,15 @@ export class CashierTillsController {
       "Only authorised administrators may manage preliminary till records.");
     return req.actor.id;
   }
+  /** null denotes administrator-wide access. Cashiers have location-only read access. */
+  private readScope(req:AuthRequest):string[]|null{
+    if(!hasPermission(req.actor.role,"pos.cash-report.read"))
+      throw new ApiProblem(403,"FORBIDDEN","Cash report access is not permitted.");
+    return req.actor.role==="admin"?null:req.actor.locationIds;
+  }
   @Get()
   async list(@Req() req:AuthRequest){
-    this.admin(req);
-    return {ok:true,data:await this.tills.list()};
+    return {ok:true,data:await this.tills.list(this.readScope(req))};
   }
   // Safe CSV: exact values in pesewas, without verified bank/MoMo or tax claims.
   @Get(":sessionId/reconciliation.csv")
@@ -39,18 +45,16 @@ export class CashierTillsController {
   @Header("Content-Disposition","attachment; filename=\"vg-pos-cash-drawer.csv\"")
   @Header("X-Content-Type-Options","nosniff")
   async reconciliationCsv(@Req() req:AuthRequest,@Param("sessionId") id:string){
-    this.admin(req);
-    return renderPosTillReconciliationCsv(await this.reconciliation.preview(id));
+    return renderPosTillReconciliationCsv(
+      await this.reconciliation.preview(id,this.readScope(req)));
   }
   @Get(":sessionId/reconciliation")
   async reconciliationPreview(@Req() req:AuthRequest,@Param("sessionId") id:string){
-    this.admin(req);
-    return {ok:true,data:await this.reconciliation.preview(id)};
+    return {ok:true,data:await this.reconciliation.preview(id,this.readScope(req))};
   }
   @Get(":sessionId")
   async detail(@Req() req:AuthRequest,@Param("sessionId") id:string){
-    this.admin(req);
-    return {ok:true,data:await this.tills.detail(id)};
+    return {ok:true,data:await this.tills.detail(id,this.readScope(req))};
   }
   @Post() @HttpCode(200)
   async open(@Req() req:AuthRequest,@Body() raw:unknown){

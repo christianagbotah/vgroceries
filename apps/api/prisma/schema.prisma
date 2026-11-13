@@ -10,6 +10,7 @@ datasource db {
 enum Role {
   admin
   inventory_manager
+  cashier
   customer
   rider
 }
@@ -24,6 +25,7 @@ model User {
   active Boolean @default(true)
   createdAt DateTime @default(now()) @db.Timestamptz(3)
   sessions Session[]
+  staffInvitation StaffInvitation?
   locations UserLocation[]
   customerAddresses CustomerAddress[]
   orders Order[]
@@ -47,6 +49,21 @@ model Session {
   createdAt DateTime @default(now()) @db.Timestamptz(3)
   refreshHistory RefreshToken[]
   @@index([userId, expiresAt])
+}
+
+// One invitation per cashier. The raw code never enters PostgreSQL and
+// only a single successful acceptance can move a cashier into active status.
+model StaffInvitation {
+  id String @id @default(uuid())
+  userId String @unique
+  user User @relation(fields: [userId], references: [id], onDelete: Restrict)
+  tokenHash String @unique
+  expiresAt DateTime @db.Timestamptz(3)
+  acceptedAt DateTime? @db.Timestamptz(3)
+  revokedAt DateTime? @db.Timestamptz(3)
+  createdByUserId String
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  @@index([expiresAt])
 }
 
 model RefreshToken {

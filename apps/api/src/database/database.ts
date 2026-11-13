@@ -19,6 +19,10 @@ export class Database
     super({
       adapter: new PrismaPg({
         connectionString: config.databaseUrl,
+        // All POS hold expiry and ledger timestamps must be evaluated in UTC.
+        // Some VPS PostgreSQL clusters default to a local timezone, which can
+        // shift driver timestamps and cause valid five-minute holds to fail.
+        options: "-c TimeZone=UTC",
         max: 10,
         connectionTimeoutMillis: 5000,
         idleTimeoutMillis: 30000,

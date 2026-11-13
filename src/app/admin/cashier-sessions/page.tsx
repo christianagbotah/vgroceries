@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { VerifiedCashDrawerReport } from "@/features/staff/verified-cash-drawer";
 import { apiOps, ApiError } from "@/services/client";
 import { useApiData } from "@/features/staff/admin-data";
 import { useStaff } from "@/features/staff/role-context";
@@ -19,7 +20,7 @@ import { cn } from "@/lib/utils";
 
 type Session = Awaited<ReturnType<typeof apiOps.sessions>>[number];
 
-export default function AdminCashierSessionsPage() {
+function DemoCashierSessionsPage() {
   const { user, can } = useStaff();
   const { toast } = useToast();
   const { data, loading, error, reload } = useApiData(() => apiOps.sessions(), []);
@@ -292,4 +293,14 @@ function Metric({ label, value, tone }: { label: string; value: string; tone?: "
       </p>
     </div>
   );
+}
+
+/** The legacy cashier session operations are MOCK ONLY.
+ * Production receives a separate read-only adapter to actual cash-ledger data.
+ */
+export default function AdminCashierSessionsPage() {
+  if (process.env.NEXT_PUBLIC_API_BASE_URL?.trim()) {
+    return <VerifiedCashDrawerReport />;
+  }
+  return <DemoCashierSessionsPage />;
 }

@@ -398,7 +398,15 @@ export function foundationOpenApi(app: INestApplication) {
         "/admin/pos/holds/{holdId}",
         "/admin/pos/holds/{holdId}/release",
       ].includes(suffix);
-      if (productionExtension || documentedProviderReturn || documentedPosTill) continue;
+      // Dedicated staff management is administrator-only and gets its strict
+      // request/response schemas in the production API documentation.
+      const documentedStaffManagement = [
+        "/admin/staff",
+        "/admin/staff/invitations",
+        "/admin/staff/{staffId}/actions",
+        "/auth/staff-invitations/accept",
+      ].includes(suffix);
+      if (productionExtension || documentedProviderReturn || documentedPosTill || documentedStaffManagement) continue;
       throw new Error(`Undocumented foundation endpoint: ${path}`);
     }
     for (const method of ["get", "post"] as const) {

@@ -10,6 +10,7 @@ import {CashierTillsService} from "./cashier-tills.service";
 import {PosTillReconciliationService} from "./pos-till-reconciliation.service";
 import {PosCashSalesService} from "./pos-cash-sales.service";
 import {PosCashSalesController} from "./pos-cash-sales.controller";
+import {PosCashierAccess} from "./pos-cashier-access";
 @Module({
   imports:[OrdersModule,InventoryModule],
   controllers:[
@@ -18,7 +19,7 @@ import {PosCashSalesController} from "./pos-cash-sales.controller";
   ],
   providers:[
     CashierTillsService,PosQuoteService,PosHoldsService,PosCashSalesService,
-    PosTillReconciliationService,
+    PosTillReconciliationService,PosCashierAccess,
   ],
   exports:[CashierTillsService],
 })

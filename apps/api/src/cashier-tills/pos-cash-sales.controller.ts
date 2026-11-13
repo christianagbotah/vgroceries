@@ -5,6 +5,7 @@ import {AccessGuard} from "../identity/access.guard";
 import type {AuthRequest} from "../identity/identity.service";
 import {ApiProblem,type ApiRequest} from "../http/errors";
 import {PosCashSalesService} from "./pos-cash-sales.service";
+import {PosCashierAccess} from "./pos-cashier-access";
 
 const replay=(req:ApiRequest)=>{
   const p=replayKeySchema.safeParse(req.get("idempotency-key"));
@@ -17,7 +18,7 @@ const replay=(req:ApiRequest)=>{
 @UseGuards(AccessGuard)
 @Controller("admin/pos/cash-sales")
 export class PosCashSalesController {
-  constructor(private readonly sales:PosCashSalesService){}
+  constructor(private readonly sales:PosCashSalesService, private readonly access:PosCashierAccess){}
   private admin(req:AuthRequest){
     if(req.actor.role!=="admin")
       throw new ApiProblem(403,"FORBIDDEN",
@@ -36,21 +37,23 @@ export class PosCashSalesController {
   @Header("Content-Security-Policy",
     "default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'")
   async printReceipt(@Req() req:AuthRequest,@Param("saleId") id:string){
-    this.admin(req);
+    await this.access.sale(req.actor,id);
     return this.sales.printReceipt(id);
   }
   @Get(":saleId")
   async detail(@Req() req:AuthRequest,@Param("saleId") id:string){
-    this.admin(req);return {ok:true,data:await this.sales.detail(id)};
+    await this.access.sale(req.actor,id);
+    return {ok:true,data:await this.sales.detail(id)};
   }
   @Post() @HttpCode(200)
   async complete(@Req() req:AuthRequest,@Body() raw:unknown){
-    const actorId=this.admin(req);
+    const actorId=req.actor.id;
     const parsed=posCashSaleCompleteSchema.safeParse(raw);
     if(!parsed.success)
       throw new ApiProblem(400,"VALIDATION_FAILED",
         "Physically counted full cash, goods handover and evidence note are required.",
         parsed.error.issues);
+    await this.access.hold(req.actor,parsed.data.holdId);
     return {ok:true,data:await this.sales.complete(
       actorId,replay(req),req.requestId,parsed.data)};
   }

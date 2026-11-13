@@ -100,6 +100,10 @@ import {
   cmsOverviewViewSchema,
 } from "@variety/contracts";
 import { z } from "zod";
+import {
+  createCashierSchema, manageCashierSchema, staffListSchema, staffRowSchema,
+  inviteCashierSchema, acceptCashierInvitationSchema,
+} from "../staff-management/staff-management.contracts";
 import { foundationOpenApi } from "./openapi";
 
 const ref = (name: string) => ({ $ref: `#/components/schemas/${name}` });
@@ -256,6 +260,23 @@ export function productionOpenApi(app: INestApplication): OpenAPIObject {
   const schemas = doc.components!.schemas as Record<string, SchemaObject>;
 
   Object.assign(schemas, {
+    InviteCashierRequest: json(inviteCashierSchema),
+    AcceptCashierInvitationRequest: json(acceptCashierInvitationSchema),
+    IssuedCashierInvitationEnvelope: json(z.object({
+      ok: z.literal(true),
+      data: z.object({
+        cashier: staffRowSchema,
+        code: z.string(),
+        expiresAt: z.iso.datetime(),
+      }),
+    })),
+    CashierInvitationAcceptedEnvelope: json(z.object({
+      ok: z.literal(true), data: z.object({ activated: z.literal(true) }),
+    })),
+    CreateCashierRequest: json(createCashierSchema),
+    ManageCashierRequest: json(manageCashierSchema),
+    StaffListEnvelope: json(z.object({ ok: z.literal(true), data: staffListSchema })),
+    StaffRowEnvelope: json(z.object({ ok: z.literal(true), data: staffRowSchema })),
     FulfilmentConfirmRequest: json(fulfilmentConfirmRequestSchema),
     FulfilmentStartPickingRequest: json(fulfilmentStartPickingRequestSchema),
     FulfilmentPickRequest: json(fulfilmentPickRequestSchema),
@@ -1074,5 +1095,47 @@ export function productionOpenApi(app: INestApplication): OpenAPIObject {
   doc.paths["/api/v1/rider/jobs/{jobId}/fail"] = { post: authorityMutation("Rider-only delivery failure with a bounded reason. Failure neither restores stock nor changes payment truth.", "RiderFailRequest", "RiderActionResponseEnvelope", [jobId]) };
   doc.paths["/api/v1/rider/jobs/{jobId}/notes"] = { post: authorityMutation("Rider-only idempotent operational note for the authenticated rider's job.", "RiderNoteRequest", "RiderActionResponseEnvelope", [jobId]) };
 
+  // Genuine staff-provisioning authority. Only cashier accounts are mutable;
+  // existing administrators, inventory managers, customers and riders cannot
+  // be reconfigured through these endpoints.
+  doc.paths["/api/v1/admin/staff"] = {
+    get: readOperation("Administrator-only real staff and active branch list; no passwords or secret hashes.", "StaffListEnvelope"),
+    post: {
+      security,
+      description: "Administrator-only cashier provisioning with active branch grants and audited initial credentials. No administrator account can be created here.",
+      parameters: [csrf],
+      requestBody: { required: true, content: { "application/json": { schema: ref("CreateCashierRequest") } } },
+      responses: authorityResponses("StaffRowEnvelope"),
+    },
+  };
+  doc.paths["/api/v1/admin/staff/invitations"] = {
+    post: {
+      security,
+      description: "Administrator-only creation or reissue of a one-use, 48-hour invitation. A raw activation code is returned exactly once and only its SHA-256 digest is stored. The cashier remains inactive until acceptance.",
+      parameters: [csrf],
+      requestBody: { required: true, content: { "application/json": { schema: ref("InviteCashierRequest") } } },
+      responses: authorityResponses("IssuedCashierInvitationEnvelope"),
+    },
+  };
+  doc.paths["/api/v1/auth/staff-invitations/accept"] = {
+    post: {
+      security: [],
+      description: "Public one-time activation using an approved browser Origin, short-lived code and staff-selected password. Does not create a login session. Code reuse or expiry is rejected; attempts are IP-throttled.",
+      requestBody: { required: true, content: { "application/json": { schema: ref("AcceptCashierInvitationRequest") } } },
+      responses: authorityResponses("CashierInvitationAcceptedEnvelope"),
+    },
+  };
+  doc.paths["/api/v1/admin/staff/{staffId}/actions"] = {
+    post: {
+      security,
+      description: "Administrator-only cashier branch reassignment, activation/deactivation or credential reset. Revokes all of the cashier's prior sessions; never changes other roles.",
+      parameters: [
+        { name: "staffId", in: "path", required: true, schema: { type: "string", minLength: 1 } },
+        csrf,
+      ],
+      requestBody: { required: true, content: { "application/json": { schema: ref("ManageCashierRequest") } } },
+      responses: authorityResponses("StaffRowEnvelope"),
+    },
+  };
   return doc;
 }
