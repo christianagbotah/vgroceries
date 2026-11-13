@@ -9,14 +9,25 @@ const managedRoles = ["admin", "inventory_manager", "cashier", "rider"] as const
 const employeeSelection = {
   id: true, name: true, email: true, phone: true, role: true,
   active: true, createdAt: true, locations: { select: { locationId: true } },
+  staffInvitation: { select: { acceptedAt: true, revokedAt: true, expiresAt: true } },
 } satisfies Prisma.UserSelect;
 
 type StaffRecord = Prisma.UserGetPayload<{ select: typeof employeeSelection }>;
+function invitationStatus(user: StaffRecord) {
+  const invitation = user.staffInvitation;
+  if (!invitation) return "not_applicable";
+  if (invitation.acceptedAt) return "accepted";
+  if (invitation.revokedAt) return "revoked";
+  if (invitation.expiresAt.getTime() <= Date.now()) return "expired";
+  return "pending";
+}
 function project(user: StaffRecord) {
   return {
     id: user.id, name: user.name, email: user.email, phone: user.phone,
     role: user.role, active: user.active, createdAt: user.createdAt.toISOString(),
     locationIds: user.locations.map(x => x.locationId).sort(),
+    invitationStatus: invitationStatus(user),
+    invitationExpiresAt: user.staffInvitation?.expiresAt.toISOString() ?? null,
   };
 }
 
