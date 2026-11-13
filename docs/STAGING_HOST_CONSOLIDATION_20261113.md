@@ -1,50 +1,49 @@
-# Variety Groceries — single staging hostname (13 November 2026)
+# Variety Groceries — canonical original staging portal (corrected 13 November 2026)
 
-## Canonical URLs
+## Domain ownership — only one staging portal
 
-- **Canonical single staging portal:** https://staging-portal.varietygroceries.com/
-- **All-role private test centre:** https://staging-portal.varietygroceries.com/uat
-- **Customer storefront:** https://staging-portal.varietygroceries.com/
-- **Staff sign-in:** https://staging-portal.varietygroceries.com/staff/login
-- **Authenticated POS:** https://staging-portal.varietygroceries.com/staff/pos
-- **Back office:** https://staging-portal.varietygroceries.com/admin
-- **Human support form:** https://staging-portal.varietygroceries.com/support
-- **Shopping assistant:** https://staging-portal.varietygroceries.com/assistant
-- **Same-origin API:** https://staging-portal.varietygroceries.com/api/v1/
+| Hostname | Correct purpose |
+| --- | --- |
+| **https://portal.varietygroceries.com** | **The ONE canonical staging/UAT portal** for customer storefront, administration, inventory, POS, logistics, customer AI and all role testing |
+| **https://varietygroceries.com** | **Production domain**; must retain the Coming Soon landing page pending formal launch approval |
+| https://staging-portal.varietygroceries.com | Unneeded extra hostname, now HTTP 302 redirected to the canonical portal |
+| https://pos-uat.varietygroceries.com | Unneeded earlier POS-UAT hostname, now HTTP 302 redirected to the canonical portal |
+| staging.portal.varietygroceries.com | Disused nested hostname; not used or relied on; HTTPS was unsupported by the previous Cloudflare certificate |
 
-There is **one staging application and one isolated staging PostgreSQL database**, not one staging per role or module. Screens are paths within this same hostname. The HTTP Basic perimeter is the same as the existing private POS-UAT environment, and real staff auth remains independent.
+All staging screens are **paths under the original portal**, not independently deployed domains: `/` storefront, `/uat` private testing hub, `/shop`, `/staff/login`, `/staff/pos`, `/admin`, `/admin/support`, `/assistant`, `/support` and `/api/v1`.
 
-## Other hostnames
+## Single authoritative staging data
 
-- `portal.varietygroceries.com`: the existing portal on separate live web and API services; untouched during staging consolidation.
-- `pos-uat.varietygroceries.com`: older private UAT hostname; after verified cutover, redirect to the canonical staging hostname to prevent duplicate entry points.
-- `staging.portal.varietygroceries.com`: **not** the canonical URL; nested-name TLS is unresolved and the hostname is unnecessary.
+- The original staging database is **lightworld_variety_uat** on the VPS's PostgreSQL port 5432, **not** the separate synthetic `variety_pos_staging` database.
+- Before consolidation: 32 products, 32 variants, 1 existing customer, 1 branch and 0 orders in the original UAT database.
+- A custom-format snapshot was saved (restricted mode 600) at `/home/lightworld/backups/varietygroceries-stage-consolidation/portal-uat-before-consolidation-20261113.dump`.
+- A full database **clone** was restored at a temporary local port and all ten pending migrations were successfully run and verified against the restored copy first.
+- The same ten additive migrations were then applied to the **original UAT** database; Prisma confirmed that all 43 migrations are up to date, and its original data counts remained unchanged.
+- The updated staging API is the new code on 127.0.0.1:3049 using `/home/lightworld/config/varietygroceries/consolidated-staging-api.env` with the **original** database and `loc_accra` stock branch.
+- The updated staging frontend is on 127.0.0.1:3051 with `NEXT_PUBLIC_API_BASE_URL=https://portal.varietygroceries.com/api/v1`; server-side base remains 127.0.0.1:3049.
+- The obsolete separate POS dataset is not connected to the canonical portal and may be retired once no longer needed for rollback.
 
-## Infrastructure
+## Routing, privacy and rollback
 
-- Canonical staging TLS certificate: `/etc/letsencrypt/live/vg-staging-portal/fullchain.pem`; Let's Encrypt HTTP-01 webroot `/var/www/varietygroceries-staging-portal-acme`.
-- Staging Nginx proxy: `/usr/local/apps/nginx/etc/conf.d/zzzz-varietygroceries-staging-portal.conf`; HTTP redirects to HTTPS, HTTPS uses a dedicated certificate and HTTP Basic, `/api/v1/` proxies to 127.0.0.1:3049, all other paths to 127.0.0.1:3051.
-- Staging API `WEB_ORIGINS` includes the canonical staging origin. The staging frontend `NEXT_PUBLIC_API_BASE_URL` is compiled as the canonical same-origin `https://staging-portal.varietygroceries.com/api/v1`.
-- Existing separate POS staging API/PostgreSQL service retained. No production database migration.
-- Nginx and environment backups with suffix `single-staging-backup-20261113` or `backup-20261113-single-staging` are available on VPS for rollback.
+- Nginx entry point: `/usr/local/apps/nginx/etc/conf.d/zzz-varietygroceries-portal.conf` with HTTPS and a private HTTP Basic perimeter (the same credential file already used for earlier private POS-UAT).
+- The application still requires its **own real authenticated staff sessions and CSRF protection** for protected operations; the Basic perimeter is a separate extra boundary.
+- Approved media URLs under `/media/products/` retain the original staging media alias; private media paths remain non-public.
+- Current web and API systemd services are `vg-pos-staging-web` and `vg-pos-staging-api`; the previous portal/API services at local ports 3037/3027 remain available only as rollback references, no longer routed through the canonical hostname.
+- Portal Nginx backup: `zzz-varietygroceries-portal.conf.before-canonical-20261113` alongside the active Nginx configuration. Both extra-host configurations were backed up before changing their redirects.
+- Original portal/API environment files were preserved. Updated staging configuration remains private and outside Git.
+- The **production** landing page `varietygroceries.com` was never reconfigured and was verified to still show Coming Soon after cutover.
 
-## Acceptance criteria
+## Validation evidence
 
-1. Valid public TLS and private access challenge at `https://staging-portal.varietygroceries.com/`.
-2. All critical staging routes render under the new hostname, with no old-host API references in the new frontend JS.
-3. Browser requests use same-origin `/api/v1/`; API and web both work after login and maintain CSRF/session protections.
-4. Public unauthenticated visitors see an HTTP Basic challenge; the staging API does not accept the Basic secret as an app authorization credential.
-5. `portal.varietygroceries.com` retains its previous deployment.
-6. The old `pos-uat` hostname redirects (after cutover verified) rather than acting as a separate portal.
-7. No public production rollout without acceptance and user approval.
+- Updated Next.js production-mode build passed TypeScript and generated all 60 routes.
+- Staging API live and ready endpoints returned HTTP 200 using the original UAT database; public catalogue returned 31 currently sellable goods from the original 32 products.
+- Internal staging frontend `/`, `/shop`, `/uat`, `/assistant`, `/support`, `/staff/login`, `/staff/pos` and `/admin/support` all returned HTTP 200.
+- Canonical public HTTPS has a valid Cloudflare edge certificate and returns HTTP 401 until the separate private UAT access gate is satisfied; staging is not anonymously accessible.
+- Real authenticated browser check at 375px passed administrator login, verified real staff listing, and mobile-width layout without overflow.
+- The original UAT database had no admin before merge; a synthetic staging administrator was added securely with the previously established private UAT credentials and granted its existing branch. The preexisting customer was retained.
+- Full synthetic invitation UAT passed on canonical portal: issue hashed invitation, accept/activate, cashier login, branch-scoped access, reject cashier on admin-only page, suspend synthetic test cashier, and verify no active synthetic invitation accounts remain.
+- `staging-portal` and `pos-uat` resolve by 302 to `https://portal.varietygroceries.com`; production website confirmed Coming Soon.
 
-## Deployment verification (completed 13 November 2026)
+## Remaining separate work
 
-- Public HTTPS valid for the canonical hostname; certificate expires 11 February 2027 with Certbot automatic renewal configured.
-- HTTP Basic perimeter responds 401 until authorised; the old POS-UAT hostname returns 302 to the canonical staging hostname, preserving the requested path.
-- Staging API CORS verified for the canonical hostname. Frontend rebuilt with new same-origin API URL, then only `vg-pos-staging-web` was restarted.
-- Source optimized Next.js build passed, including TypeScript and 60 generated routes. Internal staging URL checks returned 200 for the storefront, UAT launchpad, shop, assistant, support, admin support, staff login, staff POS and admin POS.
-- Real authenticated Chromium test on the canonical HTTPS hostname passed at 375px: administrator staff listing, synthetic cashier view, and cashier denial of administrative staff access.
-- All four Variety Groceries web/API services remain active; previous `portal.varietygroceries.com` root returned HTTP 200 after migration. Its deployment and production database were not modified.
-- The legacy POS-UAT Nginx configuration is backed up at `zzz-varietygroceries-pos-uat.conf.backup-single-stage-20261113`. The canonical staging Nginx HTTP config backup and both staging environment file backups are retained separately.
-- This is a staging domain consolidation only, **not** final owner-led acceptance or authorization to launch the main storefront.
+Full production-grade roles (finance reviewer/operations manager/picker/dispatcher), live rider tracking/contact, shipping providers, payments and accounting parity, larger-volume browser UAT, non-demo production readiness, data privacy and launch approval are **not** implied by this staging consolidation. Keep staging private, and never deploy the customer storefront to the production root without explicit launch approval.
