@@ -11,6 +11,8 @@ export type VerifiedStaffRow = {
   active: boolean;
   createdAt: string;
   locationIds: string[];
+  invitationStatus: "not_applicable" | "pending" | "expired" | "revoked" | "accepted";
+  invitationExpiresAt: string | null;
 };
 export type VerifiedStaffLocation = {
   id: string; name: string; active: boolean;
