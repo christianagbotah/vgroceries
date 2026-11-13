@@ -52,6 +52,10 @@ test("invited cashiers set their own password; no administrator-chosen password 
   const page = readFileSync("src/app/staff/activate/page.tsx","utf8");
   expect(team).toContain("Issue cashier invitation");
   expect(team).toContain("Copy invitation code");
+  expect(team).toContain("Invitation pending");
+  expect(team).toContain("Invitation expired");
+  expect(team).toContain("Reissue one-time invitation");
+  expect(team).toContain("Revoke invitation");
   expect(team).not.toContain("Initial password (12");
   expect(team).not.toContain("verifiedStaff.createCashier(csrf");
   expect(activate).toContain("Set password and activate");
