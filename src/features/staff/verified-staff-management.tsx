@@ -272,11 +272,13 @@ export function VerifiedStaffManagement() {
           <Button type="button" variant="outline"
             disabled={busy || (current.invitationStatus === "revoked" && !current.active)}
             onClick={() => {
-              const nextActive = !current.active;
-              if (!window.confirm(`${nextActive ? "Reactivate" : "Suspend"} ${current.name}? All current sessions will be revoked.`)) return;
+              const pending = ["pending", "expired"].includes(current.invitationStatus);
+              const nextActive = pending ? false : !current.active;
+              if (!window.confirm(`${pending ? "Revoke invitation for" : nextActive ? "Reactivate" : "Suspend"} ${current.name}? All current sessions will be revoked.`)) return;
               void run(() => verifiedStaff.manageCashier(csrf, current.id, {
                 action: "set_active", active: nextActive,
-              }), nextActive ? "Cashier reactivated; new sign-in required." : "Cashier suspended and sessions revoked.");
+              }), pending ? "Invitation revoked. Issue a new invitation to activate this cashier."
+                : nextActive ? "Cashier reactivated; new sign-in required." : "Cashier suspended and sessions revoked.");
             }>{current.invitationStatus === "pending" || current.invitationStatus === "expired"
               ? "Revoke invitation" : current.invitationStatus === "revoked"
                 ? "Invitation revoked" : current.active ? "Suspend cashier" : "Reactivate cashier"}</Button>
