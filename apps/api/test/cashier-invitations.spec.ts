@@ -96,6 +96,12 @@ test("one-use cashier invitation stores only a digest and requires recipient's n
   assert.match(code,/^[a-f0-9]{64}$/);
   assert.equal(cashier.active,false);
   assert.equal(cashier.role,"cashier");
+  assert.equal(cashier.invitationStatus,"pending");
+  assert.equal(cashier.invitationExpiresAt,expiresAt);
+  const pendingList=await request("/admin/staff","GET",undefined,admin);
+  assert.equal(pendingList.status,200);
+  assert.equal(pendingList.payload.data.staff.find((x:{id:string})=>x.id===cashier.id).invitationStatus,"pending");
+  assert.equal(JSON.stringify(pendingList.payload).includes(code),false);
   assert.ok(new Date(expiresAt).getTime()>Date.now());
   const record=await db.staffInvitation.findUniqueOrThrow({where:{userId:cashier.id}});
   assert.equal(record.tokenHash,tokenHash(code));
@@ -119,6 +125,8 @@ test("one-use cashier invitation stores only a digest and requires recipient's n
   assert.equal(accepted.status,201,JSON.stringify(accepted.payload));
   assert.deepEqual(accepted.payload.data,{activated:true});
   assert.equal((await accept(code)).status,400);
+  const acceptedList=await request("/admin/staff","GET",undefined,admin);
+  assert.equal(acceptedList.payload.data.staff.find((x:{id:string})=>x.id===cashier.id).invitationStatus,"accepted");
   const cashierAuth=await login("new-cashier@example.test","Cashier chooses own Password 2026!");
   assert.equal((await request("/auth/me","GET",undefined,cashierAuth)).status,200);
   assert.equal((await request("/admin/staff/invitations","POST",{
@@ -175,6 +183,8 @@ test("expired and inactive-location invitations cannot be used",async()=>{
     data:{expiresAt:new Date(Date.now()-60_000)},
   });
   assert.equal((await accept(exp.payload.data.code)).status,400);
+  const expiredList=await request("/admin/staff","GET",undefined,admin);
+  assert.equal(expiredList.payload.data.staff.find((x:{id:string})=>x.id===exp.payload.data.cashier.id).invitationStatus,"expired");
   const closed=await invite(admin,"closed-location-cashier@example.test");
   assert.equal(closed.status,201);
   await db.location.update({where:{id:"loc_accra"},data:{active:false}});
