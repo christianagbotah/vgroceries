@@ -67,3 +67,11 @@ The isolated production-build staging environment successfully completed the **r
 The private staging web, isolated API, pre-migration database backup and PostgreSQL migration were separately verified healthy. The complete frontend and API GitHub CI checks passed at the deployed invitation commit `18c8a81` before this documentation update.
 
 **Acceptance scope:** synthetic cashier invite, first-password activation, least-privilege login, prohibited admin access and account suspension. This does **not** verify automated email/SMS delivery, identity verification, production employee onboarding, provider settlement or real-money POS. The code is still restricted to the development pull request, and production transaction flags remain disabled.
+
+## Invitation state and reissue controls
+
+The administrator Team & Roles page now distinguishes a **pending invitation**, **expired invitation**, **revoked invitation** and **accepted invitation** from an ordinary suspended cashier account. These states are computed from the server-side `StaffInvitation` record; its secret code/hash never enters the staff-list response. An expiry timestamp is shown for pending, expired and revoked invitations.
+
+A pending, expired or revoked cashier can be selected through **Manage cashier**, then **Reissue one-time invitation**. The administrator must retain at least one active branch assignment; reissuing invalidates any earlier code and presents the replacement code just once in the existing private invitation panel. A pending or expired invitation may also be **revoked**. Suspended or pending cashiers must not be activated by bypassing the one-use code or by administrator password reset.
+
+For staging acceptance, issue a code, verify it shows as pending, redeem it and refresh to verify accepted status. Issue a second synthetic invitation, force its expiry in a disposable test database (never modify the owner-facing stage database merely to change its clock), and verify expired/reissue transitions through the API tests. Use the existing branch and role security checks to confirm that a cashier cannot invoke these controls.
