@@ -1,5 +1,6 @@
 import { Suspense } from "react";
 import { StorefrontFooter, StorefrontHeader, StorefrontMobileNav } from "@/components/layout/storefront-shell";
+import { CustomerVoiceConcierge } from "@/features/ai/customer-voice-concierge";
 
 function HeaderFallback() {
   return <div className="h-[148px] border-b bg-white lg:h-[114px]" aria-hidden />;
@@ -15,6 +16,7 @@ export default function StorefrontLayout({ children }: { children: React.ReactNo
         {children}
       </main>
       <StorefrontFooter />
+      <CustomerVoiceConcierge />
       <StorefrontMobileNav />
     </div>
   );

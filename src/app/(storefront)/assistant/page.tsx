@@ -10,6 +10,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { apiOps, ApiError, type AssistantResponse, type BudgetBasketResponse } from "@/services/client";
+import { groundedShoppingAnswer, groundedBudgetBasket } from "@/features/ai/grounded-catalog";
 import { useCart } from "@/features/checkout/cart-store";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -48,7 +49,7 @@ export default function AssistantPage() {
     setAskError(null);
     setAnswer(null);
     try {
-      setAnswer(await apiOps.assistant(query));
+      setAnswer(await groundedShoppingAnswer(query));
       setQuestion(query);
     } catch (e) {
       setAskError(e instanceof ApiError ? e.message : "The assistant could not answer — try again.");
@@ -66,7 +67,7 @@ export default function AssistantPage() {
     setBasketError(null);
     setBasketBusy(true);
     try {
-      setBasket(await apiOps.budgetBasket(minor));
+      setBasket(await groundedBudgetBasket(minor));
     } catch (e) {
       setBasketError(e instanceof ApiError ? e.message : "Could not build a basket.");
     } finally {
