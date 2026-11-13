@@ -70,5 +70,5 @@ export class CatalogController {
     return { ok: true, data: await this.catalog.detail(slug) };
   }
 }
-@Module({ controllers: [CatalogController], providers: [CatalogService] })
+@Module({ controllers: [CatalogController], providers: [CatalogService], exports: [CatalogService] })
 export class CatalogModule {}

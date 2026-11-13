@@ -60,7 +60,7 @@ export function CustomerVoiceConcierge(){
      <div className="border-t bg-white p-3">
        {error?<p role="alert" className="mb-2 text-xs text-destructive">{error}</p>:null}
        <div className="mb-2 flex items-center justify-between gap-2 text-xs">
-         <div className="flex gap-3"><Link href="/track" className="font-semibold text-primary underline">Track order</Link><Link href="/help" className="font-semibold text-primary underline">Contact support</Link></div>
+         <div className="flex gap-3"><Link href="/track" className="font-semibold text-primary underline">Track order</Link><Link href="/support" className="font-semibold text-primary underline">Request human callback</Link></div>
          <button type="button" className="inline-flex items-center gap-1 rounded p-1.5 hover:bg-muted" onClick={()=>{setReadAloud(v=>!v);window.speechSynthesis?.cancel();}} aria-pressed={readAloud}>
            {readAloud?<Volume2 className="size-4"/>:<VolumeX className="size-4"/>}{readAloud?"Voice on":"Read aloud off"}
          </button>

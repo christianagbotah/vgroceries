@@ -191,7 +191,7 @@ function TrackFormContent({ orderId, initialReference, initialCode }: {
         </div>
       ) : null}
 
-      {!orderId && !order && !error && !loading ? (
+      {!process.env.NEXT_PUBLIC_API_BASE_URL && !orderId && !order && !error && !loading ? (
         <p className="mt-6 rounded-xl border border-dashed p-3 text-sm text-muted-foreground">
           Demo tip: track <code className="rounded bg-muted px-1 font-mono text-xs">VG-8Q2M1A</code> with code{" "}
           <code className="rounded bg-muted px-1 font-mono text-xs">7H2K9P</code> (a delivered order with a partial refund), or{" "}

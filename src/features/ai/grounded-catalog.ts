@@ -18,7 +18,11 @@ function suggestions(products:CatalogProduct[],max:number):AssistantResponse["su
 export async function groundedShoppingAnswer(question:string):Promise<AssistantResponse>{
  const q=question.trim().slice(0,400);
  if(!q)throw new ApiError("VALIDATION_FAILED","Ask a question first.");
- if(!process.env.NEXT_PUBLIC_API_BASE_URL?.trim())return apiOps.assistant(q);
+ try { return await apiOps.assistant(q); }
+ catch (error) {
+   if (!process.env.NEXT_PUBLIC_API_BASE_URL?.trim() || !(error instanceof ApiError) || error.code !== "NOT_FOUND") throw error;
+   // Compatibility only for an older isolated staging API release.
+ }
  if(/\b(order|parcel|rider|tracking|track|where is my)\b/i.test(q))
    return {answer:"For the current progress of an order, open Track order and complete verification. I cannot disclose private order or rider details from an unverified chat.",evidence:["Order tracking requires verification"],suggestions:[]};
  const terms=tokens(q),products=await findAvailable(terms.length?terms:[q]);
@@ -29,7 +33,10 @@ export async function groundedShoppingAnswer(question:string):Promise<AssistantR
 }
 export async function groundedBudgetBasket(budgetMinor:number):Promise<BudgetBasketResponse>{
  if(!Number.isSafeInteger(budgetMinor)||budgetMinor<100)throw new ApiError("VALIDATION_FAILED","Enter a budget of at least ₵1.00.");
- if(!process.env.NEXT_PUBLIC_API_BASE_URL?.trim())return apiOps.budgetBasket(budgetMinor);
+ try { return await apiOps.budgetBasket(budgetMinor); }
+ catch (error) {
+   if (!process.env.NEXT_PUBLIC_API_BASE_URL?.trim() || !(error instanceof ApiError) || error.code !== "NOT_FOUND") throw error;
+ }
  const choices=suggestions(await findAvailable([""],100),100).filter(p=>p.priceMinor>0).sort((a,b)=>a.priceMinor-b.priceMinor);
  const items:AssistantResponse["suggestions"]=[];let totalMinor=0;
  for(const item of choices){if(items.length>=8)break;if(totalMinor+item.priceMinor<=budgetMinor){items.push(item);totalMinor+=item.priceMinor;}}

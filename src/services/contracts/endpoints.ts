@@ -15,6 +15,9 @@ export const restEndpoints: Record<string, RestEndpoint> = {
   ...sharedRestEndpoints,
   "admin.categories.create": { method: "POST", path: "/admin/categories" },
   // Authenticated cash-report GETs; the API owns role and location filtering.
+  "support.create": { method: "POST", path: "/support/requests" },
+  "admin.support.list": { method: "GET", path: "/admin/support" },
+  "admin.support.action": { method: "POST", path: "/admin/support/{caseId}/actions" },
   "pos.tills.list": { method: "GET", path: "/admin/pos/tills" },
   "pos.tills.reconciliation": { method: "GET", path: "/admin/pos/tills/{sessionId}/reconciliation" },
 };

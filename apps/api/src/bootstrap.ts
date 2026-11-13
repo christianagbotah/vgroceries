@@ -6,6 +6,8 @@ import helmet from "helmet";
 import { randomUUID } from "node:crypto";
 import { API_CONFIG, ApiConfig, readConfig } from "./config";
 import { CatalogModule } from "./catalog/catalog.controller";
+import { ShoppingAiModule } from "./shopping-ai/shopping-ai.controller";
+import { SupportModule } from "./support/support.controller";
 import { CatalogAdminModule } from "./catalog-admin/catalog-admin.module";
 import { ProductMediaModule } from "./product-media/product-media.module";
 import { InventoryModule } from "./inventory/inventory.controller";
@@ -75,6 +77,8 @@ export async function createApplication(
       HealthModule,
       IdentityModule,
       CatalogModule,
+      ShoppingAiModule,
+      SupportModule,
       CatalogAdminModule,
       CmsModule,
       AdminDashboardModule,

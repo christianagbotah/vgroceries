@@ -79,6 +79,11 @@ export const operationMeta: Record<string, OperationMeta> = {
   "account.returns": { tags: RET },
   "returns.detail": { tags: [...RET, ...PAY] },
 
+  /* Customer support (real public request; administrator-only inbox) */
+  "support.create": { invalidates: ["notifications"] },
+  "admin.support.list": { tags: ["notifications"] },
+  "admin.support.action": { invalidates: ["notifications"] },
+
   /* AI */
   "ai.assistant": { tags: [...CAT, ...AI] },
   "ai.budget-basket": { tags: [...CAT, ...AI] },

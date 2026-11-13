@@ -2,7 +2,7 @@ import Link from "next/link";
 import { CmsInfoPage } from "@/components/shared/cms-info-page";
 import { getCmsContentPage } from "@/services/server-data";
 import type { CmsContentPageView } from "@/services/contracts";
-import { MapPin, Package, RotateCcw, Truck } from "lucide-react";
+import { MapPin, Package, RotateCcw, Truck, Headphones } from "lucide-react";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = { title: "Help centre" };
@@ -29,6 +29,7 @@ export default async function HelpPage() {
           { href: "/returns-policy", icon: RotateCcw, title: "Returns & refunds", copy: "Return, inspection and refund information" },
           { href: "/track", icon: Package, title: "Track an order", copy: "Use your reference and verification code" },
           { href: "/account/orders", icon: MapPin, title: "Your orders", copy: "History, repeats and eligible cancellations" },
+          { href: "/support", icon: Headphones, title: "Request a human response", copy: "Create a support request or ask for a callback" },
         ].map((item) => (
           <Link key={item.href} href={item.href} className="rounded-xl border bg-card p-4 transition-colors hover:border-primary/50 hover:bg-accent">
             <p className="flex items-center gap-2 font-semibold"><item.icon className="size-5 text-primary" aria-hidden /> {item.title}</p>

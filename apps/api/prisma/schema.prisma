@@ -1466,3 +1466,38 @@ model PosCashReceiptLine {
   lineTotalMinor Int
   @@index([saleId, variantId])
 }
+
+
+/**
+ * Customer support requests from web chat, guest checkout or help centre.
+ * Only an authenticated administrator may list or change case status.
+ * No message is sent or telephone call initiated by storing a case.
+ */
+model CustomerSupportCase {
+  id String @id @default(uuid())
+  reference String @unique
+  name String
+  phone String
+  email String?
+  subject String
+  message String
+  orderReference String?
+  preferredContact String @default("phone")
+  status String @default("open")
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+  activities CustomerSupportActivity[]
+  @@index([status, createdAt])
+  @@index([createdAt])
+}
+
+model CustomerSupportActivity {
+  id String @id @default(uuid())
+  caseId String
+  supportCase CustomerSupportCase @relation(fields:[caseId],references:[id],onDelete:Restrict)
+  actorId String?
+  action String
+  privateNote String?
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  @@index([caseId, createdAt])
+}
