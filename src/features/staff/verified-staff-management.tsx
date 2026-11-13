@@ -279,7 +279,7 @@ export function VerifiedStaffManagement() {
                 action: "set_active", active: nextActive,
               }), pending ? "Invitation revoked. Issue a new invitation to activate this cashier."
                 : nextActive ? "Cashier reactivated; new sign-in required." : "Cashier suspended and sessions revoked.");
-            }>{current.invitationStatus === "pending" || current.invitationStatus === "expired"
+            }}>{current.invitationStatus === "pending" || current.invitationStatus === "expired"
               ? "Revoke invitation" : current.invitationStatus === "revoked"
                 ? "Invitation revoked" : current.active ? "Suspend cashier" : "Reactivate cashier"}</Button>
         </div>
