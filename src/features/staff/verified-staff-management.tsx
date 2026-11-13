@@ -42,6 +42,10 @@ export function VerifiedStaffManagement() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [editLocations, setEditLocations] = useState<string[]>([]);
   const [resetPassword, setResetPassword] = useState("");
+  useEffect(() => {
+    if (invitation) document.getElementById("staff-invitation-result")
+      ?.scrollIntoView({ block: "center", behavior: "smooth" });
+  }, [invitation]);
 
   const refresh = useCallback(async () => { setList(await verifiedStaff.list()); }, []);
   useEffect(() => {
@@ -81,6 +85,7 @@ export function VerifiedStaffManagement() {
     setSelectedId(staff.id);
     setEditLocations([...staff.locationIds]);
     setResetPassword("");
+    setInvitation(null);
     setNotice(null); setError(null);
   }
 
@@ -150,12 +155,20 @@ export function VerifiedStaffManagement() {
                 <p className="text-sm text-muted-foreground">{roles[staff.role]}</p>
               </div>
               <span className="rounded-md border px-2 py-1 text-xs font-medium">
-                {staff.active ? "Active" : "Suspended"}
+                {staff.invitationStatus === "pending" ? "Invitation pending"
+                  : staff.invitationStatus === "expired" ? "Invitation expired"
+                  : staff.invitationStatus === "revoked" ? "Invitation revoked"
+                  : staff.active ? "Active" : "Suspended"}
               </span>
             </div>
             <p className="text-sm text-muted-foreground">
               Branches: {staff.locationIds.length ? staff.locationIds.join(", ") : "No assignments"}
             </p>
+            {staff.role === "cashier" && staff.invitationExpiresAt &&
+              ["pending", "expired", "revoked"].includes(staff.invitationStatus) &&
+              <p className="text-xs text-muted-foreground">
+                Invitation expiry: {new Date(staff.invitationExpiresAt).toLocaleString("en-GH")}
+              </p>}
             {staff.role === "cashier" && <Button type="button" variant="outline"
               disabled={busy} onClick={() => choose(staff)}>Manage cashier</Button>}
             {staff.role !== "cashier" && <p className="text-xs text-muted-foreground">
@@ -197,7 +210,7 @@ export function VerifiedStaffManagement() {
           }}>
           Issue cashier invitation
         </Button>
-        {invitation && <div className="space-y-2 rounded-md border p-3" role="status">
+        {invitation && <div id="staff-invitation-result" className="space-y-2 rounded-md border p-3" role="status">
           <p className="text-sm font-semibold">One-time invitation for {invitation.cashier.email}</p>
           <p className="text-sm">Expires: {new Date(invitation.expiresAt).toLocaleString("en-GH")}.
             The cashier opens <a className="underline" href="/staff/activate">Staff activation</a>
@@ -222,6 +235,27 @@ export function VerifiedStaffManagement() {
             <p className="text-sm text-muted-foreground">Cashier · {current.email}</p></div>
           <Button variant="outline" disabled={busy} onClick={() => setSelectedId(null)}>Close</Button>
         </div>
+        {current.invitationStatus !== "not_applicable" && <p className="text-sm text-muted-foreground">
+          Invitation: {current.invitationStatus}
+          {current.invitationExpiresAt ? " · expires " + new Date(current.invitationExpiresAt).toLocaleString("en-GH") : ""}
+        </p>}
+        {["pending", "expired", "revoked"].includes(current.invitationStatus) && current.email &&
+          <Button type="button" variant="outline" disabled={busy} onClick={() => {
+            const activeGrants = current.locationIds.filter(id => locations.some(loc => loc.id === id));
+            if (!activeGrants.length) {
+              setError("Assign at least one active branch before reissuing this invitation.");
+              return;
+            }
+            if (!window.confirm("Invalidate any earlier invitation and issue a fresh one-time code for this cashier?")) return;
+            setInvitation(null);
+            void run(async () => {
+              const issued = await verifiedStaff.inviteCashier(csrf, {
+                name: current.name, email: current.email!, phone: current.phone,
+                locationIds: activeGrants,
+              });
+              setInvitation(issued);
+            }, "New one-time invitation issued. Copy the code above and share it privately.");
+          }}>Reissue one-time invitation</Button>}
         {locationSelector(editLocations, setEditLocations, busy)}
         <Button variant="outline" disabled={busy || editLocations.length === 0}
           onClick={() => {
@@ -231,17 +265,24 @@ export function VerifiedStaffManagement() {
             }), "Branch grants changed; old sessions revoked.");
           }}>Save branch assignments</Button>
         <div className="flex flex-wrap items-center gap-3 border-t pt-4">
-          <p className="flex-1 text-sm">Account is currently <strong>{current.active ? "active" : "suspended"}</strong>.</p>
-          <Button type="button" variant="outline" disabled={busy}
+          <p className="flex-1 text-sm">Account is currently <strong>{
+            ["pending", "expired", "revoked"].includes(current.invitationStatus)
+              ? "awaiting a valid invitation" : current.active ? "active" : "suspended"
+          }</strong>.</p>
+          <Button type="button" variant="outline"
+            disabled={busy || (current.invitationStatus === "revoked" && !current.active)}
             onClick={() => {
               const nextActive = !current.active;
               if (!window.confirm(`${nextActive ? "Reactivate" : "Suspend"} ${current.name}? All current sessions will be revoked.`)) return;
               void run(() => verifiedStaff.manageCashier(csrf, current.id, {
                 action: "set_active", active: nextActive,
               }), nextActive ? "Cashier reactivated; new sign-in required." : "Cashier suspended and sessions revoked.");
-            }}>{current.active ? "Suspend cashier" : "Reactivate cashier"}</Button>
+            }>{current.invitationStatus === "pending" || current.invitationStatus === "expired"
+              ? "Revoke invitation" : current.invitationStatus === "revoked"
+                ? "Invitation revoked" : current.active ? "Suspend cashier" : "Reactivate cashier"}</Button>
         </div>
-        <div className="space-y-3 border-t pt-4">
+        {!["pending", "expired", "revoked"].includes(current.invitationStatus) &&
+          <div className="space-y-3 border-t pt-4">
           <h3 className="font-semibold">Administrator-issued password reset</h3>
           <label className="block space-y-1 text-sm font-medium"><span>New password (12–256 characters)</span>
             <Input type="password" autoComplete="new-password" disabled={busy}
@@ -257,7 +298,7 @@ export function VerifiedStaffManagement() {
                 setResetPassword("");
               }, "Cashier password reset and old sessions revoked.");
             }}>Reset cashier password</Button>
-        </div>
+        </div>}
       </section>}
     </>}
   </main>;
