@@ -170,6 +170,35 @@ The preflight cannot verify merchant scope, account ownership, whitelisting,
 real payment results or current VPS deployment status. It does not replace
 end-to-end staging acceptance. **Do not send the full `api.env` file in chat.**
 
+## Isolated VPS verification — 14 November 2026
+
+Read-only examination on `vps.lightworldtech.com` reconfirmed the status API
+responds **HTTP 403**, despite the existing sales credentials; only response
+status was surfaced. This is consistent with missing IP allowlisting or an
+unauthorized service scope. The outbound IPv4 is `163.245.212.15`.
+
+A fresh Git clone of `feature/hubtel-documented-apis-20261114` was made in
+`/home/lightworld/workspaces/vgroceries-hubtel-verification-20261114`.
+Using the separate Node 24 runtime and no active service changes:
+
+- `npm ci` for contracts and API, shared-contract build, Prisma client
+  generation and API TypeScript compilation completed successfully.
+- **22/22 database-free Hubtel tests passed** (merchant config, online
+  checkout, SMS client).
+- The offline credential preflight reported the Sales and SMS groups
+  configured. No credentials or SMS recipient numbers were printed.
+- The broader test glob includes refund callback and dispatch tests that need
+  a dedicated test database and test environment configuration. These failed
+  in the standalone workspace because that environment was absent; the full
+  repository GitHub CI passed. **Do not point those integration tests to the
+  live operational database.**
+- No production systemd service was restarted, no Prisma migration was run,
+  no payment or SMS was sent, and no public DNS was changed.
+
+Hubtel's November 2026 documentation explicitly describes IP allowlisting
+for transaction-status and refund services. The vendor request is saved
+as `docs/HUBTEL_ALLOWLIST_VENDOR_REQUEST_2026.md`.
+
 ## Next gates before activation
 
 1. The merchant Sales/SMS credentials are already stored in the protected backend environment. Verify merchant scopes and fix the documented **transaction-status service** access (observed HTTP 403) before accepting real money. SMS/checkout initiation need not wait on whitelisting merely to run safe offline tests.
