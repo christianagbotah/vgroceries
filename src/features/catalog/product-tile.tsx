@@ -8,29 +8,32 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/hooks/use-toast";
 import { useCart } from "@/features/checkout/cart-store";
 import { WishlistButton } from "@/features/catalog/wishlist-button";
+import { selectedPurchasableVariant } from "@/features/catalog/selected-purchasable-variant";
 import type { CatalogProduct } from "@/services/client";
 import { formatMoney } from "@/lib/money";
-import { Check, ShoppingCart, Star } from "lucide-react";
+import { Check, ShoppingCart } from "lucide-react";
 
 export function ProductTile({ product, priority }: { product: CatalogProduct; priority?: boolean }) {
   const { add } = useCart();
   const { toast } = useToast();
   const available = product.variants.filter((v) => v.isAvailable);
   const [variantId, setVariantId] = useState(available[0]?.id ?? product.variants[0]?.id ?? "");
-  const chosen = product.variants.find((v) => v.id === variantId) ?? available[0];
+  const chosen = product.variants.find((v) => v.id === variantId);
+  const purchasable = selectedPurchasableVariant(product.variants, variantId);
   const productImage = product.featuredImage?.url ?? product.image;
 
   const quickAdd = () => {
-    if (!chosen?.isAvailable) return;
+    // Do not add a different pack size when the selected SKU becomes unavailable.
+    if (!purchasable) return;
     add({
-      variantId: chosen.id,
+      variantId: purchasable.id,
       productId: product.id,
       quantity: "1",
-      name: `${product.name} — ${chosen.name}`,
+      name: `${product.name} — ${purchasable.name}`,
       image: productImage,
-      priceMinor: chosen.priceMinor,
+      priceMinor: purchasable.priceMinor,
     });
-    toast({ title: "Added to cart", description: `${product.name} — ${chosen.name}` });
+    toast({ title: "Added to cart", description: `${product.name} — ${purchasable.name}` });
   };
 
   return (
@@ -39,41 +42,40 @@ export function ProductTile({ product, priority }: { product: CatalogProduct; pr
         <Link href={`/products/${product.slug}`} className="absolute inset-0 focus-visible:outline-2" aria-label={`${product.name} — view details`}>
           <Image src={productImage} alt={product.featuredImage?.altText || `${product.name} product photo`} fill unoptimized={Boolean(product.featuredImage)} sizes="(max-width:640px) 50vw, (max-width:1024px) 25vw, 190px" className="object-cover transition-transform duration-300 group-hover:scale-[1.035]" priority={priority} />
         </Link>
-        {chosen?.compareAtPriceMinor ? <span className="absolute left-2 top-2 rounded-full bg-brand-amber px-2 py-1 text-[10px] font-black text-[color:var(--brand-green-deep)] shadow-sm">Offer</span> : null}
-        {chosen ? <WishlistButton
+        {purchasable?.compareAtPriceMinor ? <span className="absolute left-2 top-2 rounded-full bg-brand-amber px-2 py-1 text-[10px] font-black text-[color:var(--brand-green-deep)] shadow-sm">Offer</span> : null}
+        {purchasable ? <WishlistButton
           compact
           className="absolute right-2 top-2"
-          item={{ variantId: chosen.id, productId: product.id, name: `${product.name} — ${chosen.name}`, image: productImage, priceMinor: chosen.priceMinor, slug: product.slug }}
+          item={{ variantId: purchasable.id, productId: product.id, name: `${product.name} — ${purchasable.name}`, image: productImage, priceMinor: purchasable.priceMinor, slug: product.slug }}
         /> : null}
       </div>
 
       <div className="flex flex-1 flex-col p-2.5 sm:p-3">
-        <div className="mb-1 flex items-center gap-1 text-[10px] font-semibold text-brand-amber" aria-label="Popular product preview">
-          <Star className="size-3 fill-current" /><Star className="size-3 fill-current" /><Star className="size-3 fill-current" /><Star className="size-3 fill-current" /><Star className="size-3 fill-current" />
-          <span className="ml-0.5 text-muted-foreground">demo</span>
-        </div>
-        <Link href={`/products/${product.slug}`} className="line-clamp-2 text-[13px] font-extrabold leading-snug tracking-[-0.01em] hover:text-primary hover:underline sm:text-sm">{product.name}</Link>
+        <Link href={`/products/${product.slug}`} className="line-clamp-2 text-sm font-extrabold leading-snug tracking-[-0.01em] hover:text-primary hover:underline sm:text-[15px]">{product.name}</Link>
 
         {product.variants.length > 1 && available.length > 0 ? (
           <Select value={variantId} onValueChange={setVariantId} aria-label={`${product.name} variant`}>
-            <SelectTrigger className="mt-2 h-8 w-full rounded-lg bg-muted/35 px-2 text-[11px] shadow-none" size="sm"><SelectValue placeholder="Choose size" /></SelectTrigger>
+            <SelectTrigger className="mt-2 h-11 w-full rounded-lg bg-muted/35 px-2 text-xs shadow-none sm:text-sm" size="sm"><SelectValue placeholder="Choose size" /></SelectTrigger>
             <SelectContent>{product.variants.map((v) => <SelectItem key={v.id} value={v.id} disabled={!v.isAvailable}>{v.name} · {v.priceLabel}{v.isAvailable ? "" : " (out of stock)"}</SelectItem>)}</SelectContent>
           </Select>
         ) : (
-          <p className="mt-1 truncate text-[11px] text-muted-foreground">{chosen?.name ?? product.variants[0]?.name}</p>
+          <p className="mt-1 truncate text-xs text-muted-foreground">{chosen?.name ?? "Choose an available size"}</p>
         )}
 
         <div className="mt-auto pt-2">
           <div className="mb-2 flex min-h-8 items-end gap-1.5">
             <p className="text-base font-black leading-none text-[color:var(--brand-green-deep)]">{chosen?.priceLabel ?? product.minPriceLabel}</p>
-            {chosen?.compareAtPriceMinor ? <p className="text-[10px] leading-none text-muted-foreground line-through">{formatMoney(chosen.compareAtPriceMinor)}</p> : null}
+            {purchasable?.compareAtPriceMinor ? <p className="text-[10px] leading-none text-muted-foreground line-through">{formatMoney(purchasable.compareAtPriceMinor)}</p> : null}
           </div>
-          {chosen?.isAvailable ? (
-            <Button className="h-9 w-full rounded-xl text-[11px] font-extrabold sm:text-xs" onClick={quickAdd} aria-label={`Add ${product.name} (${chosen.name}) to cart`}>
+          {available.length > 0 && !purchasable ? (
+            <p role="status" className="mb-2 text-xs font-medium text-amber-800">Selected size unavailable. Choose another available size.</p>
+          ) : null}
+          {purchasable ? (
+            <Button className="h-11 w-full rounded-xl text-xs font-extrabold sm:text-sm" onClick={quickAdd} aria-label={`Add ${product.name} (${purchasable.name}) to cart`}>
               <ShoppingCart className="size-3.5" /> Add to cart
             </Button>
           ) : (
-            <Button size="sm" variant="outline" className="h-9 w-full rounded-xl" disabled>Sold out</Button>
+            <Button variant="outline" className="h-11 w-full rounded-xl" disabled>{available.length ? "Choose available size" : "Sold out"}</Button>
           )}
         </div>
       </div>
