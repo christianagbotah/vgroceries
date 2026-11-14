@@ -224,6 +224,33 @@ Hubtel's November 2026 documentation explicitly describes IP allowlisting
 for transaction-status and refund services. The vendor request is saved
 as `docs/HUBTEL_ALLOWLIST_VENDOR_REQUEST_2026.md`.
 
+## Controlled Hubtel SMS submission — 14 November 2026
+
+With the owner's explicit authorization for a **single test recipient**,
+a one-off test was executed directly from the connected VPS using the
+compiled branch's `HubtelSmsClient` and protected server-side SMS credentials.
+The recipient's full number, credentials, and provider message ID were **not
+committed** to the repository. A private local once-only attempt guard was
+created before the network request to prevent ambiguous retries.
+
+- `POST https://sms.hubtel.com/v1/messages/batch/simple/send` returned
+  **HTTP 201**, and the Hubtel adapter returned `state=submitted` with a
+  nonempty provider `messageId`.
+- A subsequent **GET-only** lookup using that message ID returned
+  **HTTP 404**, with the same message ID in its response but no confirmed
+  delivery status. **Handset delivery is not established.**
+- Exactly **one** SMS submission was attempted; there was **no second send**
+  and no real charge, refund, or payout. Automatic SMS dispatch, timers and
+  customer messaging remained disabled.
+- This was a **controlled live provider test**, not an end-to-end application
+  order-notification acceptance test. The live API release and production
+  website were not updated.
+
+**Next:** Confirm with the recipient whether the test text arrived, and
+investigate the 404 receipt endpoint behavior with Hubtel before marking
+messages delivered. Do not retry sending an uncertain or accepted message
+just to obtain a status.
+
 ## Next gates before activation
 
 1. The merchant Sales/SMS credentials are already stored in the protected backend environment. Verify merchant scopes and fix the documented **transaction-status service** access (observed HTTP 403) before accepting real money. SMS/checkout initiation need not wait on whitelisting merely to run safe offline tests.
