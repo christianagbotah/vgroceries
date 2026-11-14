@@ -8,7 +8,7 @@ The inventory expiry screen previously had only a mock operation and no real RES
 
 - Requires a real authenticated session with the backend `inventory.read` permission. The default location is the existing portal UAT location `loc_accra`; any optional `locationId` is validated and nonadmin users may read only locations explicitly assigned in their session.
 - Reports **only positive recorded physical lot quantities**. The endpoint never fabricates expiry dates or product quantities.
-- Uses the current UTC calendar date for Ghana: yesterday and earlier are expired; today's date has 0 days left; the next seven days are in the expiring queue.
+- Uses the current UTC calendar date for Ghana: today and earlier are expired/unavailable for sale; the next seven days are in the expiring queue. This is deliberately identical to the PostgreSQL `variant_availability` stock view.
 - Each lot belongs to one exception queue to prevent duplicate counts. Recorded damaged/spoilage goods are separately flagged; quarantined/unknown nonregular lots are not promoted as saleable stock.
 - Reports product, variant, recorded lot number, quantity, recorded expiry (if present), exception status, and stock location.
 - Rejects reports above 2,000 active lots instead of silently returning incomplete counts. Pagination/streaming is a future enhancement for larger facilities.

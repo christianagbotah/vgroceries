@@ -29,7 +29,8 @@ export function classifyInventoryLot(
   const now = Date.parse(`${today}T00:00:00.000Z`);
   if (!Number.isFinite(expiry) || !Number.isFinite(now)) return null;
   const remaining = Math.round((expiry - now) / DAY_MS);
-  if (remaining < 0) return { queue: "expired" };
+  // Match variant_availability: a lot dated TODAY is already not sellable.
+  if (remaining <= 0) return { queue: "expired" };
   if (remaining <= horizonDays) return { queue: "soon", daysLeft: remaining };
   return null;
 }

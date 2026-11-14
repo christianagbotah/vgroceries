@@ -8,9 +8,10 @@ const today = "2026-11-13";
 const regular = (expiryDate: string | null) =>
   classifyInventoryLot({ kind: "regular", quarantined: false, expiryDate }, today);
 
-test("expiry classification uses calendar days without incorrectly marking today's food expired", () => {
+test("expiry classification uses calendar days matching the authoritative sellable stock view", () => {
   assert.deepEqual(regular("2026-11-12"), { queue: "expired" });
-  assert.deepEqual(regular("2026-11-13"), { queue: "soon", daysLeft: 0 });
+  assert.deepEqual(regular("2026-11-13"), { queue: "expired" });
+  assert.deepEqual(regular("2026-11-14"), { queue: "soon", daysLeft: 1 });
   assert.deepEqual(regular("2026-11-20"), { queue: "soon", daysLeft: 7 });
   assert.equal(regular("2026-11-21"), null);
   assert.equal(regular(null), null);
