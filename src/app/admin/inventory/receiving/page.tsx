@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { apiOps, ApiError } from "@/services/client";
 import { useApiData } from "@/features/staff/admin-data";
 import { useStaff } from "@/features/staff/role-context";
@@ -14,7 +14,8 @@ import { useToast } from "@/hooks/use-toast";
 import { formatDateTime } from "@/lib/format";
 import { ClipboardCheck, Plus, Trash2, PackagePlus } from "lucide-react";
 
-interface ReceiveLine { variantId: string; lotNumber: string; quantity: string; expiryDate: string }
+const liveReceiving = Boolean(process.env.NEXT_PUBLIC_API_BASE_URL);
+interface ReceiveLine { variantId: string; variantLabel?: string; lotNumber: string; quantity: string; expiryDate: string }
 
 type Receipt = Awaited<ReturnType<typeof apiOps.receipts>>[number];
 type Supplier = Awaited<ReturnType<typeof apiOps.suppliers>>[number];
@@ -26,11 +27,13 @@ export default function AdminReceivingPage() {
   const { toast } = useToast();
 
   const { data: receipts, loading, error, reload } = useApiData(() => apiOps.receipts(), []);
-  const { data: suppliers } = useApiData(() => apiOps.suppliers(), []);
-  const { data: purchases } = useApiData(() => apiOps.purchases(), []);
+  const { data: suppliers } = useApiData(() => liveReceiving ? Promise.resolve([] as Supplier[]) : apiOps.suppliers(), []);
+  const { data: purchases } = useApiData(() => liveReceiving ? Promise.resolve([] as Purchase[]) : apiOps.purchases(), []);
 
   const [supplierId, setSupplierId] = useState("");
   const [poId, setPoId] = useState("none");
+  const [poRef, setPoRef] = useState("");
+  const retryKey = useRef<string | null>(null);
   const [note, setNote] = useState("");
   const [lines, setLines] = useState<ReceiveLine[]>([{ variantId: "", lotNumber: "", quantity: "", expiryDate: "" }]);
   const [variantQuery, setVariantQuery] = useState("");
@@ -45,7 +48,18 @@ export default function AdminReceivingPage() {
     }
     const t = setTimeout(async () => {
       try {
-        setVariants((await apiOps.posSearch(q)).slice(0, 8));
+        if (liveReceiving) {
+          const products = await apiOps.adminProducts(q);
+          setVariants(products.flatMap((product) => product.variants.map((variant) => ({
+            variantId: variant.id, productId: product.id, productName: product.name,
+            variantName: variant.name, unit: variant.unit, priceMinor: variant.priceMinor,
+            priceLabel: variant.priceLabel, barcode: variant.barcode,
+            image: product.image, availableToSell: variant.availableToSell,
+            isAvailable: variant.isAvailable,
+          }))).slice(0, 8));
+        } else {
+          setVariants((await apiOps.posSearch(q)).slice(0, 8));
+        }
       } catch {
         setVariants([]);
       }
@@ -54,12 +68,13 @@ export default function AdminReceivingPage() {
   };
 
   const updateLine = (i: number, patch: Partial<ReceiveLine>) => {
+    retryKey.current = null;
     setLines((prev) => prev.map((l, idx) => (idx === i ? { ...l, ...patch } : l)));
   };
 
   const submit = async () => {
     const clean = lines.filter((l) => l.variantId && l.lotNumber.trim() && Number(l.quantity) > 0);
-    if (!supplierId) {
+    if (!liveReceiving && !supplierId) {
       toast({ title: "Choose a supplier", variant: "destructive" });
       return;
     }
@@ -75,14 +90,19 @@ export default function AdminReceivingPage() {
     }
     setBusy(true);
     try {
+      if (!retryKey.current) retryKey.current = crypto.randomUUID();
       await apiOps.receive({
-        supplierId,
-        purchaseOrderId: poId !== "none" ? poId : undefined,
-        lines: clean.map((l) => ({ variantId: l.variantId, lotNumber: l.lotNumber.trim(), quantity: l.quantity, expiryDate: l.expiryDate || undefined })),
+        ...(liveReceiving ? { poRef: poRef.trim() || undefined } : {
+          supplierId, purchaseOrderId: poId !== "none" ? poId : undefined,
+        }),
+        lines: clean.map((l) => ({ variantId: l.variantId, lotNumber: l.lotNumber.trim(),
+          quantity: l.quantity, expiryDate: l.expiryDate || undefined })),
         note: note.trim() || undefined,
-        actor: user.id,
-      });
+        ...(!liveReceiving ? { actor: user.id } : {}),
+      }, retryKey.current);
       await reload();
+      retryKey.current = null;
+      setPoRef("");
       setLines([{ variantId: "", lotNumber: "", quantity: "", expiryDate: "" }]);
       setNote("");
       setPoId("none");
@@ -104,8 +124,9 @@ export default function AdminReceivingPage() {
       <div>
         <h1 className="font-serif text-2xl font-bold">Goods receiving</h1>
         <p className="text-sm text-muted-foreground">
-          Record delivered goods as tracked lots with supplier references and expiry dates, matching
-          a purchase order when there is one.
+          {liveReceiving
+            ? "Receive goods into the actual shared stock ledger with optional delivery references and expiry dates."
+            : "Record delivered goods as tracked lots with supplier and purchase-order references."}
         </p>
       </div>
 
@@ -114,7 +135,22 @@ export default function AdminReceivingPage() {
           <h2 id="rc-form" className="flex items-center gap-2 font-semibold">
             <PackagePlus className="size-5 text-primary" aria-hidden /> New goods receipt
           </h2>
+          {liveReceiving ? (
+            <p className="rounded-lg border bg-muted/40 p-3 text-sm">
+              <strong>Live receiving:</strong> each submission creates immutable stock receipt movements.
+              Supplier accounts and PO matching are not connected yet; add an optional delivery reference.
+              A retry of the same submission uses the same idempotency key.
+            </p>
+          ) : null}
           <div className="grid gap-3 sm:grid-cols-3">
+            {liveReceiving ? (
+              <div>
+                <Label htmlFor="rc-po-ref">Supplier or delivery reference (optional)</Label>
+                <Input id="rc-po-ref" className="h-11" value={poRef}
+                  onChange={(e) => { retryKey.current = null; setPoRef(e.target.value); }}
+                  placeholder="e.g. Supplier INV-1024" maxLength={128} />
+              </div>
+            ) : <>
             <div>
               <Label htmlFor="rc-supplier">Supplier</Label>
               <Select value={supplierId} onValueChange={setSupplierId}>
@@ -140,9 +176,10 @@ export default function AdminReceivingPage() {
                 </SelectContent>
               </Select>
             </div>
+            </>}
             <div>
               <Label htmlFor="rc-note">Note (optional)</Label>
-              <Input id="rc-note" className="h-11" value={note} onChange={(e) => setNote(e.target.value)} placeholder="e.g. morning delivery" />
+              <Input id="rc-note" className="h-11" value={note} onChange={(e) => { retryKey.current = null; setNote(e.target.value); }} placeholder="e.g. morning delivery" />
             </div>
           </div>
 
@@ -158,10 +195,10 @@ export default function AdminReceivingPage() {
                       className="h-11"
                       type="search"
                       placeholder="Search item or scan barcode…"
-                      value={line.variantId ? variants.find((v) => v.variantId === line.variantId)?.productName ?? "" : variantQuery}
+                      value={line.variantId ? line.variantLabel ?? "" : variantQuery}
                       onChange={(e) => {
                         searchVariants(e.target.value);
-                        updateLine(i, { variantId: "" });
+                        updateLine(i, { variantId: "", variantLabel: "" });
                       }}
                       aria-label={`Item for line ${i + 1}`}
                     />
@@ -173,7 +210,7 @@ export default function AdminReceivingPage() {
                               type="button"
                               className="flex w-full items-center justify-between gap-2 p-2 text-left text-sm hover:bg-accent"
                               onClick={() => {
-                                updateLine(i, { variantId: v.variantId });
+                                updateLine(i, { variantId: v.variantId, variantLabel: v.productName + " — " + v.variantName });
                                 setVariants([]);
                                 setVariantQuery("");
                                 if (lines.length === i + 1) setLines([...lines, { variantId: "", lotNumber: "", quantity: "", expiryDate: "" }]);
@@ -200,12 +237,12 @@ export default function AdminReceivingPage() {
                     <input id={`rc-exp-${i}`} type="date" className="h-11 w-full rounded-lg border bg-background px-3 text-sm" value={line.expiryDate} onChange={(e) => updateLine(i, { expiryDate: e.target.value })} />
                   </div>
                   <div className="flex h-11 items-center justify-end">
-                    {lines.length > 1 ? <Button variant="ghost" size="icon" className="size-11 text-muted-foreground hover:text-destructive" aria-label={`Remove line ${i + 1}`} onClick={() => setLines((prev) => prev.filter((_, idx) => idx !== i))}><Trash2 className="size-4" aria-hidden /></Button> : <span className="hidden size-11 lg:block" aria-hidden />}
+                    {lines.length > 1 ? <Button variant="ghost" size="icon" className="size-11 text-muted-foreground hover:text-destructive" aria-label={`Remove line ${i + 1}`} onClick={() => { retryKey.current = null; setLines((prev) => prev.filter((_, idx) => idx !== i)); }}><Trash2 className="size-4" aria-hidden /></Button> : <span className="hidden size-11 lg:block" aria-hidden />}
                   </div>
                 </div>
               </div>
             ))}
-            <Button variant="outline" className="h-10" onClick={() => setLines([...lines, { variantId: "", lotNumber: "", quantity: "", expiryDate: "" }])}>
+            <Button variant="outline" className="h-11" onClick={() => { retryKey.current = null; setLines([...lines, { variantId: "", lotNumber: "", quantity: "", expiryDate: "" }]); }}>
               <Plus className="size-4" aria-hidden /> Add line
             </Button>
           </div>
@@ -216,7 +253,7 @@ export default function AdminReceivingPage() {
         </section>
       ) : (
         <p className="rounded-xl border border-dashed p-3 text-sm text-muted-foreground">
-          Your demo role cannot receive goods — switch to the Inventory Officer or Owner.
+          Your account does not have permission to receive goods. Ask an administrator to assign the correct role.
         </p>
       )}
 
@@ -261,8 +298,8 @@ export default function AdminReceivingPage() {
         )}
       </section>
       <p className="text-xs text-muted-foreground">
-        PO matching marks a purchase order received when every ordered line quantity has been
-        delivered. Timestamps shown in UTC ({formatDateTime(new Date().toISOString())} now).
+        {liveReceiving ? "Receipts are authoritative inventory records. " : "Purchase-order matching is a demo workflow. "}
+        Timestamps shown in UTC ({formatDateTime(new Date().toISOString())} now).
       </p>
     </div>
   );

@@ -353,7 +353,7 @@ export const apiOps = {
     api<SessionCloseResponse>("admin.sessions.close", { body: { sessionId, countedCashMinor, note, actor } }),
 
   /* inventory */
-  inventory: (f: { q?: string; filter?: string }) =>
+  inventory: (f: { q?: string; filter?: string; page?: number; perPage?: number; locationId?: string }) =>
     api<import("./contracts").InventoryOverviewResponse>("admin.inventory.overview", {
       query: f as Record<string, QueryValue>,
     }),
@@ -363,7 +363,9 @@ export const apiOps = {
   lotDispose: (lotId: string, reason: string, actor?: string) =>
     api<DoneResponse>("admin.inventory.lot.dispose", { body: { lotId, reason, actor } }),
   receipts: () => api<import("./contracts").ReceiptRow[]>("admin.inventory.receipts"),
-  receive: (body: Record<string, unknown>) => api<{ receiptId: string }>("admin.inventory.receive", { body }),
+  receive: (body: Record<string, unknown>, idempotencyKey?: string) =>
+    api<{ receiptId: string }>("admin.inventory.receive", { body,
+      idempotencyKey: idempotencyKey ?? crypto.randomUUID() }),
   adjustments: () => api<import("./contracts").AdjustmentRow[]>("admin.inventory.adjustments"),
   adjustmentCreate: (body: Record<string, unknown>) => api<{ adjustmentId: string; status: string }>("admin.inventory.adjustments.create", { body }),
   adjustmentDecide: (adjustmentId: string, decision: "approve" | "reject", actor?: string) =>
