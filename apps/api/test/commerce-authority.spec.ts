@@ -11,7 +11,13 @@ const logisticsPaths=["/api/v1/admin/logistics/nodes","/api/v1/admin/logistics/n
 const shipmentPaths=["/api/v1/admin/logistics/shipments/{shipmentId}/collect","/api/v1/admin/logistics/shipments","/api/v1/admin/logistics/shipments/{shipmentId}","/api/v1/admin/logistics/orders/{orderId}/plan","/api/v1/admin/logistics/shipments/{shipmentId}/depart","/api/v1/admin/logistics/shipments/{shipmentId}/arrive","/api/v1/admin/logistics/shipments/{shipmentId}/reroute","/api/v1/admin/logistics/shipments/{shipmentId}/checkpoints"];
 const cmsPaths=["/api/v1/content/homepage","/api/v1/content/pages/{slug}","/api/v1/admin/content","/api/v1/admin/content/homepage","/api/v1/admin/content/homepage/draft","/api/v1/admin/content/homepage/publish","/api/v1/admin/content/pages/{slug}","/api/v1/admin/content/pages/{slug}/draft","/api/v1/admin/content/pages/{slug}/publish"];
 const posTillPaths=["/api/v1/admin/pos/cash-sales","/api/v1/admin/pos/cash-sales/{saleId}","/api/v1/admin/pos/cash-sales/{saleId}/print","/api/v1/admin/pos/holds","/api/v1/admin/pos/holds/{holdId}","/api/v1/admin/pos/holds/{holdId}/release","/api/v1/admin/pos/quote","/api/v1/admin/pos/tills","/api/v1/admin/pos/tills/{sessionId}","/api/v1/admin/pos/tills/{sessionId}/reconciliation","/api/v1/admin/pos/tills/{sessionId}/reconciliation.csv","/api/v1/admin/pos/tills/{sessionId}/movements","/api/v1/admin/pos/tills/{sessionId}/close"];
-const expected=[...posTillPaths,...dispatchRiderPaths,...logisticsPaths,...shipmentPaths,...cmsPaths,"/api/v1/account/return-claims","/api/v1/account/return-claims/orders/{orderId}/eligibility",
+const newInventoryAndSupportPaths=[
+  "/api/v1/ai/assistant", "/api/v1/ai/budget-basket",
+  "/api/v1/support/requests", "/api/v1/admin/support",
+  "/api/v1/admin/support/{caseId}/actions",
+  "/api/v1/inventory/lots", "/api/v1/inventory/receipts", "/api/v1/inventory/expiry",
+];
+const expected=[...newInventoryAndSupportPaths,...posTillPaths,...dispatchRiderPaths,...logisticsPaths,...shipmentPaths,...cmsPaths,"/api/v1/account/return-claims","/api/v1/account/return-claims/orders/{orderId}/eligibility",
   "/api/v1/account/return-claims/{claimId}","/api/v1/account/return-claims/{claimId}/cancel",
   "/api/v1/admin/return-claims","/api/v1/admin/return-claims/{claimId}/decision",
   "/api/v1/admin/physical-returns","/api/v1/admin/physical-returns/{returnId}","/api/v1/admin/physical-returns/{returnId}/inspect","/api/v1/admin/physical-returns/items/{itemId}/quarantine","/api/v1/admin/physical-returns/items/{itemId}/resale-review","/api/v1/admin/physical-returns/items/{itemId}/resale-decision","/api/v1/admin/dashboard","/api/v1/admin/orders","/api/v1/admin/orders/{orderId}","/api/v1/admin/products","/api/v1/admin/products/{productId}","/api/v1/admin/categories","/api/v1/admin/customers","/api/v1/admin/customers/{customerId}",

@@ -31,3 +31,14 @@ The 9 October 2026 starter brief specified a coherent frontend prototype and exp
 - Make staging changes without per-step confirmations, preserving original business records and taking backups ahead of migrations. Keep temporary fixtures isolated and never commit credentials or untracked local UAT scripts.
 - Production money movements, public launch and data-destructive changes must follow verified operational safeguards and required provider/business configuration; blanket authorization to keep coding is not evidence of a ready merchant integration.
 - Prefer free/open-source self-hosted components and existing infrastructure where appropriate; avoid unnecessary recurring paid dependencies.
+
+## 14 November 2026: wider regression and API contract repair
+
+- The isolated `variety_foundation_test` regression database was created on a dedicated temporary PostgreSQL cluster (port 55439) and all migrations were applied there. Destructive test fixtures never touched the original UAT database.
+- Nine suites spanning allocation, cashier invitations and tills, checkout, commerce boundary, rider and dispatch concurrency, customer tracking and stock depletion passed **61/61** on the disposable cluster.
+- The generated OpenAPI endpoint initially returned 500 because the new public catalogue AI, support-case and inventory exception/lot/receipt routes were missing from the documentation authority registry. This was an actual contract defect, not a commerce regression.
+- Added schemas, security declarations and documented request/response paths for `/ai/assistant`, `/ai/budget-basket`, `/support/requests`, `/admin/support`, `/admin/support/{caseId}/actions`, `/inventory/lots`, `/inventory/receipts` and `/inventory/expiry`. Updated the strict OpenAPI expected-path test.
+- New staging `GET /api/v1/openapi.json` returns HTTP 200 with **157 documented paths**; `GET /api/v1/health/ready` also returns 200.
+- Final staged root still shows the Coming Soon page, all canonical UAT web/API systemd services active, and the dedicated regression PostgreSQL cluster has been stopped and removed.
+
+Next slices remain inventory governance/adjustment approval, full operational staff roles, supplier PO lifecycle, payment/refund reconciliation and rider delivery orchestration. Do not represent them as live production-ready without independent verification.

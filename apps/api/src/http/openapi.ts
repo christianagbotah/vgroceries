@@ -89,6 +89,56 @@ export function foundationOpenApi(app: INestApplication) {
     ByVariantsResponse: { type: "array", items: ref("CatalogProduct") },
     InventoryRow: json(foundationInventoryRowSchema),
     InventoryOverviewResponse: json(foundationInventoryOverviewSchema),
+    // Live stock ledger and exception report. These are real, branch-scoped
+    // production read routes and must be in the public contract inventory.
+    StockLot: json(z.object({
+      id:z.string(), productName:z.string(),variantName:z.string(),
+      lotNumber:z.string(), quantity:z.string(), kind:z.string(),
+      isQuarantined:z.boolean(),expired:z.boolean(),expiryDate:z.string().optional(),
+      location:z.string(),variantId:z.string(),
+    })),
+    StockLotsResponse:{type:"array",items:ref("StockLot")},
+    StockExpiryLot: json(z.object({
+      id:z.string(),productName:z.string(),variantName:z.string(),
+      lotNumber:z.string(),quantity:z.string(),expiryDate:z.string().optional(),
+      variantId:z.string(),kind:z.string(),isQuarantined:z.boolean(),
+      location:z.string(),daysLeft:z.number().int().optional(),
+    })),
+    StockExpiryResponse:{type:"object",required:["expired","soon","quarantined","damaged"],additionalProperties:false,
+      properties:Object.fromEntries(["expired","soon","quarantined","damaged"].map(k=>[k,{type:"array",items:ref("StockExpiryLot")}]))},
+    StockReceiptLine:json(z.object({ productName:z.string(),variantName:z.string(),
+      lotNumber:z.string(),quantity:z.string(),expiryDate:z.string().optional() })),
+    StockReceipt:json(z.object({ id:z.string(),receivedAtLabel:z.string(),
+      receivedBy:z.string(),poRef:z.string().optional(),note:z.string().optional(),
+      lines:z.array(z.object({productName:z.string(),variantName:z.string(),
+        lotNumber:z.string(),quantity:z.string(),expiryDate:z.string().optional()})) })),
+    StockReceiptsResponse:{type:"array",items:ref("StockReceipt")},
+    AiAssistantSuggestion:json(z.object({productId:z.string(),variantId:z.string(),
+      label:z.string(),priceMinor:z.number().int(),available:z.string()})),
+    AiAssistantResponse:{type:"object",required:["answer","evidence","suggestions"],additionalProperties:false,
+      properties:{answer:{type:"string"},evidence:{type:"array",items:{type:"string"}},
+        suggestions:{type:"array",items:ref("AiAssistantSuggestion")}}},
+    AiBudgetBasketResponse:{type:"object",required:["items","totalMinor","note"],additionalProperties:false,
+      properties:{items:{type:"array",items:ref("AiAssistantSuggestion")},totalMinor:{type:"integer",minimum:0},note:{type:"string"}}},
+    PublicSupportRequestResponse:json(z.object({reference:z.string(),status:z.string(),
+      createdAt:z.string(),note:z.string()})),
+    SupportActivity:json(z.object({action:z.string(),privateNote:z.string().nullable(),
+      createdAt:z.string(),actorId:z.string().nullable()})),
+    SupportCase:json(z.object({id:z.string(),reference:z.string(),name:z.string(),
+      phone:z.string(),email:z.string().nullable(),subject:z.string(),message:z.string(),
+      orderReference:z.string().nullable(),preferredContact:z.string(),status:z.string(),
+      createdAt:z.string(),updatedAt:z.string(),activities:z.array(z.object({action:z.string(),
+        privateNote:z.string().nullable(),createdAt:z.string(),actorId:z.string().nullable()}))})),
+    SupportAdminListResponse:{type:"object",required:["items","capped"],additionalProperties:false,
+      properties:{items:{type:"array",items:ref("SupportCase")},capped:{type:"boolean"}}},
+    SupportAdminActionResponse:json(z.object({reference:z.string(),status:z.string()})),
+    AiAssistantRequest:json(z.strictObject({question:z.string().min(1).max(400)})),
+    AiBudgetBasketRequest:json(z.strictObject({budgetMinor:z.number().int().min(100).max(200000000)})),
+    SupportPublicRequest:json(z.object({name:z.string().min(2).max(120),phone:z.string(),
+      email:z.string().optional(),subject:z.enum(["order","delivery","payment","return","product","other"]),
+      message:z.string().min(12).max(2000),orderReference:z.string().optional(),
+      preferredContact:z.enum(["phone","email"]).optional(),consent:z.literal(true)})),
+    SupportAdminAction:json(z.strictObject({status:z.enum(["open","acknowledged","in_progress","resolved","closed"]),note:z.string().min(5).max(1000)})),
     ReceiveResponse: json(z.object({ receiptId: z.string() })),
     ZoneView: json(zoneViewSchema),
     ZoneListResponse: { type: "array", items: ref("ZoneView") },
@@ -289,7 +339,15 @@ export function foundationOpenApi(app: INestApplication) {
     "/catalog/products": "CatalogProductsResponse",
     "/catalog/products/{slug}": "ProductDetailResponse",
     "/catalog/products:by-variants": "ByVariantsResponse",
+    "/ai/assistant":"AiAssistantResponse",
+    "/ai/budget-basket":"AiBudgetBasketResponse",
+    "/support/requests":"PublicSupportRequestResponse",
+    "/admin/support":"SupportAdminListResponse",
+    "/admin/support/{caseId}/actions":"SupportAdminActionResponse",
     "/inventory/overview": "InventoryOverviewResponse",
+    "/inventory/expiry":"StockExpiryResponse",
+    "/inventory/lots":"StockLotsResponse",
+    "/inventory/receipts":"StockReceiptsResponse",
     "/inventory/receive": "ReceiveResponse",
     "/checkout/zones": "ZoneListResponse",
     "/checkout/zones/{zoneId}/slots": "SlotListResponse",
@@ -348,6 +406,10 @@ export function foundationOpenApi(app: INestApplication) {
     "/auth/register": "RegisterRequest",
     "/auth/refresh": "RefreshRequest",
     "/catalog/products:by-variants": "ByVariantsRequest",
+    "/ai/assistant":"AiAssistantRequest",
+    "/ai/budget-basket":"AiBudgetBasketRequest",
+    "/support/requests":"SupportPublicRequest",
+    "/admin/support/{caseId}/actions":"SupportAdminAction",
     "/inventory/receive": "ReceiveRequest",
     "/checkout/quote": "CheckoutQuoteRequest",
     "/checkout/complete": "CheckoutCompleteRequest",
@@ -414,6 +476,7 @@ export function foundationOpenApi(app: INestApplication) {
       if (!operation) continue;
       if (
         suffix.startsWith("/inventory/") ||
+        suffix === "/admin/support" || suffix.startsWith("/admin/support/") ||
         suffix === "/auth/me" ||
         suffix === "/auth/logout" ||
         suffix === "/account/summary" ||
@@ -504,6 +567,8 @@ export function foundationOpenApi(app: INestApplication) {
     },
   ];
   doc.paths["/api/v1/inventory/overview"]!.get!.parameters = [
+    {name:"q",in:"query",schema:{type:"string",maxLength:200}},
+    {name:"filter",in:"query",schema:{type:"string",enum:["all","low","zero","reserved"],default:"all"}},
     {
       name: "locationId",
       in: "query",
@@ -513,6 +578,26 @@ export function foundationOpenApi(app: INestApplication) {
     },
     ...pagination,
   ];
+  for (const path of ["/api/v1/ai/assistant","/api/v1/ai/budget-basket","/api/v1/support/requests"]) {
+    const endpoint=doc.paths[path]?.post;
+    if (endpoint) endpoint.security=[];
+  }
+  const supportAction=doc.paths["/api/v1/admin/support/{caseId}/actions"]?.post;
+  if (supportAction) supportAction.parameters=[
+    {name:"caseId",in:"path",required:true,schema:{type:"string"}},
+    {name:"X-CSRF-Token",in:"header",required:false,
+      description:"Required with cookie sessions",schema:{type:"string",pattern:"^[a-f0-9]{64}$"}},
+  ];
+  doc.paths["/api/v1/admin/support"]!.get!.parameters=[
+    {name:"status",in:"query",schema:{type:"string",enum:["open","acknowledged","in_progress","resolved","closed"]}},
+  ];
+  for(const path of ["/api/v1/inventory/lots","/api/v1/inventory/receipts","/api/v1/inventory/expiry"]){
+    doc.paths[path]!.get!.parameters=[
+      {name:"locationId",in:"query",description:"Branch-scoped; nonadmin requires an active branch grant",schema:{type:"string",maxLength:128}},
+      ...(path.endsWith("/lots")?[{name:"variantId",in:"query" as const,schema:{type:"string" as const,maxLength:128}}]:[]),
+    ];
+  }
+
   doc.paths["/api/v1/auth/sessions"]!.post!.description =
     "Web sign-in requires a trusted Origin and sets an HttpOnly cookie. Native sign-in returns opaque access and refresh credentials. The client field selects the response variant.";
   doc.paths["/api/v1/auth/register"]!.post!.description =
