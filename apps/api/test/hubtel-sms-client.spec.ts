@@ -64,3 +64,32 @@ test("Hubtel model response status=0 accepts submission and does not claim deliv
   });
   assert.deepEqual(await client.send("0241234567", "Order placed"), { state: "submitted" });
 });
+
+test("Hubtel October 2026 batch SMS response records matching recipient message ID", async () => {
+  const client = new HubtelSmsClient({
+    clientId: "test-id", clientSecret: "test-value", senderId: "VARIETY",
+  }, async (_url, init) => {
+    const body = JSON.parse(String(init?.body)) as { Recipients: string[] };
+    assert.deepEqual(body.Recipients, ["+233241234567"]);
+    return new Response(JSON.stringify({
+      batchId: "batch-001", status: 0, data: [
+        { recipient: "233240000000", messageId: "not-our-message" },
+        { recipient: "233241234567", messageId: "correct-message" },
+      ],
+    }), { status: 200 });
+  });
+  assert.deepEqual(await client.send("0241234567", "Order placed"), {
+    state: "submitted", messageId: "correct-message",
+  });
+});
+
+test("Hubtel batch SMS does not attach another recipient's message ID", async () => {
+  const client = new HubtelSmsClient({
+    clientId: "test-id", clientSecret: "test-value", senderId: "VARIETY",
+  }, async () => new Response(JSON.stringify({
+    status: 0, data: [{ recipient: "233249999999", messageId: "someone-else" }],
+  }), { status: 200 }));
+  assert.deepEqual(await client.send("0241234567", "Order placed"), {
+    state: "submitted",
+  });
+});
