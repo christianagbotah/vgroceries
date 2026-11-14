@@ -147,11 +147,13 @@ export class HubtelOnlineCheckoutProvider implements PaymentProviderAdapter {
     let state: PaymentProviderObservation["state"] =
       rawStatus === "paid" ? "succeeded" : rawStatus === "unpaid" ? "pending" : "unknown";
     const amountMinor = minor(data.amount);
+    const transactionId = str(data.transactionId);
     // Hubtel's documented Ghana status response may return a null currencyCode.
     // In that case, GHS is the account's currency; any other explicit code fails closed.
     const currency: "GHS" | undefined =
       data.currencyCode === "GHS" || data.currencyCode === null ? "GHS" : undefined;
-    if (state === "succeeded" && (amountMinor === undefined || !currency))
+    // No captured payment may be finalized without a durable Hubtel transaction ID.
+    if (state === "succeeded" && (amountMinor === undefined || !currency || !transactionId))
       state = "unknown";
     const rawTimestamp = str(data.date);
     const date = rawTimestamp ? new Date(rawTimestamp) : null;
@@ -159,7 +161,7 @@ export class HubtelOnlineCheckoutProvider implements PaymentProviderAdapter {
     return {
       providerId: this.id,
       merchantReference: returnedReference,
-      ...(str(data.transactionId) ? { providerReference: str(data.transactionId) } : {}),
+      ...(transactionId ? { providerReference: transactionId } : {}),
       state,
       ...(amountMinor !== undefined ? { amountMinor } : {}),
       ...(currency ? { currency } : {}),
