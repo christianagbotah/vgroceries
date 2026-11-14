@@ -154,7 +154,9 @@ export class HubtelOnlineCheckoutProvider implements PaymentProviderAdapter {
     if (!response.ok || payload?.responseCode !== "0000" || !data)
       return { providerId: this.id, merchantReference: input.merchantReference, state: "unknown" };
     const returnedReference = str(data.clientReference);
-    if (!returnedReference)
+    // A successful status lookup must echo the exact reference we requested.
+    // Never accept money-state evidence for a different customer's payment.
+    if (returnedReference !== input.merchantReference)
       return { providerId: this.id, merchantReference: input.merchantReference, state: "unknown" };
     const rawStatus = str(data.status)?.toLowerCase();
     let state: PaymentProviderObservation["state"] =
