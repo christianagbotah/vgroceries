@@ -43,6 +43,7 @@ test("Hubtel documented checkout uses Basic sales auth; only creates a redirect,
   assert.equal(request.totalAmount, 123.45);
   assert.equal(request.merchantAccountNumber, "12345");
   assert.equal(request.clientReference, input().merchantReference);
+  assert.equal(request.description, "Variety Groceries order VG ORDER 1001");
   assert.equal(request.payeeMobileNumber, "233241234567");
 });
 
