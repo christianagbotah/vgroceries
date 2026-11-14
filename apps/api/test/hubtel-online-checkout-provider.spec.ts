@@ -85,6 +85,23 @@ test("Hubtel status lookup uses collection account and actual Paid/Unpaid state"
       providerReference: "hubtel-transaction-1", settledChannel: "mobilemoney" });
 });
 
+test("Hubtel lookup never trusts payment details for a different merchant reference", async () => {
+  const provider = new HubtelOnlineCheckoutProvider(config, async () =>
+    json({ responseCode: "0000", data: {
+      status: "Paid", amount: 123.45, currencyCode: null,
+      transactionId: "someone-elses-transaction",
+      clientReference: "VG-PAY-OTHER-CUSTOMER-1234",
+    } }));
+  const observed = await provider.lookup({
+    merchantReference: input().merchantReference, signal: input().signal,
+  });
+  assert.deepEqual(observed, {
+    providerId: "hubtel_checkout",
+    merchantReference: input().merchantReference,
+    state: "unknown",
+  });
+});
+
 test("Hubtel status with unexpected currency cannot establish paid money identity", async () => {
   const provider = new HubtelOnlineCheckoutProvider(config, async () =>
     json({ responseCode: "0000", data: { status: "Paid", amount: 50, currencyCode: "USD",
