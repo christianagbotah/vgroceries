@@ -111,7 +111,9 @@ export class HubtelOnlineCheckoutProvider implements PaymentProviderAdapter {
   }
 
   async verifyEvent(input: PaymentProviderEventInput): Promise<PaymentProviderEventVerification> {
-    const payload = object(JSON.parse(input.rawBody.toString("utf8")));
+    let payload: Json | null = null;
+    try { payload = object(JSON.parse(input.rawBody.toString("utf8"))); }
+    catch { return { verification: "invalid" }; }
     const data = object(payload?.Data ?? payload?.data);
     const merchantReference = str(data?.ClientReference ?? data?.clientReference);
     if (!merchantReference) return { verification: "invalid" };
