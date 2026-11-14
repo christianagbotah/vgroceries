@@ -1,7 +1,7 @@
 /**
  * Server-only Hubtel SMS REST adapter (12 October 2026 API reference).
  * Not wired into the notifications outbox yet: no live messages are sent.
- * POST + Basic Auth deliberately avoids the documented GET route, which puts
+ * The live school system uses the POST batch/simple endpoint with Basic Auth.\n * POST + Basic Auth deliberately avoids the documented GET route, which puts
  * ClientSecret and message content into URLs and potentially into access logs.
  */
 export interface HubtelSmsConfig {
@@ -12,7 +12,7 @@ export interface HubtelSmsConfig {
 }
 
 export interface HubtelSmsSubmission {
-  messageId: string;
+  messageId?: string;
   state: "submitted";
   rate?: number;
 }
@@ -51,22 +51,29 @@ export class HubtelSmsClient {
     const phone = to.replace(/^\+/, "");
     if (!/^233\d{9}$/.test(phone)) throw new Error("SMS recipient must be a Ghana mobile number.");
     if (!content.trim()) throw new Error("SMS content must not be empty.");
-    const response = await this.fetcher(`${this.baseUrl}/v1/messages/send`, {
+    const response = await this.fetcher(`${this.baseUrl}/v1/messages/batch/simple/send`, {
       method: "POST",
       headers: {
         authorization: this.auth(),
         accept: "application/json",
         "content-type": "application/json",
       },
-      body: JSON.stringify({ From: this.config.senderId, To: phone, Content: content }),
+      body: JSON.stringify({ From: this.config.senderId, To: [phone], Content: content }),
       signal,
       redirect: "error",
     });
     const data = object(await response.json().catch(() => null));
-    if (!response.ok || data?.status !== 0 || typeof data?.messageId !== "string" || !data.messageId)
+    if (!response.ok || (data?.status !== 0 && data?.status !== "0"))
       throw new Error("Hubtel did not accept the SMS submission.");
-    return { messageId: data.messageId, state: "submitted",
-      ...(typeof data.rate === "number" && Number.isFinite(data.rate) ? { rate: data.rate } : {}) };
+    // Hubtel batch responses can carry message IDs in different casing, or
+    // omit them. An accepted submission is never proof of delivery.
+    const messages = Array.isArray(data?.Messages) ? data.Messages : [];
+    const first = object(messages[0]);
+    const candidate = data?.messageid ?? data?.messageId ??
+      data?.MessageId ?? first?.MessageId ?? first?.messageid;
+    const messageId = typeof candidate === "string" && candidate ? candidate : undefined;
+    return { ...(messageId ? { messageId } : {}), state: "submitted",
+      ...(typeof data?.rate === "number" && Number.isFinite(data.rate) ? { rate: data.rate } : {}) };
   }
 
   async status(messageId: string, signal?: AbortSignal): Promise<HubtelSmsDelivery> {
