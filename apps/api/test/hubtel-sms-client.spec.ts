@@ -41,7 +41,7 @@ test("Hubtel batch response with no message ID is accepted but not marked delive
 test("Hubtel batch nested message ID is preserved", async () => {
   const client = new HubtelSmsClient({
     clientId: "test-id", clientSecret: "test-value", senderId: "VARIETY",
-  }, async () => new Response(JSON.stringify({ status: 0, Messages: [{ MessageId: "nested-1" }] }), { status: 200 }));
+  }, async () => new Response(JSON.stringify({ status: 0, Messages: [{ recipient: "233000000000", MessageId: "nested-1" }] }), { status: 200 }));
   assert.deepEqual(await client.send("233000000000", "Message"),
     { state: "submitted", messageId: "nested-1" });
 });
