@@ -125,3 +125,86 @@ test("directly constructed wrong origin/sender cannot be used", () => {
   for (const change of [{ baseUrl: "https://random.invalid" }, { senderId: "A B" }])
     assert.throws(() => new HubtelSmsGateway({ ...config(), ...change }));
 });
+
+
+test("lookup checks delivery from Hubtel using the sending account credentials", async () => {
+  let calls = 0;
+  for (const [status, state] of [
+    ["Delivered", "delivered"],
+    ["Pending", "pending"],
+    ["Sent", "pending"],
+    ["Blacklisted", "failed"],
+    ["Undeliverable", "failed"],
+    ["Failed", "failed"],
+    ["Unrouteable", "failed"],
+    ["Error", "failed"],
+    ["Rejected", "failed"],
+    ["UnfamiliarOperatorStatus", "unknown"],
+  ] as const) {
+    const fake = async (url: string | URL | Request, init?: RequestInit) => {
+      calls++;
+      assert.equal(String(url), "https://sms.hubtel.com/v1/messages/ref-123");
+      assert.equal(init?.method, "GET");
+      assert.equal(new Headers(init?.headers).get("authorization"),
+        "Basic " + Buffer.from("fake-test-client:fake-test-secret").toString("base64"));
+      assert.equal(init?.redirect, "error");
+      return Response.json({ messageId: "ref-123", status });
+    };
+    const gateway = new HubtelSmsGateway(config(), fake as typeof fetch);
+    assert.deepEqual(await gateway.lookupDelivery("ref-123"), { state });
+  }
+  assert.equal(calls, 10);
+});
+
+test("missing, invalid and ambiguous provider status never confirms SMS delivery", async () => {
+  for (const body of [
+    { messageId: "ref-123" },
+    { messageId: "ref-123", status: 0 },
+    { messageId: "ref-123", status: "0" },
+  ]) {
+    const fake = async () => Response.json(body);
+    assert.deepEqual(await new HubtelSmsGateway(config(), fake as typeof fetch)
+      .lookupDelivery("ref-123"), { state: "unknown" });
+  }
+});
+
+test("provider lookup rejects swapped message IDs and malformed payloads", async () => {
+  const responses = [
+    Response.json({ messageId: "someone-elses-message", status: "Delivered" }),
+    new Response("not-json", { status: 200 }),
+    Response.json(["bad-response"], { status: 200 }),
+  ];
+  for (const response of responses) {
+    const gateway = new HubtelSmsGateway(config(),
+      (async () => response) as typeof fetch);
+    await assert.rejects(() => gateway.lookupDelivery("ref-123"));
+  }
+});
+
+test("provider 404 is unknown, not a delivered or confirmed failure", async () => {
+  const gateway = new HubtelSmsGateway(config(),
+    (async () => Response.json({ error: "not found" }, { status: 404 })) as typeof fetch);
+  assert.deepEqual(await gateway.lookupDelivery("ref-123"), { state: "unknown" });
+});
+
+test("lookup transport errors and server outages never count as delivery", async () => {
+  for (const fake of [
+    async () => Response.json({ status: "Delivered", messageId: "ref-123" }, { status: 500 }),
+    async () => Response.json({ status: "Delivered", messageId: "ref-123" }, { status: 429 }),
+    async () => { throw new Error("timeout"); },
+  ]) {
+    const gateway = new HubtelSmsGateway(config(), fake as typeof fetch);
+    await assert.rejects(() => gateway.lookupDelivery("ref-123"));
+  }
+});
+
+test("invalid provider IDs cannot reach the gateway or alter lookup path", async () => {
+  let calls = 0;
+  const gateway = new HubtelSmsGateway(config(),
+    (async () => { calls++; return Response.json({ messageId: "ok", status: "Delivered" }); }) as typeof fetch);
+  for (const id of [
+    "", "../admin", "ref-123?all=1", "ref/123", "ref 123",
+    "https://evil.example", "%2F", "x".repeat(129),
+  ]) await assert.rejects(() => gateway.lookupDelivery(id));
+  assert.equal(calls, 0);
+});
