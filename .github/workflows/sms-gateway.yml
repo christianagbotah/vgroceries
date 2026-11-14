@@ -59,7 +59,9 @@ jobs:
         run: npm run --prefix apps/api build
       - name: Test SMS gateway, consent, deduplication and provider delivery lookup
         working-directory: apps/api
-        run: node --test --test-concurrency=1 dist/test/hubtel-sms-gateway.spec.js dist/test/sms-dispatch.spec.js
+        run: node --test --test-concurrency=1 dist/test/hubtel-sms-gateway.spec.js dist/test/sms-dispatch.spec.js dist/test/checkout-values.spec.js dist/test/checkout-command.spec.js
+      - name: Check launch-preflight protection against accidental activation
+        run: npm run test:launch-preflight
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: latest
