@@ -16,7 +16,9 @@ CREATE TABLE "SmsDispatch" (
     CHECK ("state" IN ('queued', 'skipped', 'attempting', 'submitted', 'uncertain')),
   CONSTRAINT "SmsDispatch_phone_valid"
     CHECK (("state" = 'skipped' AND "recipientPhone" = '') OR
-           ("state" <> 'skipped' AND "recipientPhone" ~ '^\\+233[0-9]{9}
+           ("state" <> 'skipped' AND length("recipientPhone") = 13
+             AND left("recipientPhone", 4) = '+233'
+             AND translate(substring("recipientPhone" FROM 5), '0123456789', '') = '')),
   CONSTRAINT "SmsDispatch_message_valid"
     CHECK (length("message") BETWEEN 1 AND 500)
 );
