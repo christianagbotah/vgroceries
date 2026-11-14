@@ -13,6 +13,16 @@ export type SmsSendOutcome =
   | { state: "accepted"; providerMessageId: string }
   | { state: "rejected"; reason: "provider_rejected" | "rate_limited" | "unavailable" };
 
+/**
+ * Handset delivery status is distinct from gateway acceptance.
+ * Only an authoritative provider "Delivered" response qualifies as delivered.
+ */
+export type SmsDeliveryOutcome =
+  | { state: "delivered" }
+  | { state: "pending" }
+  | { state: "failed" }
+  | { state: "unknown" };
+
 export function normalizeGhanaMobile(value: string): string | null {
   if (typeof value !== "string") return null;
   const number = value.trim();
@@ -34,6 +44,52 @@ export class HubtelSmsGateway {
       throw new Error("SMS credentials are required");
     if (!Number.isInteger(config.timeoutMs) || config.timeoutMs < 500 || config.timeoutMs > 20000)
       throw new Error("Invalid SMS timeout");
+  }
+
+  async lookupDelivery(messageId: string): Promise<SmsDeliveryOutcome> {
+    // Path-encode an ID only after validating it. This API is never a generic URL proxy.
+    if (typeof messageId !== "string" || !/^[A-Za-z0-9_-]{1,128}$/.test(messageId))
+      throw new Error("Invalid SMS provider message ID");
+    const basic = Buffer.from(this.config.clientId + ":" + this.config.clientSecret).toString("base64");
+    const response = await this.fetcher(
+      this.config.baseUrl + "/v1/messages/" + encodeURIComponent(messageId), {
+        method: "GET",
+        headers: { "authorization": "Basic " + basic, "accept": "application/json" },
+        signal: AbortSignal.timeout(this.config.timeoutMs),
+        redirect: "error",
+      },
+    );
+    if (response.status === 404) return { state: "unknown" };
+    if (!response.ok) throw new Error("SMS provider delivery lookup unavailable");
+
+    let body: unknown;
+    try { body = await response.json(); }
+    catch { throw new Error("SMS provider delivery lookup returned invalid JSON"); }
+    if (!body || typeof body !== "object" || Array.isArray(body))
+      throw new Error("SMS provider delivery lookup returned malformed data");
+    const record = body as Record<string, unknown>;
+    if (record.messageId !== messageId) {
+      // A mismatched reference may be the status of somebody else's message.
+      throw new Error("SMS provider delivery reference mismatch");
+    }
+    if (typeof record.status !== "string") return { state: "unknown" };
+    switch (record.status.trim().toLowerCase()) {
+      case "delivered":
+        return { state: "delivered" };
+      case "sent":
+      case "pending":
+        return { state: "pending" };
+      case "blacklisted":
+      case "undeliverable":
+      case "failed":
+      case "unrouteable":
+      case "error":
+      case "rejected":
+        return { state: "failed" };
+      default:
+        // New/undocumented operator statuses must never confirm delivery.
+        return { state: "unknown" };
+    }
   }
 
   async send(to: string, content: string): Promise<SmsSendOutcome> {
