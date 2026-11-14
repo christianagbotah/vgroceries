@@ -20,3 +20,14 @@ Responsive web storefront and API run on canonical staging portal.varietygroceri
 Controlled cutover sequence: freeze scope, hide incomplete features, run full UAT, verify restore/rollback, obtain approval, release to limited service areas, monitor orders and settlements, then expand.
 
 No unsupported percentage of readiness is claimed. Payment and operational trust outrank the date; remaining scope can be deferred only when not needed for the agreed launch.
+
+## Verified provider and mobile state on staging (14 November 2026)
+
+- A Hubtel payment/refund integration implementation exists in the API source, but the running consolidated staging environment has **no configured HUBTEL_CLIENT_ID, HUBTEL_CLIENT_SECRET, HUBTEL_REQUEST_MONEY_URL, HUBTEL_STATUS_URL, HUBTEL_CALLBACK_URL, HUBTEL_RETURN_URL or HUBTEL_CANCELLATION_URL**. Do not advertise Hubtel payments as live until a merchant-authorised configuration, provider callbacks and settlement/refund UAT pass.
+- The notification service currently processes durable, idempotent outbox state and explicitly does **not** send to an external SMS provider. No connected Arkesel/Nalo/SMS transport was found in the running staging environment. Delivery receipts, OTP flow and suppression need implementation and real-message tests.
+- Current repository has apps/api and packages/contracts/api, but **no apps/mobile, apps/customer-mobile or apps/rider-mobile** and no verified .apk, .ipa or TestFlight/EAS build. Native app delivery is not in the web-launch critical path.
+- Original staging systemd services and web store were healthy after POS customer selection deployment. Production website still presents the Coming Soon title.
+
+### Business integration handoff
+
+When available, configure Hubtel merchant credentials and callback URLs **only in private server-side environment**, never in code, PRs or client-side settings. Confirm whether the approved merchant account supports Request Money, refund callbacks and settlement lookup, and provide sandbox UAT access. Likewise provide the authorised SMS vendor, sender ID, OTP/transactional templates and tested recipient numbers securely. Engineering must validate the supported flows and keep unsupported methods disabled.
