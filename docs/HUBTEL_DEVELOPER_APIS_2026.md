@@ -47,6 +47,42 @@ Hubtel also provided Direct Debit preapproval, Recurring Invoice, Programmable S
 - `apps/api/src/notifications/hubtel-sms-client.ts`: server-only simple SMS POST and delivery-status client. Neither an outbox worker nor customer notification dispatch is switched on.
 - `apps/api/test/hubtel-online-checkout-provider.spec.ts`: unit fixtures for correct checkout payload, callback trust boundary, status reconciliation and malformed references.
 
+## Owner-configured secrets: staging configuration
+
+The merchant has confirmed that the Sales API ID/Key, Collection Account Number,
+SMS ClientID/Secret, and approved Sender ID were placed in
+`/home/lightworld/config/varietygroceries/api.env`. ChatGPT has **not**
+opened that VPS file or verified its values/permissions: no Remote Desktop
+Commander device is connected.
+
+The backend `readConfig()` now parses the following independent, all-or-nothing
+server-side groups:
+
+- Sales: `HUBTEL_SALES_API_ID`, `HUBTEL_SALES_API_KEY`,
+  `HUBTEL_COLLECTION_ACCOUNT_NUMBER`
+- SMS: `HUBTEL_SMS_CLIENT_ID`, `HUBTEL_SMS_CLIENT_SECRET`,
+  `HUBTEL_SMS_SENDER_ID`
+
+An incomplete group or invalid format fails configuration validation; when valid,
+both remain **staged/inactive**. No callbacks, payment adapter, SMS worker or
+refund execution are automatically enabled by their presence. Existing legacy
+`HUBTEL_CLIENT_ID` / `HUBTEL_REQUEST_MONEY_URL` is a *different* adapter
+configuration. Do not set it using Sales keys without verifying that contract.
+
+After the branch is approved, deployed and the API package is compiled, this
+**offline, no-network** preflight checks only presence/format and never prints
+secrets (use the service-account rights required to read the protected env file):
+
+```bash
+/home/lightworld/runtime/node24/bin/node \
+  --env-file=/home/lightworld/config/varietygroceries/api.env \
+  /home/lightworld/webapps/varietygroceries-api/current/apps/api/dist/scripts/check-hubtel-merchant-config.js
+```
+
+The preflight cannot verify merchant scope, account ownership, whitelisting,
+real payment results or current VPS deployment status. It does not replace
+end-to-end staging acceptance. **Do not send the full `api.env` file in chat.**
+
 ## Next gates before activation
 
 1. Obtain merchant Collection/Disbursement account numbers and dedicated Sales/SMS API credentials **through protected deployment configuration**, not chat or PR. Verify merchant scopes and allowlist the VPS outbound public IP with Hubtel.
