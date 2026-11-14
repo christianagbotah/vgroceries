@@ -329,7 +329,26 @@ model Notification {
   body String
   readAt DateTime? @db.Timestamptz(3)
   createdAt DateTime @default(now()) @db.Timestamptz(3)
+  smsDispatch SmsDispatch?
   @@index([recipientUserId, createdAt, id])
+}
+
+/// Optional transactional SMS dispatch ledger. One SMS per immutable
+/// in-app notification. Never auto-retry an ambiguous provider submission.
+/// Worker remains disabled until operator-approved activation.
+model SmsDispatch {
+  id String @id @default(uuid())
+  notificationId String @unique
+  notification Notification @relation(fields: [notificationId], references: [id], onDelete: Restrict)
+  recipientPhone String
+  message String
+  state String @default("queued")
+  providerMessageId String?
+  attemptedAt DateTime? @db.Timestamptz(3)
+  resolvedAt DateTime? @db.Timestamptz(3)
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt
+  @@index([state, createdAt, id])
 }
 
 model NotificationOutboxReceipt {

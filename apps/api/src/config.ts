@@ -2,6 +2,9 @@ import {
   electronicPaymentMethodSchema,
   type ElectronicPaymentMethod,
 } from "@variety/contracts";
+import type { HubtelOnlineCheckoutConfig } from "./payments/hubtel-online-checkout-provider";
+import type { HubtelSmsConfig } from "./notifications/hubtel-sms-client";
+import { normalizeGhanaSmsRecipient } from "./notifications/hubtel-sms-client";
 
 export interface CommerceConfig {
   locationId: string;
@@ -29,6 +32,11 @@ export interface HubtelPaymentConfig {
   callbackUrl: string;
   returnUrl: string;
   cancellationUrl: string;
+}
+
+export interface HubtelSmsDispatchConfig {
+  notBefore: Date;
+  allowedRecipients: string[];
 }
 
 export interface HubtelRefundConfig {
@@ -108,6 +116,10 @@ export interface ApiConfig {
   payments: PaymentConfig | null;
   hubtelPayment: HubtelPaymentConfig | null;
   hubtelRefund: HubtelRefundConfig | null;
+  // Merchant credentials are parsed, but no new live provider is activated.
+  hubtelSales: Pick<HubtelOnlineCheckoutConfig, "apiId" | "apiKey" | "collectionAccount"> | null;
+  hubtelSms: HubtelSmsConfig | null;
+  hubtelSmsDispatch: HubtelSmsDispatchConfig | null;
   paystack: PaystackConfig | null;
   etranzact: EtranzactConfig | null;
   productMedia: ProductMediaConfig | null;
@@ -422,6 +434,73 @@ export function readConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
     };
   }
 
+  // These owner-configured names are independent of the older Request Money
+  // adapter's HUBTEL_CLIENT_ID / HUBTEL_CLIENT_SECRET settings. Parsing a
+  // complete bundle does NOT automatically enable collection or send SMS.
+  const hubtelSalesNames = [
+    "HUBTEL_SALES_API_ID",
+    "HUBTEL_SALES_API_KEY",
+    "HUBTEL_COLLECTION_ACCOUNT_NUMBER",
+  ] as const;
+  const salesProvided = hubtelSalesNames.filter((name) => env[name] !== undefined);
+  let hubtelSales: ApiConfig["hubtelSales"] = null;
+  if (salesProvided.length) {
+    if (salesProvided.length !== hubtelSalesNames.length)
+      throw new Error("Hubtel Sales configuration must be supplied as a complete bundle");
+    const apiId = env.HUBTEL_SALES_API_ID!;
+    const apiKey = env.HUBTEL_SALES_API_KEY!;
+    const collectionAccount = env.HUBTEL_COLLECTION_ACCOUNT_NUMBER!;
+    if (!apiId.trim() || !apiKey.trim() || apiId.length > 256 || apiKey.length > 256)
+      throw new Error("Hubtel Sales API credentials must be nonempty and at most 256 characters");
+    if (!/^\d{3,32}$/.test(collectionAccount))
+      throw new Error("HUBTEL_COLLECTION_ACCOUNT_NUMBER must contain only digits");
+    hubtelSales = { apiId, apiKey, collectionAccount };
+  }
+
+  const hubtelSmsNames = [
+    "HUBTEL_SMS_CLIENT_ID",
+    "HUBTEL_SMS_CLIENT_SECRET",
+    "HUBTEL_SMS_SENDER_ID",
+  ] as const;
+  const smsProvided = hubtelSmsNames.filter((name) => env[name] !== undefined);
+  let hubtelSms: HubtelSmsConfig | null = null;
+  if (smsProvided.length) {
+    if (smsProvided.length !== hubtelSmsNames.length)
+      throw new Error("Hubtel SMS configuration must be supplied as a complete bundle");
+    const clientId = env.HUBTEL_SMS_CLIENT_ID!;
+    const clientSecret = env.HUBTEL_SMS_CLIENT_SECRET!;
+    const senderId = env.HUBTEL_SMS_SENDER_ID!;
+    if (!clientId.trim() || !clientSecret.trim() || clientId.length > 256 || clientSecret.length > 256)
+      throw new Error("Hubtel SMS credentials must be nonempty and at most 256 characters");
+    if (!/^[a-zA-Z0-9]{1,11}$/.test(senderId))
+      throw new Error("HUBTEL_SMS_SENDER_ID must be 1-11 alphanumeric characters");
+    hubtelSms = { clientId, clientSecret, senderId };
+  }
+
+  // SMS is NEVER sent solely because credentials are present. The standalone
+  // worker additionally requires a literal opt-in flag, a future-use cutoff,
+  // and an explicit test-recipient allowlist.
+  if (env.HUBTEL_SMS_DISPATCH_ENABLED !== undefined &&
+      !["true", "false"].includes(env.HUBTEL_SMS_DISPATCH_ENABLED))
+    throw new Error("HUBTEL_SMS_DISPATCH_ENABLED must be true or false");
+  let hubtelSmsDispatch: HubtelSmsDispatchConfig | null = null;
+  if (env.HUBTEL_SMS_DISPATCH_ENABLED === "true") {
+    if (!hubtelSms) throw new Error("SMS dispatch requires configured Hubtel SMS credentials");
+    const since = env.HUBTEL_SMS_NOT_BEFORE ?? "";
+    if (!/^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$/.test(since))
+      throw new Error("HUBTEL_SMS_NOT_BEFORE must be a UTC ISO timestamp");
+    const notBefore = new Date(since);
+    if (Number.isNaN(notBefore.valueOf()) || notBefore.toISOString().replace(".000Z", "Z") !== since)
+      throw new Error("HUBTEL_SMS_NOT_BEFORE must be a valid UTC timestamp");
+    const rawRecipients = (env.HUBTEL_SMS_ALLOWED_RECIPIENTS ?? "").split(",");
+    const allowedRecipients = rawRecipients.map((v) => normalizeGhanaSmsRecipient(v));
+    if (allowedRecipients.length < 1 || allowedRecipients.length > 10 ||
+        allowedRecipients.some((v) => v === null) ||
+        new Set(allowedRecipients).size !== allowedRecipients.length)
+      throw new Error("HUBTEL_SMS_ALLOWED_RECIPIENTS must list 1-10 distinct Ghana test numbers");
+    hubtelSmsDispatch = { notBefore, allowedRecipients: allowedRecipients as string[] };
+  }
+
   const hubtelRefundNames = [
     "HUBTEL_REFUND_BASE_URL",
     "HUBTEL_REFUND_BASIC_USERNAME",
@@ -684,6 +763,9 @@ export function readConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
     payments,
     hubtelPayment,
     hubtelRefund,
+    hubtelSales,
+    hubtelSms,
+    hubtelSmsDispatch,
     paystack,
     etranzact,
     productMedia,

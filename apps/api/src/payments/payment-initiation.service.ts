@@ -39,8 +39,14 @@ function requestHash(orderId: string, input: PaymentInitiationRequest) {
     .digest("hex");
 }
 
-function merchantReference() {
-  return `VG-PAY-${randomUUID().replaceAll("-", "").toUpperCase()}`;
+/**
+ * Hubtel Online Checkout restricts clientReference to at most 32 characters.
+ * Existing payment providers keep their full-length legacy reference format.
+ * 25 UUID hex characters give the hosted-checkout reference 100 random bits.
+ */
+export function merchantReference(providerId?: string) {
+  const random = randomUUID().replaceAll("-", "").toUpperCase();
+  return `VG-PAY-${providerId === "hubtel_checkout" ? random.slice(0, 25) : random}`;
 }
 
 @Injectable()
@@ -137,7 +143,7 @@ export class PaymentInitiationService {
           method,
           currency: "GHS",
           amountMinor: order.totalMinor,
-          merchantReference: merchantReference(),
+          merchantReference: merchantReference(adapter.id),
           status: "initiated",
           initiationState: "created",
           settlementState: "unsettled",
