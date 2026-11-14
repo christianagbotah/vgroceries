@@ -30,7 +30,8 @@ describe("Storefront product card respects verified stock and customer intent", 
     expect(tile).toContain("if (!purchasable) return;");
     expect(tile).toContain("Selected size unavailable. Choose another available size.");
     expect(tile).toContain('className="h-11 w-full rounded-xl');
-    expect(tile).toContain('className="mt-2 h-11 w-full');
+    expect(tile).toContain('className="mt-2 h-11 min-h-11 w-full');
+    expect(tile).toContain('className="min-h-11" disabled={!v.isAvailable}');
     expect(tile).toContain('disabled>{available.length ? "Choose available size" : "Sold out"}');
   });
 });
