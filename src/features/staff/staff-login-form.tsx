@@ -13,10 +13,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { UAT_DEMO_ACCOUNTS } from "@/features/staff/uat-demo-accounts";
 import { clearDemoStaffSession, isDemoStaffSessionActive, startDemoStaffSession } from "@/features/staff/staff-demo-session";
 
-export function StaffLoginForm({ demoEnabled = false }: { demoEnabled?: boolean }) {
+export function StaffLoginForm({ demoEnabled = false, uatAccounts = [] }: {
+  demoEnabled?: boolean;
+  uatAccounts?: { id: string; label: string; email: string }[];
+}) {
   const router = useRouter();
   const [returnPath, setReturnPath] = useState("/admin");
   const [demoAccountId, setDemoAccountId] = useState("");
+  const [selectedAccountId, setSelectedAccountId] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
@@ -86,7 +90,7 @@ export function StaffLoginForm({ demoEnabled = false }: { demoEnabled?: boolean 
         <div className="text-center">
           <span className="mx-auto flex size-14 items-center justify-center rounded-xl bg-primary font-serif text-2xl font-bold text-primary-foreground" aria-hidden>V</span>
           <h1 className="mt-4 font-serif text-2xl font-bold">Variety Groceries staff</h1>
-          <p className="mt-1 text-sm text-muted-foreground">Open the back office with a demo role or sign in as real staff.</p>
+          <p className="mt-1 text-sm text-muted-foreground">Sign in securely with your own staff password. No separate browser password is needed.</p>
         </div>
 
         {demoEnabled && !["/staff/cashier", "/staff/pos"].includes(returnPath) && UAT_DEMO_ACCOUNTS.length > 0 ? (
@@ -123,6 +127,35 @@ export function StaffLoginForm({ demoEnabled = false }: { demoEnabled?: boolean 
           </Card>
         ) : null}
 
+        {uatAccounts.length > 0 ? (
+          <Card className="border-primary/20">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-lg">Choose a staging test account</CardTitle>
+              <p className="text-sm leading-relaxed text-muted-foreground">
+                Select an authorised test profile, then enter its own password below.
+                Only designated synthetic UAT accounts are shown here, not private customer or staff directories.
+              </p>
+            </CardHeader>
+            <CardContent className="grid gap-2 sm:grid-cols-2">
+              {uatAccounts.map((account) => (
+                <button key={account.id} type="button"
+                  aria-pressed={selectedAccountId === account.id}
+                  className={`min-h-16 rounded-xl border p-3 text-left transition-colors hover:border-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary ${selectedAccountId === account.id ? "border-primary bg-primary/10" : "bg-background"}`}
+                  onClick={() => { setSelectedAccountId(account.id); setEmail(account.email); setPassword(""); setError(null); }}>
+                  <span className="block font-semibold">{account.label}</span>
+                  <span className="mt-1 block text-xs text-muted-foreground">Password required</span>
+                </button>
+              ))}
+              <button type="button" aria-pressed={selectedAccountId === "other"}
+                className={`min-h-16 rounded-xl border p-3 text-left transition-colors hover:border-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary ${selectedAccountId === "other" ? "border-primary bg-primary/10" : "bg-background"}`}
+                onClick={() => { setSelectedAccountId("other"); setEmail(""); setPassword(""); setError(null); }}>
+                <span className="block font-semibold">Another authorised account</span>
+                <span className="mt-1 block text-xs text-muted-foreground">Enter your own email</span>
+              </button>
+            </CardContent>
+          </Card>
+        ) : null}
+
         <Card>
           <CardHeader><CardTitle className="text-lg">Staff sign in</CardTitle></CardHeader>
           <CardContent>
@@ -131,7 +164,7 @@ export function StaffLoginForm({ demoEnabled = false }: { demoEnabled?: boolean 
                 <Label htmlFor="staff-email">Email address</Label>
                 <div className="relative">
                   <Mail className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
-                  <Input id="staff-email" type="email" autoComplete="username" className="h-11 pl-9" value={email} onChange={(event) => setEmail(event.target.value)} required autoFocus />
+                  <Input id="staff-email" type="email" autoComplete="username" className="h-11 pl-9" value={email} onChange={(event) => { setEmail(event.target.value); setSelectedAccountId(""); }} required autoFocus />
                 </div>
               </div>
               <div className="space-y-1.5">
@@ -148,7 +181,9 @@ export function StaffLoginForm({ demoEnabled = false }: { demoEnabled?: boolean 
         </Card>
 
         <p className="text-center text-sm text-muted-foreground">
-          <Link href="/" className="inline-flex items-center gap-1.5 font-medium hover:underline"><Store className="size-4" aria-hidden /> Back to the storefront</Link>
+          <Link href="/account/login" className="font-medium hover:underline">Customer sign in</Link>
+          <span className="mx-2">·</span>
+          <Link href="/" className="inline-flex items-center gap-1.5 font-medium hover:underline"><Store className="size-4" aria-hidden /> Storefront after sign-in</Link>
         </p>
       </div>
     </div>

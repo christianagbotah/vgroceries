@@ -53,3 +53,12 @@ Next slices remain inventory governance/adjustment approval, full operational st
 - Original staging HTTPS browser UAT at mobile 375 px passed administrator login, the approval workflow, real zero pending requests and all 32 original lots. Optimized Next.js/TypeScript build passed. The admin header has been corrected to `varietygroceries.com operations`.
 - The wider cross-module isolated PostgreSQL regression suite passed 61/61, covering checkout and reservations, tills, invitations, inventory depletion, order/payment authority, dispatch/rider races, customer tracking and strict API route coverage.
 - Remaining stock governance: multi-lot stocktakes with recounts, evidence uploads, quarantined stock release, controlled damaged/expired disposal and finance inventory journal reconciliation. Those workflows remain disabled as live operations until tested.
+
+## 14 November 2026: replace browser Basic gate with real portal login
+
+- Removed the Nginx `auth_basic` pop-up on the canonical staging hostname only, after backing up the original configuration; retained HTTPS, no-index and cache protection. The production root was not touched.
+- Added a private-staging-only Next.js 16 native session entrance that redirects anonymous page navigation to `/staff/login` while leaving login, invitation activation and static assets available. The existing API continues to enforce role, branch and resource permissions.
+- Rewrote the HttpOnly staging login cookie path to `/` at Nginx so server-side session verification works on page visits. Staging's passwordless `UAT_DEMO_LOGIN` shortcut is disabled.
+- Added a safe account chooser with one synthetic active UAT administrator account and a manual email option for other staff. It requires the actual app password and does not publicly enumerate real staff/customer accounts.
+- Verified Nginx syntax/reload; anonymous `/`, `/shop` and `/admin` redirect to native login without WWW-Authenticate; login page 200. Authenticated 375px Chrome completed staff login, protected operations/shop views, logout and correct renewed login challenge. Staging and production health unchanged.
+- Full details and rollback: `docs/CANONICAL_STAGING_NATIVE_LOGIN_20261114.md`.
