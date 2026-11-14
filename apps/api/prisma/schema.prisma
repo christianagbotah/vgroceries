@@ -346,6 +346,9 @@ model SmsDispatch {
   providerMessageId String?
   attemptedAt DateTime? @db.Timestamptz(3)
   resolvedAt DateTime? @db.Timestamptz(3)
+  // Separate delivery evidence from submission to avoid false success claims.
+  deliveryState String?
+  deliveryCheckedAt DateTime? @db.Timestamptz(3)
   createdAt DateTime @default(now()) @db.Timestamptz(3)
   updatedAt DateTime @updatedAt
   @@index([state, createdAt, id])
