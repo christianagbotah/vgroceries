@@ -1,0 +1,39 @@
+name: SMS gateway isolated verification
+
+on:
+  push:
+    branches: [feat/hubtel-sms-gateway-20261114]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  sms-gateway:
+    name: Build API and check SMS gateway (no provider traffic)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      CI: "true"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: |
+            apps/api/package-lock.json
+            packages/contracts/package-lock.json
+      - name: Build shared contracts
+        run: |
+          npm ci --prefix packages/contracts
+          npm run --prefix packages/contracts build
+      - name: Install API dependencies and generate Prisma client
+        run: |
+          npm ci --prefix apps/api
+          npm run --prefix apps/api generate
+      - name: Compile API including Hubtel SMS gateway
+        run: npm run --prefix apps/api build
+      - name: Unit-test SMS send, delivery status and fail-closed configuration
+        working-directory: apps/api
+        run: node --test dist/test/hubtel-sms-gateway.spec.js
