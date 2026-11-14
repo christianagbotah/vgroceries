@@ -27,6 +27,20 @@ The public `varietygroceries.com` site remains Coming Soon; `portal.varietygroce
 
 Hubtel also provided Direct Debit preapproval, Recurring Invoice, Programmable Services/USSD and mobile SDK references. Those are **not** necessary to ship single-purchase grocery checkout; avoid activating customer preapprovals or recurring debits without a new product requirement.
 
+## Hubtel SMS — owner-selected school model parity
+
+The implementation reference is **`/home/lightworld/webapps/iedupro/application/models/Sms_model.php`**, NOT the library in `application/libraries/hubtel-sms-api` and NOT a newer school provider.
+
+That model's actual *simple batch* request uses:
+
+- `POST https://sms.hubtel.com/v1/messages/batch/simple/send`
+- Basic Auth from SMS ClientID/ClientSecret
+- JSON `{ "From": "APPROVED_SENDER", "Recipients": ["+233XXXXXXXXX"], "Content": "message" }`
+- Hubtel numeric `status == 0` means the **SMS submission was accepted**, not delivered
+- The model normalizes common Ghana phone forms into `+233` E.164 strings
+
+The staged Variety SMS client now follows that exact contract with stricter validation. The separate SMS status lookup remains untested, and no live SMS has been sent. The Hubtel documentation also describes a different *single send* route (`/v1/messages/send` with `To`); **do not mix that single-send request schema with the verified school model's batch route**.
+
 ## Security and money-state invariants
 
 1. The supplied documentation states most financial endpoints are **live-only** and require merchant server public IP whitelisting through Hubtel. There is no confirmed sandbox in these references. Never run live API smoke tests with a real payer, refund, transfer or SMS recipient without explicit owner approval and controls.
