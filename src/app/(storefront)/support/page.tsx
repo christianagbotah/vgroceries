@@ -1,5 +1,6 @@
 "use client";
-import { useState, type FormEvent } from "react";
+import { useRef, useState, type FormEvent } from "react";
+import { useSubmissionFeedbackFocus } from "@/hooks/use-submission-feedback-focus";
 import Link from "next/link";
 import { Headphones, PhoneCall, ShieldCheck } from "lucide-react";
 import { api, ApiError } from "@/services/client";
@@ -16,6 +17,9 @@ export default function CustomerSupportPage(){
  const [orderReference,setOrderReference]=useState(""),[preferredContact,setPreferredContact]=useState("phone");
  const [consent,setConsent]=useState(false),[busy,setBusy]=useState(false);
  const [error,setError]=useState(""),[receipt,setReceipt]=useState<Receipt|null>(null);
+ const receiptRef=useRef<HTMLElement>(null),errorRef=useRef<HTMLParagraphElement>(null);
+ useSubmissionFeedbackFocus(receipt,receiptRef);
+ useSubmissionFeedbackFocus(error,errorRef);
  const send=async(e:FormEvent)=>{
   e.preventDefault();if(busy)return;setError("");setBusy(true);
   try{
@@ -34,9 +38,9 @@ export default function CustomerSupportPage(){
     <h1 className="font-serif text-3xl font-black">Speak with Variety Groceries</h1>
     <p className="text-sm leading-6 text-muted-foreground">Ask our shopping assistant for product questions or request a follow-up from a human team member. This form records a request; it does not immediately place a call or send a message.</p>
    </header>
-   {receipt?<section role="status" className="space-y-4 rounded-2xl border bg-card p-6">
+   {receipt?<section ref={receiptRef} tabIndex={-1} role="status" aria-labelledby="support-response-title" className="scroll-mt-28 space-y-4 rounded-2xl border bg-card p-6 outline-none focus-visible:ring-2 focus-visible:ring-primary">
      <ShieldCheck className="size-9 text-primary"/>
-     <h2 className="text-xl font-bold">Your request was recorded</h2>
+     <h2 id="support-response-title" className="text-xl font-bold">Your request was recorded</h2>
      <p>Reference: <strong className="font-mono">{receipt.reference}</strong></p>
      <p className="text-sm text-muted-foreground">{receipt.note} Keep this reference for future enquiries.</p>
      <div className="flex flex-wrap gap-3"><Link href="/shop" className="rounded-xl bg-primary px-4 py-3 text-sm font-bold text-white">Return to shop</Link><Link href="/assistant" className="rounded-xl border px-4 py-3 text-sm font-bold">Ask shopping assistant</Link></div>
@@ -57,7 +61,7 @@ export default function CustomerSupportPage(){
       <input type="checkbox" checked={consent} onChange={e=>setConsent(e.target.checked)} required className="mt-1 size-5"/>
       <span>I agree that Variety Groceries may use these contact details to respond to my enquiry. See the <Link href="/privacy" className="font-bold text-primary underline">privacy information</Link>.</span>
     </label>
-    {error?<p role="alert" className="rounded-lg border border-destructive/50 p-3 text-sm text-destructive">{error}</p>:null}
+    {error?<p ref={errorRef} tabIndex={-1} role="alert" className="scroll-mt-28 rounded-lg border border-destructive/50 p-3 text-sm text-destructive outline-none focus-visible:ring-2 focus-visible:ring-destructive">{error}</p>:null}
     <button type="submit" disabled={busy||!consent} className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-primary px-5 font-bold text-white disabled:opacity-50"><PhoneCall className="size-5"/>{busy?"Recording your request…":"Request a response"}</button>
     <p className="text-xs leading-5 text-muted-foreground">No guaranteed callback time. For order status, use <Link href="/track" className="font-semibold text-primary underline">verified tracking</Link>. We will not initiate an order change solely from this message.</p>
    </form>}

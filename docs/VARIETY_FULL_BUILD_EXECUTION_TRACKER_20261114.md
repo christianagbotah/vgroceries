@@ -79,3 +79,15 @@ Next slices remain inventory governance/adjustment approval, full operational st
 - Sample Customer could inspect sample account/orders and navigate out to genuine shopping with sample flags cleared; the real mock adapter also omits actual application session cookies.
 - Invalid demo role routes return 404; public demo API without an explicit UAT header returns 404; original live inventory without real identity returns 401.
 - Final Next.js production build/TypeScript and targeted lint passed. Production root remains Coming Soon; the original staging database was not seeded or modified for these tests.
+
+## 14 November 2026: customer form response visibility
+
+- Corrected footer-stranding after Call Me Back submission by focusing/scrolling the rendered confirmation or error rather than leaving the old scroll position from the removed long form.
+- Reused focus/scroll logic for manual order tracking and shopping assistant question/budget submissions. Tracking polling never auto-scrolls.
+- Kept customer form APIs, checkout, authentication, stock and production unchanged. Detailed verification and implementation: `docs/CUSTOMER_FORM_RESPONSE_VISIBILITY_20261114.md`.
+
+### Form viewport focus deployment verification
+
+- Real HTTPS browser on mobile 375px passed callback confirmation focus/visibility after short receipt replaced long form, without creating an actual case.
+- Desktop 1280px browser passed callback request error focus/visibility, with original form available to retry. Synthetic API responses were intercepted entirely inside the test browser.
+- Next.js optimized build and targeted ESLint passed; original staging support/track/assistant and public routes HTTP 200; API health HTTP 200; private inventory without authentication 401; production Coming Soon unchanged.

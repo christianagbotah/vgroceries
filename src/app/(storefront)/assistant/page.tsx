@@ -8,7 +8,8 @@
  */
 
 import Link from "next/link";
-import { useState } from "react";
+import { useRef, useState } from "react";
+import { useSubmissionFeedbackFocus } from "@/hooks/use-submission-feedback-focus";
 import { apiOps, ApiError, type AssistantResponse, type BudgetBasketResponse } from "@/services/client";
 import { groundedShoppingAnswer, groundedBudgetBasket } from "@/features/ai/grounded-catalog";
 import { useCart } from "@/features/checkout/cart-store";
@@ -41,6 +42,12 @@ export default function AssistantPage() {
   const [basket, setBasket] = useState<BudgetBasketResponse | null>(null);
   const [basketBusy, setBasketBusy] = useState(false);
   const [basketError, setBasketError] = useState<string | null>(null);
+  const answerRef = useRef<HTMLDivElement>(null), askErrorRef = useRef<HTMLDivElement>(null);
+  const basketRef = useRef<HTMLDivElement>(null), basketErrorRef = useRef<HTMLParagraphElement>(null);
+  useSubmissionFeedbackFocus(answer, answerRef);
+  useSubmissionFeedbackFocus(askError, askErrorRef);
+  useSubmissionFeedbackFocus(basket, basketRef);
+  useSubmissionFeedbackFocus(basketError, basketErrorRef);
 
   const ask = async (q: string) => {
     const query = q.trim();
@@ -59,6 +66,8 @@ export default function AssistantPage() {
   };
 
   const generateBasket = async () => {
+    setBasket(null);
+    setBasketError(null);
     const minor = parseMoneyToMinor(budget);
     if (minor === null || minor < 100) {
       setBasketError("Enter a budget of at least ₵1.00.");
@@ -174,10 +183,10 @@ export default function AssistantPage() {
         </ul>
 
         {asking ? <p className="text-sm text-muted-foreground" role="status">Searching the catalogue…</p> : null}
-        {askError ? <ErrorState message={askError} /> : null}
+        {askError ? <div ref={askErrorRef} tabIndex={-1} className="scroll-mt-28 outline-none focus-visible:ring-2 focus-visible:ring-destructive"><ErrorState message={askError} /></div> : null}
 
         {answer ? (
-          <div className="space-y-3 rounded-xl bg-muted/40 p-3 sm:p-4" role="region" aria-label="Assistant answer">
+          <div ref={answerRef} tabIndex={-1} className="scroll-mt-28 space-y-3 rounded-xl bg-muted/40 p-3 outline-none focus-visible:ring-2 focus-visible:ring-primary sm:p-4" role="region" aria-label="Assistant answer">
             <p className="text-[15px] leading-relaxed">{answer.answer}</p>
             {answer.evidence.length ? (
               <p className="text-xs text-muted-foreground">
@@ -229,10 +238,10 @@ export default function AssistantPage() {
             <ShoppingBasket className="size-4" aria-hidden /> {basketBusy ? "Building…" : "Build basket"}
           </Button>
         </form>
-        {basketError ? <p className="text-sm text-destructive" role="alert">{basketError}</p> : null}
+        {basketError ? <p ref={basketErrorRef} tabIndex={-1} className="scroll-mt-28 text-sm text-destructive outline-none focus-visible:ring-2 focus-visible:ring-destructive" role="alert">{basketError}</p> : null}
 
         {basket ? (
-          <div className="space-y-3 rounded-xl bg-muted/40 p-3 sm:p-4">
+          <div ref={basketRef} tabIndex={-1} role="region" aria-label="Budget basket result" className="scroll-mt-28 space-y-3 rounded-xl bg-muted/40 p-3 outline-none focus-visible:ring-2 focus-visible:ring-primary sm:p-4">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <p className="font-semibold">
                 Basket for {formatMoney(basket.totalMinor)}
