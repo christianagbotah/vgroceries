@@ -90,3 +90,16 @@ test("Hubtel status with unexpected currency cannot establish paid money identit
   const observed = await provider.lookup({ merchantReference: input().merchantReference, signal: input().signal });
   assert.equal(observed.state, "unknown");
 });
+
+test("Hubtel status without a transaction ID cannot be finalized", async () => {
+  const provider = new HubtelOnlineCheckoutProvider(config, async () =>
+    json({ responseCode: "0000", data: {
+      status: "Paid", amount: 25, currencyCode: null,
+      clientReference: input().merchantReference,
+    } }));
+  const observed = await provider.lookup({
+    merchantReference: input().merchantReference, signal: input().signal,
+  });
+  assert.equal(observed.state, "unknown");
+  assert.equal(observed.providerReference, undefined);
+});
