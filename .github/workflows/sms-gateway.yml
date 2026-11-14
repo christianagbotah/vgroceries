@@ -1,4 +1,4 @@
-name: SMS gateway isolated verification
+name: SMS integration draft verification
 
 on:
   push:
@@ -9,12 +9,33 @@ permissions:
   contents: read
 
 jobs:
-  sms-gateway:
-    name: Build API and check SMS gateway (no provider traffic)
+  sms-integration:
+    name: Shared contracts, PostgreSQL and opt-in SMS regression
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: variety_foundation_test
+        ports: [5432:5432]
+        options: >-
+          --health-cmd "pg_isready -U postgres -d variety_foundation_test"
+          --health-interval 5s --health-timeout 5s --health-retries 10
     env:
       CI: "true"
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/variety_foundation_test
+      WEB_ORIGINS: http://localhost:3000
+      API_STOCK_LOCATION_ID: loc_accra
+      API_INSECURE_COOKIES: "true"
+      COMMERCE_LOCATION_ID: loc_accra
+      CHECKOUT_PAYMENT_HOLD_MINUTES: "15"
+      CHECKOUT_OFFLINE_HOLD_MINUTES: "1440"
+      GUEST_CHECKOUT_TTL_MINUTES: "1440"
+      ORDER_VERIFICATION_ACTIVE_VERSION: "1"
+      ORDER_VERIFICATION_KEYS: '{"1":"1111111111111111111111111111111111111111111111111111111111111111"}'
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -32,8 +53,22 @@ jobs:
         run: |
           npm ci --prefix apps/api
           npm run --prefix apps/api generate
-      - name: Compile API including Hubtel SMS gateway
+      - name: Apply SMS opt-in and delivery ledger migrations to isolated PostgreSQL
+        run: npm run --prefix apps/api migrate:deploy
+      - name: Compile API and all integration-test sources
         run: npm run --prefix apps/api build
-      - name: Unit-test SMS send, delivery status and fail-closed configuration
+      - name: Test SMS gateway, consent, deduplication and provider delivery lookup
         working-directory: apps/api
-        run: node --test dist/test/hubtel-sms-gateway.spec.js
+        run: node --test --test-concurrency=1 dist/test/hubtel-sms-gateway.spec.js dist/test/sms-dispatch.spec.js
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - name: Install frontend dependencies
+        run: bun install --frozen-lockfile
+      - name: Check storefront TypeScript contracts
+        run: bunx tsc --noEmit --incremental false
+      - name: Verify production storefront bundle compiles with SMS UI hidden
+        env:
+          NEXT_TURBOPACK_EXPERIMENTAL_USE_SYSTEM_TLS_CERTS: "1"
+          NEXT_TELEMETRY_DISABLED: "1"
+        run: bun run build
