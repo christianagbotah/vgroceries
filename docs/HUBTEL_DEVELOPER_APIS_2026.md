@@ -116,6 +116,31 @@ per-recipient message IDs under `data: [{ recipient, messageId }]`.
 The adapted client extracts the message ID for the matching recipient rather
 than assuming a top-level `messageId`.
 
+## Read-only SMS delivery receipts (second inactive migration)
+
+A follow-up migration `202611140040_hubtel_sms_delivery_receipts`
+adds separate nullable `deliveryState` and `deliveryCheckedAt` fields
+to `SmsDispatch`. The database trigger continues to forbid resubmitting a
+message or modifying the original recipient, body and accepted provider ID;
+it permits only later verified receipt updates on a `submitted` row.
+`delivered` and `failed` are final, immutable receipt states.
+`sent`, `pending` and `unknown` remain eligible for **manual GET-only**
+status rechecks; they never trigger a second SMS.
+
+The manually invoked script
+`apps/api/scripts/check-hubtel-sms-deliveries.ts` uses
+`HubtelSmsDispatchService.checkSubmittedDeliveryBatch()` and
+`HubtelSmsClient.status()`. It is disabled unless the same
+`HUBTEL_SMS_DISPATCH_ENABLED=true` gate and approved-recipient allowlist
+are configured. The CLI has **no send path**, no timer, no public HTTP route
+and logs only counts. A request failure or mismatched provider message ID
+does not mark the message delivered or cause a retry.
+
+All database migrations remain **unapplied to the VPS** in this draft branch;
+the new receipt schema must be applied only as part of a reviewed staging
+release, not directly to production. No real Hubtel SMS receipt has been
+verified yet.
+
 ## Security and money-state invariants
 
 1. The supplied documentation explicitly identifies IP whitelisting for **transaction status**, direct receive/send, refunds and certain transfer/verification endpoints. **Online Checkout initiation and SMS sending are not documented as requiring IP whitelisting.** Do not generalize requirements from one endpoint to all Hubtel services. The financial APIs are live-only in these references; never trigger a real debit, refund, transfer or customer SMS without controlled approval.
