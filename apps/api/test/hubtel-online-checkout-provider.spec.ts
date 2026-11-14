@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { HubtelOnlineCheckoutProvider } from "../src/payments/hubtel-online-checkout-provider";
+import { merchantReference } from "../src/payments/payment-initiation.service";
 
 const config = {
   apiId: "example-api-id",
@@ -102,4 +103,41 @@ test("Hubtel status without a transaction ID cannot be finalized", async () => {
   });
   assert.equal(observed.state, "unknown");
   assert.equal(observed.providerReference, undefined);
+});
+
+test("SweetMothersGH checkout response shape is accepted only when the reference and success code match", async () => {
+  const provider = new HubtelOnlineCheckoutProvider(config, async () => json({
+    responseCode: "0000",
+    status: "Success",
+    checkoutId: "checkout-top-level-001",
+    checkoutUrl: "https://pay.hubtel.com/checkout-top-level-001",
+    clientReference: input().merchantReference,
+  }));
+  assert.deepEqual(await provider.initiate(input()), {
+    kind: "accepted",
+    action: { kind: "redirect", url: "https://pay.hubtel.com/checkout-top-level-001" },
+  });
+});
+
+test("Checkout rejects missing or mismatched transaction reference even with a valid redirect URL", async () => {
+  for (const responseData of [
+    { checkoutId: "one", checkoutUrl: "https://pay.hubtel.com/one" },
+    { checkoutId: "two", checkoutUrl: "https://pay.hubtel.com/two", clientReference: "another-order" },
+  ]) {
+    const provider = new HubtelOnlineCheckoutProvider(config, async () =>
+      json({ responseCode: "0000", data: responseData }));
+    assert.equal((await provider.initiate(input())).kind, "rejected");
+  }
+});
+
+test("Hubtel-only merchant references respect the 32-character limit; other providers retain legacy reference shape", () => {
+  const seen = new Set<string>();
+  for (let i = 0; i < 40; i++) {
+    const checkoutRef = merchantReference("hubtel_checkout");
+    assert.match(checkoutRef, /^VG-PAY-[A-F0-9]{25}$/);
+    assert.equal(checkoutRef.length, 32);
+    assert.ok(!seen.has(checkoutRef));
+    seen.add(checkoutRef);
+  }
+  assert.match(merchantReference("paystack"), /^VG-PAY-[A-F0-9]{32}$/);
 });
