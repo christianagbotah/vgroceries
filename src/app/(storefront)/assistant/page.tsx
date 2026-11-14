@@ -92,15 +92,15 @@ export default function AssistantPage() {
       const product = products.find((p) => p.variants.some((v) => v.id === item.variantId));
       const variant = product?.variants.find((v) => v.id === item.variantId && v.isAvailable);
       if (variant && product) {
-        add({
+        const accepted = add({
           variantId: variant.id,
           productId: product.id,
           quantity: "1",
           name: `${product.name} — ${variant.name}`,
           image: product.image,
           priceMinor: variant.priceMinor,
-        });
-        added += 1;
+        }, variant.availableToSell);
+        if (accepted) added += 1;
       }
     }
     toast({ title: `Added ${added} basket item${added === 1 ? "" : "s"} to your cart` });
@@ -114,15 +114,17 @@ export default function AssistantPage() {
       toast({ title: "That item just went out of stock", variant: "destructive" });
       return;
     }
-    add({
+    const accepted = add({
       variantId: variant.id,
       productId: product.id,
       quantity: "1",
       name: `${product.name} — ${variant.name}`,
       image: product.image,
       priceMinor: variant.priceMinor,
-    });
-    toast({ title: "Added to cart", description: s.label });
+    }, variant.availableToSell);
+    toast(accepted
+      ? { title: "Added to cart", description: s.label }
+      : { title: "Stock limit reached", description: `Only ${variant.availableToSell} available; check your cart.`, variant: "destructive" });
   };
 
   return (

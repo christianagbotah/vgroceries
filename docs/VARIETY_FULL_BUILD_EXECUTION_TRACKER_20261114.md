@@ -102,3 +102,10 @@ Next slices remain inventory governance/adjustment approval, full operational st
 - Before original staging migration, a private mode-600 PostgreSQL backup was created. No real customer password was changed during tests; production remains Coming Soon.
 - **Launch blockers:** Verify recovery mail reaches an actual authorised inbox; validate SPF/DKIM mail sender routing, add verified-email ownership on customer signup/changes, and implement verified Hubtel SMS OTP for phone-only customers. Existing local Exim message queues are not proof of delivery.
 - Details and operator UAT: `docs/SELF_SERVICE_PASSWORD_RECOVERY_20261114.md`.
+
+## 14 November 2026 — hard stock ceilings across customer shopping
+
+- Enforced user requirement: when 1 available, customer cannot order 2/3; when 2 available, maximum 2; when 0 available, no purchase. UI shows exact low-stock numbers and disables further Add to Cart actions.
+- Central Zustand cart enforces cumulative SKU ceilings, all catalog/detail/assistant/wishlist/repeat-order sources pass the live stock cap, saved cart shows overstock warnings and cannot navigate to checkout until corrected, and checkout independently rechecks live ATS before submit. Backend final position-row locks and atomic `OUT_OF_STOCK` rejection already provide authoritative concurrent-sale safety.
+- New permanent cart regression **7/7** passed; real HTTPS 375px browser stock scenarios **1, 2, stale3→1 and 0** passed using client-only simulated stock without changes to real records. Optimized frontend build and TypeScript plus ESLint passed. No production site changes.
+- Full details: `docs/CUSTOMER_STOCK_HARD_LIMITS_20261114.md`.

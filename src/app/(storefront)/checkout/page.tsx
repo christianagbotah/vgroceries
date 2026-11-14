@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { cmpQty } from "@/lib/quantity";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
@@ -25,6 +26,7 @@ import type { CheckoutPickupPointView } from "@/services/contracts";
 type Zone = { id: string; name: string; areas: string[]; feeMinor: number; minimumOrderMinor: number; serviceHours: string; cutoff: string; codEnabled?: boolean };
 type Slot = { id: string; zoneId: string; date: string; window: string; capacity: number; booked: number };
 type AccountSummary = Awaited<ReturnType<typeof apiOps.accountSummary>>;
+type StockIssue = { variantId: string; name: string; requested: string; available: string };
 
 export default function CheckoutPage() {
   const router = useRouter();
@@ -65,6 +67,36 @@ export default function CheckoutPage() {
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [orderError, setOrderError] = useState<string | null>(null);
   const [conflicts, setConflicts] = useState<{ productName: string; variantName: string; requested: string; available: string }[]>([]);
+  const [stockChecking, setStockChecking] = useState(true);
+  const [stockError, setStockError] = useState<string | null>(null);
+  const [stockIssues, setStockIssues] = useState<StockIssue[]>([]);
+
+  const checkStock = useCallback(async (): Promise<StockIssue[]> => {
+    if (!lines.length) return [];
+    const products = await apiOps.byVariants(lines.map((line) => line.variantId));
+    return lines.flatMap((line) => {
+      const product = products.find((item) => item.variants.some((v) => v.id === line.variantId));
+      const variant = product?.variants.find((v) => v.id === line.variantId);
+      const available = variant?.isAvailable ? variant.availableToSell : "0";
+      return !variant || cmpQty(line.quantity, "0") <= 0 || cmpQty(line.quantity, available) > 0
+        ? [{ variantId: line.variantId, name: line.name, requested: line.quantity, available }]
+        : [];
+    });
+  }, [lines]);
+
+  useEffect(() => {
+    let active = true;
+    const timer = window.setTimeout(() => {
+      setStockChecking(true);
+      setStockError(null);
+      void checkStock().then((issues) => {
+        if (active) setStockIssues(issues);
+      }).catch(() => {
+        if (active) setStockError("Could not verify available stock. Please try again before ordering.");
+      }).finally(() => { if (active) setStockChecking(false); });
+    }, 0);
+    return () => { active = false; window.clearTimeout(timer); };
+  }, [checkStock]);
 
   useEffect(() => {
     (async () => {
@@ -196,6 +228,24 @@ export default function CheckoutPage() {
   };
 
   const placeOrder = async () => {
+    // A stale cart or an availability query failure must never reach the
+    // checkout transaction. The backend performs a *second* locked check.
+    setStockChecking(true);
+    try {
+      const issues = await checkStock();
+      setStockIssues(issues);
+      if (issues.length) {
+        setOrderError("The requested quantity exceeds the remaining stock. Please adjust your cart.");
+        document.querySelector<HTMLElement>("#checkout-stock-notice")?.scrollIntoView({ behavior: "smooth", block: "start" });
+        return;
+      }
+      setStockError(null);
+    } catch {
+      setStockError("Could not verify available stock. Please try again before ordering.");
+      return;
+    } finally {
+      setStockChecking(false);
+    }
     if (!validate()) {
       document.querySelector<HTMLElement>("[data-error='true']")?.scrollIntoView({ behavior: "smooth", block: "center" });
       return;
@@ -257,11 +307,20 @@ export default function CheckoutPage() {
             setOrderError("The centre rate changed and could not be refreshed. Please choose a centre again.");
           }
         }
-        if (e.code === "OUT_OF_STOCK" && Array.isArray(e.details)) {
-          const conflicts = e.details as { productName: string; variantName: string; requested: string; available: string }[];
-          setConflicts(conflicts.map((x) => ({
-            productName: x.productName, variantName: x.variantName, requested: x.requested, available: x.available,
+        if (e.code === "OUT_OF_STOCK") {
+          const details = e.details as { conflicts?: { variantId: string; requested: string; available: string }[] } | null;
+          const latest = Array.isArray(details?.conflicts) ? details.conflicts : [];
+          setConflicts(latest.map((item) => ({
+            productName: lines.find((line) => line.variantId === item.variantId)?.name ?? "Product",
+            variantName: "",
+            requested: item.requested, available: item.available,
           })));
+          setStockIssues(latest.map((item) => ({
+            variantId: item.variantId,
+            name: lines.find((line) => line.variantId === item.variantId)?.name ?? "Product",
+            requested: item.requested, available: item.available,
+          })));
+          setOrderError("The stock was reserved or sold while you were checking out. No order was placed. Adjust your cart.");
         }
       } else {
         setOrderError("The order could not be placed. Please try again.");
@@ -649,7 +708,21 @@ export default function CheckoutPage() {
               </div>
             ) : null}
 
-            <Button size="lg" className="h-12 w-full text-base" onClick={placeOrder} disabled={placing || !meetsMinimum}>
+            <div id="checkout-stock-notice" className="scroll-mt-28 space-y-2" aria-live="polite">
+              {stockChecking ? <p className="text-sm text-muted-foreground">Verifying current stock quantities…</p> : null}
+              {stockError ? <p role="alert" className="rounded-lg border border-destructive/40 p-3 text-sm text-destructive">{stockError}</p> : null}
+              {stockIssues.length ? (
+                <div role="alert" className="space-y-2 rounded-lg border border-warning/40 bg-warning/10 p-3 text-sm">
+                  <p className="font-bold">You cannot order more than the available stock.</p>
+                  {stockIssues.map((issue) => <p key={issue.variantId}>
+                    {issue.name}: {issue.requested} requested, only {issue.available} left.
+                  </p>)}
+                  <Button variant="outline" size="sm" asChild><Link href="/cart">Adjust your cart</Link></Button>
+                </div>
+              ) : null}
+            </div>
+            <Button size="lg" className="h-12 w-full text-base" onClick={placeOrder}
+              disabled={placing || stockChecking || Boolean(stockError) || stockIssues.length > 0 || !meetsMinimum}>
               {placing ? (
                 <>
                   <Loader2 className="size-5 animate-spin" aria-hidden /> Placing your order…

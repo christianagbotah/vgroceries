@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { formatMoney } from "@/lib/money";
 import { ArrowRight, ShoppingCart, Trash2, TriangleAlert } from "lucide-react";
+import { cmpQty } from "@/lib/quantity";
 
 interface CartRow {
   variantId: string;
@@ -61,7 +62,9 @@ export default function CartPage() {
     let hasIssue = false;
     for (const line of lines) {
       const row = rows.find((r) => r.variantId === line.variantId);
-      if (row?.variant?.isAvailable) subtotal += row.variant.priceMinor * Number(line.quantity);
+      if (row?.variant?.isAvailable && cmpQty(line.quantity, "0") > 0 &&
+          cmpQty(line.quantity, row.variant.availableToSell) <= 0)
+        subtotal += row.variant.priceMinor * Number(line.quantity);
       else hasIssue = true;
     }
     return { subtotal, hasIssue };
@@ -105,7 +108,8 @@ export default function CartPage() {
             const row = rows.find((r) => r.variantId === line.variantId);
             const variant = row?.variant;
             const product = row?.product;
-            const oversold = variant ? Number(line.quantity) > Number(variant.availableToSell) : false;
+            const oversold = variant ? cmpQty(line.quantity, variant.availableToSell) > 0 : false;
+            const isLowStock = variant?.isAvailable && cmpQty(variant.availableToSell, "3") <= 0;
             return (
               <li key={line.variantId} className="flex gap-3 rounded-xl border bg-card p-3 sm:p-4">
                 {product ? (
@@ -126,6 +130,9 @@ export default function CartPage() {
                         {product?.name ?? "Unavailable item"}
                       </Link>
                       <p className="text-sm text-muted-foreground">{variant?.name ?? "—"}</p>
+                      {variant?.isAvailable ? <p className={`mt-1 text-xs font-semibold ${isLowStock ? "text-amber-700" : "text-muted-foreground"}`}>
+                        {isLowStock ? `Only ${variant.availableToSell} left in stock` : `${variant.availableToSell} in stock`}
+                      </p> : null}
                     </div>
                     <p className="font-bold">{variant ? formatMoney(variant.priceMinor * Number(line.quantity)) : "—"}</p>
                   </div>
@@ -138,7 +145,11 @@ export default function CartPage() {
                   ) : oversold ? (
                     <p role="alert" className="flex items-start gap-1.5 rounded-lg bg-warning/10 border border-warning/40 p-2 text-sm">
                       <TriangleAlert className="mt-0.5 size-4 shrink-0" aria-hidden />
-                      <span>Only {variant.availableToSell} left — reduce the quantity.</span>
+                      <span>Only {variant.availableToSell} left — you have {line.quantity} in your cart.
+                        <button className="ml-1 font-bold underline" type="button" onClick={() => setQty(line.variantId, variant.availableToSell, variant.availableToSell)}>
+                          Set quantity to {variant.availableToSell}
+                        </button>
+                      </span>
                     </p>
                   ) : null}
 
@@ -147,7 +158,9 @@ export default function CartPage() {
                       <QuantityInput
                         size="sm"
                         value={line.quantity}
-                        onChange={(q) => setQty(line.variantId, q)}
+                        onChange={(q) => setQty(line.variantId, q, variant.availableToSell)}
+                        min={["kg", "litre"].includes(variant.unit) ? "0.001" : "1"}
+                        unit={variant.unit}
                         max={variant.availableToSell}
                         ariaLabel={`Quantity of ${product?.name}`}
                       />
@@ -187,11 +200,20 @@ export default function CartPage() {
             Final prices, fees and totals are calculated by the service at checkout. Ghana tax
             treatment is configured by the owner before launch.
           </p>
-          <Button asChild size="lg" className="h-12 w-full">
-            <Link href="/checkout">
-              Checkout <ArrowRight className="size-4" aria-hidden />
-            </Link>
-          </Button>
+          {error || estimated.hasIssue ? (
+            <>
+              <p role="alert" className="rounded-lg border border-warning/40 bg-warning/10 p-3 text-sm font-medium">
+                Please adjust or remove items that exceed available stock before checkout. We cannot accept an order with a shortage.
+              </p>
+              <Button size="lg" className="h-12 w-full" disabled>Checkout unavailable — check stock</Button>
+            </>
+          ) : (
+            <Button asChild size="lg" className="h-12 w-full">
+              <Link href="/checkout">
+                Checkout <ArrowRight className="size-4" aria-hidden />
+              </Link>
+            </Button>
+          )}
           <Button asChild variant="ghost" size="sm" className="h-10 w-full">
             <Link href="/shop">Continue shopping</Link>
           </Button>

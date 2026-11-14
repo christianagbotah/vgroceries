@@ -7,9 +7,9 @@ import { Label } from "@/components/ui/label";
 import { QuantityInput } from "@/components/shared/quantity-input";
 import { useCart } from "@/features/checkout/cart-store";
 import { useToast } from "@/hooks/use-toast";
-import type { CatalogProduct, CatalogVariant } from "@/services/client";
+import { apiOps, type CatalogProduct, type CatalogVariant } from "@/services/client";
 import { ShoppingCart, TriangleAlert } from "lucide-react";
-import { formatQty } from "@/lib/quantity";
+import { cmpQty, formatQty, subQty } from "@/lib/quantity";
 import { cn } from "@/lib/utils";
 
 /**
@@ -21,26 +21,50 @@ export function ProductPurchasePanel({ product }: { product: CatalogProduct }) {
   const available = product.variants.filter((v) => v.isAvailable);
   const [variantId, setVariantId] = useState(available[0]?.id ?? product.variants[0]?.id ?? "");
   const [quantity, setQuantity] = useState("1");
+  const [liveQuantities, setLiveQuantities] = useState<Record<string, string>>({});
+  const [adding, setAdding] = useState(false);
   const { add } = useCart();
   const { toast } = useToast();
 
-  const variant = product.variants.find((v) => v.id === variantId);
+  const original = product.variants.find((v) => v.id === variantId);
+  const refreshedQty = original ? liveQuantities[original.id] ?? original.availableToSell : "0";
+  const variant = original ? { ...original, availableToSell: refreshedQty, isAvailable: cmpQty(refreshedQty, "0") > 0 } : undefined;
   const isAvailable = !!variant?.isAvailable;
+  const inCart = useCart((state) => state.lines.find((item) => item.variantId === variant?.id)?.quantity ?? "0");
+  const remaining = variant ? subQty(variant.availableToSell, inCart) : "0";
+  const minimum = variant && ["kg", "litre"].includes(variant.unit) ? "0.001" : "1";
+  const selectedQuantity = cmpQty(quantity, remaining) > 0 ? remaining : quantity;
+  const canAdd = isAvailable && cmpQty(remaining, minimum) >= 0 &&
+    cmpQty(selectedQuantity, minimum) >= 0 && cmpQty(selectedQuantity, remaining) <= 0;
 
-  const addToCart = () => {
-    if (!variant || !isAvailable) return;
-    add({
-      variantId: variant.id,
-      productId: product.id,
-      quantity,
-      name: `${product.name} — ${variant.name}`,
-      image: product.image,
-      priceMinor: variant.priceMinor,
-    });
-    toast({
-      title: "Added to cart",
-      description: `${formatQty(quantity)} × ${product.name} — ${variant.name}`,
-    });
+  const addToCart = async () => {
+    if (!variant || !canAdd || adding) return;
+    setAdding(true);
+    try {
+      const products = await apiOps.byVariants([variant.id]);
+      const fresh = products.flatMap((item) => item.variants).find((item) => item.id === variant.id);
+      const latestQty = fresh?.isAvailable ? fresh.availableToSell : "0";
+      setLiveQuantities((current) => ({ ...current, [variant.id]: latestQty }));
+      const alreadyInCart = useCart.getState().lines.find((line) => line.variantId === variant.id)?.quantity ?? "0";
+      const latestRemaining = subQty(latestQty, alreadyInCart);
+      if (cmpQty(selectedQuantity, minimum) < 0 || cmpQty(selectedQuantity, latestRemaining) > 0) {
+        toast({ title: "Quantity exceeds available stock", description: `Only ${latestQty} available; ${alreadyInCart} already in your cart.`, variant: "destructive" });
+        return;
+      }
+      const accepted = add({
+        variantId: variant.id,
+        productId: product.id,
+        quantity: selectedQuantity,
+        name: `${product.name} — ${variant.name}`,
+        image: product.image,
+        priceMinor: fresh?.priceMinor ?? variant.priceMinor,
+      }, latestQty);
+      toast(accepted
+        ? { title: "Added to cart", description: `${formatQty(selectedQuantity)} × ${product.name} — ${variant.name}` }
+        : { title: "Stock limit reached", description: `Only ${latestQty} available.`, variant: "destructive" });
+    } catch {
+      toast({ title: "Could not verify stock", description: "Please try again before adding this item.", variant: "destructive" });
+    } finally { setAdding(false); }
   };
 
   return (
@@ -49,12 +73,14 @@ export function ProductPurchasePanel({ product }: { product: CatalogProduct }) {
         <legend className="text-sm font-semibold">Choose an option</legend>
         <RadioGroup
           value={variantId}
-          onValueChange={setVariantId}
+          onValueChange={(id) => { setVariantId(id); setQuantity("1"); }}
           className="grid gap-2"
           aria-label={`${product.name} variants`}
         >
-          {product.variants.map((v: CatalogVariant) => (
-            <Label
+          {product.variants.map((originalVariant: CatalogVariant) => {
+            const latest = liveQuantities[originalVariant.id] ?? originalVariant.availableToSell;
+            const v = { ...originalVariant, availableToSell: latest, isAvailable: cmpQty(latest, "0") > 0 };
+            return <Label
               key={v.id}
               data-clickable
               htmlFor={`variant-${v.id}`}
@@ -70,7 +96,7 @@ export function ProductPurchasePanel({ product }: { product: CatalogProduct }) {
                 <span>
                   <span className="block text-sm font-medium">{v.name}</span>
                   <span className="block text-xs text-muted-foreground">
-                    {v.isAvailable ? `${v.availableToSell} available to sell` : "Out of stock"}
+                    {v.isAvailable ? (cmpQty(v.availableToSell, "3") <= 0 ? `Only ${v.availableToSell} left` : `${v.availableToSell} in stock`) : "Out of stock"}
                     {v.purchaseUnit ? ` · 1 ${v.purchaseUnit.altUnit} = ${v.purchaseUnit.factor}` : ""}
                   </span>
                 </span>
@@ -81,23 +107,28 @@ export function ProductPurchasePanel({ product }: { product: CatalogProduct }) {
                   <span className="block text-xs text-muted-foreground line-through">{v.compareAtLabel}</span>
                 ) : null}
               </span>
-            </Label>
-          ))}
+            </Label>;
+          })}
         </RadioGroup>
       </fieldset>
 
       {isAvailable && variant ? (
         <div className="space-y-3">
+          <p className="text-sm font-medium" aria-live="polite">
+            {cmpQty(remaining, "0") <= 0 ? `All ${variant.availableToSell} available units are already in your cart.`
+              : `${variant.availableToSell} available · ${remaining} more can be added to your cart.`}
+          </p>
           <div className="flex flex-wrap items-center gap-3">
             <QuantityInput
-              value={quantity}
+              value={selectedQuantity}
               onChange={setQuantity}
-              max={variant.availableToSell}
+              min={minimum}
+              max={remaining}
               unit={variant.unit}
               ariaLabel={`Quantity of ${product.name} ${variant.name}`}
             />
-            <Button size="lg" className="h-12 flex-1 min-w-40" onClick={addToCart}>
-              <ShoppingCart className="size-5" aria-hidden /> Add to cart
+            <Button size="lg" className="h-12 flex-1 min-w-40" disabled={!canAdd || adding} onClick={addToCart}>
+              <ShoppingCart className="size-5" aria-hidden /> {adding ? "Checking stock…" : "Add to cart"}
             </Button>
           </div>
           <p className="text-xs text-muted-foreground">

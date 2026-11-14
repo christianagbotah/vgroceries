@@ -28,8 +28,10 @@ export function QuantityInput({
   size?: "sm" | "md";
 }) {
   const [text, setText] = useState<string | null>(null);
+  const fractional = unit === "kg" || unit === "litre" || min !== "1";
+  const stepSize = fractional ? "0.1" : "1";
   const step = (dir: 1 | -1) => {
-    let next = addQty(value, dir === 1 ? "1" : "-1");
+    let next = addQty(value, dir === 1 ? stepSize : `-${stepSize}`);
     if (cmpQty(next, min) < 0) next = min;
     if (max && cmpQty(next, max) > 0) next = max;
     if (cmpQty(next, "0") < 0) next = "0";
@@ -60,10 +62,10 @@ export function QuantityInput({
         onBlur={() => {
           if (text !== null) {
             const cleaned = text.trim().replace(",", ".");
-            if (/^\d+(\.\d{1,3})?$/.test(cleaned)) {
+            if (/^\d+(\.\d{1,3})?$/.test(cleaned) && (fractional || /^\d+$/.test(cleaned))) {
               let next = cleaned;
               if (max && cmpQty(next, max) > 0) next = max;
-              if (cmpQty(next, "0") <= 0) next = min;
+              if (cmpQty(next, min) < 0) next = min;
               onChange(next);
             }
           }
