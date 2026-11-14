@@ -1,7 +1,9 @@
 /**
  * Server-only Hubtel SMS REST adapter (12 October 2026 API reference).
  * Not wired into the notifications outbox yet: no live messages are sent.
- * Mirrors iEduPro application/models/Sms_model.php: batch/simple endpoint,\n * Basic Auth, and { From, Recipients: [Ghana E.164 phone], Content }.\n * POST + Basic Auth deliberately avoids the documented GET route, which puts
+ * Mirrors iEduPro application/models/Sms_model.php: batch/simple endpoint,
+ * Basic Auth, and { From, Recipients: [Ghana E.164 phone], Content }.
+ * POST + Basic Auth deliberately avoids the documented GET route, which puts
  * ClientSecret and message content into URLs and potentially into access logs.
  */
 export interface HubtelSmsConfig {
