@@ -55,8 +55,8 @@ export function ProductTile({ product, priority }: { product: CatalogProduct; pr
 
         {product.variants.length > 1 && available.length > 0 ? (
           <Select value={variantId} onValueChange={setVariantId} aria-label={`${product.name} variant`}>
-            <SelectTrigger className="mt-2 h-11 w-full rounded-lg bg-muted/35 px-2 text-xs shadow-none sm:text-sm" size="sm"><SelectValue placeholder="Choose size" /></SelectTrigger>
-            <SelectContent>{product.variants.map((v) => <SelectItem key={v.id} value={v.id} disabled={!v.isAvailable}>{v.name} · {v.priceLabel}{v.isAvailable ? "" : " (out of stock)"}</SelectItem>)}</SelectContent>
+            <SelectTrigger className="mt-2 h-11 min-h-11 w-full rounded-lg bg-muted/35 px-2 text-xs shadow-none sm:text-sm" size="sm"><SelectValue placeholder="Choose size" /></SelectTrigger>
+            <SelectContent>{product.variants.map((v) => <SelectItem key={v.id} value={v.id} className="min-h-11" disabled={!v.isAvailable}>{v.name} · {v.priceLabel}{v.isAvailable ? "" : " (out of stock)"}</SelectItem>)}</SelectContent>
           </Select>
         ) : (
           <p className="mt-1 truncate text-xs text-muted-foreground">{chosen?.name ?? "Choose an available size"}</p>
