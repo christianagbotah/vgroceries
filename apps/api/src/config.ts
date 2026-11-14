@@ -487,7 +487,7 @@ export function readConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
   if (env.HUBTEL_SMS_DISPATCH_ENABLED === "true") {
     if (!hubtelSms) throw new Error("SMS dispatch requires configured Hubtel SMS credentials");
     const since = env.HUBTEL_SMS_NOT_BEFORE ?? "";
-    if (!/^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$/.test(since))
+    if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/.test(since))
       throw new Error("HUBTEL_SMS_NOT_BEFORE must be a UTC ISO timestamp");
     const notBefore = new Date(since);
     if (Number.isNaN(notBefore.valueOf()) || notBefore.toISOString().replace(".000Z", "Z") !== since)
