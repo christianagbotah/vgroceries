@@ -56,3 +56,28 @@ test("checkout fails closed when the configured commerce stock location becomes 
   assert.equal(x.r.status,503); assert.equal(x.body.error.code,"UNAVAILABLE");
   assert.deepEqual(await Promise.all([db.order.count(),db.reservation.count(),db.idempotency.count()]),[0,0,0]);
 });
+
+
+test("guest checkout saves explicit SMS consent without silently subscribing other orders", async () => {
+  const g = await guest();
+  const h = { cookie: g.cookie, "x-csrf-token": g.csrf };
+  const opted = await complete({ ...collectionBody(), smsUpdatesOptIn: true }, "guest-sms-optin-1", h);
+  assert.equal(opted.r.status, 201, JSON.stringify(opted.body));
+  const optedOrder = await db.order.findUniqueOrThrow({ where: { id: opted.body.data.orderId } });
+  assert.equal(optedOrder.smsUpdatesOptIn, true);
+  const replay = await complete({ ...collectionBody(), smsUpdatesOptIn: true }, "guest-sms-optin-1", h);
+  assert.equal(replay.r.status, 201);
+  assert.equal(replay.body.data.orderId, opted.body.data.orderId);
+  const changed = await complete({ ...collectionBody(), smsUpdatesOptIn: false }, "guest-sms-optin-1", h);
+  assert.equal(changed.r.status, 409, "Consent may not change on idempotent replay");
+  assert.equal((await db.order.findUniqueOrThrow({ where: { id: opted.body.data.orderId } })).smsUpdatesOptIn, true);
+});
+
+test("checkout clients not sending SMS consent remain unsubscribed", async () => {
+  const g = await guest();
+  const h = { cookie: g.cookie, "x-csrf-token": g.csrf };
+  const created = await complete(collectionBody(), "guest-sms-default-off", h);
+  assert.equal(created.r.status, 201, JSON.stringify(created.body));
+  const order = await db.order.findUniqueOrThrow({ where: { id: created.body.data.orderId } });
+  assert.equal(order.smsUpdatesOptIn, false);
+});
