@@ -25,6 +25,7 @@ model User {
   active Boolean @default(true)
   createdAt DateTime @default(now()) @db.Timestamptz(3)
   sessions Session[]
+  passwordResets PasswordResetToken[]
   staffInvitation StaffInvitation?
   locations UserLocation[]
   customerAddresses CustomerAddress[]
@@ -32,6 +33,19 @@ model User {
   customerReturnClaims CustomerReturnClaim[]
   notifications Notification[]
   riderProfile RiderProfile?
+}
+
+// Raw recovery secrets are NEVER persisted. A token can be used only once.
+model PasswordResetToken {
+  id String @id @default(uuid())
+  userId String
+  user User @relation(fields: [userId], references: [id], onDelete: Restrict)
+  tokenHash String @unique
+  expiresAt DateTime @db.Timestamptz(3)
+  consumedAt DateTime? @db.Timestamptz(3)
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  @@index([userId, createdAt])
+  @@index([expiresAt])
 }
 
 model Session {

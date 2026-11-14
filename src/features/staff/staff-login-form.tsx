@@ -185,6 +185,7 @@ export function StaffLoginForm({ demoEnabled = false, uatAccounts = [] }: {
                   <Input id="staff-password" type="password" autoComplete="current-password" className="h-11 pl-9" value={password} onChange={(event) => setPassword(event.target.value)} required />
                 </div>
               </div>
+              <div className="text-right"><Link href="/forgot-password" className="text-sm font-semibold text-primary underline-offset-4 hover:underline">Forgot password?</Link></div>
               {error ? <p role="alert" className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">{error}</p> : null}
               <Button type="submit" size="lg" className="h-11 w-full" disabled={busy}>{busy ? "Signing in…" : "Sign in"}</Button>
             </form>

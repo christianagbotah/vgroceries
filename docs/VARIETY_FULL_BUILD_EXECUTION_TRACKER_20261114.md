@@ -91,3 +91,14 @@ Next slices remain inventory governance/adjustment approval, full operational st
 - Real HTTPS browser on mobile 375px passed callback confirmation focus/visibility after short receipt replaced long form, without creating an actual case.
 - Desktop 1280px browser passed callback request error focus/visibility, with original form available to retry. Synthetic API responses were intercepted entirely inside the test browser.
 - Next.js optimized build and targeted ESLint passed; original staging support/track/assistant and public routes HTTP 200; API health HTTP 200; private inventory without authentication 401; production Coming Soon unchanged.
+
+## 14 November 2026: self-service customer and staff password recovery
+
+- Added the **Forgot password?** link to customer and real staff login pages, plus `/forgot-password` and `/reset-password` responsive public screens. Staging demo profile tiles remain password-free and separate.
+- Added a persistent, hashed, single-use 20-minute `PasswordResetToken` ledger via Prisma migration `202611140002_self_service_password_recovery`. Reset completion atomically changes scrypt hash, revokes all web/native sessions, consumes all reset links and writes an identity audit event.
+- Public API endpoints `/auth/password-reset/request` and `/auth/password-reset/complete` use strict schemas, trusted Origin checks, rate limits and account-enumeration-safe responses. No raw tokens appear in DB or HTTP GET URLs.
+- Email recovery uses server-side Exim/sendmail, configured in the **actual** consolidated staging systemd environment file. Corrected an initial HTTP 503 from mistakenly configuring the legacy `api.env` only. Canonical staging now returns HTTP 201 generic response for an unknown test email with correct browser Origin.
+- Permanent API policy/strict OpenAPI tests **6/6** passed; isolated PostgreSQL end-to-end recovery lifecycle, expiry, one-time token consumption, invalid code, web/native session revocation and audit passed. API and Next.js production/TypeScript builds passed; customer and staff login links and both public reset pages verified HTTP 200.
+- Before original staging migration, a private mode-600 PostgreSQL backup was created. No real customer password was changed during tests; production remains Coming Soon.
+- **Launch blockers:** Verify recovery mail reaches an actual authorised inbox; validate SPF/DKIM mail sender routing, add verified-email ownership on customer signup/changes, and implement verified Hubtel SMS OTP for phone-only customers. Existing local Exim message queues are not proof of delivery.
+- Details and operator UAT: `docs/SELF_SERVICE_PASSWORD_RECOVERY_20261114.md`.
