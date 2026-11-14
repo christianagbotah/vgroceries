@@ -86,6 +86,8 @@ export function canonicalCheckoutRequest(input: CompleteOrderRequest): Record<st
     customerName: input.customerName.trim(),
     customerPhone: normalizeGhanaPhone(input.customerPhone),
     customerEmail: input.customerEmail?.trim().toLowerCase(),
+    // Absent/false is canonicalized alike, preserving existing idempotency keys.
+    smsUpdatesOptIn: input.smsUpdatesOptIn === true ? true : undefined,
     addressId: input.addressId,
     guestAddress: input.guestAddress
       ? {

@@ -106,8 +106,8 @@ function evaluateGates({ env, http, backup, smsImplemented = false }) {
       : "Refund configuration absent or incomplete.",
     "Validate refund callback, duplicate events, reconciliation and permitted partial-refund policy.");
   add(rows, "SMS-01", "Actual SMS/OTP delivery", smsImplemented ? "pending" : "blocker",
-    smsImplemented ? "Provider transport present; real recipient UAT still required."
-      : "No connected live SMS transport has been verified.",
+    smsImplemented ? "SMS transport and separately gated worker configured; real handset delivery still unverified."
+      : "No complete, independently enabled SMS provider/dispatch configuration verified.",
     "Integrate supported Ghana SMS provider, consent/suppression, OTP and real recipient delivery.");
   add(rows, "EML-01", "Recovery email inbox receipt", "pending",
     has(env,"PASSWORD_RESET_FROM") && has(env,"PASSWORD_RESET_PUBLIC_ORIGIN")
@@ -165,9 +165,16 @@ async function run(env = process.env) {
     probe(PRODUCTION+"/"),
   ]);
   const backup = latestSafeStagingBackup("/home/lightworld/backups/varietygroceries-stage-consolidation");
-  // Deliberately not inferred from a nominal SMS config variable. A real,
-  // tested connector/dispatch worker must exist before SMS can be upgraded.
-  const report = evaluateGates({ env, backup, smsImplemented: false,
+  // Credentials alone do not establish delivery. Only a fully enabled
+  // dispatcher with an explicit activation cutoff upgrades SMS to pending UAT.
+  const smsConfigured = env.HUBTEL_SMS_ENABLED === "true" &&
+    env.SMS_DISPATCH_WORKER_ENABLED === "true" &&
+    ["HUBTEL_SMS_CLIENT_ID", "HUBTEL_SMS_CLIENT_SECRET",
+      "HUBTEL_SMS_SENDER_ID", "SMS_DISPATCH_ACTIVATED_AT"].every(key => has(env, key)) &&
+    /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?Z$/.test(env.SMS_DISPATCH_ACTIVATED_AT ?? "") &&
+    Number.isFinite(Date.parse(env.SMS_DISPATCH_ACTIVATED_AT)) &&
+    Date.parse(env.SMS_DISPATCH_ACTIVATED_AT) <= Date.now() + 60000;
+  const report = evaluateGates({ env, backup, smsImplemented: smsConfigured,
     http: {
       apiReady: ready.status, shop: shop.status,
       posCustomersAnon: search.status, inventoryAnon: inventory.status,

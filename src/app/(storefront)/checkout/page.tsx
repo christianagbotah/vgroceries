@@ -52,6 +52,7 @@ export default function CheckoutPage() {
   const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
   const [customerEmail, setCustomerEmail] = useState("");
+  const [smsUpdatesOptIn, setSmsUpdatesOptIn] = useState(false);
   const [note, setNote] = useState("");
 
   const [addressId, setAddressId] = useState<string>("new");
@@ -259,6 +260,8 @@ export default function CheckoutPage() {
         customerName: customerName.trim(),
         customerPhone: customerPhone.replace(/[\s-]/g, ""),
         customerEmail: customerEmail.trim() || undefined,
+        // Never auto opt in based merely on a phone number.
+        smsUpdatesOptIn: process.env.NEXT_PUBLIC_SMS_UPDATES_AVAILABLE === "1" && smsUpdatesOptIn,
         fulfilment,
         zoneId: fulfilment === "delivery" ? zoneId : undefined,
         destinationKind: fulfilment === "delivery" ? destinationKind : undefined,
@@ -733,6 +736,15 @@ export default function CheckoutPage() {
                 </>
               )}
             </Button>
+            {process.env.NEXT_PUBLIC_SMS_UPDATES_AVAILABLE === "1" ? (
+              <label className="flex cursor-pointer items-start gap-2 rounded-lg border p-3 text-sm">
+                <input type="checkbox" checked={smsUpdatesOptIn}
+                  onChange={(event) => setSmsUpdatesOptIn(event.target.checked)}
+                  className="mt-1 size-4 shrink-0" />
+                <span>Send me essential order-status updates by SMS to my contact phone.
+                  Optional; this does not subscribe me to promotions.</span>
+              </label>
+            ) : null}
             <p className="text-center text-xs text-muted-foreground">
               By placing this order you agree to our{" "}
               <Link href="/terms" className="underline hover:text-foreground">terms</Link> and{" "}

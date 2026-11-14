@@ -144,3 +144,14 @@ test("checkout contact and address boundaries reject whitespace and malformed Gh
   ]) expectValidation(() => validateCheckoutContact(bad));
   assert.doesNotThrow(() => validateCheckoutContact(request()));
 });
+
+
+test("checkout replay hash preserves absent/false SMS opt-in while honoring explicit true", () => {
+  const absent = request();
+  const falseValue = request({ smsUpdatesOptIn: false });
+  const yes = request({ smsUpdatesOptIn: true });
+  assert.equal(checkoutRequestHash(absent), checkoutRequestHash(falseValue));
+  assert.notEqual(checkoutRequestHash(absent), checkoutRequestHash(yes));
+  assert.equal(canonicalCheckoutRequest(yes).smsUpdatesOptIn, true);
+  assert.equal("smsUpdatesOptIn" in canonicalCheckoutRequest(falseValue), false);
+});

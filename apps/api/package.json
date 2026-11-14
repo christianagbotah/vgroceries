@@ -15,6 +15,7 @@
     "seed:preview": "node --env-file-if-exists=.env dist/scripts/seed-preview.js",
     "openapi": "node --env-file-if-exists=.env dist/scripts/openapi.js",
     "worker:media": "node --env-file-if-exists=.env dist/src/media-worker.js",
+    "worker:sms": "node --env-file-if-exists=.env dist/src/sms-worker.js",
     "media:import-legacy": "node --env-file-if-exists=.env dist/scripts/import-legacy-product-media.js",
     "media:coverage": "node --env-file-if-exists=.env dist/scripts/product-media-coverage.js",
     "seed:uat-storefront": "node --env-file-if-exists=.env dist/scripts/seed-uat-storefront.js",

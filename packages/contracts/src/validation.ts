@@ -128,6 +128,7 @@ const checkoutCompleteBaseSchema = z.object({
   customerName: z.string().min(1),
   customerPhone: z.string().min(1),
   customerEmail: z.string().optional(),
+  smsUpdatesOptIn: z.boolean().optional(),
   customerId: idSchema.optional(),
   addressId: idSchema.optional(),
   guestAddress: guestAddressInputSchema.optional(),

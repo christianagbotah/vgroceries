@@ -121,6 +121,8 @@ export interface CompleteOrderRequest {
   customerName: string;
   customerPhone: string;
   customerEmail?: string;
+  /** Optional, explicit consent to essential SMS updates (never marketing). */
+  smsUpdatesOptIn?: boolean;
   customerId?: string;
   addressId?: string;
   guestAddress?: GuestAddressInput;

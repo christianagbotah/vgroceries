@@ -31,6 +31,15 @@ export interface HubtelPaymentConfig {
   cancellationUrl: string;
 }
 
+/** Optional approved business SMS gateway credentials. */
+export interface HubtelSmsConfig {
+  clientId: string;
+  clientSecret: string;
+  senderId: string;
+  baseUrl: string;
+  timeoutMs: number;
+}
+
 export interface HubtelRefundConfig {
   baseUrl: string;
   basicUsername: string;
@@ -110,6 +119,9 @@ export interface ApiConfig {
   payments: PaymentConfig | null;
   hubtelPayment: HubtelPaymentConfig | null;
   hubtelRefund: HubtelRefundConfig | null;
+  hubtelSms: HubtelSmsConfig | null;
+  smsDispatchWorkerEnabled: boolean;
+  smsDispatchActivatedAt: Date | null;
   paystack: PaystackConfig | null;
   etranzact: EtranzactConfig | null;
   productMedia: ProductMediaConfig | null;
@@ -432,6 +444,56 @@ export function readConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
     };
   }
 
+  // SMS credentials are independent from payments. No automatic live send.
+  const smsKeys = [
+    "HUBTEL_SMS_CLIENT_ID", "HUBTEL_SMS_CLIENT_SECRET",
+    "HUBTEL_SMS_SENDER_ID",
+  ] as const;
+  const smsSupplied = smsKeys.filter(name => !!env[name]?.trim());
+  const rawSmsEnabled = env.HUBTEL_SMS_ENABLED ?? "false";
+  if (!["true","false"].includes(rawSmsEnabled))
+    throw new Error("HUBTEL_SMS_ENABLED must be true or false");
+  if (smsSupplied.length && smsSupplied.length !== smsKeys.length)
+    throw new Error("Hubtel SMS credentials and approved sender ID must be supplied as a complete bundle");
+  if (rawSmsEnabled === "true" && smsSupplied.length !== smsKeys.length)
+    throw new Error("Enabled Hubtel SMS requires a complete approved sender credential bundle");
+  let hubtelSms: HubtelSmsConfig | null = null;
+  if (rawSmsEnabled === "true") {
+    const senderId = env.HUBTEL_SMS_SENDER_ID!.trim();
+    if (!/^[a-zA-Z0-9]{1,11}$/.test(senderId))
+      throw new Error("HUBTEL_SMS_SENDER_ID requires 1–11 alphanumeric characters");
+    if (env.HUBTEL_SMS_CLIENT_ID!.length > 256 || env.HUBTEL_SMS_CLIENT_SECRET!.length > 256)
+      throw new Error("Hubtel SMS credentials too long");
+    const baseUrl = env.HUBTEL_SMS_BASE_URL ?? "https://sms.hubtel.com";
+    if (!["https://sms.hubtel.com","https://smsc.hubtel.com"].includes(baseUrl))
+      throw new Error("HUBTEL_SMS_BASE_URL must use an approved Hubtel SMS HTTPS endpoint");
+    const timeoutMs = Number(env.HUBTEL_SMS_TIMEOUT_MS ?? "7000");
+    if (!Number.isInteger(timeoutMs) || timeoutMs < 500 || timeoutMs > 20000)
+      throw new Error("HUBTEL_SMS_TIMEOUT_MS must be 500–20000 ms");
+    hubtelSms = { clientId: env.HUBTEL_SMS_CLIENT_ID!, clientSecret: env.HUBTEL_SMS_CLIENT_SECRET!,
+      senderId, baseUrl, timeoutMs };
+  }
+
+  // Explicit worker activation is separate from the SMS account credentials.
+  // A mandatory cutover timestamp prevents historical order backlogs being
+  // texted when the worker is enabled for the first time.
+  const workerFlag = env.SMS_DISPATCH_WORKER_ENABLED ?? "false";
+  if (!["true", "false"].includes(workerFlag))
+    throw new Error("SMS_DISPATCH_WORKER_ENABLED must be true or false");
+  const smsDispatchWorkerEnabled = workerFlag === "true";
+  let smsDispatchActivatedAt: Date | null = null;
+  if (smsDispatchWorkerEnabled) {
+    if (!hubtelSms)
+      throw new Error("SMS dispatch worker requires enabled Hubtel SMS credentials");
+    const rawActivation = env.SMS_DISPATCH_ACTIVATED_AT ?? "";
+    if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?Z$/.test(rawActivation))
+      throw new Error("SMS_DISPATCH_ACTIVATED_AT must be an explicit UTC ISO timestamp");
+    const when = new Date(rawActivation);
+    if (Number.isNaN(when.getTime()) || when.getTime() > Date.now() + 60000)
+      throw new Error("SMS_DISPATCH_ACTIVATED_AT must be a valid nonfuture UTC timestamp");
+    smsDispatchActivatedAt = when;
+  }
+
   const hubtelRefundNames = [
     "HUBTEL_REFUND_BASE_URL",
     "HUBTEL_REFUND_BASIC_USERNAME",
@@ -696,6 +758,9 @@ export function readConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
     payments,
     hubtelPayment,
     hubtelRefund,
+    hubtelSms,
+    smsDispatchWorkerEnabled,
+    smsDispatchActivatedAt,
     paystack,
     etranzact,
     productMedia,
