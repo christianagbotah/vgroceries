@@ -34,3 +34,13 @@
 - Real operational roles (finance reviewer, picker/packer, dispatcher, operations manager) with end-to-end backend RBAC, invitation and revocation.
 - Provider-verified Hubtel payments and refund settlement, full order orchestration, rider proof-of-delivery, configurable Ghana delivery zones, order-to-cash reconciliation, exports and recovery/UAT.
 - Messaging, account/legal policy settings and production launch gates.
+
+## Verified results (14 November 2026)
+
+- **11/11 targeted inventory API automated tests passed** (expiry, overview, receipts, branch denial, large-report refusal).
+- All modified frontend screens passed targeted ESLint; optimized Next.js build passed TypeScript and produced 61 routes.
+- Staging API live/ready returned HTTP 200; anonymous inventory endpoints returned HTTP 401.
+- Real authenticated HTTPS Chrome UAT at 375px on `portal.varietygroceries.com` passed the administrator role, the 32 original stock variants and summaries, 32 physical lots and receipt history, and live goods-receiving form.
+- A **disposable clone** of the original staging PostgreSQL database was used for transaction-level testing. It proved exactly-once receipt creation and +2 sellable units on initial receipt, idempotent replay, 409 on same-key/different-body conflict, automatic quarantine of yesterday-expired goods without increasing sellable stock, and original immutable receipt quantity.
+- The disposable PostgreSQL clone was stopped and removed afterward. A private original UAT snapshot remains at `/home/lightworld/backups/varietygroceries-stage-consolidation/original-staging-before-receive-qa-20261114.dump` with mode 600.
+- Actual original staging inventory was **not** seeded or modified by the clone QA, and the production Coming Soon domain was confirmed unchanged.
