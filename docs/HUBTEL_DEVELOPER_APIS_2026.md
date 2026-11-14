@@ -251,6 +251,38 @@ investigate the 404 receipt endpoint behavior with Hubtel before marking
 messages delivered. Do not retry sending an uncertain or accepted message
 just to obtain a status.
 
+## New Sales API credential test — 14 November 2026
+
+The owner generated new Sales API credentials and updated the protected
+`/home/lightworld/config/varietygroceries/api.env` file (observed modified
+**14 November 2026 at 21:30:47 UTC**). We used the credentials already on
+the VPS, without displaying or copying them to GitHub.
+
+- **Read-only Transaction Status:** HTTP **403** from
+  `api-txnstatus.hubtel.com`; the service still needs IP allowlisting and/or
+  merchant-specific scope authorization. Outbound server IPv4:
+  `163.245.212.15`.
+- **Online Checkout initiation:** one controlled call to
+  `POST https://payproxyapi.hubtel.com/items/initiate` using the documented
+  Basic Sales authentication, `₵1.00` total and unique client reference
+  returned **HTTP 200** and Hubtel `responseCode=0000`. The provider adapter
+  validated the echoed client reference, checkout ID and HTTPS checkout URL
+  on `pay.hubtel.com`. This confirms **checkout creation**, **not payment**.
+- No customer was redirected, no checkout link was published, **no money was
+  debited** and no callbacks/refunds/payouts were issued.
+- The one-time initiation record is stored privately on the VPS with file
+  mode `600` to prevent accidental duplicate calls. The payable checkout
+  URL and account credentials have not been committed to GitHub.
+- Production payment activation remains **off**; this probe did not touch
+  the live Variety API process. `hubtel_checkout` still requires the full
+  refund, callback, stock and authoritative-reconciliation safety gates.
+
+Hubtel's official developer docs distinguish these services:
+Online Checkout creation requires **no IP allowlisting**, while Transaction
+Status **does require** an allowlisted IPv4. See
+https://code.hubtel.com/docs/api/v1/online-checkout and
+https://code.hubtel.com/docs/api/v1/transaction-status .
+
 ## Next gates before activation
 
 1. The merchant Sales/SMS credentials are already stored in the protected backend environment. Verify merchant scopes and fix the documented **transaction-status service** access (observed HTTP 403) before accepting real money. SMS/checkout initiation need not wait on whitelisting merely to run safe offline tests.
