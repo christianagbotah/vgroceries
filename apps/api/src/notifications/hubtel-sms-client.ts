@@ -84,10 +84,19 @@ export class HubtelSmsClient {
       throw new Error("Hubtel did not accept the SMS submission.");
     // Hubtel batch responses can carry message IDs in different casing, or
     // omit them. An accepted submission is never proof of delivery.
-    const messages = Array.isArray(data?.Messages) ? data.Messages : [];
-    const first = object(messages[0]);
-    const candidate = data?.messageid ?? data?.messageId ??
-      data?.MessageId ?? first?.MessageId ?? first?.messageid;
+    // The uploaded 12 October SMS documentation uses a lower-case "data"
+    // array for batch receipts: { batchId, status: 0,
+    // data: [{ recipient: "233...", messageId: "..." }] }.
+    // The school model checks status=0, but did not extract the message ID.
+    // Match the recipient to avoid associating a different SMS with this send.
+    const entries = Array.isArray(data?.data) ? data.data
+      : Array.isArray(data?.Messages) ? data.Messages : [];
+    const match = entries.map(object).find((entry) => {
+      const recipient = entry?.recipient ?? entry?.Recipient ?? entry?.to ?? entry?.To;
+      return typeof recipient === "string" && recipient.replace(/^\\+/, "") === phone.replace(/^\\+/, "");
+    });
+    const candidate = match?.messageId ?? match?.MessageId ??
+      data?.messageId ?? data?.messageid ?? data?.MessageId;
     const messageId = typeof candidate === "string" && candidate ? candidate : undefined;
     return { ...(messageId ? { messageId } : {}), state: "submitted",
       ...(typeof data?.rate === "number" && Number.isFinite(data.rate) ? { rate: data.rate } : {}) };
