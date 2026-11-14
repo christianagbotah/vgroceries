@@ -231,6 +231,7 @@ model StockLot {
   unitCostMinor Int?
   createdAt DateTime @default(now()) @db.Timestamptz(3)
   movements StockMovement[]
+  adjustments StockAdjustment[]
   reservations Reservation[]
   fulfilmentPicks FulfilmentPick[]
   depletionLines StockDepletionLine[]
@@ -239,6 +240,27 @@ model StockLot {
   physicalReturnResaleReview PhysicalReturnResaleReview?
   @@unique([id, positionId])
   @@index([positionId, kind, quarantined, expiryDate])
+}
+
+model StockAdjustment {
+  id String @id @default(uuid())
+  lotId String
+  lot StockLot @relation(fields: [lotId], references: [id])
+  variantId String
+  locationId String
+  delta Decimal @db.Decimal(15, 3)
+  reason String
+  note String?
+  status String @default("pending_approval")
+  requestedBy String
+  decidedBy String?
+  beforeQuantity Decimal @db.Decimal(15, 3)
+  afterQuantity Decimal? @db.Decimal(15, 3)
+  movementReceiptId String?
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  decidedAt DateTime? @db.Timestamptz(3)
+  @@index([locationId, status, createdAt])
+  @@index([lotId, createdAt])
 }
 
 model Reservation {

@@ -212,7 +212,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
 
           <div className="min-w-0">
             <p className="truncate text-sm font-semibold">{activeItem?.label ?? "Back office"}</p>
-            <p className="truncate text-xs text-muted-foreground">varietygrocery.com operations</p>
+            <p className="truncate text-xs text-muted-foreground">varietygroceries.com operations</p>
           </div>
 
           <div className="ml-auto flex items-center gap-2">

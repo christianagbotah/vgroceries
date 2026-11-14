@@ -113,6 +113,24 @@ export function foundationOpenApi(app: INestApplication) {
       lines:z.array(z.object({productName:z.string(),variantName:z.string(),
         lotNumber:z.string(),quantity:z.string(),expiryDate:z.string().optional()})) })),
     StockReceiptsResponse:{type:"array",items:ref("StockReceipt")},
+    StockAdjustmentRow:json(z.object({
+      id:z.string(), productName:z.string(),variantName:z.string(),lotNumber:z.string(),
+      delta:z.string(),reason:z.string(),note:z.string().optional(),status:z.string(),
+      requestedBy:z.string(),requestedById:z.string(),approvedBy:z.string().optional(),
+      atLabel:z.string(),beforeQuantity:z.string(),afterQuantity:z.string().optional(),
+    })),
+    StockAdjustmentListResponse:{type:"array",items:ref("StockAdjustmentRow")},
+    StockAdjustmentRequest:json(z.strictObject({
+      lotId:z.string().min(1),variantId:z.string().min(1),
+      delta:z.string().regex(/^[+-]?(?:0|[1-9]\d{0,11})(?:\.\d{1,3})?$/),
+      reason:z.string().min(8), note:z.string().optional(),locationId:z.string().optional(),
+    })),
+    StockAdjustmentDecide:json(z.strictObject({
+      adjustmentId:z.string().uuid(),decision:z.enum(["approve","reject"]),
+    })),
+    StockAdjustmentOutcome:json(z.object({
+      adjustmentId:z.string(),status:z.string(),replayed:z.boolean().optional(),
+    })),
     AiAssistantSuggestion:json(z.object({productId:z.string(),variantId:z.string(),
       label:z.string(),priceMinor:z.number().int(),available:z.string()})),
     AiAssistantResponse:{type:"object",required:["answer","evidence","suggestions"],additionalProperties:false,
@@ -348,6 +366,9 @@ export function foundationOpenApi(app: INestApplication) {
     "/inventory/expiry":"StockExpiryResponse",
     "/inventory/lots":"StockLotsResponse",
     "/inventory/receipts":"StockReceiptsResponse",
+    "/inventory/adjustments":"StockAdjustmentListResponse",
+    "/inventory/adjustments/create":"StockAdjustmentOutcome",
+    "/inventory/adjustments/decide":"StockAdjustmentOutcome",
     "/inventory/receive": "ReceiveResponse",
     "/checkout/zones": "ZoneListResponse",
     "/checkout/zones/{zoneId}/slots": "SlotListResponse",
@@ -411,6 +432,8 @@ export function foundationOpenApi(app: INestApplication) {
     "/support/requests":"SupportPublicRequest",
     "/admin/support/{caseId}/actions":"SupportAdminAction",
     "/inventory/receive": "ReceiveRequest",
+    "/inventory/adjustments/create":"StockAdjustmentRequest",
+    "/inventory/adjustments/decide":"StockAdjustmentDecide",
     "/checkout/quote": "CheckoutQuoteRequest",
     "/checkout/complete": "CheckoutCompleteRequest",
     "/orders/{orderId}/pickup-appointments": "BookPickupAppointmentRequest",
@@ -595,6 +618,18 @@ export function foundationOpenApi(app: INestApplication) {
     doc.paths[path]!.get!.parameters=[
       {name:"locationId",in:"query",description:"Branch-scoped; nonadmin requires an active branch grant",schema:{type:"string",maxLength:128}},
       ...(path.endsWith("/lots")?[{name:"variantId",in:"query" as const,schema:{type:"string" as const,maxLength:128}}]:[]),
+    ];
+  }
+
+  doc.paths["/api/v1/inventory/adjustments"]!.get!.parameters=[
+    {name:"locationId",in:"query",schema:{type:"string",maxLength:128}},
+  ];
+  for(const path of ["/api/v1/inventory/adjustments/create", "/api/v1/inventory/adjustments/decide"]){
+    doc.paths[path]!.post!.parameters=[
+      ...(path.endsWith("/create")?[{name:"Idempotency-Key",in:"header" as const,
+        required:true,schema:{type:"string" as const,minLength:8,maxLength:128}}]:[]),
+      {name:"X-CSRF-Token",in:"header" as const,required:false,
+        description:"Required for cookie authentication",schema:{type:"string" as const}},
     ];
   }
 

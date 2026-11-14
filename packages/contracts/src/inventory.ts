@@ -94,7 +94,10 @@ export interface AdjustmentRow {
   note?: string;
   status: string;
   requestedBy?: string;
+  requestedById?: string;
   approvedBy?: string;
+  beforeQuantity?: string;
+  afterQuantity?: string;
   atLabel: string;
 }
 

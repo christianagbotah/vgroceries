@@ -367,9 +367,15 @@ export const apiOps = {
     api<{ receiptId: string }>("admin.inventory.receive", { body,
       idempotencyKey: idempotencyKey ?? crypto.randomUUID() }),
   adjustments: () => api<import("./contracts").AdjustmentRow[]>("admin.inventory.adjustments"),
-  adjustmentCreate: (body: Record<string, unknown>) => api<{ adjustmentId: string; status: string }>("admin.inventory.adjustments.create", { body }),
+  adjustmentCreate: (body: Record<string, unknown>, idempotencyKey?: string) =>
+    api<{ adjustmentId: string; status: string }>("admin.inventory.adjustments.create", {
+      body, idempotencyKey: idempotencyKey ?? crypto.randomUUID(),
+    }),
   adjustmentDecide: (adjustmentId: string, decision: "approve" | "reject", actor?: string) =>
-    api<{ status: string }>("admin.inventory.adjustments.decide", { body: { adjustmentId, decision, actor } }),
+    api<{ status: string }>("admin.inventory.adjustments.decide", { body: {
+      adjustmentId, decision,
+      ...(!process.env.NEXT_PUBLIC_API_BASE_URL ? { actor } : {}),
+    } }),
   stocktakes: () => api<import("./contracts").StocktakeRow[]>("admin.inventory.stocktakes"),
   stocktakeOpen: (variantIds: string[], actor?: string) =>
     api<StocktakeOpenResponse>("admin.inventory.stocktakes.open", { body: { variantIds, actor } }),

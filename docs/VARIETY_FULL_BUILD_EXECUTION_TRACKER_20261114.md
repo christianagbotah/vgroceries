@@ -42,3 +42,14 @@ The 9 October 2026 starter brief specified a coherent frontend prototype and exp
 - Final staged root still shows the Coming Soon page, all canonical UAT web/API systemd services active, and the dedicated regression PostgreSQL cluster has been stopped and removed.
 
 Next slices remain inventory governance/adjustment approval, full operational staff roles, supplier PO lifecycle, payment/refund reconciliation and rider delivery orchestration. Do not represent them as live production-ready without independent verification.
+
+## 14 November 2026: live maker/checker inventory quantity corrections
+
+- Replaced the demo adjustment workflow with real branch-limited adjustment lists, idempotent proposal creation, independent administrator approval/rejection, protected lot updates, immutable movements, audit and outbox events. Permission names are `inventory.adjust.request` and `inventory.adjust.approve`.
+- The original staging database now contains the `StockAdjustment` ledger with PostgreSQL status and quantity invariants. Its 32 original products, 32 original positive stock lots and 32 original receipts were preserved; no synthetic adjustment proposals were created on staging.
+- A private mode-600 database backup was created ahead of migration: `original-portal-before-adjustment-20261114.dump` in the existing restricted backup directory.
+- Real PostgreSQL transaction tests passed in a disposable restored clone: same-key exactly-once request and conflicting replay, requester vs checker separation, self-approval prohibition, approval replay/no extra movement, rejection without stock change, stale count refusal, existing stock reservation protection, quarantine blocking, branch access and historical goods receipt integrity.
+- The permanent API stock/permission suite passed 17/17; OpenAPI contract passed 3/3. The regenerated API now documents 160 paths and denies anonymous adjustment requests.
+- Original staging HTTPS browser UAT at mobile 375 px passed administrator login, the approval workflow, real zero pending requests and all 32 original lots. Optimized Next.js/TypeScript build passed. The admin header has been corrected to `varietygroceries.com operations`.
+- The wider cross-module isolated PostgreSQL regression suite passed 61/61, covering checkout and reservations, tills, invitations, inventory depletion, order/payment authority, dispatch/rider races, customer tracking and strict API route coverage.
+- Remaining stock governance: multi-lot stocktakes with recounts, evidence uploads, quarantined stock release, controlled damaged/expired disposal and finance inventory journal reconciliation. Those workflows remain disabled as live operations until tested.

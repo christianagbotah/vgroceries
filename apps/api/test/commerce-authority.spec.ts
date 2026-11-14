@@ -16,6 +16,7 @@ const newInventoryAndSupportPaths=[
   "/api/v1/support/requests", "/api/v1/admin/support",
   "/api/v1/admin/support/{caseId}/actions",
   "/api/v1/inventory/lots", "/api/v1/inventory/receipts", "/api/v1/inventory/expiry",
+  "/api/v1/inventory/adjustments", "/api/v1/inventory/adjustments/create", "/api/v1/inventory/adjustments/decide",
 ];
 const expected=[...newInventoryAndSupportPaths,...posTillPaths,...dispatchRiderPaths,...logisticsPaths,...shipmentPaths,...cmsPaths,"/api/v1/account/return-claims","/api/v1/account/return-claims/orders/{orderId}/eligibility",
   "/api/v1/account/return-claims/{claimId}","/api/v1/account/return-claims/{claimId}/cancel",

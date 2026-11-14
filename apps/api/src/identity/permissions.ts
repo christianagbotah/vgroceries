@@ -1,6 +1,8 @@
 export type PermissionName =
   | "inventory.read"
   | "inventory.receive"
+  | "inventory.adjust.request"
+  | "inventory.adjust.approve"
   | "pos.cash-report.read"
   | "catalog.category.create"
   | "catalog.product.create"
@@ -14,6 +16,8 @@ const adminPermissions = new Set<PermissionName>([
   "pos.cash-report.read",
   "inventory.read",
   "inventory.receive",
+  "inventory.adjust.request",
+  "inventory.adjust.approve",
   "catalog.category.create",
   "catalog.product.create",
   "catalog.media.read",
@@ -26,6 +30,7 @@ const adminPermissions = new Set<PermissionName>([
 const inventoryPermissions = new Set<PermissionName>([
   "inventory.read",
   "inventory.receive",
+  "inventory.adjust.request",
   "catalog.media.read",
   "catalog.media.generate",
   "catalog.media.upload",
