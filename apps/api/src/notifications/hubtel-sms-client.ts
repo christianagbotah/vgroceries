@@ -1,7 +1,7 @@
 /**
  * Server-only Hubtel SMS REST adapter (12 October 2026 API reference).
  * Not wired into the notifications outbox yet: no live messages are sent.
- * The live school system uses the POST batch/simple endpoint with Basic Auth.\n * POST + Basic Auth deliberately avoids the documented GET route, which puts
+ * Mirrors iEduPro application/models/Sms_model.php: batch/simple endpoint,\n * Basic Auth, and { From, Recipients: [Ghana E.164 phone], Content }.\n * POST + Basic Auth deliberately avoids the documented GET route, which puts
  * ClientSecret and message content into URLs and potentially into access logs.
  */
 export interface HubtelSmsConfig {
@@ -26,6 +26,21 @@ export interface HubtelSmsDelivery {
 
 type FetchLike = (input: string | URL | Request, init?: RequestInit) => Promise<Response>;
 type Json = Record<string, unknown>;
+
+/**
+ * Accept Ghana formats supported by iEduPro application/models/Sms_model.php.
+ * Reject malformed values instead of using permissive length-only checks.
+ */
+export function normalizeGhanaSmsRecipient(value: string): string | null {
+  const trimmed = value.trim().replace(/[\s-]/g, "");
+  const local = /^0(\d{9})$/.exec(trimmed);
+  const national = /^(\d{9})$/.exec(trimmed);
+  const international = /^\+?233(\d{9})$/.exec(trimmed);
+  const duplicatedZero = /^\+?2330(\d{9})$/.exec(trimmed);
+  const digits = local?.[1] ?? national?.[1] ??
+    international?.[1] ?? duplicatedZero?.[1];
+  return digits ? "+233" + digits : null;
+}
 const object = (v: unknown): Json | null =>
   v !== null && typeof v === "object" && !Array.isArray(v) ? v as Json : null;
 
@@ -48,8 +63,8 @@ export class HubtelSmsClient {
   }
 
   async send(to: string, content: string, signal?: AbortSignal): Promise<HubtelSmsSubmission> {
-    const phone = to.replace(/^\+/, "");
-    if (!/^233\d{9}$/.test(phone)) throw new Error("SMS recipient must be a Ghana mobile number.");
+    const phone = normalizeGhanaSmsRecipient(to);
+    if (!phone) throw new Error("SMS recipient must be a Ghana mobile number.");
     if (!content.trim()) throw new Error("SMS content must not be empty.");
     const response = await this.fetcher(`${this.baseUrl}/v1/messages/batch/simple/send`, {
       method: "POST",
@@ -58,7 +73,7 @@ export class HubtelSmsClient {
         accept: "application/json",
         "content-type": "application/json",
       },
-      body: JSON.stringify({ From: this.config.senderId, To: [phone], Content: content }),
+      body: JSON.stringify({ From: this.config.senderId, Recipients: [phone], Content: content }),
       signal,
       redirect: "error",
     });
