@@ -21,7 +21,7 @@ import { ApiError, normalizedRequestBody, type ServiceAdapter, type ServiceReque
 import { invalidatesTags, readTags } from "../operation-registry";
 import type { CacheInvalidationEvent, CacheTag } from "../contracts/common";
 import { restEndpoints } from "../contracts/endpoints";
-import { isDemoStaffSessionActive } from "@/features/staff/staff-demo-session";
+import { isDemoStaffSessionActive, isDemoCustomerSessionActive } from "@/features/staff/staff-demo-session";
 
 export const CACHE_INVALIDATED_EVENT = "vg:cache-invalidated";
 const CSRF_TOKEN_KEY = "vg-csrf-token-v1";
@@ -135,7 +135,10 @@ function demoAdapter(): ServiceAdapter {
       new HttpServiceAdapter("/api/mock/v1", {
         kind: "http:uat-demo",
         protocol: "mock",
-        headers: () => ({ "X-Variety-Demo": "staff" }),
+        // Never send a real application session cookie to the sample engine.
+        credentials: "omit",
+        headers: () => ({ "X-Variety-Demo": "staff",
+          "X-Variety-Demo-Role": isDemoCustomerSessionActive() ? "customer" : "staff" }),
       }),
     );
   }
@@ -172,7 +175,7 @@ export function resolveProductionClientAdapter(): ServiceAdapter {
 
 /** Demo-aware screens use the mock adapter only in an explicit demo session. */
 export function resolveClientAdapter(): ServiceAdapter {
-  if (isDemoStaffSessionActive()) return demoAdapter();
+  if (isDemoStaffSessionActive() || isDemoCustomerSessionActive()) return demoAdapter();
   return process.env.NEXT_PUBLIC_API_BASE_URL?.trim()
     ? resolveProductionClientAdapter() : demoAdapter();
 }

@@ -1,9 +1,10 @@
 import { NextResponse, type NextRequest } from "next/server";
 
 /**
- * A human-friendly entrance to PRIVATE staging. This is not the backend's
- * authorisation layer: every privileged API route still checks the DB session,
- * actor role and branch grants itself.
+ * Customer storefront pages are freely browsable, including cart and checkout.
+ * Only real staff cash-terminal HTML routes require a server-validated session.
+ * The admin layout separately redirects guests or enables mock UAT previews;
+ * no admin API operation trusts page routing, demo flags or browser state.
  *
  * The reverse proxy rewrites the API's HttpOnly vg_session cookie path to "/"
  * on the canonical staging host, so this server-side proxy can see it.
@@ -13,11 +14,13 @@ export async function proxy(req: NextRequest) {
   if (process.env.UAT_PORTAL_LOGIN_REQUIRED !== "1") return NextResponse.next();
 
   const { pathname } = req.nextUrl;
-  const publicPaths = [
-    "/staff/login", "/staff/activate",
-    "/account/login", "/account/signup", "/rider/login",
-  ];
-  if (publicPaths.some((path) => pathname === path || pathname.startsWith(path + "/"))) {
+  // Storefront, products, cart, checkout, customer account entry and all
+  // ordinary admin HTML shells are public at the *page* level. Real customer
+  // checkout may be guest; account and admin layouts guard authenticated data.
+  // Demo role previews are client-only and use the separate mock transport.
+  // Only real cashier terminal routes require an authenticated server session
+  // before an HTML shell is served.
+  if (pathname !== "/staff/cashier" && pathname !== "/staff/pos") {
     return NextResponse.next();
   }
 
@@ -39,9 +42,7 @@ export async function proxy(req: NextRequest) {
     return NextResponse.json({ ok: false, error: { code: "UNAUTHENTICATED", message: "Sign in to access private staging." } }, { status: 401 });
   }
   const url = new URL("/staff/login", req.url);
-  if (pathname.startsWith("/admin") || pathname === "/staff/cashier" || pathname === "/staff/pos") {
-    url.searchParams.set("next", pathname);
-  }
+  url.searchParams.set("next", pathname);
   const response = NextResponse.redirect(url);
   response.headers.set("Cache-Control", "no-store");
   return response;

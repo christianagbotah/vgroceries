@@ -62,3 +62,20 @@ Next slices remain inventory governance/adjustment approval, full operational st
 - Added a safe account chooser with one synthetic active UAT administrator account and a manual email option for other staff. It requires the actual app password and does not publicly enumerate real staff/customer accounts.
 - Verified Nginx syntax/reload; anonymous `/`, `/shop` and `/admin` redirect to native login without WWW-Authenticate; login page 200. Authenticated 375px Chrome completed staff login, protected operations/shop views, logout and correct renewed login challenge. Staging and production health unchanged.
 - Full details and rollback: `docs/CANONICAL_STAGING_NATIVE_LOGIN_20261114.md`.
+
+## 14 November 2026: customer guest browsing and one-click role UAT
+
+- **Owner correction:** no customer login required for homepage, product/category browsing, cart or checkout entry. Existing checkout choices (Guest, Sign in, Create account) remain; guest orders require a valid contact name and Ghana phone at order placement.
+- Restrained staging-only page gate to real cashier terminal routes; real back-office API resources still require valid server-owned sessions, permissions and branch grants. Public staging root and shop return 200 without Basic credentials.
+- The role chooser now supports one-click, no-password **sample previews** for System Admin, Accountant/Finance, Cashier, Customer, Operations Manager, Inventory Officer, Picker/Packer and Dispatcher. A dedicated `/staff/demo/{role}` client activation route avoids pre-hydration clicks being lost on slow mobile browsers.
+- Sample API operates separately from original stock/order/payment DB. Mock adapter omits live session cookies. Sample customer account is explicitly marked demo and exits before the live public catalogue to avoid cross-mode product ID mixing. Actual staff authentication still requires personal credentials.
+- Real staff/password boundaries, original UAT stock records and root production Coming Soon remain unchanged.
+- Detailed current policy, acceptance and rollback: `docs/PUBLIC_SHOPPING_AND_ONE_CLICK_DEMO_ROLES_20261114.md`. The earlier all-site private gate checkpoint is historical only.
+
+### Public customer + role preview final UAT evidence
+
+- All eight one-click UAT role paths and mobile sample dashboard routing passed; staff samples could not use the real inventory API.
+- Mobile Chromium selected an available real grocery without login, preserved it in the anonymous cart, reached checkout and selected Continue as Guest; full name and Ghana phone were requested, email remained optional. Real order submission was not performed.
+- Sample Customer could inspect sample account/orders and navigate out to genuine shopping with sample flags cleared; the real mock adapter also omits actual application session cookies.
+- Invalid demo role routes return 404; public demo API without an explicit UAT header returns 404; original live inventory without real identity returns 401.
+- Final Next.js production build/TypeScript and targeted lint passed. Production root remains Coming Soon; the original staging database was not seeded or modified for these tests.

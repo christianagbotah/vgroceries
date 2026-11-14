@@ -7,7 +7,8 @@ import { cn } from "@/lib/utils";
 import { apiOps, ApiError } from "@/services/client";
 import { Button } from "@/components/ui/button";
 import { ErrorState, LoadingState } from "@/components/shared/states";
-import { Bell, User, UserRound, Package, MapPin, Heart, RotateCcw, LogOut } from "lucide-react";
+import { Bell, User, UserRound, Package, MapPin, Heart, RotateCcw, LogOut, FlaskConical } from "lucide-react";
+import { clearDemoCustomerSession, isDemoCustomerSessionActive } from "@/features/staff/staff-demo-session";
 
 const TABS = [
   { href: "/account", label: "Overview", icon: User },
@@ -26,8 +27,10 @@ export default function AccountLayout({ children }: { children: React.ReactNode 
   const [checking, setChecking] = useState(!authPage);
   const [sessionError, setSessionError] = useState<string | null>(null);
   const [loggingOut, setLoggingOut] = useState(false);
+  const [customerDemo, setCustomerDemo] = useState(false);
 
   useEffect(() => {
+    setCustomerDemo(isDemoCustomerSessionActive());
     if (authPage) { setChecking(false); setSessionError(null); return; }
     let active = true;
     setChecking(true);
@@ -53,9 +56,15 @@ export default function AccountLayout({ children }: { children: React.ReactNode 
 
   const logout = async () => {
     setLoggingOut(true);
-    try { await apiOps.accountLogout(); }
-    finally {
-      router.replace("/account/login");
+    try {
+      if (isDemoCustomerSessionActive()) {
+        clearDemoCustomerSession();
+        router.replace("/staff/login");
+      } else {
+        await apiOps.accountLogout();
+        router.replace("/account/login");
+      }
+    } finally {
       router.refresh();
       setLoggingOut(false);
     }
@@ -67,13 +76,20 @@ export default function AccountLayout({ children }: { children: React.ReactNode 
 
   return (
     <div className="mx-auto max-w-5xl px-4 pb-10 pt-6">
+      {customerDemo ? (
+        <div className="mb-4 flex items-start gap-2 rounded-xl border border-dashed border-primary/40 bg-primary/5 p-3 text-sm">
+          <FlaskConical className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden />
+          <p><strong>Customer demo — sample data only.</strong> Profile, orders and returns here are simulated.
+            No real order, payment or customer account is created.</p>
+        </div>
+      ) : null}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="font-serif text-2xl font-bold sm:text-3xl">My account</h1>
           <p className="mt-1 text-sm text-muted-foreground">Manage your orders, notifications and account details in one place.</p>
         </div>
         <Button variant="outline" className="h-10 gap-2" onClick={logout} disabled={loggingOut}>
-          <LogOut className="size-4" aria-hidden /> {loggingOut ? "Logging out…" : "Log out"}
+          <LogOut className="size-4" aria-hidden /> {loggingOut ? "Leaving…" : customerDemo ? "Exit demo" : "Log out"}
         </Button>
       </div>
 

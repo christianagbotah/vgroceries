@@ -28,7 +28,7 @@ export default function StaffLoginPage() {
     }
   }
   return <StaffLoginForm
-    demoEnabled={process.env.UAT_PORTAL_LOGIN_REQUIRED !== "1" && process.env.UAT_DEMO_LOGIN === "1"}
+    demoEnabled={process.env.UAT_DEMO_LOGIN === "1"}
     uatAccounts={accounts}
   />;
 }

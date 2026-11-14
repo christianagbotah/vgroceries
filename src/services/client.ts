@@ -14,6 +14,7 @@
  */
 
 import { clearBrowserCsrfToken, resolveClientAdapter, setBrowserCsrfToken } from "./adapters/browser";
+import { clearDemoCustomerSession, clearDemoStaffSession } from "@/features/staff/staff-demo-session";
 import { normalizePaymentLedgerResponse } from "./payment-ledger";
 import type { QueryValue, ServiceRequest } from "./adapters/types";
 import type {
@@ -266,6 +267,8 @@ export const apiOps = {
 
   /* account */
   accountLogin: async (identifier: string, password: string) => {
+    clearDemoCustomerSession();
+    clearDemoStaffSession();
     const identity = identifier.includes("@")
       ? { email: identifier.trim().toLowerCase() }
       : { phone: identifier.trim() };
@@ -312,6 +315,8 @@ export const apiOps = {
 
   /* staff */
   staffLogin: async (email: string, password: string) => {
+    clearDemoCustomerSession();
+    clearDemoStaffSession();
     const session = await api<WebSessionResponse>("auth.login", { body: { email, password, client: "web" } });
     setBrowserCsrfToken(session.csrfToken);
     return session;

@@ -1,5 +1,12 @@
 # Variety Groceries — canonical staging native login (14 November 2026)
 
+> **Historical deployment checkpoint, superseded later on 14 November 2026.**
+> The earlier whole-site staging login restriction described below is no longer active.
+> Customers now browse the homepage, products, cart and checkout without signing in.
+> The branded login offers one-click, password-free **sample role previews** while real
+> operations still require their own password and backend permission.
+> Current behavior and verification: [Public shopping & one-click demos](PUBLIC_SHOPPING_AND_ONE_CLICK_DEMO_ROLES_20261114.md).
+
 ## Owner requirement
 
 The staging portal must no longer display a browser-managed HTTP Basic username/password challenge. Visiting `https://portal.varietygroceries.com` should instead open the genuine branded Variety Groceries account login. Each UAT account must supply its own application password and be restricted by the actual backend permissions.
