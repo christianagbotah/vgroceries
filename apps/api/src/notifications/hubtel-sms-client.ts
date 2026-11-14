@@ -93,7 +93,7 @@ export class HubtelSmsClient {
       : Array.isArray(data?.Messages) ? data.Messages : [];
     const match = entries.map(object).find((entry) => {
       const recipient = entry?.recipient ?? entry?.Recipient ?? entry?.to ?? entry?.To;
-      return typeof recipient === "string" && recipient.replace(/^\\+/, "") === phone.replace(/^\\+/, "");
+      return typeof recipient === "string" && recipient.replace(/^\+/, "") === phone.replace(/^\+/, "");
     });
     const candidate = match?.messageId ?? match?.MessageId ??
       data?.messageId ?? data?.messageid ?? data?.MessageId;
