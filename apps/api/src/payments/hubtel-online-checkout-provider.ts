@@ -80,7 +80,9 @@ export class HubtelOnlineCheckoutProvider implements PaymentProviderAdapter {
         headers: { authorization: this.auth(), accept: "application/json", "content-type": "application/json" },
         body: JSON.stringify({
           totalAmount: input.amountMinor / 100,
-          description: `Variety Groceries order ${input.orderReference}`.replace(/[^a-zA-Z0-9 -]/g, " "),
+          // The supplied API spec rejects special characters in descriptions.
+          description: `Variety Groceries order ${input.orderReference}`
+            .replace(/[^a-zA-Z0-9 ]/g, " ").replace(/\s+/g, " ").trim(),
           callbackUrl: this.config.callbackUrl,
           returnUrl: this.config.returnUrl,
           cancellationUrl: this.config.cancellationUrl,
