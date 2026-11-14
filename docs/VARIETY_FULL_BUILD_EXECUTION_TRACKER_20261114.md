@@ -109,3 +109,14 @@ Next slices remain inventory governance/adjustment approval, full operational st
 - Central Zustand cart enforces cumulative SKU ceilings, all catalog/detail/assistant/wishlist/repeat-order sources pass the live stock cap, saved cart shows overstock warnings and cannot navigate to checkout until corrected, and checkout independently rechecks live ATS before submit. Backend final position-row locks and atomic `OUT_OF_STOCK` rejection already provide authoritative concurrent-sale safety.
 - New permanent cart regression **7/7** passed; real HTTPS 375px browser stock scenarios **1, 2, stale3→1 and 0** passed using client-only simulated stock without changes to real records. Optimized frontend build and TypeScript plus ESLint passed. No production site changes.
 - Full details: `docs/CUSTOMER_STOCK_HARD_LIMITS_20261114.md`.
+
+## 14 November 2026 — POS customer identity and conditional web launch
+
+- POS chooser: existing registered customer, unregistered walk-in and named walk-in; validated at the server and stored with the sale receipt; demo customer search remains isolated. Details in docs/POS_CUSTOMER_SELECTION_20261114.md.
+- Target controlled web launch 20–21 November only after verified payments, SMS, customer delivery, stock, security, backup/restore and operational UAT. Native Android/iOS apps do not yet have installable builds. Details in docs/WEB_LAUNCH_READINESS_TARGET_20261120.md.
+
+### POS customer selection verification and staging deployment
+
+- API+web production builds passed, role/contract and isolated physical cash sale regression **16/16** passed, all 46 migrations applied on test PostgreSQL, staging migration history current.
+- Restarted staging web/API; new customer search requires authenticated staff (anonymous 401), documented in OpenAPI; anonymous real cashier checkout 307; demo POS Chromium renders all three requested customer types.
+- No real tender was accepted during UAT; production remains Coming Soon. Actual cashier UI and receipt signoff remain required before live POS rollout.

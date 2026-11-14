@@ -44,6 +44,8 @@ export class PosCashSalesService {
       id:row.id,reference:row.reference,holdId:row.holdId,
       tillSessionId:row.tillSessionId,locationId:row.locationId,
       soldByUserId:row.soldByUserId,stockDepletionId:row.stockDepletionId,
+      customerMode:row.customerMode,customerUserId:row.customerUserId,
+      customerName:row.customerName,
       subtotalMinor:row.subtotalMinor,cashReceivedMinor:row.cashReceivedMinor,
       changeGivenMinor:row.changeGivenMinor,paymentMethod:"cash",
       cashCountConfirmed:row.cashCountConfirmed,
@@ -71,6 +73,7 @@ export class PosCashSalesService {
         "This historical sale predates immutable product descriptions; do not print an inaccurate receipt.");
     return renderPosCashReceiptHtml({
       reference:row.reference,tillCode:row.till.tillCode,
+      customerName:row.customerName,
       createdAt:row.createdAt,subtotalMinor:row.subtotalMinor,
       cashReceivedMinor:row.cashReceivedMinor,
       changeGivenMinor:row.changeGivenMinor,
@@ -103,6 +106,7 @@ export class PosCashSalesService {
     const operation="pos-cash-sale.complete";
     const canonical={
       ...input,handoverNote:input.handoverNote.trim(),
+      ...(input.customerName ? { customerName: input.customerName.trim() } : {}),
     };
     const requestHash=hash(canonical);
     return this.db.$transaction(async tx=>{
@@ -189,6 +193,31 @@ export class PosCashSalesService {
       if(change<0||change>maxCash)
         throw new ApiProblem(422,"POS_CHANGE_INVALID",
           "Customer change calculation is out of range.");
+      // Resolve registered customer from current database authority; never
+      // accept client-supplied names to impersonate an existing account.
+      // Anonymous/name-only walk-ins do not create User rows.
+      const customerMode = input.customerMode ?? "walk_in";
+      let customerUserId: string | null = null;
+      let customerName = "Walk-in Customer";
+      let customerPhone: string | null = null;
+      if (customerMode === "existing") {
+        const selected = await tx.user.findUnique({
+          where: { id: input.customerUserId! },
+          select: { id: true, name: true, phone: true, active: true, role: true },
+        });
+        if (!selected || !selected.active || selected.role !== "customer")
+          throw new ApiProblem(422, "POS_CUSTOMER_NOT_FOUND",
+            "Select an active registered customer or switch to Walk-in Customer.");
+        customerUserId = selected.id;
+        customerName = selected.name;
+        customerPhone = selected.phone || null;
+      } else if (customerMode === "named") {
+        customerName = input.customerName?.trim() ?? "";
+        if (customerName.length < 2 || customerName.length > 120)
+          throw new ApiProblem(422, "VALIDATION_FAILED",
+            "Enter a customer name of 2 to 120 characters.");
+      }
+
       // Stock consumption, cash-sale receipt, till total and source state
       // must all commit together. Any failure rolls back physical depletion.
       const depleted=await this.depletion.consumeClaim(tx,{
@@ -206,6 +235,7 @@ export class PosCashSalesService {
         reference:`VG-POS-${randomUUID().replaceAll("-","").slice(0,12).toUpperCase()}`,
         holdId:locked.id,tillSessionId:till.id,locationId:locked.locationId,
         soldByUserId:actorId,stockDepletionId:depleted.depletionId,
+        customerMode,customerUserId,customerName,customerPhone,
         subtotalMinor:amount,cashReceivedMinor:input.cashReceivedMinor,
         changeGivenMinor:change,
         cashCountConfirmed:true,goodsHandedOver:true,
@@ -231,7 +261,8 @@ export class PosCashSalesService {
         details:{holdId:locked.id,tillSessionId:till.id,locationId:till.locationId,
           subtotalMinor:amount,cashReceivedMinor:input.cashReceivedMinor,
           changeGivenMinor:change,stockDepletionId:depleted.depletionId,
-          handoverConfirmed:true,method:"cash",taxInvoiceIssued:false},
+          handoverConfirmed:true,method:"cash",taxInvoiceIssued:false,
+          customerMode,customerUserId},
       }});
       await tx.outboxEvent.create({data:{
         type:"pos.cash_sale.completed",aggregateId:sale.id,

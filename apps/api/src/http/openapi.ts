@@ -272,6 +272,12 @@ export function foundationOpenApi(app: INestApplication) {
       properties:{ id:{type:"string"},name:{type:"string"},phone:{type:"string"},email:{type:"string"},isDemo:{type:"boolean"},supportNotes:{type:"array",items:{type:"string"}},createdAt:{type:"string"},orderCount:{type:"integer",minimum:0},spendLabel:{type:"string"},returnCount:{type:"integer",minimum:0},addressCount:{type:"integer",minimum:0} },
     },
     AdminCustomerListResponse: { type:"array", items:ref("AdminCustomerRow") },
+    PosRegisteredCustomer: {
+      type:"object",additionalProperties:false,required:["id","name","phone","email"],
+      properties:{id:{type:"string"},name:{type:"string"},phone:{type:"string"},
+        email:{type:"string",nullable:true}},
+    },
+    PosRegisteredCustomerList: {type:"array",items:ref("PosRegisteredCustomer")},
     AdminCustomerOrder: {
       type:"object", additionalProperties:false,
       required:["id","reference","totalLabel","channel","fulfilmentStatus","paymentStatus","createdAtLabel"],
@@ -418,6 +424,7 @@ export function foundationOpenApi(app: INestApplication) {
     "/admin/products/{productId}": "AdminProductDetailResponse",
     "/admin/categories": "AdminCategoryListResponse",
     "/admin/customers": "AdminCustomerListResponse",
+    "/admin/pos/customers": "PosRegisteredCustomerList",
     "/admin/customers/{customerId}": "AdminCustomerDetailResponse",
     "/admin/dashboard": "AdminDashboardResponse",
   };
@@ -485,6 +492,7 @@ export function foundationOpenApi(app: INestApplication) {
         "/admin/pos/tills/{sessionId}/movements",
         "/admin/pos/tills/{sessionId}/close",
         "/admin/pos/quote",
+        "/admin/pos/customers",
         "/admin/pos/cash-sales",
         "/admin/pos/cash-sales/{saleId}",
         "/admin/pos/cash-sales/{saleId}/print",
@@ -525,6 +533,7 @@ export function foundationOpenApi(app: INestApplication) {
         suffix === "/admin/products/{productId}" ||
         suffix === "/admin/categories" ||
         suffix === "/admin/customers" ||
+        suffix === "/admin/pos/customers" ||
         suffix === "/admin/customers/{customerId}" ||
         suffix === "/admin/dashboard"
       ) operation.security = [{ cookieAuth: [] }, { bearerAuth: [] }];

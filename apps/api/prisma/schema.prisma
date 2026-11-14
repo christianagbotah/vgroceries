@@ -33,6 +33,7 @@ model User {
   customerReturnClaims CustomerReturnClaim[]
   notifications Notification[]
   riderProfile RiderProfile?
+  posCustomerSales PosCashSale[] @relation("PosSaleRegisteredCustomer")
 }
 
 // Raw recovery secrets are NEVER persisted. A token can be used only once.
@@ -1474,6 +1475,12 @@ model PosCashSale {
   soldByUserId String
   stockDepletionId String @unique
   depletion StockDepletion @relation(fields: [stockDepletionId], references: [id], onDelete: Restrict)
+  // Immutable sale-time customer identity. Named walk-ins are NOT user accounts.
+  customerMode String @default("walk_in")
+  customerUserId String?
+  customerUser User? @relation("PosSaleRegisteredCustomer", fields: [customerUserId], references: [id], onDelete: Restrict)
+  customerName String @default("Walk-in Customer")
+  customerPhone String?
   subtotalMinor Int
   cashReceivedMinor Int
   changeGivenMinor Int
@@ -1484,6 +1491,7 @@ model PosCashSale {
   receiptLines PosCashReceiptLine[]
   @@index([tillSessionId, createdAt])
   @@index([locationId, createdAt])
+  @@index([customerUserId, createdAt])
 }
 
 

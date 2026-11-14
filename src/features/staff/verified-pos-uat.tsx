@@ -11,6 +11,7 @@ import type {
 } from "@/services/contracts";
 import { ApiError } from "@/services/adapters/types";
 import { verifiedPosUat, type CashierTillList } from "./verified-pos-uat-transport";
+import { PosCustomerPicker, type PosCustomerSelection } from "./pos-customer-picker";
 
 type CartLine = { variantId: string; quantity: string };
 type ProductChoice = {
@@ -38,6 +39,7 @@ export function VerifiedPosUat() {
   const [tillId, setTillId] = useState("");
   const [chosenVariant, setChosenVariant] = useState("");
   const [cart, setCart] = useState<CartLine[]>([]);
+  const [customer, setCustomer] = useState<PosCustomerSelection>({ mode: "walk_in" });
   const [quote, setQuote] = useState<PosQuoteView | null>(null);
   const [hold, setHold] = useState<PosHoldView | null>(null);
   const [sale, setSale] = useState<PosCashSaleView | null>(null);
@@ -93,6 +95,7 @@ export function VerifiedPosUat() {
   function resetCart() {
     setCart([]); setQuote(null); setHold(null); setSale(null); setReport(null);
     setCashInput(""); setHandoverNote(""); setCashConfirmed(false); setGoodsConfirmed(false);
+    setCustomer({ mode: "walk_in" });
     setNotice(null); setError(null);
   }
 
@@ -121,6 +124,10 @@ export function VerifiedPosUat() {
     setCart(current => [...current, { variantId: selectedChoice.id, quantity: "1" }]);
     setQuote(null); setSale(null);
   }
+
+  const validCustomer = customer.mode === "walk_in" ||
+    (customer.mode === "existing" && !!customer.customerUserId) ||
+    (customer.mode === "named" && customer.customerName.trim().length >= 2);
 
   const validCart = cart.length > 0 && cart.every(line =>
     /^\d+(\.\d{1,3})?$/.test(line.quantity) && Number(line.quantity) > 0);
@@ -245,6 +252,7 @@ export function VerifiedPosUat() {
         </div>}
       </section>
 
+      <PosCustomerPicker value={customer} onChange={setCustomer} disabled={busy || !!sale} />
       {hold && <section className="space-y-4 rounded-xl border bg-card p-4">
         <h2 className="text-lg font-semibold">3. Simulate a cash sale</h2>
         <p className="text-sm">Reserved sample cart · {formatMoney(hold.subtotalMinor)} · Expires at {new Date(hold.expiresAt).toLocaleTimeString("en-GH")}</p>
@@ -276,11 +284,17 @@ export function VerifiedPosUat() {
           <span>I confirm this is a simulated goods handover, not a real customer transaction.</span>
         </label>
         <div className="flex flex-wrap gap-2">
-          <Button type="button" disabled={busy || !!sale || tenderMinor < hold.subtotalMinor ||
+          <Button type="button" disabled={busy || !!sale || !validCustomer || tenderMinor < hold.subtotalMinor ||
             !cashConfirmed || !goodsConfirmed || handoverNote.trim().length < 10}
             onClick={() => void execute(async () => {
               if (!window.confirm("Record this SYNTHETIC staging-only cash sale and deduct its sample stock?")) return;
-              const created = await verifiedPosUat.sale(csrf, hold.id, tenderMinor, handoverNote.trim());
+              const customerInput = customer.mode === "existing"
+                ? { mode: "existing" as const, customerUserId: customer.customerUserId }
+                : customer.mode === "named"
+                  ? { mode: "named" as const, customerName: customer.customerName.trim() }
+                  : { mode: "walk_in" as const };
+              const created = await verifiedPosUat.sale(csrf, hold.id, tenderMinor,
+                handoverNote.trim(), customerInput);
               setSale(created);
               setNotice("Synthetic sale recorded. The server issued a cash-only test receipt.");
               try { setReport(await verifiedPosUat.reconciliation(tillId)); }
@@ -298,6 +312,8 @@ export function VerifiedPosUat() {
       {sale && <section className="space-y-3 rounded-xl border bg-card p-4">
         <h2 className="text-lg font-semibold">4. Synthetic sale completed</h2>
         <p>Reference: <strong>{sale.reference}</strong></p>
+        <p>Customer: <strong>{sale.customerName}</strong> · {sale.customerMode === "existing"
+          ? "Linked registered customer" : sale.customerMode === "named" ? "Named walk-in" : "Walk-in"}</p>
         <p>Sale total: <strong>{formatMoney(sale.subtotalMinor)}</strong> ·
           Simulated tender: {formatMoney(sale.cashReceivedMinor)} ·
           Change: {formatMoney(sale.changeGivenMinor)}</p>

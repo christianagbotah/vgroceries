@@ -6,6 +6,7 @@ import type {
 } from "@/services/contracts";
 
 export type CashierTillList = { enabled: boolean; includesSales: boolean; sessions: CashierTillSessionView[] };
+export type PosRegisteredCustomer = { id: string; name: string; phone: string; email: string | null };
 
 export function verifiedApiBase(): string {
   const value = process.env.NEXT_PUBLIC_API_BASE_URL?.trim();
@@ -65,6 +66,8 @@ export const verifiedPosUat = {
   session: () => apiRequest<SessionLookupResponse>("/auth/me"),
   tills: () => apiRequest<CashierTillList>("/admin/pos/tills"),
   products: () => apiRequest<AdminProductRow[]>("/admin/products"),
+  customers: (query: string) => apiRequest<PosRegisteredCustomer[]>(
+    `/admin/pos/customers?q=${encodeURIComponent(query.trim())}`),
   openTill: (csrf: string, data: { locationId: string; tillCode: string; openingFloatMinor: number }) =>
     apiRequest<CashierTillSessionView>("/admin/pos/tills", {
       method: "POST", csrf, key: crypto.randomUUID(), body: data,
@@ -95,11 +98,19 @@ export const verifiedPosUat = {
         body: { note: "UAT sample basket released without any simulated cash sale" },
       },
     ),
-  sale: (csrf: string, holdId: string, cashReceivedMinor: number, handoverNote: string) =>
+  sale: (csrf: string, holdId: string, cashReceivedMinor: number,
+    handoverNote: string, customer?:
+      | { mode: "walk_in" }
+      | { mode: "existing"; customerUserId: string }
+      | { mode: "named"; customerName: string }) =>
     apiRequest<PosCashSaleView>("/admin/pos/cash-sales", {
       method: "POST", csrf, key: crypto.randomUUID(),
       body: { holdId, cashReceivedMinor, cashCountConfirmed: true,
-        goodsHandedOver: true, handoverNote },
+        goodsHandedOver: true, handoverNote,
+        ...(customer ? { customerMode: customer.mode } : {}),
+        ...(customer?.mode === "existing" ? { customerUserId: customer.customerUserId } : {}),
+        ...(customer?.mode === "named" ? { customerName: customer.customerName.trim() } : {}),
+      },
     }),
   reconciliation: (sessionId: string) =>
     apiRequest<PosTillReconciliationView>(

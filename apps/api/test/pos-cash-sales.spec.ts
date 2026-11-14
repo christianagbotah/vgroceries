@@ -406,3 +406,59 @@ test("reprints preserve sale-time item names and escape hostile catalog markup",
     });
   assert.equal(missing.status,404);
 });
+
+test("POS customer search is authenticated and includes active registered accounts only",async()=>{
+  const admin=await token("admin-commerce@example.test");
+  const customer=await token("customer-a@example.test");
+  const found=await api("GET","/admin/pos/customers?q=Ama",admin);
+  assert.equal(found.status,200,JSON.stringify(found.payload));
+  assert.ok(found.payload.data.some((row:{id:string})=>row.id==="customer-a"));
+  assert.ok(found.payload.data.every((row:{id:string})=>row.id!=="admin-commerce"));
+  assert.equal((await api("GET","/admin/pos/customers?q=Ama",customer)).status,403);
+  const short=await api("GET","/admin/pos/customers?q=A",admin);
+  assert.equal(short.status,200);
+  assert.deepEqual(short.payload.data,[]);
+});
+
+test("cash sale links existing customer only after server validates current account",async()=>{
+  const {hold}=await held();
+  const admin=await token("admin-commerce@example.test");
+  const impersonate=await api("POST","/admin/pos/cash-sales",admin,{
+    ...request(hold.id),customerMode:"existing",customerUserId:"admin-commerce",
+  },"pos-customer-invalid-role");
+  assert.equal(impersonate.status,422,JSON.stringify(impersonate.payload));
+  assert.equal(await db.posCashSale.count(),0);
+  assert.equal(await db.stockDepletion.count({where:{claimType:"pos_draft"}}),0);
+  const response=await api("POST","/admin/pos/cash-sales",admin,{
+    ...request(hold.id),customerMode:"existing",customerUserId:"customer-a",
+  },"pos-customer-existing-authorised");
+  assert.equal(response.status,200,JSON.stringify(response.payload));
+  const result=response.payload.data;
+  assert.equal(result.customerMode,"existing");
+  assert.equal(result.customerUserId,"customer-a");
+  assert.equal(result.customerName,"Ama Customer");
+  const saved=await db.posCashSale.findUniqueOrThrow({where:{id:result.id}});
+  assert.equal(saved.customerUserId,"customer-a");
+  assert.equal(saved.customerName,"Ama Customer");
+  const receipt=await sales.printReceipt(result.id);
+  assert.match(receipt,/Customer<\/span><span>Ama Customer/);
+  assert.equal(await db.stockDepletion.count({where:{claimType:"pos_draft"}}),1);
+});
+
+test("named walk-in sale saves immutable receipt name without creating an account",async()=>{
+  const {hold}=await held();
+  const admin=await token("admin-commerce@example.test");
+  const usersBefore=await db.user.count();
+  const response=await api("POST","/admin/pos/cash-sales",admin,{
+    ...request(hold.id),customerMode:"named",customerName:"  Ama Walk-in  ",
+  },"pos-customer-named-walkin");
+  assert.equal(response.status,200,JSON.stringify(response.payload));
+  assert.equal(response.payload.data.customerMode,"named");
+  assert.equal(response.payload.data.customerUserId,null);
+  assert.equal(response.payload.data.customerName,"Ama Walk-in");
+  assert.equal(await db.user.count(),usersBefore);
+  const sale=await db.posCashSale.findUniqueOrThrow({where:{id:response.payload.data.id}});
+  assert.equal(sale.customerName,"Ama Walk-in");
+  assert.equal(sale.customerUserId,null);
+  assert.match(await sales.printReceipt(sale.id),/Ama Walk-in/);
+});
