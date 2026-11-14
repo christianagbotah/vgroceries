@@ -9,24 +9,32 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Info, Search } from "lucide-react";
+import { Info, Search, ArrowLeft, ArrowRight, PackageSearch } from "lucide-react";
 import { formatDateTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
+
+const PAGE_SIZE = 48;
+const connectedStock = Boolean(process.env.NEXT_PUBLIC_API_BASE_URL);
 
 type Row = Awaited<ReturnType<typeof apiOps.inventory>>["rows"][number];
 
 export default function AdminInventoryPage() {
   const [filter, setFilter] = useState("all");
+  const [page, setPage] = useState(1);
   const [q, setQ] = useState("");
   const [searchInput, setSearchInput] = useState("");
   const { data, loading, error, reload } = useApiData(
-    () => apiOps.inventory({ q: q || undefined, filter: filter === "all" ? undefined : filter }),
-    [q, filter]
+    () => apiOps.inventory({ q: q || undefined,
+      filter: filter === "all" ? undefined : filter, page, perPage: PAGE_SIZE }),
+    [q, filter, page]
   );
 
   const rows = useMemo(() => data?.rows ?? [], [data]);
   const summary = data?.summary;
   const filtering = filter !== "all" || !!q;
+  const total = data?.total ?? 0;
+  const first = total ? (page - 1) * PAGE_SIZE + 1 : 0;
+  const last = Math.min(page * PAGE_SIZE, total);
 
   return (
     <div className="space-y-4">
@@ -34,13 +42,19 @@ export default function AdminInventoryPage() {
         <div>
           <h1 className="font-serif text-2xl font-bold">Stock overview</h1>
           <p className="text-sm text-muted-foreground">
-            One stock model shared by every selling channel — shop floor (demo), with backroom and
-            quarantine locations.
+            {connectedStock
+              ? "Live stock shared by online shopping, counter sales and reservations at the configured branch."
+              : "One shared stock model across the storefront and counter sale demo."}
           </p>
         </div>
-        <Button asChild variant="outline" className="h-10">
-          <Link href="/admin/inventory/expiry">Expiry &amp; quarantine</Link>
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button asChild variant="outline" className="h-11">
+            <Link href="/admin/inventory/lots"><PackageSearch className="size-4" aria-hidden /> Stock lots</Link>
+          </Button>
+          <Button asChild variant="outline" className="h-11">
+            <Link href="/admin/inventory/expiry">Expiry &amp; quarantine</Link>
+          </Button>
+        </div>
       </div>
 
       <div className="flex items-start gap-2 rounded-xl border border-primary/30 bg-primary/5 p-3 text-sm">
@@ -58,13 +72,14 @@ export default function AdminInventoryPage() {
           className="relative min-w-0 flex-1 sm:min-w-56"
           onSubmit={(e) => {
             e.preventDefault();
+            setPage(1);
             setQ(searchInput.trim());
           }}
         >
           <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
           <Input type="search" className="h-11 pl-9" placeholder="Product or variant…" value={searchInput} onChange={(e) => setSearchInput(e.target.value)} aria-label="Search stock" key={q} />
         </form>
-        <Select value={filter} onValueChange={setFilter} aria-label="Filter stock">
+        <Select value={filter} onValueChange={(value) => { setFilter(value); setPage(1); }} aria-label="Filter stock">
           <SelectTrigger className="h-11 w-full sm:w-48"><SelectValue /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All items</SelectItem>
@@ -74,11 +89,26 @@ export default function AdminInventoryPage() {
           </SelectContent>
         </Select>
         {filtering ? (
-          <button type="button" className="h-11 rounded-lg border px-3 text-sm hover:bg-accent" onClick={() => { setFilter("all"); setQ(""); setSearchInput(""); }}>
+          <button type="button" className="h-11 rounded-lg border px-3 text-sm hover:bg-accent" onClick={() => { setFilter("all"); setPage(1); setQ(""); setSearchInput(""); }}>
             Clear
           </button>
         ) : null}
       </div>
+
+      {!loading && !error ? (
+        <div className="flex flex-wrap items-center justify-between gap-2 text-sm text-muted-foreground">
+          <span aria-live="polite">{total ? `Showing ${first}–${last} of ${total} variants` : "No matching stock variants"}</span>
+          <div className="flex items-center gap-2">
+            <Button type="button" size="sm" variant="outline" className="h-11" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page <= 1}>
+              <ArrowLeft className="size-4" aria-hidden /> Previous
+            </Button>
+            <span className="min-w-16 text-center text-xs tabular-nums">Page {page}</span>
+            <Button type="button" size="sm" variant="outline" className="h-11" onClick={() => setPage((p) => p + 1)} disabled={last >= total}>
+              Next <ArrowRight className="size-4" aria-hidden />
+            </Button>
+          </div>
+        </div>
+      ) : null}
 
       {summary ? (
         <dl className="grid grid-cols-2 gap-2 rounded-xl border bg-card p-3 text-sm sm:grid-cols-3 lg:grid-cols-6" aria-label="Stock state summary">

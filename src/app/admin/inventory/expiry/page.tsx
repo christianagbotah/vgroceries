@@ -14,6 +14,8 @@ import { useToast } from "@/hooks/use-toast";
 import { formatDate } from "@/lib/format";
 import { ShieldAlert, Trash2, CalendarClock, PackageX, Bug, TriangleAlert } from "lucide-react";
 
+const liveStockReadOnly = Boolean(process.env.NEXT_PUBLIC_API_BASE_URL);
+
 type ExpiryBundle = Awaited<ReturnType<typeof apiOps.expiry>>;
 type LotRow = ExpiryBundle["expired"][number] & { soonRow?: boolean; daysLeft?: number };
 
@@ -56,8 +58,8 @@ export default function AdminExpiryPage() {
   if (!data) return null;
 
   const tabs: { key: string; label: string; icon: typeof CalendarClock; rows: LotRow[]; empty: string }[] = [
-    { key: "soon", label: `Expiring ≤ 7 days (${data.soon.length})`, icon: CalendarClock, rows: data.soon, empty: "No lots expiring in the next 7 days." },
-    { key: "expired", label: `Expired (${data.expired.length})`, icon: PackageX, rows: data.expired, empty: "No expired lots on the sales floor." },
+    { key: "soon", label: `Expiring ≤ 7 days (${data.soon.length})`, icon: CalendarClock, rows: data.soon, empty: "No lots recorded as expiring in the next 7 days." },
+    { key: "expired", label: `Expired (${data.expired.length})`, icon: PackageX, rows: data.expired, empty: "No expired lots in the selected stock location." },
     { key: "quarantined", label: `Quarantined (${data.quarantined.length})`, icon: Bug, rows: data.quarantined, empty: "No quarantined lots." },
     { key: "damaged", label: `Damaged (${data.damaged.length})`, icon: TriangleAlert, rows: data.damaged, empty: "No damaged lots." },
   ];
@@ -67,10 +69,17 @@ export default function AdminExpiryPage() {
       <div>
         <h1 className="font-serif text-2xl font-bold">Expiry &amp; quarantine</h1>
         <p className="text-sm text-muted-foreground">
-          Expired, expiring, quarantined and damaged lots. Withdrawn goods are never sellable —
-          the storefront only counts eligible regular lots.
+          Recorded expired, expiring, quarantined and damaged lots from the authoritative stock location.
+          Goods withdrawn from sale are excluded from purchasing.
         </p>
       </div>
+
+      {liveStockReadOnly ? (
+        <p className="rounded-xl border border-amber-300/60 bg-amber-50/50 p-3 text-sm dark:bg-amber-950/10">
+          <strong>Live read-only stock report.</strong> Quarantine release and disposal require audited
+          stock-change endpoints; these actions remain unavailable here until verified.
+        </p>
+      ) : null}
 
       <Tabs defaultValue="soon">
         <TabsList className="h-12 w-full justify-start overflow-x-auto sm:w-auto">
@@ -116,12 +125,12 @@ export default function AdminExpiryPage() {
                           </td>
                           <td className="p-3 text-right">
                             <span className="inline-flex flex-wrap justify-end gap-1.5">
-                              {can("inventory.adjust") && l.kind !== "regular" ? (
+                              {!liveStockReadOnly && can("inventory.adjust") && l.kind !== "regular" ? (
                                 <Button size="sm" variant="outline" className="h-9" onClick={() => quarantine(l, !l.isQuarantined)}>
                                   <ShieldAlert className="size-3.5" aria-hidden /> {l.isQuarantined ? "Release" : "Quarantine"}
                                 </Button>
                               ) : null}
-                              {can("inventory.adjust") ? (
+                              {!liveStockReadOnly && can("inventory.adjust") ? (
                                 <Button size="sm" variant="outline" className="h-9 text-destructive" onClick={() => setDisposeTarget(l)}>
                                   <Trash2 className="size-3.5" aria-hidden /> Dispose
                                 </Button>

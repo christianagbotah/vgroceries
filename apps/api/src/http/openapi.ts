@@ -89,6 +89,74 @@ export function foundationOpenApi(app: INestApplication) {
     ByVariantsResponse: { type: "array", items: ref("CatalogProduct") },
     InventoryRow: json(foundationInventoryRowSchema),
     InventoryOverviewResponse: json(foundationInventoryOverviewSchema),
+    // Live stock ledger and exception report. These are real, branch-scoped
+    // production read routes and must be in the public contract inventory.
+    StockLot: json(z.object({
+      id:z.string(), productName:z.string(),variantName:z.string(),
+      lotNumber:z.string(), quantity:z.string(), kind:z.string(),
+      isQuarantined:z.boolean(),expired:z.boolean(),expiryDate:z.string().optional(),
+      location:z.string(),variantId:z.string(),
+    })),
+    StockLotsResponse:{type:"array",items:ref("StockLot")},
+    StockExpiryLot: json(z.object({
+      id:z.string(),productName:z.string(),variantName:z.string(),
+      lotNumber:z.string(),quantity:z.string(),expiryDate:z.string().optional(),
+      variantId:z.string(),kind:z.string(),isQuarantined:z.boolean(),
+      location:z.string(),daysLeft:z.number().int().optional(),
+    })),
+    StockExpiryResponse:{type:"object",required:["expired","soon","quarantined","damaged"],additionalProperties:false,
+      properties:Object.fromEntries(["expired","soon","quarantined","damaged"].map(k=>[k,{type:"array",items:ref("StockExpiryLot")}]))},
+    StockReceiptLine:json(z.object({ productName:z.string(),variantName:z.string(),
+      lotNumber:z.string(),quantity:z.string(),expiryDate:z.string().optional() })),
+    StockReceipt:json(z.object({ id:z.string(),receivedAtLabel:z.string(),
+      receivedBy:z.string(),poRef:z.string().optional(),note:z.string().optional(),
+      lines:z.array(z.object({productName:z.string(),variantName:z.string(),
+        lotNumber:z.string(),quantity:z.string(),expiryDate:z.string().optional()})) })),
+    StockReceiptsResponse:{type:"array",items:ref("StockReceipt")},
+    StockAdjustmentRow:json(z.object({
+      id:z.string(), productName:z.string(),variantName:z.string(),lotNumber:z.string(),
+      delta:z.string(),reason:z.string(),note:z.string().optional(),status:z.string(),
+      requestedBy:z.string(),requestedById:z.string(),approvedBy:z.string().optional(),
+      atLabel:z.string(),beforeQuantity:z.string(),afterQuantity:z.string().optional(),
+    })),
+    StockAdjustmentListResponse:{type:"array",items:ref("StockAdjustmentRow")},
+    StockAdjustmentRequest:json(z.strictObject({
+      lotId:z.string().min(1),variantId:z.string().min(1),
+      delta:z.string().regex(/^[+-]?(?:0|[1-9]\d{0,11})(?:\.\d{1,3})?$/),
+      reason:z.string().min(8), note:z.string().optional(),locationId:z.string().optional(),
+    })),
+    StockAdjustmentDecide:json(z.strictObject({
+      adjustmentId:z.string().uuid(),decision:z.enum(["approve","reject"]),
+    })),
+    StockAdjustmentOutcome:json(z.object({
+      adjustmentId:z.string(),status:z.string(),replayed:z.boolean().optional(),
+    })),
+    AiAssistantSuggestion:json(z.object({productId:z.string(),variantId:z.string(),
+      label:z.string(),priceMinor:z.number().int(),available:z.string()})),
+    AiAssistantResponse:{type:"object",required:["answer","evidence","suggestions"],additionalProperties:false,
+      properties:{answer:{type:"string"},evidence:{type:"array",items:{type:"string"}},
+        suggestions:{type:"array",items:ref("AiAssistantSuggestion")}}},
+    AiBudgetBasketResponse:{type:"object",required:["items","totalMinor","note"],additionalProperties:false,
+      properties:{items:{type:"array",items:ref("AiAssistantSuggestion")},totalMinor:{type:"integer",minimum:0},note:{type:"string"}}},
+    PublicSupportRequestResponse:json(z.object({reference:z.string(),status:z.string(),
+      createdAt:z.string(),note:z.string()})),
+    SupportActivity:json(z.object({action:z.string(),privateNote:z.string().nullable(),
+      createdAt:z.string(),actorId:z.string().nullable()})),
+    SupportCase:json(z.object({id:z.string(),reference:z.string(),name:z.string(),
+      phone:z.string(),email:z.string().nullable(),subject:z.string(),message:z.string(),
+      orderReference:z.string().nullable(),preferredContact:z.string(),status:z.string(),
+      createdAt:z.string(),updatedAt:z.string(),activities:z.array(z.object({action:z.string(),
+        privateNote:z.string().nullable(),createdAt:z.string(),actorId:z.string().nullable()}))})),
+    SupportAdminListResponse:{type:"object",required:["items","capped"],additionalProperties:false,
+      properties:{items:{type:"array",items:ref("SupportCase")},capped:{type:"boolean"}}},
+    SupportAdminActionResponse:json(z.object({reference:z.string(),status:z.string()})),
+    AiAssistantRequest:json(z.strictObject({question:z.string().min(1).max(400)})),
+    AiBudgetBasketRequest:json(z.strictObject({budgetMinor:z.number().int().min(100).max(200000000)})),
+    SupportPublicRequest:json(z.object({name:z.string().min(2).max(120),phone:z.string(),
+      email:z.string().optional(),subject:z.enum(["order","delivery","payment","return","product","other"]),
+      message:z.string().min(12).max(2000),orderReference:z.string().optional(),
+      preferredContact:z.enum(["phone","email"]).optional(),consent:z.literal(true)})),
+    SupportAdminAction:json(z.strictObject({status:z.enum(["open","acknowledged","in_progress","resolved","closed"]),note:z.string().min(5).max(1000)})),
     ReceiveResponse: json(z.object({ receiptId: z.string() })),
     ZoneView: json(zoneViewSchema),
     ZoneListResponse: { type: "array", items: ref("ZoneView") },
@@ -204,6 +272,12 @@ export function foundationOpenApi(app: INestApplication) {
       properties:{ id:{type:"string"},name:{type:"string"},phone:{type:"string"},email:{type:"string"},isDemo:{type:"boolean"},supportNotes:{type:"array",items:{type:"string"}},createdAt:{type:"string"},orderCount:{type:"integer",minimum:0},spendLabel:{type:"string"},returnCount:{type:"integer",minimum:0},addressCount:{type:"integer",minimum:0} },
     },
     AdminCustomerListResponse: { type:"array", items:ref("AdminCustomerRow") },
+    PosRegisteredCustomer: {
+      type:"object",additionalProperties:false,required:["id","name","phone","email"],
+      properties:{id:{type:"string"},name:{type:"string"},phone:{type:"string"},
+        email:{type:"string",nullable:true}},
+    },
+    PosRegisteredCustomerList: {type:"array",items:ref("PosRegisteredCustomer")},
     AdminCustomerOrder: {
       type:"object", additionalProperties:false,
       required:["id","reference","totalLabel","channel","fulfilmentStatus","paymentStatus","createdAtLabel"],
@@ -221,6 +295,11 @@ export function foundationOpenApi(app: INestApplication) {
     },
     AdminDashboardResponse: json(dashboardViewSchema),
     LoginRequest: json(loginRequestSchema),
+    PasswordResetRequest: json(z.strictObject({ email: z.email().max(254) })),
+    PasswordResetComplete: json(z.strictObject({
+      token: z.string().regex(/^[a-f0-9]{64}$/), password: z.string().min(12).max(256),
+    })),
+    PasswordResetResult: json(z.object({ message: z.string() })),
     RegisterRequest: json(registerRequestSchema),
     RefreshRequest: json(refreshRequestSchema),
     ByVariantsRequest: json(byVariantsRequestSchema),
@@ -281,6 +360,8 @@ export function foundationOpenApi(app: INestApplication) {
     "/health/ready": "ReadyResponse",
     "/auth/sessions": "SessionResponse",
     "/auth/register": "SessionResponse",
+    "/auth/password-reset/request": "PasswordResetResult",
+    "/auth/password-reset/complete": "PasswordResetResult",
     "/auth/me": "SessionLookupResponse",
     "/auth/logout": "LogoutResponse",
     "/auth/refresh": "NativeSessionResponse",
@@ -289,7 +370,18 @@ export function foundationOpenApi(app: INestApplication) {
     "/catalog/products": "CatalogProductsResponse",
     "/catalog/products/{slug}": "ProductDetailResponse",
     "/catalog/products:by-variants": "ByVariantsResponse",
+    "/ai/assistant":"AiAssistantResponse",
+    "/ai/budget-basket":"AiBudgetBasketResponse",
+    "/support/requests":"PublicSupportRequestResponse",
+    "/admin/support":"SupportAdminListResponse",
+    "/admin/support/{caseId}/actions":"SupportAdminActionResponse",
     "/inventory/overview": "InventoryOverviewResponse",
+    "/inventory/expiry":"StockExpiryResponse",
+    "/inventory/lots":"StockLotsResponse",
+    "/inventory/receipts":"StockReceiptsResponse",
+    "/inventory/adjustments":"StockAdjustmentListResponse",
+    "/inventory/adjustments/create":"StockAdjustmentOutcome",
+    "/inventory/adjustments/decide":"StockAdjustmentOutcome",
     "/inventory/receive": "ReceiveResponse",
     "/checkout/zones": "ZoneListResponse",
     "/checkout/zones/{zoneId}/slots": "SlotListResponse",
@@ -332,6 +424,7 @@ export function foundationOpenApi(app: INestApplication) {
     "/admin/products/{productId}": "AdminProductDetailResponse",
     "/admin/categories": "AdminCategoryListResponse",
     "/admin/customers": "AdminCustomerListResponse",
+    "/admin/pos/customers": "PosRegisteredCustomerList",
     "/admin/customers/{customerId}": "AdminCustomerDetailResponse",
     "/admin/dashboard": "AdminDashboardResponse",
   };
@@ -346,9 +439,17 @@ export function foundationOpenApi(app: INestApplication) {
   const requests: Record<string, string> = {
     "/auth/sessions": "LoginRequest",
     "/auth/register": "RegisterRequest",
+    "/auth/password-reset/request": "PasswordResetRequest",
+    "/auth/password-reset/complete": "PasswordResetComplete",
     "/auth/refresh": "RefreshRequest",
     "/catalog/products:by-variants": "ByVariantsRequest",
+    "/ai/assistant":"AiAssistantRequest",
+    "/ai/budget-basket":"AiBudgetBasketRequest",
+    "/support/requests":"SupportPublicRequest",
+    "/admin/support/{caseId}/actions":"SupportAdminAction",
     "/inventory/receive": "ReceiveRequest",
+    "/inventory/adjustments/create":"StockAdjustmentRequest",
+    "/inventory/adjustments/decide":"StockAdjustmentDecide",
     "/checkout/quote": "CheckoutQuoteRequest",
     "/checkout/complete": "CheckoutCompleteRequest",
     "/orders/{orderId}/pickup-appointments": "BookPickupAppointmentRequest",
@@ -391,6 +492,7 @@ export function foundationOpenApi(app: INestApplication) {
         "/admin/pos/tills/{sessionId}/movements",
         "/admin/pos/tills/{sessionId}/close",
         "/admin/pos/quote",
+        "/admin/pos/customers",
         "/admin/pos/cash-sales",
         "/admin/pos/cash-sales/{saleId}",
         "/admin/pos/cash-sales/{saleId}/print",
@@ -414,6 +516,7 @@ export function foundationOpenApi(app: INestApplication) {
       if (!operation) continue;
       if (
         suffix.startsWith("/inventory/") ||
+        suffix === "/admin/support" || suffix.startsWith("/admin/support/") ||
         suffix === "/auth/me" ||
         suffix === "/auth/logout" ||
         suffix === "/account/summary" ||
@@ -430,6 +533,7 @@ export function foundationOpenApi(app: INestApplication) {
         suffix === "/admin/products/{productId}" ||
         suffix === "/admin/categories" ||
         suffix === "/admin/customers" ||
+        suffix === "/admin/pos/customers" ||
         suffix === "/admin/customers/{customerId}" ||
         suffix === "/admin/dashboard"
       ) operation.security = [{ cookieAuth: [] }, { bearerAuth: [] }];
@@ -504,6 +608,8 @@ export function foundationOpenApi(app: INestApplication) {
     },
   ];
   doc.paths["/api/v1/inventory/overview"]!.get!.parameters = [
+    {name:"q",in:"query",schema:{type:"string",maxLength:200}},
+    {name:"filter",in:"query",schema:{type:"string",enum:["all","low","zero","reserved"],default:"all"}},
     {
       name: "locationId",
       in: "query",
@@ -513,6 +619,38 @@ export function foundationOpenApi(app: INestApplication) {
     },
     ...pagination,
   ];
+  for (const path of ["/api/v1/ai/assistant","/api/v1/ai/budget-basket","/api/v1/support/requests"]) {
+    const endpoint=doc.paths[path]?.post;
+    if (endpoint) endpoint.security=[];
+  }
+  const supportAction=doc.paths["/api/v1/admin/support/{caseId}/actions"]?.post;
+  if (supportAction) supportAction.parameters=[
+    {name:"caseId",in:"path",required:true,schema:{type:"string"}},
+    {name:"X-CSRF-Token",in:"header",required:false,
+      description:"Required with cookie sessions",schema:{type:"string",pattern:"^[a-f0-9]{64}$"}},
+  ];
+  doc.paths["/api/v1/admin/support"]!.get!.parameters=[
+    {name:"status",in:"query",schema:{type:"string",enum:["open","acknowledged","in_progress","resolved","closed"]}},
+  ];
+  for(const path of ["/api/v1/inventory/lots","/api/v1/inventory/receipts","/api/v1/inventory/expiry"]){
+    doc.paths[path]!.get!.parameters=[
+      {name:"locationId",in:"query",description:"Branch-scoped; nonadmin requires an active branch grant",schema:{type:"string",maxLength:128}},
+      ...(path.endsWith("/lots")?[{name:"variantId",in:"query" as const,schema:{type:"string" as const,maxLength:128}}]:[]),
+    ];
+  }
+
+  doc.paths["/api/v1/inventory/adjustments"]!.get!.parameters=[
+    {name:"locationId",in:"query",schema:{type:"string",maxLength:128}},
+  ];
+  for(const path of ["/api/v1/inventory/adjustments/create", "/api/v1/inventory/adjustments/decide"]){
+    doc.paths[path]!.post!.parameters=[
+      ...(path.endsWith("/create")?[{name:"Idempotency-Key",in:"header" as const,
+        required:true,schema:{type:"string" as const,minLength:8,maxLength:128}}]:[]),
+      {name:"X-CSRF-Token",in:"header" as const,required:false,
+        description:"Required for cookie authentication",schema:{type:"string" as const}},
+    ];
+  }
+
   doc.paths["/api/v1/auth/sessions"]!.post!.description =
     "Web sign-in requires a trusted Origin and sets an HttpOnly cookie. Native sign-in returns opaque access and refresh credentials. The client field selects the response variant.";
   doc.paths["/api/v1/auth/register"]!.post!.description =

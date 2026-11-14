@@ -14,6 +14,7 @@
  */
 
 import { clearBrowserCsrfToken, resolveClientAdapter, setBrowserCsrfToken } from "./adapters/browser";
+import { clearDemoCustomerSession, clearDemoStaffSession } from "@/features/staff/staff-demo-session";
 import { normalizePaymentLedgerResponse } from "./payment-ledger";
 import type { QueryValue, ServiceRequest } from "./adapters/types";
 import type {
@@ -266,6 +267,8 @@ export const apiOps = {
 
   /* account */
   accountLogin: async (identifier: string, password: string) => {
+    clearDemoCustomerSession();
+    clearDemoStaffSession();
     const identity = identifier.includes("@")
       ? { email: identifier.trim().toLowerCase() }
       : { phone: identifier.trim() };
@@ -312,6 +315,8 @@ export const apiOps = {
 
   /* staff */
   staffLogin: async (email: string, password: string) => {
+    clearDemoCustomerSession();
+    clearDemoStaffSession();
     const session = await api<WebSessionResponse>("auth.login", { body: { email, password, client: "web" } });
     setBrowserCsrfToken(session.csrfToken);
     return session;
@@ -353,7 +358,7 @@ export const apiOps = {
     api<SessionCloseResponse>("admin.sessions.close", { body: { sessionId, countedCashMinor, note, actor } }),
 
   /* inventory */
-  inventory: (f: { q?: string; filter?: string }) =>
+  inventory: (f: { q?: string; filter?: string; page?: number; perPage?: number; locationId?: string }) =>
     api<import("./contracts").InventoryOverviewResponse>("admin.inventory.overview", {
       query: f as Record<string, QueryValue>,
     }),
@@ -363,11 +368,19 @@ export const apiOps = {
   lotDispose: (lotId: string, reason: string, actor?: string) =>
     api<DoneResponse>("admin.inventory.lot.dispose", { body: { lotId, reason, actor } }),
   receipts: () => api<import("./contracts").ReceiptRow[]>("admin.inventory.receipts"),
-  receive: (body: Record<string, unknown>) => api<{ receiptId: string }>("admin.inventory.receive", { body }),
+  receive: (body: Record<string, unknown>, idempotencyKey?: string) =>
+    api<{ receiptId: string }>("admin.inventory.receive", { body,
+      idempotencyKey: idempotencyKey ?? crypto.randomUUID() }),
   adjustments: () => api<import("./contracts").AdjustmentRow[]>("admin.inventory.adjustments"),
-  adjustmentCreate: (body: Record<string, unknown>) => api<{ adjustmentId: string; status: string }>("admin.inventory.adjustments.create", { body }),
+  adjustmentCreate: (body: Record<string, unknown>, idempotencyKey?: string) =>
+    api<{ adjustmentId: string; status: string }>("admin.inventory.adjustments.create", {
+      body, idempotencyKey: idempotencyKey ?? crypto.randomUUID(),
+    }),
   adjustmentDecide: (adjustmentId: string, decision: "approve" | "reject", actor?: string) =>
-    api<{ status: string }>("admin.inventory.adjustments.decide", { body: { adjustmentId, decision, actor } }),
+    api<{ status: string }>("admin.inventory.adjustments.decide", { body: {
+      adjustmentId, decision,
+      ...(!process.env.NEXT_PUBLIC_API_BASE_URL ? { actor } : {}),
+    } }),
   stocktakes: () => api<import("./contracts").StocktakeRow[]>("admin.inventory.stocktakes"),
   stocktakeOpen: (variantIds: string[], actor?: string) =>
     api<StocktakeOpenResponse>("admin.inventory.stocktakes.open", { body: { variantIds, actor } }),

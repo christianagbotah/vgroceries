@@ -11,11 +11,12 @@ import {PosTillReconciliationService} from "./pos-till-reconciliation.service";
 import {PosCashSalesService} from "./pos-cash-sales.service";
 import {PosCashSalesController} from "./pos-cash-sales.controller";
 import {PosCashierAccess} from "./pos-cashier-access";
+import {PosCustomersController} from "./pos-customers.controller";
 @Module({
   imports:[OrdersModule,InventoryModule],
   controllers:[
     CashierTillsController,PosQuoteController,PosHoldsController,
-    PosCashSalesController,
+    PosCashSalesController,PosCustomersController,
   ],
   providers:[
     CashierTillsService,PosQuoteService,PosHoldsService,PosCashSalesService,

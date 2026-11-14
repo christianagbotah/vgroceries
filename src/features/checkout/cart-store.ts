@@ -9,12 +9,13 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import type { CartLine } from "@/types/domain";
-import { addQty, subQty } from "@/lib/quantity";
+import { addQty, cmpQty, qtyToScaled, subQty } from "@/lib/quantity";
 
 interface CartState {
   lines: CartLine[];
-  add: (line: Omit<CartLine, "addedAt">) => void;
-  setQty: (variantId: string, quantity: string) => void;
+  /** Fail closed unless a real catalog available-to-sell cap is supplied. */
+  add: (line: Omit<CartLine, "addedAt">, availableToSell: string) => boolean;
+  setQty: (variantId: string, quantity: string, availableToSell: string) => boolean;
   remove: (variantId: string) => void;
   clear: () => void;
   count: () => number;
@@ -24,29 +25,41 @@ export const useCart = create<CartState>()(
   persist(
     (set, get) => ({
       lines: [],
-      add: (line) =>
-        set((s) => {
-          const existing = s.lines.find((l) => l.variantId === line.variantId);
-          if (existing) {
-            return {
-              lines: s.lines.map((l) =>
-                l.variantId === line.variantId
-                  ? { ...l, quantity: addQty(l.quantity, line.quantity), name: line.name, image: line.image, priceMinor: line.priceMinor }
-                  : l
-              ),
-            };
-          }
-          return {
-            lines: [...s.lines, { ...line, addedAt: new Date().toISOString() }],
-          };
-        }),
-      setQty: (variantId, quantity) =>
-        set((s) => ({
-          lines:
-            quantity === "0"
-              ? s.lines.filter((l) => l.variantId !== variantId)
-              : s.lines.map((l) => (l.variantId === variantId ? { ...l, quantity } : l)),
-        })),
+      add: (line, availableToSell) => {
+        let accepted = false;
+        try {
+          // Browser values are for UX only. Every real checkout obtains a new
+          // transaction-locked allocation from PostgreSQL.
+          if (qtyToScaled(line.quantity) <= 0 || qtyToScaled(availableToSell) <= 0) return false;
+          set((state) => {
+            const existing = state.lines.find((item) => item.variantId === line.variantId);
+            const total = existing ? addQty(existing.quantity, line.quantity) : line.quantity;
+            if (cmpQty(total, availableToSell) > 0) return state;
+            accepted = true;
+            return existing
+              ? { lines: state.lines.map((item) => item.variantId === line.variantId
+                  ? { ...item, quantity: total, name: line.name, image: line.image, priceMinor: line.priceMinor }
+                  : item) }
+              : { lines: [...state.lines, { ...line, addedAt: new Date().toISOString() }] };
+          });
+        } catch { return false; }
+        return accepted;
+      },
+      setQty: (variantId, quantity, availableToSell) => {
+        let accepted = false;
+        try {
+          if (qtyToScaled(quantity) < 0 || qtyToScaled(availableToSell) < 0 ||
+              cmpQty(quantity, availableToSell) > 0) return false;
+          set((state) => {
+            if (!state.lines.some((line) => line.variantId === variantId)) return state;
+            accepted = true;
+            return { lines: quantity === "0"
+              ? state.lines.filter((line) => line.variantId !== variantId)
+              : state.lines.map((line) => line.variantId === variantId ? { ...line, quantity } : line) };
+          });
+        } catch { return false; }
+        return accepted;
+      },
       remove: (variantId) => set((s) => ({ lines: s.lines.filter((l) => l.variantId !== variantId) })),
       clear: () => set({ lines: [] }),
       count: () => get().lines.length,

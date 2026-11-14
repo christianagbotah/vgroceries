@@ -12,7 +12,7 @@ import { useStaff, DEMO_ROLE_OPTIONS } from "@/features/staff/role-context";
 import { clearDemoStaffSession, isDemoStaffSessionActive } from "@/features/staff/staff-demo-session";
 import { ROLE_LABELS } from "@/types/domain";
 import type { Permission } from "@/lib/perms";
-import { LayoutDashboard, Menu, ShoppingCart, Store, Boxes, Package, ClipboardList, Truck, Users, RotateCcw, CreditCard, UserRound, BarChart3, Sparkles, ShieldCheck, ScrollText, Settings2, FlaskConical, LogOut, Warehouse, ClipboardCheck, TriangleAlert, ReceiptText, Landmark, Network, FileText, Home, ExternalLink } from "lucide-react";
+import { LayoutDashboard, Menu, ShoppingCart, Store, Boxes, Package, ClipboardList, Truck, Users, RotateCcw, CreditCard, UserRound, BarChart3, Sparkles, ShieldCheck, ScrollText, Settings2, FlaskConical, LogOut, Warehouse, ClipboardCheck, TriangleAlert, ReceiptText, Landmark, Network, FileText, Home, ExternalLink, Headphones } from "lucide-react";
 
 interface NavItem {
   href: string;
@@ -83,6 +83,7 @@ const GROUPS: NavGroup[] = [
       { href: "/admin/physical-returns", label: "Physical intake", permission: "returns.view", icon: ClipboardCheck },
       { href: "/admin/refunds", label: "Refunds", permission: "refunds.view", icon: CreditCard },
       { href: "/admin/customers", label: "Customers", permission: "customers.view", icon: UserRound },
+      { href: "/admin/support", label: "Support inbox", permission: "team.manage", icon: Headphones },
       { href: "/admin/payments", label: "Payments", permission: "payments.view", icon: CreditCard },
     ],
   },
@@ -211,7 +212,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
 
           <div className="min-w-0">
             <p className="truncate text-sm font-semibold">{activeItem?.label ?? "Back office"}</p>
-            <p className="truncate text-xs text-muted-foreground">varietygrocery.com operations</p>
+            <p className="truncate text-xs text-muted-foreground">varietygroceries.com operations</p>
           </div>
 
           <div className="ml-auto flex items-center gap-2">

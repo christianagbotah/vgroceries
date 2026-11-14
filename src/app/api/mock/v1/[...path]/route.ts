@@ -17,6 +17,16 @@ async function handle(req: NextRequest, ctx: { params: Promise<{ path?: string[]
     return NextResponse.json({ ok: false, error: { code: "NOT_FOUND", message: "Demo operations are unavailable in backend mode." } }, { status: 404 });
   }
   const { path } = await ctx.params;
+  const operation = (path ?? []).join(".");
+  if (backendMode && uatDemoEnabled && staffDemoRequest &&
+      operation === "auth.me" && req.method === "GET" &&
+      req.headers.get("x-variety-demo-role") === "customer") {
+    // A dummy read-only identity for the isolated customer account preview.
+    // It NEVER creates or authenticates a real customer session.
+    return NextResponse.json({ ok: true, data: {
+      actor: { id: "demo_customer", name: "Sample Customer", role: "customer", locationIds: [] },
+    } }, { headers: { "Cache-Control": "no-store" } });
+  }
   const method = req.method === "POST" ? "POST" : "GET";
   const query = new URL(req.url).searchParams;
   let body: Record<string, unknown> = {};
@@ -28,12 +38,13 @@ async function handle(req: NextRequest, ctx: { params: Promise<{ path?: string[]
     }
   }
   const result = await handleApi({
-    path: (path ?? []).join("."),
+    path: operation,
     method,
     query,
     body,
   });
-  return NextResponse.json(result.json, { status: result.status });
+  return NextResponse.json(result.json, { status: result.status,
+    headers: { "Cache-Control": "no-store" } });
 }
 
 export const GET = handle;

@@ -1,6 +1,7 @@
 "use client";
 
-import { Suspense, useCallback, useEffect, useState } from "react";
+import { Suspense, useCallback, useEffect, useRef, useState } from "react";
+import { useSubmissionFeedbackFocus } from "@/hooks/use-submission-feedback-focus";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { apiOps, ApiError, type PublicOrder } from "@/services/client";
@@ -47,6 +48,13 @@ function TrackFormContent({ orderId, initialReference, initialCode }: {
   const [error, setError] = useState<string | null>(null);
   const [order, setOrder] = useState<PublicOrder | null>(null);
   const [verifiedLookup, setVerifiedLookup] = useState<VerifiedLookup | null>(null);
+  const [manualFeedback, setManualFeedback] = useState(0);
+  const trackingResultRef = useRef<HTMLDivElement>(null);
+  const trackingErrorRef = useRef<HTMLDivElement>(null);
+  // Refresh polling must never scroll the page every 30 seconds.
+  // Only a manually submitted tracking lookup moves focus to its result.
+  useSubmissionFeedbackFocus(manualFeedback && order ? manualFeedback : null, trackingResultRef);
+  useSubmissionFeedbackFocus(manualFeedback && error ? manualFeedback : null, trackingErrorRef);
   const [requests] = useState(() => createTrackingRequestCoordinator<TrackingResult>({
     onStart: () => { setLoading(true); setError(null); },
     onValue: result => { setOrder(result.order); setVerifiedLookup(result.lookup); },
@@ -83,6 +91,7 @@ function TrackFormContent({ orderId, initialReference, initialCode }: {
     setOrder(null);
     setVerifiedLookup(null);
     await requests.load(async () => ({ order: await apiOps.track(lookup.reference, lookup.code), lookup }), { replace: true });
+    setManualFeedback((previous) => previous + 1);
   };
 
   return (
@@ -131,10 +140,12 @@ function TrackFormContent({ orderId, initialReference, initialCode }: {
 
       {orderId && loading ? <LoadingState rows={4} label="Loading your order status" /> : null}
 
-      {error ? <ErrorState title="Could not track that order" message={error} className="mt-4" /> : null}
+      {error ? <div ref={trackingErrorRef} tabIndex={-1} className="scroll-mt-28 outline-none focus-visible:ring-2 focus-visible:ring-destructive">
+        <ErrorState title="Could not track that order" message={error} className="mt-4" />
+      </div> : null}
 
       {order ? (
-        <div className="mt-6 space-y-4" aria-live="polite">
+        <div ref={trackingResultRef} tabIndex={-1} className="mt-6 scroll-mt-28 space-y-4 outline-none focus-visible:ring-2 focus-visible:ring-primary" role="region" aria-label="Verified order tracking result" aria-live="polite">
           <div className="rounded-2xl border bg-card p-4 sm:p-5">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <h2 className="text-lg font-semibold">Order {order.reference}</h2>
@@ -191,7 +202,7 @@ function TrackFormContent({ orderId, initialReference, initialCode }: {
         </div>
       ) : null}
 
-      {!orderId && !order && !error && !loading ? (
+      {!process.env.NEXT_PUBLIC_API_BASE_URL && !orderId && !order && !error && !loading ? (
         <p className="mt-6 rounded-xl border border-dashed p-3 text-sm text-muted-foreground">
           Demo tip: track <code className="rounded bg-muted px-1 font-mono text-xs">VG-8Q2M1A</code> with code{" "}
           <code className="rounded bg-muted px-1 font-mono text-xs">7H2K9P</code> (a delivered order with a partial refund), or{" "}

@@ -5,6 +5,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { apiOps, ApiError } from "@/services/client";
 import { useStaff } from "@/features/staff/role-context";
+import { isDemoStaffSessionActive } from "@/features/staff/staff-demo-session";
 import { LoadingState, ErrorState } from "@/components/shared/states";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,6 +17,8 @@ import { QuantityInput } from "@/components/shared/quantity-input";
 import { useToast } from "@/hooks/use-toast";
 import { ReceiptText, Search, Trash2, Printer, Pause, Play, Barcode, Banknote, Smartphone, CreditCard, RotateCcw } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { PosCustomerPicker, type PosCustomerSelection } from "@/features/staff/pos-customer-picker";
+import type { PosRegisteredCustomer } from "@/features/staff/verified-pos-uat-transport";
 import type { PaymentMethod } from "@/types/domain";
 
 interface PosLine { variantId: string; productId: string; productName: string; variantName: string; unit: string; priceMinor: number; priceLabel: string; quantity: string; image: string; availableToSell: string; barcode?: string }
@@ -39,7 +42,7 @@ function DemoPosPage() {
   const [searching, setSearching] = useState(false);
 
   const [lines, setLines] = useState<PosLine[]>([]);
-  const [customerName, setCustomerName] = useState("");
+  const [customer, setCustomer] = useState<PosCustomerSelection>({ mode: "walk_in" });
   const [customerPhone, setCustomerPhone] = useState("");
   const [discount, setDiscount] = useState("");
   const [method, setMethod] = useState<PaymentMethod>("cash_counter");
@@ -112,6 +115,21 @@ function DemoPosPage() {
     });
   };
 
+  const searchDemoCustomers = useCallback(async (search: string): Promise<PosRegisteredCustomer[]> => {
+    // The public role-demo session must NEVER call the real customer directory.
+    const customers = await apiOps.customers();
+    const q = search.trim().toLocaleLowerCase("en-GH");
+    return customers.filter(item => [item.name, item.phone, item.email ?? ""]
+      .some(value => value.toLocaleLowerCase("en-GH").includes(q)))
+      .slice(0, 15).map(item => ({ id: item.id, name: item.name,
+        phone: item.phone, email: item.email ?? null }));
+  }, []);
+  const selectedCustomerName = customer.mode === "existing" ? customer.label
+    : customer.mode === "named" ? customer.customerName.trim() : "";
+  const customerValid = customer.mode === "walk_in" ||
+    (customer.mode === "existing" && !!customer.customerUserId) ||
+    (customer.mode === "named" && selectedCustomerName.length >= 2);
+
   const subtotal = lines.reduce((a, l) => a + l.priceMinor * Number(l.quantity), 0);
   const discountMinor = useMemo(() => {
     if (!can("pos.discount")) return 0;
@@ -140,6 +158,10 @@ function DemoPosPage() {
 
   const complete = async () => {
     if (!lines.length || !session) return;
+    if (!customerValid) {
+      toast({ title: "Choose a valid customer", description: "Select an existing customer, a walk-in, or enter a new customer's name.", variant: "destructive" });
+      return;
+    }
     if (method === "cash_counter" && cashMinor < total) {
       toast({ title: "Cash received is less than the total", variant: "destructive" });
       return;
@@ -154,7 +176,7 @@ function DemoPosPage() {
         lines: lines.map((l) => ({ variantId: l.variantId, quantity: l.quantity })),
         method,
         discountMinor: can("pos.discount") ? discountMinor : 0,
-        customerName: customerName.trim() || undefined,
+        customerName: selectedCustomerName || undefined,
         customerPhone: customerPhone.trim() || undefined,
         cashReceivedMinor: method === "cash_counter" ? cashMinor : undefined,
         idempotencyKey: key,
@@ -173,7 +195,7 @@ function DemoPosPage() {
         changeLabel: r.changeMinor > 0 ? r.changeLabel : undefined,
       });
       setLines([]);
-      setCustomerName("");
+      setCustomer({ mode: "walk_in" });
       setCustomerPhone("");
       setDiscount("");
       setCashReceived("");
@@ -188,10 +210,10 @@ function DemoPosPage() {
   const hold = async () => {
     if (!lines.length || !session) return;
     try {
-      const label = customerName.trim() || `Held ${new Date().toLocaleTimeString("en-GB")}`;
+      const label = selectedCustomerName || `Walk-in · ${new Date().toLocaleTimeString("en-GB")}`;
       await apiOps.posHold({ sessionId: session.id, cashierId: user.id, label, lines: lines.map((l) => ({ variantId: l.variantId, quantity: l.quantity })) });
       setLines([]);
-      setCustomerName("");
+      setCustomer({ mode: "walk_in" });
       const d = await apiOps.posDrafts(session.id);
       setDrafts(d);
       toast({ title: "Demo cart held", description: "Simulation only: demo stock hold, not a real inventory reservation." });
@@ -463,17 +485,13 @@ function DemoPosPage() {
             </ul>
           )}
 
-          <div className="grid grid-cols-2 gap-2">
-            <div>
-              <Label htmlFor="pos-cname">Customer (optional)</Label>
-              <Input id="pos-cname" className="h-10" value={customerName} onChange={(e) => setCustomerName(e.target.value)} placeholder="Walk-in" />
-            </div>
-            <div>
-              <Label htmlFor="pos-cphone">Phone (optional)</Label>
-              <Input id="pos-cphone" className="h-10" value={customerPhone} onChange={(e) => setCustomerPhone(e.target.value)} placeholder="+233…" inputMode="tel" />
-            </div>
-          </div>
-
+          <PosCustomerPicker value={customer} onChange={setCustomer}
+            disabled={completing} searchCustomers={searchDemoCustomers} />
+          <label className="block space-y-1 text-sm">
+            <span>Phone (optional, sample receipt only)</span>
+            <Input className="h-10" value={customerPhone} onChange={(e) => setCustomerPhone(e.target.value)}
+              placeholder="+233…" inputMode="tel" maxLength={25} />
+          </label>
           <div className="space-y-1.5 text-sm">
             <div className="flex justify-between text-muted-foreground"><span>Subtotal</span><span className="tabular-nums">{formatMoney(subtotal)}</span></div>
             {can("pos.discount") ? (
@@ -528,7 +546,7 @@ function DemoPosPage() {
           )}
 
           <div className="grid grid-cols-[1fr_auto] gap-2">
-            <Button size="lg" className="h-12" onClick={complete} disabled={!lines.length || completing}>
+            <Button size="lg" className="h-12" onClick={complete} disabled={!lines.length || completing || !customerValid}>
               {completing ? "Completing…" : `Complete · ${formatMoney(total)}`}
             </Button>
             <Button size="lg" variant="outline" className="h-12" onClick={hold} disabled={!lines.length} aria-label="Hold current sale">
@@ -620,24 +638,47 @@ function DemoPosPage() {
  * mutation is offered through the production POS screen.
  */
 export default function AdminPosPage() {
-  if (process.env.NEXT_PUBLIC_API_BASE_URL?.trim()) {
+  const [uatDemoSession, setUatDemoSession] = useState(false);
+  useEffect(() => {
+    const timer = window.setTimeout(() => setUatDemoSession(isDemoStaffSessionActive()), 0);
+    return () => window.clearTimeout(timer);
+  }, []);
+  // On the isolated staging hostname, demo staff can exercise the simulator.
+  // Real cash sales always use the authenticated /staff/pos workflow.
+  const allowStagingSimulation = process.env.NEXT_PUBLIC_POS_COUNTER_UAT === "1" && uatDemoSession;
+  if (process.env.NEXT_PUBLIC_API_BASE_URL?.trim() && !allowStagingSimulation) {
     return (
       <section role="status" className="mx-auto max-w-2xl space-y-4 pt-8">
-        <h1 className="font-serif text-2xl font-bold">Counter sales — Launch pending</h1>
+        <h1 className="font-serif text-2xl font-bold">{process.env.NEXT_PUBLIC_POS_COUNTER_UAT === "1" ? "Counter sales — staging test options" : "Counter sales — launch pending"}</h1>
         <div className="rounded-xl border bg-card p-5">
-          <h2 className="text-lg font-semibold">Production POS is not yet activated</h2>
-          <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-            The secure cashier, shared-stock reservation, cash handover and
-            receipt APIs are being prepared for a controlled live rollout.
-            The earlier POS simulator is intentionally unavailable on a
-            production API connection, so simulated payments and inventory
-            updates cannot be mistaken for actual business transactions.
-          </p>
-          <p className="mt-3 text-sm font-medium">
-            Continue using the approved operational sales process until
-            real cashier permissions, tax treatment, payment verification
-            and end-of-day reconciliation have passed live acceptance tests.
-          </p>
+          {process.env.NEXT_PUBLIC_POS_COUNTER_UAT === "1" ? (
+            <>
+              <h2 className="text-lg font-semibold">Cash sales are enabled for isolated staging tests</h2>
+              <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+                Test authenticated, location-controlled counter sales with synthetic cash and stock.
+                The separate demonstration simulator also becomes available after choosing a
+                fictional role at Staff sign in. Neither path processes real money.
+              </p>
+              <div className="mt-4 flex flex-wrap gap-2">
+                <Button asChild><Link href="/staff/pos">Cashier: test counter sale</Link></Button>
+                <Button asChild variant="outline"><Link href="/admin/pos/verified-uat">Admin: verified test sale</Link></Button>
+                <Button asChild variant="outline"><Link href="/admin/pos/till-operations">Admin: test till operations</Link></Button>
+                <Button asChild variant="outline"><Link href="/staff/login">Switch test role</Link></Button>
+              </div>
+              <p className="mt-3 text-xs text-muted-foreground">
+                A real staging cashier must have an assigned stock location and open test till;
+                the server still enforces authorisation and prevents duplicate sales.
+              </p>
+            </>
+          ) : (
+            <>
+              <h2 className="text-lg font-semibold">Production POS is not yet activated</h2>
+              <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+                Secure production cash handling, payment verification and reconciliation require
+                an approved live rollout. Demo receipts cannot represent real sales.
+              </p>
+            </>
+          )}
           <Button asChild variant="outline" className="mt-4">
             <Link href="/admin">Return to administration</Link>
           </Button>

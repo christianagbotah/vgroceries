@@ -85,15 +85,16 @@ export default function AccountListsPage() {
         const product = products.find((p) => p.variants.some((v) => v.id === line.variantId));
         const variant = product?.variants.find((v) => v.id === line.variantId && v.isAvailable);
         if (variant && product) {
-          addToCart({
+          const accepted = addToCart({
             variantId: variant.id,
             productId: product.id,
             quantity: line.quantity,
             name: `${product.name} — ${variant.name}`,
             image: product.image,
             priceMinor: variant.priceMinor,
-          });
-          added += 1;
+          }, variant.availableToSell);
+          if (accepted) added += 1;
+          else skipped.push(`${line.productName} (only ${variant.availableToSell} available)`);
         } else {
           skipped.push(line.productName);
         }
@@ -132,15 +133,14 @@ export default function AccountListsPage() {
       const product = products.find((p) => p.variants.some((v) => v.id === item.variantId));
       const variant = product?.variants.find((v) => v.id === item.variantId && v.isAvailable);
       if (variant && product) {
-        addToCart({
+        if (addToCart({
           variantId: variant.id,
           productId: product.id,
           quantity: "1",
           name: `${product.name} — ${variant.name}`,
           image: product.image,
           priceMinor: variant.priceMinor,
-        });
-        added += 1;
+        }, variant.availableToSell)) added += 1;
       }
     }
     toast({ title: `Added ${added} basket item${added === 1 ? "" : "s"} to your cart` });
@@ -229,9 +229,22 @@ export default function AccountListsPage() {
                   <Button
                     size="sm"
                     className="h-9"
-                    onClick={() => {
-                      addToCart({ variantId: w.variantId, productId: w.productId, quantity: "1", name: w.name, image: w.image, priceMinor: w.priceMinor });
-                      toast({ title: "Added to cart", description: w.name });
+                    onClick={async () => {
+                      try {
+                        // Wishlist snapshots do not carry reliable stock caps.
+                        // Resolve current ATS before every wishlist add.
+                        const products = await apiOps.byVariants([w.variantId]);
+                        const product = products.find((p) => p.variants.some((v) => v.id === w.variantId));
+                        const variant = product?.variants.find((v) => v.id === w.variantId);
+                        const added = variant?.isAvailable && addToCart({
+                          variantId: w.variantId, productId: w.productId,
+                          quantity: "1", name: w.name, image: w.image, priceMinor: variant.priceMinor,
+                        }, variant.availableToSell);
+                        toast(added ? { title: "Added to cart", description: w.name }
+                          : { title: "Stock limit reached", description: variant ? `Only ${variant.availableToSell} available.` : "This item is no longer available.", variant: "destructive" });
+                      } catch {
+                        toast({ title: "Could not verify available stock", variant: "destructive" });
+                      }
                     }}
                   >
                     Add
