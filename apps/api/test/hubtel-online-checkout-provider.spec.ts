@@ -141,3 +141,23 @@ test("Hubtel-only merchant references respect the 32-character limit; other prov
   }
   assert.match(merchantReference("paystack"), /^VG-PAY-[A-F0-9]{32}$/);
 });
+
+test("SweetMothersGH root-level callback reference is only an untrusted lookup hint", async () => {
+  const provider = new HubtelOnlineCheckoutProvider(config);
+  const body = Buffer.from(JSON.stringify({
+    Status: "Success", ClientReference: input().merchantReference,
+    TransactionId: "unverified",
+  }));
+  const result = await provider.verifyEvent({ rawBody: body, headers: {} });
+  assert.equal(result.verification, "lookup_required");
+  if (result.verification === "lookup_required")
+    assert.equal(result.merchantReference, input().merchantReference);
+});
+
+test("Unparseable checkout callback is rejected before any paid classification", async () => {
+  const provider = new HubtelOnlineCheckoutProvider(config);
+  const result = await provider.verifyEvent({
+    rawBody: Buffer.from("{malformed"), headers: {},
+  });
+  assert.deepEqual(result, { verification: "invalid" });
+});
