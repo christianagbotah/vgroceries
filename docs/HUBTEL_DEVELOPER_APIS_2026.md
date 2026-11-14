@@ -4,7 +4,7 @@
 
 Source: owner-supplied Hubtel Developer Portal pages, all marked **last updated 12 October 2026**; in particular `pasted-1794474800958.txt` (Online Checkout) and `pasted-1794475101935.txt` (SMS). These are implementation contracts, **not** proof that each merchant service is enabled.
 
-**Current release status:** No live Hubtel operations are activated by this change. The existing `HubtelPaymentProvider` remains the Request Money/paylink adapter; `HubtelRefundProvider` and its callback authority remain unchanged. The new `HubtelOnlineCheckoutProvider` and `HubtelSmsClient` are **staged but deliberately unregistered/unwired**. No new user-facing checkout or automatic SMS is claimed.
+**Current release status:** No live Hubtel operations are activated by this change. The existing `HubtelPaymentProvider` remains the Request Money/paylink adapter; `HubtelRefundProvider` and its callback authority remain unchanged. The new `HubtelOnlineCheckoutProvider` remains **unregistered**. The `HubtelSmsClient` is connected only to an opt-in ledger/CLI worker, with **no active timer or live sends**. No new user-facing checkout or automatic SMS is claimed.
 
 The public `varietygroceries.com` site remains Coming Soon; `portal.varietygroceries.com` is the staging application. Do not deploy live payments or switch the public site as part of this documentation handoff.
 
@@ -83,6 +83,39 @@ status endpoint requires service IP allowlisting. This is evidence about
 creation, customer debit, refund, disbursement, or SMS was executed.
 Do not activate checkout while authoritative status verification returns 403.
 
+## Staged transactional SMS delivery ledger (inactive by default)
+
+Variety now has a source-linked SMS ledger under
+`apps/api/prisma/migrations/202611140039_hubtel_sms_dispatch_ledger`
+and `apps/api/src/notifications/hubtel-sms-dispatch.service.ts`.
+
+- The source is an already-created, immutable in-app `Notification` and
+  its authoritative order/customer relation; outbox payload phone numbers
+  are NEVER trusted for delivery.
+- Each notification can create at most one SMS row. Invalid or unauthorized
+  recipient snapshots are recorded as `skipped`, not retried indefinitely.
+- A network attempt must atomically transition `queued → attempting`
+  before the provider is contacted. `attempting → submitted` stores the
+  individual Hubtel `messageId` where available; a timeout/ambiguous
+  failure becomes `uncertain`. Neither `attempting` nor `uncertain`
+  can be automatically retried.
+- All outbound sends require the operator-set
+  `HUBTEL_SMS_DISPATCH_ENABLED=true`, a UTC
+  `HUBTEL_SMS_NOT_BEFORE` cutoff, and 1–10 explicit Ghana numbers in
+  `HUBTEL_SMS_ALLOWED_RECIPIENTS`. No such settings are currently enabled
+  on the VPS. Merely storing credentials cannot send an SMS.
+- There is NO public SMS dispatch HTTP route, recurring timer, or auto-start
+  service. `apps/api/scripts/dispatch-hubtel-sms.ts` is a manually invoked
+  opt-in testing tool. It prints counts only, not recipient numbers or messages.
+- A submitted SMS must NOT be labelled delivered: a separately verified Hubtel
+  delivery receipt is needed. Consent/preference and mass-delivery policy
+  remain a distinct production activation gate.
+
+The uploaded 12 October SMS docs show that the batch/simple response wraps
+per-recipient message IDs under `data: [{ recipient, messageId }]`.
+The adapted client extracts the message ID for the matching recipient rather
+than assuming a top-level `messageId`.
+
 ## Security and money-state invariants
 
 1. The supplied documentation explicitly identifies IP whitelisting for **transaction status**, direct receive/send, refunds and certain transfer/verification endpoints. **Online Checkout initiation and SMS sending are not documented as requiring IP whitelisting.** Do not generalize requirements from one endpoint to all Hubtel services. The financial APIs are live-only in these references; never trigger a real debit, refund, transfer or customer SMS without controlled approval.
@@ -100,7 +133,7 @@ Do not activate checkout while authoritative status verification returns 403.
 ## Work staged in this branch
 
 - `apps/api/src/payments/hubtel-online-checkout-provider.ts`: documented checkout creation, lookup-required callback hints, authoritative transaction status, Ghana money normalization, failed-closed reference validation.
-- `apps/api/src/notifications/hubtel-sms-client.ts`: server-only **batch/simple** SMS POST (school-model parity) and separate delivery-status client. Neither an outbox worker nor customer notification dispatch is switched on.
+- `apps/api/src/notifications/hubtel-sms-client.ts`: server-only **batch/simple** SMS POST (school-model parity) and separate delivery-status client. SMS dispatch can run only via the explicitly enabled, recipient-allowlisted CLI worker.
 - `apps/api/test/hubtel-online-checkout-provider.spec.ts`: unit fixtures for correct checkout payload, callback trust boundary, status reconciliation and malformed references.
 
 ## Owner-configured secrets: staging configuration
