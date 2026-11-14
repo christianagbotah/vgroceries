@@ -120,3 +120,10 @@ Next slices remain inventory governance/adjustment approval, full operational st
 - API+web production builds passed, role/contract and isolated physical cash sale regression **16/16** passed, all 46 migrations applied on test PostgreSQL, staging migration history current.
 - Restarted staging web/API; new customer search requires authenticated staff (anonymous 401), documented in OpenAPI; anonymous real cashier checkout 307; demo POS Chromium renders all three requested customer types.
 - No real tender was accepted during UAT; production remains Coming Soon. Actual cashier UI and receipt signoff remain required before live POS rollout.
+
+## 14 November 2026 — repeatable release-governance check
+
+- Built read-only `scripts/web-launch-preflight.cjs` and seven permanent unit tests; provides npm script entry points, checks canonical staging API/shop/private access, confirms production Coming Soon, inspects whether Hubtel collection/refund bundles are present, and checks staging backup metadata without reading secrets or mutating DB/stock/orders.
+- Live result **NO_GO**: 6 PASS, 3 BLOCKER (Hubtel collection/refund and external SMS), 5 PENDING UAT (email inbox, production restore, payment/POS acceptance, fulfilment, owner approval), 1 DEFERRED (Android/iOS native).
+- Existing Hubtel collection/refund code tested with stubbed provider responses: **13/13 passed**; no actual payment or refund sent.
+- Runbook and limits: `docs/WEB_LAUNCH_PREFLIGHT_20261114.md`. Production remains Coming Soon.
