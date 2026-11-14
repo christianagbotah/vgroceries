@@ -367,6 +367,7 @@ model OutboxEvent {
   publishedAt DateTime? @db.Timestamptz(3)
   notificationReceipt NotificationOutboxReceipt?
   notification Notification?
+  smsDispatch SmsDispatch?
   @@index([publishedAt, createdAt])
 }
 
@@ -384,6 +385,31 @@ model Notification {
   readAt DateTime? @db.Timestamptz(3)
   createdAt DateTime @default(now()) @db.Timestamptz(3)
   @@index([recipientUserId, createdAt, id])
+}
+
+/**
+ * Per-order-event consent and delivery record. One attempted send per event;
+ * unknown network outcomes require manual reconciliation, never automatic resend.
+ */
+model SmsDispatch {
+  id String @id @default(uuid())
+  sourceEventId String @unique
+  sourceEvent OutboxEvent @relation(fields: [sourceEventId], references: [id], onDelete: Restrict)
+  orderId String?
+  order Order? @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  recipientPhone String?
+  body String?
+  state String
+  providerMessageId String? @unique
+  failureCode String?
+  attemptedAt DateTime? @db.Timestamptz(3)
+  acceptedAt DateTime? @db.Timestamptz(3)
+  lastStatusAt DateTime? @db.Timestamptz(3)
+  deliveryConfirmedAt DateTime? @db.Timestamptz(3)
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+  @@index([state, createdAt])
+  @@index([orderId, createdAt])
 }
 
 model NotificationOutboxReceipt {
@@ -464,6 +490,7 @@ model Order {
   customerName String
   customerPhone String
   customerEmail String?
+  smsUpdatesOptIn Boolean @default(false)
   fulfilment String
   zoneId String?
   zone DeliveryZone? @relation(fields: [zoneId], references: [id])
@@ -502,6 +529,7 @@ model Order {
   physicalReturnReceipts PhysicalReturnReceipt[]
   customerReturnClaims CustomerReturnClaim[]
   notifications Notification[]
+  smsDispatches SmsDispatch[]
   @@index([customerUserId, createdAt])
   @@index([guestSessionId, createdAt])
   @@index([zoneId, createdAt])

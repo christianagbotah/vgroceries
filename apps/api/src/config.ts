@@ -120,6 +120,8 @@ export interface ApiConfig {
   hubtelPayment: HubtelPaymentConfig | null;
   hubtelRefund: HubtelRefundConfig | null;
   hubtelSms: HubtelSmsConfig | null;
+  smsDispatchWorkerEnabled: boolean;
+  smsDispatchActivatedAt: Date | null;
   paystack: PaystackConfig | null;
   etranzact: EtranzactConfig | null;
   productMedia: ProductMediaConfig | null;
@@ -472,6 +474,26 @@ export function readConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
       senderId, baseUrl, timeoutMs };
   }
 
+  // Explicit worker activation is separate from the SMS account credentials.
+  // A mandatory cutover timestamp prevents historical order backlogs being
+  // texted when the worker is enabled for the first time.
+  const workerFlag = env.SMS_DISPATCH_WORKER_ENABLED ?? "false";
+  if (!["true", "false"].includes(workerFlag))
+    throw new Error("SMS_DISPATCH_WORKER_ENABLED must be true or false");
+  const smsDispatchWorkerEnabled = workerFlag === "true";
+  let smsDispatchActivatedAt: Date | null = null;
+  if (smsDispatchWorkerEnabled) {
+    if (!hubtelSms)
+      throw new Error("SMS dispatch worker requires enabled Hubtel SMS credentials");
+    const rawActivation = env.SMS_DISPATCH_ACTIVATED_AT ?? "";
+    if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?Z$/.test(rawActivation))
+      throw new Error("SMS_DISPATCH_ACTIVATED_AT must be an explicit UTC ISO timestamp");
+    const when = new Date(rawActivation);
+    if (Number.isNaN(when.getTime()) || when.getTime() > Date.now() + 60000)
+      throw new Error("SMS_DISPATCH_ACTIVATED_AT must be a valid nonfuture UTC timestamp");
+    smsDispatchActivatedAt = when;
+  }
+
   const hubtelRefundNames = [
     "HUBTEL_REFUND_BASE_URL",
     "HUBTEL_REFUND_BASIC_USERNAME",
@@ -737,6 +759,8 @@ export function readConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
     hubtelPayment,
     hubtelRefund,
     hubtelSms,
+    smsDispatchWorkerEnabled,
+    smsDispatchActivatedAt,
     paystack,
     etranzact,
     productMedia,
