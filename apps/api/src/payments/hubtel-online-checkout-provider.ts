@@ -122,7 +122,7 @@ export class HubtelOnlineCheckoutProvider implements PaymentProviderAdapter {
     try { payload = object(JSON.parse(input.rawBody.toString("utf8"))); }
     catch { return { verification: "invalid" }; }
     const data = object(payload?.Data ?? payload?.data);
-    const merchantReference = str(data?.ClientReference ?? data?.clientReference);
+    // The canonical checkout webhook nests the reference under Data; the\n    // older SweetMothersGH handler also accepts top-level variants. Both\n    // remain untrusted until an authenticated status lookup succeeds.\n    const merchantReference = str(data?.ClientReference ?? data?.clientReference ??\n      payload?.ClientReference ?? payload?.clientReference);
     if (!merchantReference) return { verification: "invalid" };
     // Hubtel's supplied reference describes no cryptographic callback signature.
     // Treat callbacks as untrusted hints; always fetch authoritative status.
