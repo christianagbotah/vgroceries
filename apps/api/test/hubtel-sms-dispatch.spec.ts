@@ -136,3 +136,78 @@ test("SMS dispatch requires explicit opt-in, cutoff and allowlist", async () => 
     /HUBTEL_SMS_ALLOWED_RECIPIENTS/,
   );
 });
+
+test("SMS delivery checks never re-send, and final receipt cannot be overwritten", async () => {
+  await order("sms-status-one", "+233241111111");
+  await inbox.projectBatch();
+  await dispatch.stageBatch();
+  let sends = 0;
+  const sender = { send: async () => {
+    sends++;
+    return { state: "submitted" as const, messageId: "hubtel-sms-accepted-1" };
+  } };
+  const submitted = await dispatch.sendApprovedBatch(10, sender);
+  assert.equal(submitted.submitted, 1);
+
+  let lookups = 0;
+  const receipts = { status: async (messageId: string) => {
+    lookups++;
+    return { messageId, state: "delivered" as const };
+  } };
+  assert.deepEqual(await dispatch.checkSubmittedDeliveryBatch(10, receipts), {
+    disabled: false, checked: 1, delivered: 1, failed: 0, inProgress: 0, errors: 0,
+  });
+  const row = await db.smsDispatch.findFirstOrThrow();
+  assert.equal(row.state, "submitted"); // Submission evidence is immutable
+  assert.equal(row.deliveryState, "delivered");
+  assert.ok(row.deliveryCheckedAt);
+  assert.equal(row.providerMessageId, "hubtel-sms-accepted-1");
+  assert.deepEqual(await dispatch.checkSubmittedDeliveryBatch(10, receipts), {
+    disabled: false, checked: 0, delivered: 0, failed: 0, inProgress: 0, errors: 0,
+  });
+  assert.equal(sends, 1);
+  assert.equal(lookups, 1);
+  await assert.rejects(db.smsDispatch.update({
+    where: { id: row.id }, data: { deliveryState: "pending", deliveryCheckedAt: new Date(Date.now() + 5000) },
+  }));
+});
+
+test("An uncertain SMS can never be re-sent or misclassified by delivery lookup", async () => {
+  await order("sms-status-uncertain", "+233241111111");
+  await inbox.projectBatch();
+  await dispatch.stageBatch();
+  await dispatch.sendApprovedBatch(10, {
+    send: async () => { throw new Error("unknown network outcome"); },
+  });
+  let lookups = 0;
+  assert.deepEqual(await dispatch.checkSubmittedDeliveryBatch(10, {
+    status: async (messageId: string) => {
+      lookups++;
+      return { messageId, state: "delivered" as const };
+    },
+  }), {
+    disabled: false, checked: 0, delivered: 0, failed: 0, inProgress: 0, errors: 0,
+  });
+  assert.equal(lookups, 0);
+  const row = await db.smsDispatch.findFirstOrThrow();
+  assert.equal(row.state, "uncertain");
+  assert.equal(row.deliveryState, null);
+});
+
+test("SMS receipt lookup refuses a mismatched provider message ID", async () => {
+  await order("sms-status-mismatch", "+233241111111");
+  await inbox.projectBatch();
+  await dispatch.stageBatch();
+  await dispatch.sendApprovedBatch(10, {
+    send: async () => ({ state: "submitted" as const, messageId: "receipt-A" }),
+  });
+  const result = await dispatch.checkSubmittedDeliveryBatch(10, {
+    status: async () => ({ messageId: "receipt-B", state: "delivered" as const }),
+  });
+  assert.deepEqual(result, {
+    disabled: false, checked: 0, delivered: 0, failed: 0, inProgress: 0, errors: 1,
+  });
+  const row = await db.smsDispatch.findFirstOrThrow();
+  assert.equal(row.state, "submitted");
+  assert.equal(row.deliveryState, null);
+});
