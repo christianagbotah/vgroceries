@@ -129,4 +129,85 @@ export class HubtelSmsDispatchService {
     }
     return { disabled: false, attempted, submitted, uncertain };
   }
+
+  /**
+   * Manually check already-submitted SMS delivery evidence. This operation
+   * performs GET lookups only; it NEVER sends or resubmits a message.
+   * The same explicit recipient allowlist used by dispatch is required.
+   * A final 'delivered' or 'failed' receipt becomes immutable.
+   */
+  async checkSubmittedDeliveryBatch(
+    take = 10,
+    injectedClient?: Pick<HubtelSmsClient, "status">,
+  ) {
+    this.maxBatch(take);
+    const options = this.config.hubtelSmsDispatch;
+    if (!options || !this.config.hubtelSms)
+      return { disabled: true, checked: 0, delivered: 0, failed: 0, inProgress: 0, errors: 0 };
+
+    const client = injectedClient ?? new HubtelSmsClient(this.config.hubtelSms);
+    const rows = await this.db.smsDispatch.findMany({
+      where: {
+        state: "submitted",
+        providerMessageId: { not: null },
+        recipientPhone: { in: options.allowedRecipients },
+        OR: [
+          { deliveryState: null },
+          { deliveryState: { in: ["pending", "sent", "unknown"] } },
+        ],
+      },
+      select: { id: true, providerMessageId: true, deliveryCheckedAt: true },
+      orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+      take,
+    });
+
+    let checked = 0;
+    let delivered = 0;
+    let failed = 0;
+    let inProgress = 0;
+    let errors = 0;
+    for (const row of rows) {
+      if (!row.providerMessageId) continue;
+      try {
+        const receipt = await client.status(row.providerMessageId);
+        if (receipt.messageId !== row.providerMessageId) {
+          errors++;
+          continue;
+        }
+        const deliveryState = receipt.state;
+        if (!["delivered", "sent", "pending", "failed", "unknown"].includes(deliveryState)) {
+          errors++;
+          continue;
+        }
+        const checkedAt = new Date(Math.max(Date.now(),
+          (row.deliveryCheckedAt?.getTime() ?? 0) + 1));
+        // An optimistic compare prevents concurrent readers overwriting
+        // a newly stored or terminal receipt. The DB trigger also protects
+        // immutable SMS content, transaction identity and send state.
+        const applied = await this.db.smsDispatch.updateMany({
+          where: {
+            id: row.id,
+            state: "submitted",
+            providerMessageId: row.providerMessageId,
+            deliveryCheckedAt: row.deliveryCheckedAt,
+            OR: [
+              { deliveryState: null },
+              { deliveryState: { in: ["pending", "sent", "unknown"] } },
+            ],
+          },
+          data: { deliveryState, deliveryCheckedAt: checkedAt },
+        });
+        if (applied.count !== 1) continue;
+        checked++;
+        if (deliveryState === "delivered") delivered++;
+        else if (deliveryState === "failed") failed++;
+        else inProgress++;
+      } catch {
+        // A receipt lookup failure is NOT delivery failure and must never
+        // cause a repeat SMS submission. Another manual GET is safe.
+        errors++;
+      }
+    }
+    return { disabled: false, checked, delivered, failed, inProgress, errors };
+  }
 }
