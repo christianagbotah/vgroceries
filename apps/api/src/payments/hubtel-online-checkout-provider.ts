@@ -95,11 +95,18 @@ export class HubtelOnlineCheckoutProvider implements PaymentProviderAdapter {
       },
     );
     const payload = object(await response.json().catch(() => null));
-    const data = object(payload?.data ?? payload?.Data);
-    const checkoutUrl = str(data?.checkoutUrl);
-    const checkoutId = str(data?.checkoutId);
-    if (!response.ok || payload?.responseCode !== "0000" || !checkoutUrl || !checkoutId
-      || str(data?.clientReference) !== input.merchantReference)
+    // The owner-supplied 12 October documentation nests these values under
+    // "data". SweetMothersGH's onsite-checkout implementation also supports
+    // top-level and PascalCase variants. Accept those representations ONLY
+    // when the full authenticated response carries the documented success
+    // code and exactly echoes our clientReference.
+    const data = object(payload?.data ?? payload?.Data) ?? payload;
+    const checkoutUrl = str(data?.checkoutUrl ?? data?.CheckoutUrl);
+    const checkoutId = str(data?.checkoutId ?? data?.CheckoutId);
+    const echoedReference = str(data?.clientReference ?? data?.ClientReference);
+    const responseCode = str(payload?.responseCode ?? payload?.ResponseCode);
+    if (!response.ok || responseCode !== "0000" || !checkoutUrl || !checkoutId
+      || echoedReference !== input.merchantReference)
       return { kind: "rejected", failureCode: "HUBTEL_CHECKOUT_INITIATION_FAILED",
         customerSafeMessage: "The payment provider could not start checkout." };
     let parsed: URL;
