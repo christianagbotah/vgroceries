@@ -610,3 +610,29 @@ test("cancelled and unpaid appointments cannot be marked as missed",async()=>{
     (e:any)=>e?.getStatus?.()===422);
   assert.equal(await db.pickupAttendanceRecord.count(),0);
 });
+
+test("pickup attendance context is private, server-derived and cannot grant mutation",async()=>{
+ const x=await ready("ATTEND_CONTEXT");
+ const slot=(await appointment.options(x.order.id,owner)).slots[0]!;
+ await appointment.change(x.order.id,owner,"context-book",
+   {kind:"book",startsAt:slot.startsAt},"req-context-book");
+ const path=`/admin/logistics/orders/${x.order.id}/pickup-attendance/context`;
+ const admin=await auth("admin-commerce@example.test");
+ const customer=await auth("customer-a@example.test");
+ assert.equal((await request("GET",path,customer)).status,403);
+ const first=await request("GET",path,admin);
+ assert.equal(first.status,200);
+ assert.equal(first.body.data.enabled,true);
+ assert.equal(first.body.data.appointment.status,"booked");
+ assert.equal(first.body.data.appointment.startsAt,slot.startsAt);
+ assert.equal(first.body.data.canRecordLateArrival,false);
+ assert.equal(first.body.data.canRecordMissedWindow,false);
+ assert.equal(await db.pickupAttendanceRecord.count(),0);
+ await db.order.update({where:{id:x.order.id},data:{paymentStatus:"pending"}});
+ const unpaid=await request("GET",path,admin);
+ assert.equal(unpaid.status,200);
+ assert.equal(unpaid.body.data.enabled,true);
+ assert.equal(unpaid.body.data.canRecordLateArrival,false);
+ assert.equal(unpaid.body.data.canRecordMissedWindow,false);
+ assert.equal(await db.pickupAttendanceRecord.count(),0);
+});
