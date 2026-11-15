@@ -83,6 +83,7 @@ import {
   customerReturnClaimsListSchema,customerReturnClaimEligibilitySchema,
   cashierTillOpenSchema,cashierTillMoveSchema,cashierTillCloseSchema,
   cashierTillSessionViewSchema,cashierTillListSchema,
+  cashierWorkspaceSchema,
   posTillReconciliationViewSchema,
   posQuoteRequestSchema,posQuoteViewSchema,
   posHoldCreateSchema,posHoldReleaseSchema,posHoldViewSchema,posHoldListSchema,
@@ -356,6 +357,7 @@ export function productionOpenApi(app: INestApplication): OpenAPIObject {
     CashierTillClose:json(cashierTillCloseSchema),
     CashierTillSessionView:json(cashierTillSessionViewSchema),
     CashierTillList:json(cashierTillListSchema),
+    CashierWorkspace:json(cashierWorkspaceSchema),
     PosTillReconciliationView:json(posTillReconciliationViewSchema),
     PosQuoteRequest:json(posQuoteRequestSchema),
     PosQuoteView:json(posQuoteViewSchema),
@@ -439,7 +441,7 @@ export function productionOpenApi(app: INestApplication): OpenAPIObject {
     "PhysicalReturnResaleReviewView",
     "CustomerReturnClaimView","CustomerReturnClaimsList",
     "CustomerReturnClaimEligibility",
-    "CashierTillSessionView","CashierTillList","PosTillReconciliationView","PosQuoteView",
+    "CashierTillSessionView","CashierTillList","CashierWorkspace","PosTillReconciliationView","PosQuoteView",
     "PosHoldView","PosHoldList","PosCashSaleView","PosCashSaleList",
     "CmsHomepage", "CmsHomepageAdminView", "CmsContentPage", "CmsContentPageAdminView", "CmsOverviewView",
   ])
@@ -769,6 +771,11 @@ export function productionOpenApi(app: INestApplication): OpenAPIObject {
     post:physicalReturnMutation(
       "Admin-only final accept/reject of pending customer claim, with required note and replay-safe audit. Acceptance is NOT physical receipt or money/refund approval.",
       "CustomerReturnClaimDecision","CustomerReturnClaimViewEnvelope",[returnClaimId]),
+  };
+  doc.paths["/api/v1/cashier/pos/workspace"]={
+    get:readOperation(
+      "Cashier-only read of current assigned active branches, open till codes and own completed cash-sale summaries. No drawer balances, customer identity, stock reservations, sale mutations, refund or payment authority. All branch and ownership filters are enforced by the server.",
+      "CashierWorkspaceEnvelope"),
   };
   // POS P0a: administrator-only cash-drawer session preparation. These
   // operations do not create sale/payment authority or decrement stock.

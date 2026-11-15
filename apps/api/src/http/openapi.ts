@@ -384,6 +384,7 @@ export function foundationOpenApi(app: INestApplication) {
       // productionOpenApi; the foundation registry must not claim them as
       // unimplemented legacy routes.
       const documentedPosTill = [
+        "/cashier/pos/workspace",
         "/admin/pos/tills",
         "/admin/pos/tills/{sessionId}",
         "/admin/pos/tills/{sessionId}/reconciliation",
