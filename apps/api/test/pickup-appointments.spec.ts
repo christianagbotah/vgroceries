@@ -9,7 +9,6 @@ import { ShipmentCollectionService } from "../src/logistics/shipment-collection.
 import { NotificationService } from "../src/notifications/notification.service";
 import { PickupAppointmentService, candidatePickupSlots } from "../src/logistics/pickup-appointment.service";
 import { VerificationCodeService } from "../src/orders/verification-code.service";
-import { NotificationService } from "../src/notifications/notification.service";
 import { commerceTestPassword,seedCommerceFixtures } from "./commerce-fixtures";
 import type { CheckoutPrincipal } from "../src/commerce-identity/checkout-principal.service";
 let app:INestApplication,db:Database,appointment:PickupAppointmentService,collection:ShipmentCollectionService,
@@ -22,7 +21,6 @@ const env=()=>readConfig({
   CHECKOUT_OFFLINE_HOLD_MINUTES:"1440",GUEST_CHECKOUT_TTL_MINUTES:"1440",
   ORDER_VERIFICATION_ACTIVE_VERSION:"1",ORDER_VERIFICATION_KEYS:JSON.stringify({1:"11".repeat(32)}),
   LOGISTICS_SHIPMENT_EXECUTION_ENABLED:"true",LOGISTICS_CUSTOMER_PICKUP_ENABLED:"true",
-  PICKUP_INAPP_REMINDERS_ENABLED:"true",
   PICKUP_INAPP_REMINDERS_ENABLED:"true",
 });
 const owner:CheckoutPrincipal={kind:"customer",userId:"customer-a",actorId:"customer-a",actorScope:"customer:customer-a"};
