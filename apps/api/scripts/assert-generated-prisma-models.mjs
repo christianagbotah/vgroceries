@@ -6,12 +6,12 @@
  * an older node_modules/.prisma/client. Check the actual runtime client in
  * this API directory before publishing/switching a service.
  *
- * Usage: cd apps/api && node scripts/assert-generated-prisma-models.cjs
+ * Usage: cd apps/api && node scripts/assert-generated-prisma-models.mjs
  * Read-only. Does not connect to PostgreSQL or print credentials.
  */
-const { readFileSync } = require("node:fs");
-const { join } = require("node:path");
-const { createRequire } = require("node:module");
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+import { createRequire } from "node:module";
 
 const cwd = process.cwd();
 const runtimeRequire = createRequire(join(cwd, "package.json"));

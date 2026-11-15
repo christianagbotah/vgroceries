@@ -20,7 +20,7 @@ The integrated API on port 3049 had additional POS, support, stock-adjustment, p
 
 On 15 November the main API at port 3027 returned HTTP 200 for the ready health route and 401 for anonymous cashier workspace access. The public portal instead returned 404 for that cashier route because its API upstream was the **different** service on 3049. Comparing a portal response to the wrong backend incorrectly diagnoses the new backend as missing.
 
-A main API release also had a **stale generated Prisma client**. Its schema declared StaffInvitation, StockAdjustment, PasswordResetToken and CustomerSupportCase, but the generated client lacked those models. A newer isolated release contained all 81 declared models and passed authentication checks. The new apps/api/scripts/assert-generated-prisma-models.cjs and CI step reject this problem. Execute the guard **inside the packaged apps/api directory after Prisma generation**; a build in another directory is not proof of the deployed archive.
+A main API release also had a **stale generated Prisma client**. Its schema declared StaffInvitation, StockAdjustment, PasswordResetToken and CustomerSupportCase, but the generated client lacked those models. A newer isolated release contained all 81 declared models and passed authentication checks. The new apps/api/scripts/assert-generated-prisma-models.mjs and CI step reject this problem. Execute the guard **inside the packaged apps/api directory after Prisma generation**; a build in another directory is not proof of the deployed archive.
 
 ## Predeployment gate
 
