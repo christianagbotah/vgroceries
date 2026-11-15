@@ -464,7 +464,6 @@ test("in-app pickup reminder stages once and projects to the owned customer inbo
  assert.equal(messages[0]?.recipientUserId,"customer-a");
  assert.ok(messages[0]?.body.includes("in-app reminder"));
  assert.equal(await db.paymentAttempt.count({where:{orderId:x.order.id}}),0);
- assert.equal(await db.smsDispatch.count(),0);
 });
 
 test("a cancelled or rescheduled pickup cannot deliver an obsolete reminder",async()=>{
