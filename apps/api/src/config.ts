@@ -94,6 +94,7 @@ export interface ApiConfig {
   commerce: CommerceConfig | null;
   shipmentExecutionEnabled: boolean;
   customerPickupEnabled: boolean;
+  pickupAttendanceEnabled: boolean;
   pickupInAppRemindersEnabled: boolean;
   physicalReturnsEnabled: boolean;
   customerReturnClaimsEnabled: boolean;
@@ -151,6 +152,12 @@ export function readConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
   if (rawCustomerPickupEnabled !== undefined && !["true", "false"].includes(rawCustomerPickupEnabled))
     throw new Error("LOGISTICS_CUSTOMER_PICKUP_ENABLED must be true or false");
   const customerPickupEnabled = rawCustomerPickupEnabled === "true";
+  const rawPickupAttendance = env.PICKUP_ATTENDANCE_ENABLED;
+  if (rawPickupAttendance !== undefined && !["true", "false"].includes(rawPickupAttendance))
+    throw new Error("PICKUP_ATTENDANCE_ENABLED must be true or false");
+  const pickupAttendanceEnabled = rawPickupAttendance === "true";
+  if (pickupAttendanceEnabled && (!customerPickupEnabled || !shipmentExecutionEnabled))
+    throw new Error("Pickup attendance requires enabled remote pickup and shipment execution");
   const rawPickupReminders = env.PICKUP_INAPP_REMINDERS_ENABLED;
   if (rawPickupReminders !== undefined && !["true", "false"].includes(rawPickupReminders))
     throw new Error("PICKUP_INAPP_REMINDERS_ENABLED must be true or false");
@@ -677,6 +684,7 @@ export function readConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
     commerce,
     shipmentExecutionEnabled,
     customerPickupEnabled,
+    pickupAttendanceEnabled,
     pickupInAppRemindersEnabled,
     physicalReturnsEnabled,
     customerReturnClaimsEnabled,
