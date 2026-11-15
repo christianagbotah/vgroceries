@@ -1,5 +1,6 @@
-import VerifiedStaffPage from "./verified/page";
 "use client";
+
+import VerifiedStaffPage from "./verified/page";
 
 import { apiOps } from "@/services/client";
 import { useApiData } from "@/features/staff/admin-data";
