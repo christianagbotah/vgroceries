@@ -4,7 +4,7 @@ import { randomUUID } from "node:crypto";
 import { API_CONFIG, type ApiConfig } from "../config";
 import { Database } from "../database/database";
 import { tokenHash } from "../identity/crypto";
-import { type RequestAdjustment, type DecideAdjustment } from "@variety/contracts";
+import { type RequestAdjustment, type DecideAdjustment, stockAdjustmentLotOptionsSchema } from "@variety/contracts";
 import type { AuthRequest } from "../identity/identity.service";
 import { ApiProblem } from "../http/errors";
 
@@ -33,6 +33,68 @@ export class InventoryAdjustmentService {
       throw new ApiProblem(403, "FORBIDDEN", "Stock adjustment access requires a stock officer or administrator.");
     if (req.actor.role !== "admin" && !req.actor.locationIds.includes(locationId))
       throw new ApiProblem(403, "FORBIDDEN", "Location access denied.");
+  }
+
+  /** Read-only selection, with branch authority taken from the current session. */
+  async lotOptions(req: AuthRequest, input: {locationId?: string; q?: string}) {
+    this.enabled();
+    if (req.actor.role !== "admin" && req.actor.role !== "inventory_manager")
+      throw new ApiProblem(403, "FORBIDDEN", "A verified stock officer is required.");
+    const locations = req.actor.role === "admin"
+      ? await this.db.location.findMany({
+          where: {active: true}, select: {id: true, name: true},
+          orderBy: [{name: "asc"}, {id: "asc"}], take: 101,
+        })
+      : (await this.db.userLocation.findMany({
+          where: {userId: req.actor.id,
+            user: {is: {role: "inventory_manager", active: true}},
+            location: {is: {active: true}}},
+          select: {location: {select: {id: true, name: true}}},
+          orderBy: {locationId: "asc"}, take: 101,
+        })).map(item => item.location);
+    if (!locations.length)
+      throw new ApiProblem(403, "FORBIDDEN", "No active stock branch assignment.");
+    if (locations.length > 100)
+      throw new ApiProblem(409, "BRANCH_LIMIT", "Too many branches for this listing.");
+    const locationId = input.locationId ??
+      (locations.some(loc => loc.id === this.config.stockLocationId)
+        ? this.config.stockLocationId : locations[0].id);
+    if (!locations.some(loc => loc.id === locationId))
+      throw new ApiProblem(403, "FORBIDDEN", "Location access denied.");
+    const q = input.q?.trim();
+    const lots = await this.db.stockLot.findMany({
+      where: {
+        position: {locationId},
+        ...(q ? {OR: [
+          {lotNumber: {contains: q, mode: "insensitive"}},
+          {position: {variant: {name: {contains: q, mode: "insensitive"}}}},
+          {position: {variant: {product: {name: {contains: q, mode: "insensitive"}}}}},
+        ]} : {}),
+      },
+      include: {position: {include: {
+        variant: {include: {product: {select: {name: true}}}},
+      }}},
+      orderBy: [{id: "asc"}], take: 151,
+    });
+    const todayUtc = new Date().toISOString().slice(0, 10);
+    return stockAdjustmentLotOptionsSchema.parse({
+      selectedLocationId: locationId, locations,
+      capped: lots.length > 150,
+      lots: lots.slice(0, 150).map(lot => {
+        const variant = lot.position.variant;
+        const why = !variant.active ? "Inactive variant"
+          : lot.kind !== "regular" ? "Non-regular stock"
+          : lot.quarantined ? "Quarantined"
+          : lot.expiryDate && lot.expiryDate.toISOString().slice(0, 10) <= todayUtc
+            ? "Expired" : null;
+        return {
+          id: lot.id, variantId: variant.id,
+          productName: variant.product.name, variantName: variant.name,
+          lotNumber: lot.lotNumber, quantity: lot.quantity.toString(),
+          unit: variant.unit, eligible: why === null, ineligibleReason: why,
+        };
+      }),
+    });
   }
 
   async list(req: AuthRequest, locationId = this.config.stockLocationId) {

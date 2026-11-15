@@ -127,6 +127,8 @@ import type {
   UpdateDeliveryRouteRuleRequest,
   ActivateDeliveryRouteRuleRequest,
   CashierWorkspace,
+  StockAdjustmentLotOptions, StockAdjustmentHistory,
+  StockAdjustmentOutcome, RequestAdjustment, DecideAdjustment,
   StaffList, StaffRow, InviteCashierRequest,
   ManageCashierRequest, AcceptCashierInvitationRequest, IssuedCashierInvitation,
   SessionLookupResponse,
@@ -352,6 +354,20 @@ export const apiOps = {
     api<StaffRow>("staff.admin.action", { query: { staffId }, body: body as Record<string, unknown> }),
   staffAcceptInvitation: (body: AcceptCashierInvitationRequest) =>
     api<{ activated: true }>("staff.invitation.accept", { body: body as Record<string, unknown> }),
+
+  /* Server-verified inventory adjustment authority: never demo role or actor ID. */
+  verifiedAdjustmentLots: (query: {locationId?:string;q?:string}={}) =>
+    api<StockAdjustmentLotOptions>("inventory.verified.adjustments.lots",{query}),
+  verifiedAdjustmentHistory: (locationId?:string) =>
+    api<StockAdjustmentHistory>("inventory.verified.adjustments.history",{query:{locationId}}),
+  verifiedAdjustmentCreate: (body:RequestAdjustment,idempotencyKey:string) =>
+    api<StockAdjustmentOutcome>("inventory.verified.adjustments.create",{
+      body:body as Record<string,unknown>,idempotencyKey,
+    }),
+  verifiedAdjustmentDecide: (body:DecideAdjustment) =>
+    api<StockAdjustmentOutcome>("inventory.verified.adjustments.decide",{
+      body:body as Record<string,unknown>,
+    }),
 
   /* POS */
   posSearch: (q: string) => api<PosSearchRow[]>("admin.pos.search", { query: { q } }),

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { apiOps, ApiError } from "@/services/client";
 import { useApiData } from "@/features/staff/admin-data";
 import { useStaff } from "@/features/staff/role-context";
@@ -15,11 +15,22 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { useToast } from "@/hooks/use-toast";
 import { TriangleAlert, Check, X } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { VerifiedStockAdjustments } from "@/features/staff/verified-stock-adjustments";
+import { isDemoStaffSessionActive } from "@/features/staff/staff-demo-session";
 
 type Adjustment = Awaited<ReturnType<typeof apiOps.adjustments>>[number];
 type Lot = Awaited<ReturnType<typeof apiOps.lots>>[number];
 
 export default function AdminAdjustmentsPage() {
+  const [mode, setMode] = useState<"checking"|"demo"|"real">("checking");
+  useEffect(() => { setMode(isDemoStaffSessionActive() ? "demo" : "real"); }, []);
+  if (mode === "checking") return <LoadingState rows={3} label="Checking real staff session" />;
+  if (mode === "real") return <VerifiedStockAdjustments />;
+  return <DemoAdjustmentPage />;
+}
+
+/** The original sample screen is available ONLY inside explicit demo mode. */
+function DemoAdjustmentPage() {
   const { user, can } = useStaff();
   const { toast } = useToast();
   const { data, loading, error, reload } = useApiData(() => apiOps.adjustments(), []);

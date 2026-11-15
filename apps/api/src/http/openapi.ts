@@ -401,6 +401,7 @@ export function foundationOpenApi(app: INestApplication) {
       ].includes(suffix);
       const documentedAdjustments = [
         "/inventory/adjustments",
+        "/inventory/adjustments/lots",
         "/inventory/adjustments/create",
         "/inventory/adjustments/decide",
       ].includes(suffix);

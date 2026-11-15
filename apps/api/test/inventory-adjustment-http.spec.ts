@@ -198,6 +198,8 @@ test("roles, branch grants, malformed claims and the OFF switch fail closed", as
     const off = await disabled.getUrl();
     assert.equal((await invoke("/inventory/adjustments", "GET",
       admin, undefined, undefined, off)).status, 503);
+    assert.equal((await invoke("/inventory/adjustments/lots", "GET",
+      admin, undefined, undefined, off)).status, 503);
     assert.equal((await invoke("/inventory/adjustments/create", "POST",
       admin, payload(), "adj-flag-off-" + seq, off)).status, 503);
     assert.equal((await invoke("/inventory/adjustments/decide", "POST",
@@ -282,4 +284,38 @@ test("product variant disabled after request cannot receive an approval", async 
   assert.equal((await db.stockAdjustment.findUniqueOrThrow({
     where: { id: submitted.body.data.adjustmentId },
   })).status, "pending_approval");
+});
+
+test("real lot picker verifies active branch, search, stock eligibility and session role", async () => {
+  const manager = await login("stockmanager");
+  const admin = await login("admin-secondary");
+  const cashier = await login("cashier-adjustment");
+  const path = "/inventory/adjustments/lots";
+  assert.equal((await invoke(path,"GET",null)).status,401);
+  assert.equal((await invoke(path,"GET",cashier)).status,403);
+  const result = await invoke(path+"?q=rice","GET",manager);
+  assert.equal(result.status,200,JSON.stringify(result.body));
+  assert.equal(result.body.data.selectedLocationId,"loc_accra");
+  assert.deepEqual(result.body.data.locations,[{id:"loc_accra",name:"Accra"}]);
+  assert.equal(result.body.data.lots.length,1);
+  assert.equal(result.body.data.lots[0].id,"lot-rice");
+  assert.equal(result.body.data.lots[0].variantId,"var-rice");
+  assert.equal(result.body.data.lots[0].eligible,true);
+  assert.equal(result.body.data.lots[0].quantity,"20");
+  assert.equal(result.body.data.capped,false);
+  assert.equal((await invoke(path+"?locationId=loc_inactive","GET",manager)).status,403);
+  assert.equal((await invoke(path+"?locationId=../other","GET",admin)).status,400);
+  assert.equal((await invoke(path+"?actor=admin-commerce","GET",admin)).status,400);
+  const admins = await invoke(path,"GET",admin);
+  assert.equal(admins.status,200);
+  assert.deepEqual(admins.body.data.locations,[{id:"loc_accra",name:"Accra"}]);
+  await db.stockLot.update({where:{id:"lot-rice"},data:{quarantined:true}});
+  const unsafe = await invoke(path+"?q=RICE","GET",manager);
+  assert.equal(unsafe.status,200);
+  assert.equal(unsafe.body.data.lots[0].eligible,false);
+  assert.equal(unsafe.body.data.lots[0].ineligibleReason,"Quarantined");
+  await db.userLocation.delete({where:{userId_locationId:{
+    userId:"stockmanager",locationId:"loc_accra",
+  }}});
+  assert.equal((await invoke(path,"GET",manager)).status,403);
 });

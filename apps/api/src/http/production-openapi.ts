@@ -89,6 +89,7 @@ import {
   requestPasswordResetSchema, completePasswordResetSchema, passwordRecoveryNoticeSchema,
   requestAdjustmentSchema, decideAdjustmentSchema,
   adjustmentOutcomeSchema, adjustmentHistorySchema,
+  stockAdjustmentLotOptionsSchema,
   posTillReconciliationViewSchema,
   posQuoteRequestSchema,posQuoteViewSchema,
   posHoldCreateSchema,posHoldReleaseSchema,posHoldViewSchema,posHoldListSchema,
@@ -262,6 +263,7 @@ export function productionOpenApi(app: INestApplication): OpenAPIObject {
   const schemas = doc.components!.schemas as Record<string, SchemaObject>;
 
   Object.assign(schemas, {
+    StockAdjustmentLotOptionsEnvelope: json(z.object({ok:z.literal(true),data:stockAdjustmentLotOptionsSchema}).strict()),
     StockAdjustmentRequest: json(requestAdjustmentSchema),
     StockAdjustmentDecide: json(decideAdjustmentSchema),
     StockAdjustmentOutcomeEnvelope: json(z.object({
@@ -1172,6 +1174,12 @@ export function productionOpenApi(app: INestApplication): OpenAPIObject {
       requestBody: { required: true, content: { "application/json": { schema: ref("PasswordResetComplete") } } },
       responses: authorityResponses("PasswordRecoveryNoticeEnvelope"),
     },
+  };
+  doc.paths["/api/v1/inventory/adjustments/lots"] = {
+    get: readOperation("Server-scoped active branch and lot selection for supervised stock corrections. No customer or financial information, max 150 lots. Feature default OFF.", "StockAdjustmentLotOptionsEnvelope", [
+      {name:"locationId",in:"query",required:false,schema:{type:"string",minLength:1,maxLength:128}},
+      {name:"q",in:"query",required:false,schema:{type:"string",maxLength:120}},
+    ]),
   };
   doc.paths["/api/v1/inventory/adjustments"] = {
     get: readOperation(
