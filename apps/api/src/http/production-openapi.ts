@@ -84,6 +84,8 @@ import {
   cashierTillOpenSchema,cashierTillMoveSchema,cashierTillCloseSchema,
   cashierTillSessionViewSchema,cashierTillListSchema,
   cashierWorkspaceSchema,
+  inviteCashierSchema, acceptCashierInvitationSchema,
+  manageCashierSchema, staffListSchema, staffRowSchema,
   posTillReconciliationViewSchema,
   posQuoteRequestSchema,posQuoteViewSchema,
   posHoldCreateSchema,posHoldReleaseSchema,posHoldViewSchema,posHoldListSchema,
@@ -257,6 +259,29 @@ export function productionOpenApi(app: INestApplication): OpenAPIObject {
   const schemas = doc.components!.schemas as Record<string, SchemaObject>;
 
   Object.assign(schemas, {
+    InviteCashierRequest: json(inviteCashierSchema),
+    AcceptCashierInvitationRequest: json(acceptCashierInvitationSchema),
+    ManageCashierRequest: json(manageCashierSchema),
+    IssuedCashierInvitationEnvelope: json(z.object({
+      ok: z.literal(true),
+      data: z.object({
+        cashier: z.object({
+          id: z.string(), name: z.string(), email: z.string(),
+          phone: z.string(), role: z.literal("cashier"),
+          active: z.literal(false), createdAt: z.iso.datetime(),
+          locationIds: z.array(z.string()),
+          invitationStatus: z.literal("pending"),
+          invitationExpiresAt: z.iso.datetime(),
+        }).strict(),
+        code: z.string().regex(/^[a-f0-9]{64}$/),
+        expiresAt: z.iso.datetime(),
+      }).strict(),
+    }).strict()),
+    CashierInvitationAcceptedEnvelope: json(z.object({
+      ok: z.literal(true), data: z.object({ activated: z.literal(true) }).strict(),
+    }).strict()),
+    StaffListEnvelope: json(z.object({ ok: z.literal(true), data: staffListSchema }).strict()),
+    StaffRowEnvelope: json(z.object({ ok: z.literal(true), data: staffRowSchema }).strict()),
     FulfilmentConfirmRequest: json(fulfilmentConfirmRequestSchema),
     FulfilmentStartPickingRequest: json(fulfilmentStartPickingRequestSchema),
     FulfilmentPickRequest: json(fulfilmentPickRequestSchema),
@@ -1081,5 +1106,39 @@ export function productionOpenApi(app: INestApplication): OpenAPIObject {
   doc.paths["/api/v1/rider/jobs/{jobId}/fail"] = { post: authorityMutation("Rider-only delivery failure with a bounded reason. Failure neither restores stock nor changes payment truth.", "RiderFailRequest", "RiderActionResponseEnvelope", [jobId]) };
   doc.paths["/api/v1/rider/jobs/{jobId}/notes"] = { post: authorityMutation("Rider-only idempotent operational note for the authenticated rider's job.", "RiderNoteRequest", "RiderActionResponseEnvelope", [jobId]) };
 
+  // Restricted staff invitation / branch-grant authority. Default OFF.
+  // All requests are authenticated except the one-time code redemption.
+  doc.paths["/api/v1/admin/staff"] = {
+    get: readOperation("Administrator-only staff list and current branch grants; no password hashes.", "StaffListEnvelope"),
+  };
+  doc.paths["/api/v1/admin/staff/invitations"] = {
+    post: {
+      security,
+      description: "Administrator-only one-time, 48-hour cashier invitation. Activation code is returned once; only a digest is persisted. The account remains inactive until accepted.",
+      parameters: [csrf],
+      requestBody: { required: true, content: { "application/json": { schema: ref("InviteCashierRequest") } } },
+      responses: authorityResponses("IssuedCashierInvitationEnvelope"),
+    },
+  };
+  doc.paths["/api/v1/auth/staff-invitations/accept"] = {
+    post: {
+      security: [],
+      description: "Approved-Origin single-use cashier activation with staff-selected password; 15-minute IP throttle. No authenticated session issued.",
+      requestBody: { required: true, content: { "application/json": { schema: ref("AcceptCashierInvitationRequest") } } },
+      responses: authorityResponses("CashierInvitationAcceptedEnvelope"),
+    },
+  };
+  doc.paths["/api/v1/admin/staff/{staffId}/actions"] = {
+    post: {
+      security,
+      description: "Administrator-only branch reassignment or suspension/reactivation of cashier (not other roles). Revokes the account's active sessions.",
+      parameters: [
+        { name: "staffId", in: "path", required: true, schema: { type: "string", minLength: 1 } },
+        csrf,
+      ],
+      requestBody: { required: true, content: { "application/json": { schema: ref("ManageCashierRequest") } } },
+      responses: authorityResponses("StaffRowEnvelope"),
+    },
+  };
   return doc;
 }

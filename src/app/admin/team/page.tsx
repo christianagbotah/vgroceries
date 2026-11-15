@@ -1,5 +1,7 @@
 "use client";
 
+import VerifiedStaffPage from "./verified/page";
+
 import { apiOps } from "@/services/client";
 import { useApiData } from "@/features/staff/admin-data";
 import { LoadingState, ErrorState } from "@/components/shared/states";
@@ -12,6 +14,11 @@ import { ShieldCheck } from "lucide-react";
 type TeamRow = Awaited<ReturnType<typeof apiOps.team>>[number];
 
 export default function AdminTeamPage() {
+  if (process.env.NEXT_PUBLIC_STAFF_ONBOARDING_UAT === "1") return <VerifiedStaffPage />;
+  return <DemoTeamPage />;
+}
+
+function DemoTeamPage() {
   const { data, loading, error, reload } = useApiData(() => apiOps.team(), []);
 
   if (loading) return <LoadingState rows={4} label="Loading team" />;
