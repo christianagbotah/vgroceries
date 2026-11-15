@@ -30,7 +30,9 @@ and unauthorised branch actors cannot perform stock corrections.
 - Corrections must not exceed physical nonnegative stock or eat active
   customer/POS reservations. The approver locks the original request,
   stock position and lot in a serialised order, verifies unchanged
-  requested-before stock quantity, and checks reserved quantities again.
+  requested-before stock quantity, rechecks that the variant is still
+  active and its quantity unit still permits the correction, and checks
+  reserved quantities again.
 - The pending request never changes stock. Approval adds exactly one
   stock movement, a linked stock receipt, an adjustment status transition,
   an immutable audit event and a typed inventory outbox event in one

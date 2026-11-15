@@ -266,3 +266,20 @@ test("stale physical quantity, revoked branch and zero-after-quantity reporting 
   assert.equal(row.afterQuantity, "0",
     "A legitimately zero ending balance must be shown, not omitted");
 });
+
+test("product variant disabled after request cannot receive an approval", async () => {
+  const maker = await login("stockmanager");
+  const checker = await login("admin-secondary");
+  const submitted = await invoke("/inventory/adjustments/create", "POST",
+    maker, payload("+1"), "adj-disabled-variant-" + seq);
+  assert.equal(submitted.status, 201);
+  await db.variant.update({ where: { id: "var-rice" }, data: { active: false } });
+  const decision = await invoke("/inventory/adjustments/decide", "POST",
+    checker, { adjustmentId: submitted.body.data.adjustmentId, decision: "approve" });
+  assert.equal(decision.status, 409);
+  assert.equal(await quantity(), "20");
+  assert.equal(await db.stockMovement.count(), 0);
+  assert.equal((await db.stockAdjustment.findUniqueOrThrow({
+    where: { id: submitted.body.data.adjustmentId },
+  })).status, "pending_approval");
+});

@@ -195,6 +195,15 @@ export class InventoryAdjustmentService {
       if (lot.kind !== "regular" || lot.quarantined ||
         (lot.expiryDate && lot.expiryDate.toISOString().slice(0, 10) <= today()))
         reject("This lot became unsafe; the quantity correction cannot be approved.");
+      // Catalog status and unit rules may change between maker request
+      // and independent approval; revalidate before changing any stock.
+      const variant = await tx.variant.findUnique({
+        where: { id: adjustment.variantId }, select: { active: true, unit: true },
+      });
+      if (!variant?.active)
+        reject("This product variant is no longer active.");
+      if (!["kg", "litre"].includes(variant.unit) && !adjustment.delta.isInteger())
+        reject("This product now requires whole-unit corrections.");
       if (!lot.quantity.eq(adjustment.beforeQuantity))
         reject("Physical quantity changed after the request. Reject it and submit a correction based on current stock.");
       const newQuantity = lot.quantity.plus(adjustment.delta);
