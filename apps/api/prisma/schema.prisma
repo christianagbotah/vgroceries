@@ -30,6 +30,7 @@ model User {
   customerReturnClaims CustomerReturnClaim[]
   notifications Notification[]
   riderProfile RiderProfile?
+  pickupAttendanceRecords PickupAttendanceRecord[]
 }
 
 model Session {
@@ -437,6 +438,7 @@ model Order {
   deliveryAddress OrderDeliveryAddress?
   pickupSnapshot OrderPickupSnapshot?
   pickupAppointment PickupAppointment?
+  pickupAttendanceRecords PickupAttendanceRecord[]
   slotBooking DeliverySlotBooking?
   paymentAttempts PaymentAttempt[]
   refunds Refund[]
@@ -617,6 +619,30 @@ model PickupAppointment {
   updatedAt DateTime @updatedAt @db.Timestamptz(3)
   completedAt DateTime? @db.Timestamptz(3)
   @@index([nodeId, startsAt, status])
+}
+
+/// Immutable staff observations only. A missed collection window is not
+/// an order cancellation, payment decision, stock movement or handover.
+model PickupAttendanceRecord {
+  id String @id @default(uuid())
+  orderId String
+  order Order @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  nodeId String
+  node LogisticsNode @relation(fields: [nodeId], references: [id], onDelete: Restrict)
+  appointmentBookedAt DateTime @db.Timestamptz(3)
+  startsAt DateTime @db.Timestamptz(3)
+  endsAt DateTime @db.Timestamptz(3)
+  kind String // late_arrival | missed_window
+  reason String
+  note String?
+  observedAt DateTime @db.Timestamptz(3)
+  recordedById String
+  recordedBy User @relation(fields: [recordedById], references: [id], onDelete: Restrict)
+  requestId String
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  @@unique([orderId, appointmentBookedAt, kind])
+  @@index([nodeId, observedAt])
+  @@index([orderId, observedAt])
 }
 
 model OrderPickupSnapshot {
@@ -1044,6 +1070,7 @@ model LogisticsNode {
   pickupAppointmentPolicy PickupAppointmentPolicy?
   pickupCentreClosures PickupCentreClosure[]
   pickupAppointments PickupAppointment[]
+  pickupAttendanceRecords PickupAttendanceRecord[]
   currentShipments Shipment[] @relation("ShipmentCurrentNode")
   shipmentStops ShipmentStop[] @relation("ShipmentStopNode")
   shipmentEvents ShipmentEvent[] @relation("ShipmentEventNode")
