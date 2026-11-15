@@ -66,6 +66,7 @@ describe("staging operational HTML routing", () => {
     process.env.UAT_PORTAL_LOGIN_REQUIRED = "1";
     expect((await proxy(request("/staff/activate"))).status).toBe(200);
     expect((await proxy(request("/shop"))).status).toBe(200);
+    expect((await proxy(request("/account"))).status).toBe(200);
   });
 
   test("anonymous staff visits fail closed and redirect only to internal login", async () => {

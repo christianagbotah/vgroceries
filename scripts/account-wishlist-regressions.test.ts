@@ -31,14 +31,19 @@ describe("customer account and wishlist regressions", () => {
     expect(layout).toContain("/account/login");
   });
 
-  test("account storefront does not gate on the API-path session cookie before client verification", () => {
+  test("account storefront remains outside the server-side staff-only gate", async () => {
     const identity = read("apps/api/src/identity/identity.controller.ts");
     const layout = read("src/app/(storefront)/account/layout.tsx");
     expect(identity).toContain('path: "/api/v1"');
     expect(layout).toContain("accountSession");
     if (!existsSync("src/proxy.ts")) return;
     const proxy = read("src/proxy.ts");
-    expect(proxy).not.toContain('request.cookies.get("vg_session")');
-    expect(proxy).not.toContain('matcher: ["/account/:path*"]');
+    expect(proxy).toContain("stagingRequiredRole(pathname)");
+    const { stagingRequiredRole } = await import("../src/lib/staging-page-access");
+    const { config } = await import("../src/proxy");
+    for (const route of ["/account", "/account/orders", "/account/profile", "/account/login", "/checkout"]) {
+      expect(stagingRequiredRole(route)).toBeNull();
+    }
+    expect(config.matcher.every((route) => !route.startsWith("/account"))).toBe(true);
   });
 });
