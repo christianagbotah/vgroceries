@@ -14,7 +14,7 @@ Re-running the worker or concurrent invocation cannot duplicate that event.
 
 Before staging, the worker locks the Order row, then rechecks the committed
 appointment, registered active customer, succeeded payment, no refund
-conflict, dispatched fulfilment, frozen pickup centre and physical shipment
+conflict, dispatched fulfilment, frozen pickup centre (which must remain active, public and of kind pickup_point) and physical shipment
 status `ready_for_pickup` at that exact centre. It never accepts recipient
 IDs, status, amounts or times supplied by an SMS request or caller.
 
@@ -49,6 +49,8 @@ After a reviewed, isolated release with the legitimate flags approved,
 an operator may manually run the compiled CLI:
 
 ```bash
+npm run pickup:reminders:run
+# or explicitly invoke the compiled worker:
 node --env-file=/path/to/protected/api.env dist/scripts/project-pickup-reminders.js
 ```
 
@@ -68,3 +70,18 @@ decision, attendance evidence, automatic cancellation, booked-slot release,
 customer reschedule approval, or outbound communication tariffs/consent.
 Those remain separate issue #64 work. The public Coming Soon site stays
 unchanged and no VPS deployment is authorized by this document alone.
+
+## Additional November 15 verification gate
+
+The reminder producer and projector both independently check the pickup
+centre's **current** active/customer-visible state and `pickup_point` kind;
+a previously staged event cannot produce an inbox message after the centre
+becomes inactive or hidden. This is deliberate: changing centre visibility
+must not leave misleading reminders in customer inboxes. Rule and PostgreSQL
+regression tests cover this condition, alongside the existing order/payment,
+booking identity and physical handover boundaries.
+
+A convenience command `npm run pickup:reminders:run` invokes the existing
+manual stage-and-project worker. It **does not** install a cron job, change
+feature flags, or dispatch SMS/email/WhatsApp. This code and documentation
+do not authorize activation until real-centre UAT is completed.

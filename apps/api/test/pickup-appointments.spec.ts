@@ -510,3 +510,28 @@ test("pickup reminders suppress unpaid, collected and inactive-customer appointm
    orderId:x.order.id,title:"Collection appointment coming up",
  }}),0);
 });
+
+test("pickup reminders never notify from inactive centres, including after staging",async()=>{
+ const x=await ready("REMINDER_CENTER_GATE");
+ const start=(await appointment.options(x.order.id,owner)).slots[0]!.startsAt;
+ await appointment.change(x.order.id,owner,"centre-reminder-book",
+   {kind:"book",startsAt:start},"req-centre-reminder-book");
+ const now=new Date(Date.parse(start)-30*60_000);
+ await db.logisticsNode.update({where:{id:x.terminal.id},data:{active:false}});
+ assert.equal((await inbox.stagePickupAppointmentReminders(100,now)).queued,0);
+ await db.logisticsNode.update({where:{id:x.terminal.id},data:{active:true}});
+ assert.equal((await inbox.stagePickupAppointmentReminders(100,now)).queued,1);
+ await db.logisticsNode.update({where:{id:x.terminal.id},data:{customerVisible:false}});
+ await inbox.projectBatch(100);
+ assert.equal(await db.notification.count({where:{
+   orderId:x.order.id,title:"Collection appointment coming up",
+ }}),0);
+ const source=await db.outboxEvent.findFirstOrThrow({where:{
+   aggregateId:x.order.id,type:"pickup.appointment_reminder",
+ }});
+ assert.equal((await db.notificationOutboxReceipt.findUniqueOrThrow({where:{
+   sourceEventId:source.id,
+ }})).outcome,"no_recipient");
+ assert.equal(await db.shipmentCollectionReceipt.count({where:{shipmentId:x.shipment.id}}),0);
+ assert.equal(await db.paymentAttempt.count({where:{orderId:x.order.id}}),0);
+});
