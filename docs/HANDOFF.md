@@ -206,3 +206,40 @@ The separate admin queue only accepts or rejects requests; it never marks
 physically received goods, cash or refunds. See
 `docs/CUSTOMER_RETURN_CLAIMS_R3A.md`. Binding accepted claims to actual
 physical custody and payment-capture-verified refunds is unfinished.
+
+## 15 November 2026 — UAT API release, default-off pickup reminders
+
+- **GitHub:** merged PR #94 (exact-once in-app pickup appointment reminders)
+  and PR #96 (current active/customer-visible pickup centre revalidation);
+  canonical release source `76032b8a1c8f7d05bb7387ee5e1f063658ddc2c3`.
+- **Backend UAT release:** `varietygroceries-api-76032b8-inapp-reminders-off-20261115`;
+  prior working `varietygroceries-api-6304426-return-claims-20261109`
+  retained as rollback. Customer portal remains
+  `varietygroceries-portal-c31424c-uat-pickup-catalog-20261115`.
+- **Verification:** both PR #96 GitHub Actions workflows passed, including
+  PostgreSQL integration/security tests. Canonical main rebuilt on VPS
+  using Node 24, generated Prisma client, successful TypeScript compilation,
+  and four additional focused reminder-rule tests. Local canary listener
+  returned HTTP 200 on `health/live` and `health/ready`. Post-switch
+  API live/ready and portal `/`, `/shop`, `/categories`, `/help`
+  all returned HTTP 200.
+- **Database:** a protected custom-format `pg_dump` backup was saved and
+  validated using `pg_restore --list` before release. A **read-only**
+  `prisma migrate status` reported **39 migrations and an up-to-date
+  configured database**; no migration was executed during this deployment.
+- **Feature flags:** `LOGISTICS_SHIPMENT_EXECUTION_ENABLED`,
+  `LOGISTICS_CUSTOMER_PICKUP_ENABLED`, `PICKUP_INAPP_REMINDERS_ENABLED`,
+  payment provider activation, and Hubtel SMS dispatch all remain **OFF**.
+  This release does **not** send scheduled/customer SMS, WhatsApp, email,
+  payment, physical collection, or automatic no-show status updates.
+  The reminder operation is manual-only; see
+  `docs/PICKUP_INAPP_REMINDERS_P0.md`.
+- **Public launch boundary:** `varietygroceries.com` Coming Soon unchanged.
+  Hubtel Online Checkout credentials can initiate a checkout, but the
+  Transaction Status API continues to require merchant/IP authorization;
+  issue #90 remains open. Do not enable payment capture or pickup workflow
+  before the approved end-to-end UAT and method-specific refund review.
+- **Remaining:** staff-attested late arrivals/no-show exceptions (issue #64),
+  physical-returns reconciliation, POS, COD, provider authorization, customer
+  consent/preferences, catalogue media, mobile acceptance and launch sign-off.
+
