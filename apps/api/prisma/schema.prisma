@@ -10,6 +10,7 @@ datasource db {
 enum Role {
   admin
   inventory_manager
+  cashier
   customer
   rider
 }
@@ -24,6 +25,8 @@ model User {
   active Boolean @default(true)
   createdAt DateTime @default(now()) @db.Timestamptz(3)
   sessions Session[]
+  passwordResets PasswordResetToken[]
+  staffInvitation StaffInvitation?
   locations UserLocation[]
   customerAddresses CustomerAddress[]
   orders Order[]
@@ -31,6 +34,20 @@ model User {
   notifications Notification[]
   riderProfile RiderProfile?
   pickupAttendanceRecords PickupAttendanceRecord[]
+  posCustomerSales PosCashSale[] @relation("PosSaleRegisteredCustomer")
+}
+
+// Raw recovery secrets are NEVER persisted. A token can be used only once.
+model PasswordResetToken {
+  id String @id @default(uuid())
+  userId String
+  user User @relation(fields: [userId], references: [id], onDelete: Restrict)
+  tokenHash String @unique
+  expiresAt DateTime @db.Timestamptz(3)
+  consumedAt DateTime? @db.Timestamptz(3)
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  @@index([userId, createdAt])
+  @@index([expiresAt])
 }
 
 model Session {
@@ -48,6 +65,21 @@ model Session {
   createdAt DateTime @default(now()) @db.Timestamptz(3)
   refreshHistory RefreshToken[]
   @@index([userId, expiresAt])
+}
+
+// One invitation per cashier. The raw code never enters PostgreSQL and
+// only a single successful acceptance can move a cashier into active status.
+model StaffInvitation {
+  id String @id @default(uuid())
+  userId String @unique
+  user User @relation(fields: [userId], references: [id], onDelete: Restrict)
+  tokenHash String @unique
+  expiresAt DateTime @db.Timestamptz(3)
+  acceptedAt DateTime? @db.Timestamptz(3)
+  revokedAt DateTime? @db.Timestamptz(3)
+  createdByUserId String
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  @@index([expiresAt])
 }
 
 model RefreshToken {
@@ -215,6 +247,7 @@ model StockLot {
   unitCostMinor Int?
   createdAt DateTime @default(now()) @db.Timestamptz(3)
   movements StockMovement[]
+  adjustments StockAdjustment[]
   reservations Reservation[]
   fulfilmentPicks FulfilmentPick[]
   depletionLines StockDepletionLine[]
@@ -223,6 +256,27 @@ model StockLot {
   physicalReturnResaleReview PhysicalReturnResaleReview?
   @@unique([id, positionId])
   @@index([positionId, kind, quarantined, expiryDate])
+}
+
+model StockAdjustment {
+  id String @id @default(uuid())
+  lotId String
+  lot StockLot @relation(fields: [lotId], references: [id])
+  variantId String
+  locationId String
+  delta Decimal @db.Decimal(15, 3)
+  reason String
+  note String?
+  status String @default("pending_approval")
+  requestedBy String
+  decidedBy String?
+  beforeQuantity Decimal @db.Decimal(15, 3)
+  afterQuantity Decimal? @db.Decimal(15, 3)
+  movementReceiptId String?
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  decidedAt DateTime? @db.Timestamptz(3)
+  @@index([locationId, status, createdAt])
+  @@index([lotId, createdAt])
 }
 
 model Reservation {
@@ -1448,6 +1502,12 @@ model PosCashSale {
   soldByUserId String
   stockDepletionId String @unique
   depletion StockDepletion @relation(fields: [stockDepletionId], references: [id], onDelete: Restrict)
+  // Immutable sale-time customer identity. Named walk-ins are NOT user accounts.
+  customerMode String @default("walk_in")
+  customerUserId String?
+  customerUser User? @relation("PosSaleRegisteredCustomer", fields: [customerUserId], references: [id], onDelete: Restrict)
+  customerName String @default("Walk-in Customer")
+  customerPhone String?
   subtotalMinor Int
   cashReceivedMinor Int
   changeGivenMinor Int
@@ -1458,6 +1518,7 @@ model PosCashSale {
   receiptLines PosCashReceiptLine[]
   @@index([tillSessionId, createdAt])
   @@index([locationId, createdAt])
+  @@index([customerUserId, createdAt])
 }
 
 
@@ -1475,4 +1536,39 @@ model PosCashReceiptLine {
   unitPriceMinor Int
   lineTotalMinor Int
   @@index([saleId, variantId])
+}
+
+
+/**
+ * Customer support requests from web chat, guest checkout or help centre.
+ * Only an authenticated administrator may list or change case status.
+ * No message is sent or telephone call initiated by storing a case.
+ */
+model CustomerSupportCase {
+  id String @id @default(uuid())
+  reference String @unique
+  name String
+  phone String
+  email String?
+  subject String
+  message String
+  orderReference String?
+  preferredContact String @default("phone")
+  status String @default("open")
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+  activities CustomerSupportActivity[]
+  @@index([status, createdAt])
+  @@index([createdAt])
+}
+
+model CustomerSupportActivity {
+  id String @id @default(uuid())
+  caseId String
+  supportCase CustomerSupportCase @relation(fields:[caseId],references:[id],onDelete:Restrict)
+  actorId String?
+  action String
+  privateNote String?
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  @@index([caseId, createdAt])
 }
