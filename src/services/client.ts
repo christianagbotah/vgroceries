@@ -268,6 +268,12 @@ export const apiOps = {
       query:{returnId},body:body as unknown as Record<string,unknown>,idempotencyKey,
     }),
 
+  // Only callable with an explicitly enabled, real email-recovery backend.
+  passwordRecoveryRequest: (email: string) =>
+    api<{ message: string }>("auth.passwordRecovery.request", { body: { email } }),
+  passwordRecoveryComplete: (token: string, password: string) =>
+    api<{ message: string }>("auth.passwordRecovery.complete", { body: { token, password } }),
+
   /* account */
   accountLogin: async (identifier: string, password: string) => {
     const identity = identifier.includes("@")

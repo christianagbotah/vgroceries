@@ -100,6 +100,7 @@ export interface ApiConfig {
   customerReturnClaimsEnabled: boolean;
   physicalReturnClaimLinkEnabled: boolean;
   staffManagementEnabled: boolean;
+  passwordRecoveryEnabled: boolean;
   posTillFoundationEnabled: boolean;
   posQuoteEnabled: boolean;
   posStockHoldsEnabled: boolean;
@@ -173,6 +174,10 @@ export function readConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
   if(rawStaffManagement!==undefined&&!["true","false"].includes(rawStaffManagement))
     throw new Error("STAFF_MANAGEMENT_ENABLED must be true or false");
   const staffManagementEnabled=rawStaffManagement==="true";
+  const rawPasswordRecovery=env.PASSWORD_RECOVERY_ENABLED;
+  if(rawPasswordRecovery!==undefined&&!["true","false"].includes(rawPasswordRecovery))
+    throw new Error("PASSWORD_RECOVERY_ENABLED must be true or false");
+  const passwordRecoveryEnabled=rawPasswordRecovery==="true";
   const rawPosTill=env.POS_TILL_FOUNDATION_ENABLED;
   if(rawPosTill!==undefined&&!["true","false"].includes(rawPosTill))
     throw new Error("POS_TILL_FOUNDATION_ENABLED must be true or false");
@@ -695,6 +700,7 @@ export function readConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
     customerReturnClaimsEnabled,
     physicalReturnClaimLinkEnabled,
     staffManagementEnabled,
+    passwordRecoveryEnabled,
     posTillFoundationEnabled,
     posQuoteEnabled,
     posStockHoldsEnabled,

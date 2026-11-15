@@ -86,6 +86,7 @@ import {
   cashierWorkspaceSchema,
   inviteCashierSchema, acceptCashierInvitationSchema,
   manageCashierSchema, staffListSchema, staffRowSchema,
+  requestPasswordResetSchema, completePasswordResetSchema, passwordRecoveryNoticeSchema,
   posTillReconciliationViewSchema,
   posQuoteRequestSchema,posQuoteViewSchema,
   posHoldCreateSchema,posHoldReleaseSchema,posHoldViewSchema,posHoldListSchema,
@@ -259,6 +260,12 @@ export function productionOpenApi(app: INestApplication): OpenAPIObject {
   const schemas = doc.components!.schemas as Record<string, SchemaObject>;
 
   Object.assign(schemas, {
+    PasswordResetRequest: json(requestPasswordResetSchema),
+    PasswordResetComplete: json(completePasswordResetSchema),
+    PasswordRecoveryNoticeEnvelope: json(z.object({
+      ok: z.literal(true),
+      data: passwordRecoveryNoticeSchema,
+    }).strict()),
     InviteCashierRequest: json(inviteCashierSchema),
     AcceptCashierInvitationRequest: json(acceptCashierInvitationSchema),
     ManageCashierRequest: json(manageCashierSchema),
@@ -1138,6 +1145,22 @@ export function productionOpenApi(app: INestApplication): OpenAPIObject {
       ],
       requestBody: { required: true, content: { "application/json": { schema: ref("ManageCashierRequest") } } },
       responses: authorityResponses("StaffRowEnvelope"),
+    },
+  };
+  doc.paths["/api/v1/auth/password-reset/request"] = {
+    post: {
+      security: [],
+      description: "Opt-in email password recovery, account-neutral response and Origin+IP throttling. Password reset URL is only sent by configured mail gateway.",
+      requestBody: { required: true, content: { "application/json": { schema: ref("PasswordResetRequest") } } },
+      responses: authorityResponses("PasswordRecoveryNoticeEnvelope"),
+    },
+  };
+  doc.paths["/api/v1/auth/password-reset/complete"] = {
+    post: {
+      security: [],
+      description: "Opt-in, single-use credential reset via browser fragment token; consumed atomically with password update and all-session revocation.",
+      requestBody: { required: true, content: { "application/json": { schema: ref("PasswordResetComplete") } } },
+      responses: authorityResponses("PasswordRecoveryNoticeEnvelope"),
     },
   };
   return doc;

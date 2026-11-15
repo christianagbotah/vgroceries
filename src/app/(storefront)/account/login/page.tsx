@@ -73,6 +73,7 @@ export default function CustomerLoginPage() {
           </form>
         </CardContent>
       </Card>
+      {process.env.NEXT_PUBLIC_PASSWORD_RECOVERY_UAT === "1" ? <p className="mt-4 text-center text-sm"><Link href="/forgot-password" className="font-medium text-primary underline">Forgot password?</Link></p> : null}
       <p className="mt-4 text-center text-sm text-muted-foreground">New to Variety Groceries? <Link href={returnPath === "/account" ? "/account/signup" : `/account/signup?next=${encodeURIComponent(returnPath)}`} className="font-medium text-primary hover:underline">Create an account</Link></p>
       <p className="mt-2 text-center text-sm text-muted-foreground">Continue shopping? <Link href="/shop" className="font-medium text-primary hover:underline">Back to the shop</Link></p>
     </div>
