@@ -243,3 +243,45 @@ physical custody and payment-capture-verified refunds is unfinished.
   physical-returns reconciliation, POS, COD, provider authorization, customer
   consent/preferences, catalogue media, mobile acceptance and launch sign-off.
 
+
+## 15 November 2026 — protected staff attendance UAT deployment
+
+- **Code:** PR #97 merged as `4c9676327e35855476fc50eb6135873e137c8500`.
+  Adds immutable/admin-only `late_arrival` and `missed_window` evidence
+  with strict booking/payment/centre/shipment checks and no collection,
+  cancellation, stock or refund side effects.
+- **Migration history recovery:** PR #98 merged as
+  `47944a059a4fb6b9dd0cc600e9aa6d866d4ba63b`. Seven historical
+  migration scripts were restored *byte-for-byte* from the POS-integrated
+  branch after matching SHA-256 against existing UAT PostgreSQL records.
+  Restoring them made the migration history consistent; no unfinished POS,
+  support, inventory or authentication code was imported by the repair.
+- **Database:** a fresh protected and checksum-validated custom-format
+  PostgreSQL backup was created before deploying. A strict preflight
+  confirmed exactly one pending migration
+  (`202611150041_pickup_attendance_audit`). It was applied successfully;
+  read-only Prisma status then reported **47 migrations / up to date**.
+  Do not execute Prisma `db push` while schema parity issue #99 remains
+  open for the other applied POS/support features.
+- **VPS UAT API release:** `varietygroceries-api-47944a0-attendance-audit-off-20261115`
+  (Git SHA `47944a059a4fb6b9dd0cc600e9aa6d866d4ba63b`). Private canary
+  `health/live` and `health/ready` were HTTP 200; unauthenticated
+  attendance GET/POST were HTTP 401. After an atomic service switch,
+  API live/ready and portal `/`, `/shop`, `/categories`, `/help`
+  were HTTP 200. Canary stopped. Previous API
+  `varietygroceries-api-76032b8-inapp-reminders-off-20261115` remains
+  available for code rollback. Database backup remains private on VPS.
+- **Safety:** `PICKUP_ATTENDANCE_ENABLED=false`,
+  `LOGISTICS_SHIPMENT_EXECUTION_ENABLED=false`,
+  `LOGISTICS_CUSTOMER_PICKUP_ENABLED=false`,
+  `PICKUP_INAPP_REMINDERS_ENABLED=false`, Hubtel SMS dispatch OFF and
+  payment provider activation OFF. No live customer pickup, SMS, refund,
+  payment, no-show penalty or automatic slot release occurred. Public
+  Coming Soon site unchanged.
+- **Still open:** authenticated centre-assigned staff identity and
+  administrator attendance UI, real-centre UAT, dispute/late-arrival
+  correction procedures and verified customer rescheduling (issue #64).
+  Align remaining Prisma schema models for the previously applied
+  POS/support migrations (issue #99). Hubtel Transaction Status
+  merchant/IP authorization is still blocked separately (issue #90).
+
