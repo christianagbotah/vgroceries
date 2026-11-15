@@ -7,12 +7,13 @@ import { readConfig } from "../src/config";
 import { Database } from "../src/database/database";
 import { ShipmentCollectionService } from "../src/logistics/shipment-collection.service";
 import { NotificationService } from "../src/notifications/notification.service";
+import { PickupAttendanceService } from "../src/logistics/pickup-attendance.service";
 import { PickupAppointmentService, candidatePickupSlots } from "../src/logistics/pickup-appointment.service";
 import { VerificationCodeService } from "../src/orders/verification-code.service";
 import { commerceTestPassword,seedCommerceFixtures } from "./commerce-fixtures";
 import type { CheckoutPrincipal } from "../src/commerce-identity/checkout-principal.service";
 let app:INestApplication,db:Database,appointment:PickupAppointmentService,collection:ShipmentCollectionService,
-  inbox:NotificationService,
+  inbox:NotificationService,attendance:PickupAttendanceService,
   verification:VerificationCodeService,base:string;
 const env=()=>readConfig({
   DATABASE_URL:process.env.DATABASE_URL!,WEB_ORIGINS:"http://localhost:3000",
@@ -21,7 +22,7 @@ const env=()=>readConfig({
   CHECKOUT_OFFLINE_HOLD_MINUTES:"1440",GUEST_CHECKOUT_TTL_MINUTES:"1440",
   ORDER_VERIFICATION_ACTIVE_VERSION:"1",ORDER_VERIFICATION_KEYS:JSON.stringify({1:"11".repeat(32)}),
   LOGISTICS_SHIPMENT_EXECUTION_ENABLED:"true",LOGISTICS_CUSTOMER_PICKUP_ENABLED:"true",
-  PICKUP_INAPP_REMINDERS_ENABLED:"true",
+  PICKUP_INAPP_REMINDERS_ENABLED:"true",PICKUP_ATTENDANCE_ENABLED:"true",
 });
 const owner:CheckoutPrincipal={kind:"customer",userId:"customer-a",actorId:"customer-a",actorScope:"customer:customer-a"};
 const other:CheckoutPrincipal={kind:"customer",userId:"customer-b",actorId:"customer-b",actorScope:"customer:customer-b"};
@@ -122,7 +123,7 @@ before(async()=>{
  app=await createApplication(env());await app.listen(0,"127.0.0.1");
  base=await app.getUrl();db=app.get(Database);
  appointment=app.get(PickupAppointmentService);collection=app.get(ShipmentCollectionService);
- inbox=app.get(NotificationService);
+ inbox=app.get(NotificationService);attendance=app.get(PickupAttendanceService);
  verification=app.get(VerificationCodeService);
 });
 beforeEach(async()=>{await seedCommerceFixtures(db);});
@@ -534,4 +535,78 @@ test("pickup reminders never notify from inactive centres, including after stagi
  }})).outcome,"no_recipient");
  assert.equal(await db.shipmentCollectionReceipt.count({where:{shipmentId:x.shipment.id}}),0);
  assert.equal(await db.paymentAttempt.count({where:{orderId:x.order.id}}),0);
+});
+
+test("late and missed observations are immutable, exactly once, without order, cash or stock changes",async()=>{
+  const x=await ready("ATTEND_AUDIT");
+  const slot=(await appointment.options(x.order.id,owner)).slots[0]!;
+  await appointment.change(x.order.id,owner,"attendance-book",
+    {kind:"book",startsAt:slot.startsAt},"req-attendance-book");
+  const start=new Date(slot.startsAt),end=new Date(slot.endsAt);
+  const stock=(await db.stockLot.findUniqueOrThrow({where:{id:"lot-rice"}})).quantity.toString();
+  await assert.rejects(()=>attendance.record(x.order.id,"admin-commerce","too-early",
+    {kind:"missed_window",reason:"customer_not_present"},"req-too-early",new Date(start.getTime()+1000)),
+    (e:any)=>e?.getStatus?.()===422&&e?.getResponse?.()?.code==="PICKUP_ATTENDANCE_TOO_EARLY");
+  const input={kind:"late_arrival" as const,reason:"customer_arrived_after_start" as const,
+    note:"Customer checked in after appointment start."};
+  const late=await attendance.record(x.order.id,"admin-commerce","attendance-late-1",input,
+    "req-attendance-late-1",new Date(start.getTime()+60_000));
+  assert.equal(late.kind,"late_arrival");
+  assert.deepEqual(await attendance.record(x.order.id,"admin-commerce","attendance-late-1",input,
+    "req-attendance-late-1",new Date(start.getTime()+120_000)),late);
+  await assert.rejects(()=>attendance.record(x.order.id,"admin-commerce","attendance-late-2",
+    {kind:"late_arrival",reason:"centre_delay"},"req-attendance-late-2",new Date(start.getTime()+120_000)),
+    (e:any)=>e?.getStatus?.()===409);
+  const missed=await attendance.record(x.order.id,"admin-commerce","attendance-missed-1",
+    {kind:"missed_window",reason:"customer_not_present"},"req-attendance-missed-1",
+    new Date(end.getTime()+60_000));
+  assert.equal(missed.kind,"missed_window");
+  assert.equal((await attendance.list(x.order.id)).length,2);
+  assert.equal(await db.pickupAttendanceRecord.count({where:{orderId:x.order.id}}),2);
+  assert.equal(await db.orderEvent.count({where:{orderId:x.order.id,customerSafe:false,
+    action:{startsWith:"pickup.attendance."}}}),2);
+  assert.equal((await db.pickupAppointment.findUniqueOrThrow({where:{orderId:x.order.id}})).status,"booked");
+  assert.equal((await db.stockLot.findUniqueOrThrow({where:{id:"lot-rice"}})).quantity.toString(),stock);
+  assert.equal(await db.paymentAttempt.count({where:{orderId:x.order.id}}),0);
+  assert.equal(await db.refund.count({where:{orderId:x.order.id}}),0);
+  assert.equal(await db.shipmentCollectionReceipt.count({where:{shipmentId:x.shipment.id}}),0);
+  await assert.rejects(()=>db.pickupAttendanceRecord.update({where:{id:missed.id},data:{reason:"other"}}));
+  await assert.rejects(()=>db.pickupAttendanceRecord.delete({where:{id:late.id}}));
+});
+
+test("pickup attendance is admin-only and rejects invalid reasons and premature no-shows",async()=>{
+  const x=await ready("ATTEND_ACCESS");
+  const slot=(await appointment.options(x.order.id,owner)).slots[0]!;
+  await appointment.change(x.order.id,owner,"attendance-access-book",
+    {kind:"book",startsAt:slot.startsAt},"req-attendance-access-book");
+  const path=`/admin/logistics/orders/${x.order.id}/pickup-attendance`;
+  const a=await auth("admin-commerce@example.test"),c=await auth("customer-a@example.test");
+  assert.equal((await request("GET",path,c)).status,403);
+  assert.equal((await request("POST",path,c,
+    {kind:"missed_window",reason:"customer_not_present"},"attendance-forged")).status,403);
+  assert.equal((await request("POST",path,a,
+    {kind:"late_arrival",reason:"customer_not_present"},"attendance-invalid")).status,400);
+  assert.equal((await request("POST",path,a,
+    {kind:"missed_window",reason:"customer_not_present"},"attendance-early")).status,422);
+  const log=await request("GET",path,a);
+  assert.equal(log.status,200);assert.deepEqual(log.body.data,[]);
+  assert.equal(await db.pickupAttendanceRecord.count(),0);
+});
+
+test("cancelled and unpaid appointments cannot be marked as missed",async()=>{
+  const x=await ready("ATTEND_INELIGIBLE");
+  const slot=(await appointment.options(x.order.id,owner)).slots[0]!;
+  await appointment.change(x.order.id,owner,"attendance-guard-book",
+    {kind:"book",startsAt:slot.startsAt},"req-attendance-guard-book");
+  const lateTime=new Date(Date.parse(slot.endsAt)+60_000);
+  await db.order.update({where:{id:x.order.id},data:{paymentStatus:"pending"}});
+  await assert.rejects(()=>attendance.record(x.order.id,"admin-commerce","attendance-unpaid",
+    {kind:"missed_window",reason:"customer_not_present"},"req-attendance-unpaid",lateTime),
+    (e:any)=>e?.getStatus?.()===422);
+  await db.order.update({where:{id:x.order.id},data:{paymentStatus:"succeeded"}});
+  await appointment.change(x.order.id,owner,"attendance-guard-cancel",{kind:"cancel"},"req-attendance-guard-cancel");
+  await assert.rejects(()=>attendance.record(x.order.id,"admin-commerce","attendance-cancelled",
+    {kind:"missed_window",reason:"customer_not_present"},"req-attendance-cancelled",lateTime),
+    (e:any)=>e?.getStatus?.()===422);
+  assert.equal(await db.pickupAttendanceRecord.count(),0);
 });
