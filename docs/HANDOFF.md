@@ -285,3 +285,49 @@ physical custody and payment-capture-verified refunds is unfinished.
   POS/support migrations (issue #99). Hubtel Transaction Status
   merchant/IP authorization is still blocked separately (issue #90).
 
+
+## 15 November 2026 — mobile administrator pickup attendance deployed
+
+- **Source:** [PR #100](https://github.com/christianagbotah/vgroceries/pull/100)
+  merged after both frontend and PostgreSQL API security/integration CI
+  workflows passed, at canonical API SHA
+  `86f11088124b6e5e700cdb182e9b9d30fd768c76`.
+- **UAT API release:**
+  `varietygroceries-api-86f1108-attendance-admin-ui-off-20261115`.
+  Refreshed contracts and Prisma client compiled on the VPS.
+  Read-only Prisma migration status remained **47 up to date**; no
+  migration was executed. Private API canary passed live/ready (HTTP 200)
+  and rejected unauthenticated attendance list/context requests (HTTP
+  401). Protected UAT backup was created and archive-validated.
+- **UAT portal release:**
+  `varietygroceries-portal-fd86811-uat-attendance-20261115`, source
+  overlay commit `fd86811704eb32d9de6953b989f1fd530fdaf905`,
+  based on the previously deployed portal snapshot, with **only**
+  PR #100's attendance UI/contract/client changes incorporated.
+  This avoids importing unrelated unfinished POS/frontend changes
+  from canonical `main`. Three focused Bun tests passed on the
+  combined overlay. Full Next.js production build passed. Independent
+  loopback canary returned HTTP 200 for `/`, `/shop`,
+  `/categories`, `/help`, `/admin/logistics/shipments`.
+- **Post-switch:** API live/ready, shop, categories, help and admin
+  shipments all returned HTTP 200; unauthenticated attendance GETs
+  still return HTTP 401. The public `varietygroceries.com` site
+  responded HTTP 200 and retained **Coming Soon**. Isolated canary
+  processes were terminated. Previous API and portal releases are
+  retained for independent rollback.
+- **Business boundary:** `PICKUP_ATTENDANCE_ENABLED=false`,
+  `LOGISTICS_CUSTOMER_PICKUP_ENABLED=false`,
+  `LOGISTICS_SHIPMENT_EXECUTION_ENABLED=false`,
+  `PICKUP_INAPP_REMINDERS_ENABLED=false`,
+  Hubtel SMS dispatch OFF, and payment provider activation OFF.
+  This update did **not** record real attendance, charge customers,
+  move stock, send SMS, mark collection complete, issue refunds or
+  make the storefront public.
+- **Next P0:** centre-assigned pickup-only staff role and revoke flow,
+  location-specific access tests, supervisor corrections/disputes,
+  actual staffed-centre customer UAT and explicit activation
+  decision (issue #64). Prisma parity for separately applied
+  POS/support migrations is still tracked by issue #99.
+  Hubtel Transaction Status API permission is still issue #90.
+  See `docs/PICKUP_ATTENDANCE_ADMIN_UI_20261115.md`.
+
