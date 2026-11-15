@@ -23,7 +23,14 @@ type Lot = Awaited<ReturnType<typeof apiOps.lots>>[number];
 
 export default function AdminAdjustmentsPage() {
   const [mode, setMode] = useState<"checking"|"demo"|"real">("checking");
-  useEffect(() => { setMode(isDemoStaffSessionActive() ? "demo" : "real"); }, []);
+  // Hydrate sessionStorage-backed demo mode after the SSR/client boundary.
+  // This deliberately follows the existing AdminAuthGate deferred check.
+  useEffect(() => {
+    const task = window.setTimeout(() => {
+      setMode(isDemoStaffSessionActive() ? "demo" : "real");
+    }, 0);
+    return () => window.clearTimeout(task);
+  }, []);
   if (mode === "checking") return <LoadingState rows={3} label="Checking real staff session" />;
   if (mode === "real") return <VerifiedStockAdjustments />;
   return <DemoAdjustmentPage />;
