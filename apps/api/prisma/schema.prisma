@@ -35,13 +35,19 @@ model User {
   riderProfile RiderProfile?
   pickupAttendanceRecords PickupAttendanceRecord[]
   posCustomerSales PosCashSale[] @relation("PosSaleRegisteredCustomer")
+  // Existing UAT database relationships; no database change.
+  CashierTillSession_CashierTillSession_closedByUserIdToUser CashierTillSession[]     @relation("CashierTillSession_closedByUserIdToUser")
+  CashierTillSession_CashierTillSession_openedByUserIdToUser CashierTillSession[]     @relation("CashierTillSession_openedByUserIdToUser")
+  PosCashSale_PosCashSale_soldByUserIdToUser                 PosCashSale[]            @relation("PosCashSale_soldByUserIdToUser")
+  cashierTillMovements                                       CashierTillMovement[]
+  posStockHolds                                              PosStockHold[]
 }
 
 // Raw recovery secrets are NEVER persisted. A token can be used only once.
 model PasswordResetToken {
   id String @id @default(uuid())
   userId String
-  user User @relation(fields: [userId], references: [id], onDelete: Restrict)
+  user User @relation(fields: [userId], references: [id])
   tokenHash String @unique
   expiresAt DateTime @db.Timestamptz(3)
   consumedAt DateTime? @db.Timestamptz(3)
@@ -72,7 +78,7 @@ model Session {
 model StaffInvitation {
   id String @id @default(uuid())
   userId String @unique
-  user User @relation(fields: [userId], references: [id], onDelete: Restrict)
+  user User @relation(fields: [userId], references: [id])
   tokenHash String @unique
   expiresAt DateTime @db.Timestamptz(3)
   acceptedAt DateTime? @db.Timestamptz(3)
@@ -103,6 +109,10 @@ model Location {
   positions StockPosition[]
   physicalReturnReceipts PhysicalReturnReceipt[]
   logisticsNode LogisticsNode?
+  // Existing UAT database relationships; no database change.
+  cashierTillSessions    CashierTillSession[]
+  posStockHolds          PosStockHold[]
+  posCashSales           PosCashSale[]
 }
 
 model UserLocation {
@@ -137,7 +147,7 @@ model Product {
   published Boolean @default(false)
   brandMode String @default("auto")
   featuredMediaId String? @unique
-  featuredMedia ProductMedia? @relation("ProductFeaturedMedia", fields: [featuredMediaId], references: [id], onDelete: SetNull)
+  featuredMedia ProductMedia? @relation("ProductFeaturedMedia", fields: [featuredMediaId], references: [id])
   media ProductMedia[] @relation("ProductMediaCollection")
   generationJobs ImageGenerationJob[] @relation("ProductGenerationJobs")
   createdAt DateTime @default(now()) @db.Timestamptz(3)
@@ -148,7 +158,7 @@ model Product {
 model ProductMedia {
   id String @id @default(uuid())
   productId String
-  product Product @relation("ProductMediaCollection", fields: [productId], references: [id], onDelete: Restrict)
+  product Product @relation("ProductMediaCollection", fields: [productId], references: [id])
   source String
   status String @default("draft")
   storageKey String @unique
@@ -162,7 +172,7 @@ model ProductMedia {
   galleryOrder Int?
   originalFilename String?
   generationJobId String?
-  generationJob ImageGenerationJob? @relation("GenerationCandidates", fields: [generationJobId], references: [id], onDelete: SetNull)
+  generationJob ImageGenerationJob? @relation("GenerationCandidates", fields: [generationJobId], references: [id])
   referenceForJobs ImageGenerationJob[] @relation("GenerationReferenceMedia")
   createdBy String
   approvedBy String?
@@ -170,7 +180,7 @@ model ProductMedia {
   rejectedAt DateTime? @db.Timestamptz(3)
   archivedAt DateTime? @db.Timestamptz(3)
   createdAt DateTime @default(now()) @db.Timestamptz(3)
-  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @default(now()) @db.Timestamptz(3)
   featuredFor Product? @relation("ProductFeaturedMedia")
   @@index([productId, status, galleryOrder])
   @@index([generationJobId])
@@ -180,7 +190,7 @@ model ProductMedia {
 model ImageGenerationJob {
   id String @id @default(uuid())
   productId String
-  product Product @relation("ProductGenerationJobs", fields: [productId], references: [id], onDelete: Restrict)
+  product Product @relation("ProductGenerationJobs", fields: [productId], references: [id])
   requestedBy String
   mode String
   stylePreset String
@@ -199,7 +209,7 @@ model ImageGenerationJob {
   startedAt DateTime? @db.Timestamptz(3)
   completedAt DateTime? @db.Timestamptz(3)
   createdAt DateTime @default(now()) @db.Timestamptz(3)
-  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @default(now()) @db.Timestamptz(3)
   candidates ProductMedia[] @relation("GenerationCandidates")
   @@index([productId, createdAt])
   @@index([status, createdAt])
@@ -219,6 +229,9 @@ model Variant {
   active Boolean @default(true)
   positions StockPosition[]
   @@index([productId, active])
+  // Existing UAT database relationships; no database change.
+  posStockHoldLines   PosStockHoldLine[]
+  posCashReceiptLines PosCashReceiptLine[]
 }
 
 model StockPosition {
@@ -342,9 +355,9 @@ model CmsContent {
   kind String
   draft Json
   published Json
-  publishedAt DateTime @db.Timestamptz(3)
+  publishedAt DateTime @default(now()) @db.Timestamptz(3)
   createdAt DateTime @default(now()) @db.Timestamptz(3)
-  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @default(now()) @db.Timestamptz(3)
   @@index([kind])
 }
 
@@ -374,11 +387,11 @@ model OutboxEvent {
 model Notification {
   id String @id @default(uuid())
   recipientUserId String
-  recipientUser User @relation(fields: [recipientUserId], references: [id], onDelete: Restrict)
+  recipientUser User @relation(fields: [recipientUserId], references: [id])
   orderId String
-  order Order @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  order Order @relation(fields: [orderId], references: [id])
   sourceEventId String @unique
-  sourceEvent OutboxEvent @relation(fields: [sourceEventId], references: [id], onDelete: Restrict)
+  sourceEvent OutboxEvent @relation(fields: [sourceEventId], references: [id])
   kind String
   title String
   body String
@@ -389,7 +402,7 @@ model Notification {
 
 model NotificationOutboxReceipt {
   sourceEventId String @id
-  sourceEvent OutboxEvent @relation(fields: [sourceEventId], references: [id], onDelete: Restrict)
+  sourceEvent OutboxEvent @relation(fields: [sourceEventId], references: [id])
   outcome String
   processedAt DateTime @default(now()) @db.Timestamptz(3)
 }
@@ -419,7 +432,7 @@ model CustomerAddress {
   ghanaPostGps String?
   isDefault Boolean @default(false)
   createdAt DateTime @default(now()) @db.Timestamptz(3)
-  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @default(now()) @db.Timestamptz(3)
   @@index([userId, isDefault])
 }
 
@@ -459,17 +472,17 @@ model Order {
   reference String @unique
   channel String @default("online")
   customerUserId String?
-  customerUser User? @relation(fields: [customerUserId], references: [id])
+  customerUser User? @relation(fields: [customerUserId], references: [id], onDelete: Restrict)
   guestSessionId String?
-  guestSession GuestCheckoutSession? @relation(fields: [guestSessionId], references: [id])
+  guestSession GuestCheckoutSession? @relation(fields: [guestSessionId], references: [id], onDelete: Restrict)
   customerName String
   customerPhone String
   customerEmail String?
   fulfilment String
   zoneId String?
-  zone DeliveryZone? @relation(fields: [zoneId], references: [id])
+  zone DeliveryZone? @relation(fields: [zoneId], references: [id], onDelete: Restrict)
   slotId String?
-  slot DeliverySlot? @relation(fields: [slotId], references: [id])
+  slot DeliverySlot? @relation(fields: [slotId], references: [id], onDelete: Restrict)
   paymentMethod String
   paymentStatus String
   fulfilmentStatus String
@@ -486,7 +499,7 @@ model Order {
   cancelledAt DateTime? @db.Timestamptz(3)
   cancelledReason String?
   createdAt DateTime @default(now()) @db.Timestamptz(3)
-  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @default(now()) @db.Timestamptz(3)
   lines OrderLine[]
   events OrderEvent[]
   deliveryAddress OrderDeliveryAddress?
@@ -519,9 +532,9 @@ model CustomerReturnClaim {
   id String @id @default(uuid())
   reference String @unique
   orderId String
-  order Order @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  order Order @relation(fields: [orderId], references: [id], onUpdate: NoAction)
   customerUserId String
-  customer User @relation(fields: [customerUserId], references: [id], onDelete: Restrict)
+  customer User @relation(fields: [customerUserId], references: [id], onUpdate: NoAction)
   status String @default("requested") // requested | accepted | rejected | cancelled
   reason String
   evidenceNote String?
@@ -532,29 +545,29 @@ model CustomerReturnClaim {
   cancelledAt DateTime? @db.Timestamptz(3)
   lines CustomerReturnClaimLine[]
   physicalReceipts PhysicalReturnReceipt[]
-  @@index([customerUserId, createdAt])
-  @@index([orderId, status])
-  @@index([status, createdAt])
+  @@index([customerUserId, createdAt], map: "customer_claim_customer_date")
+  @@index([orderId, status], map: "customer_claim_order_status")
+  @@index([status, createdAt], map: "customer_claim_status_date")
 }
 
 model CustomerReturnClaimLine {
   claimId String
-  claim CustomerReturnClaim @relation(fields: [claimId], references: [id], onDelete: Restrict)
+  claim CustomerReturnClaim @relation(fields: [claimId], references: [id], onUpdate: NoAction)
   orderLineId String
-  orderLine OrderLine @relation(fields: [orderLineId], references: [id], onDelete: Restrict)
+  orderLine OrderLine @relation(fields: [orderLineId], references: [id], onUpdate: NoAction)
   quantity Decimal @db.Decimal(15, 3)
   reason String
   @@id([claimId, orderLineId])
-  @@index([orderLineId])
+  @@index([orderLineId], map: "customer_return_claim_line_original")
 }
 
 model PhysicalReturnReceipt {
   id String @id @default(uuid())
   reference String @unique
   orderId String
-  order Order @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  order Order @relation(fields: [orderId], references: [id], onUpdate: NoAction)
   locationId String
-  location Location @relation(fields: [locationId], references: [id], onDelete: Restrict)
+  location Location @relation(fields: [locationId], references: [id], onUpdate: NoAction)
   status String @default("received") // received | inspected
   reason String
   evidenceNote String
@@ -565,18 +578,18 @@ model PhysicalReturnReceipt {
   inspectionSummary String?
   items PhysicalReturnItem[]
   customerClaimId String?
-  customerClaim CustomerReturnClaim? @relation(fields: [customerClaimId], references: [id], onDelete: Restrict)
-  @@index([customerClaimId, receivedAt])
-  @@index([orderId, receivedAt])
-  @@index([locationId, receivedAt])
+  customerClaim CustomerReturnClaim? @relation(fields: [customerClaimId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  @@index([customerClaimId, receivedAt], map: "PhysicalReturnReceipt_claim_date_idx")
+  @@index([orderId, receivedAt], map: "PhysicalReturnReceipt_order_date_idx")
+  @@index([locationId, receivedAt], map: "PhysicalReturnReceipt_location_date_idx")
 }
 
 model PhysicalReturnItem {
   id String @id @default(uuid())
   receiptId String
-  receipt PhysicalReturnReceipt @relation(fields: [receiptId], references: [id], onDelete: Restrict)
+  receipt PhysicalReturnReceipt @relation(fields: [receiptId], references: [id], onUpdate: NoAction)
   orderLineId String
-  orderLine OrderLine @relation(fields: [orderLineId], references: [id], onDelete: Restrict)
+  orderLine OrderLine @relation(fields: [orderLineId], references: [id], onUpdate: NoAction)
   variantId String
   quantity Decimal @db.Decimal(15, 3)
   condition String // sealed | opened | damaged | unknown
@@ -586,21 +599,21 @@ model PhysicalReturnItem {
   inspectedAt DateTime? @db.Timestamptz(3)
   custody PhysicalReturnCustody?
   resaleReview PhysicalReturnResaleReview?
-  @@unique([receiptId, orderLineId])
-  @@index([orderLineId, disposition])
+  @@unique([receiptId, orderLineId], map: "PhysicalReturnItem_receipt_line_key")
+  @@index([orderLineId, disposition], map: "PhysicalReturnItem_line_status_idx")
 }
 
 /// An immutable, exactly-once transfer into NON-SELLABLE quarantine inventory.
 /// No automatic refund or saleable restocking can originate from this record.
 model PhysicalReturnCustody {
   itemId String @id
-  item PhysicalReturnItem @relation(fields: [itemId], references: [id], onDelete: Restrict)
+  item PhysicalReturnItem @relation(fields: [itemId], references: [id], onUpdate: NoAction)
   sourceLotId String
-  sourceLot StockLot @relation("PhysicalReturnOriginalLot", fields: [sourceLotId], references: [id], onDelete: Restrict)
+  sourceLot StockLot @relation("PhysicalReturnOriginalLot", fields: [sourceLotId], references: [id], onUpdate: NoAction)
   quarantineLotId String @unique
-  quarantineLot StockLot @relation("PhysicalReturnQuarantineLot", fields: [quarantineLotId], references: [id], onDelete: Restrict)
+  quarantineLot StockLot @relation("PhysicalReturnQuarantineLot", fields: [quarantineLotId], references: [id], onUpdate: NoAction)
   stockReceiptId String
-  stockReceipt StockReceipt @relation(fields: [stockReceiptId], references: [id], onDelete: Restrict)
+  stockReceipt StockReceipt @relation(fields: [stockReceiptId], references: [id], onUpdate: NoAction)
   quantity Decimal @db.Decimal(15, 3)
   custodyNote String
   recordedBy String
@@ -612,7 +625,7 @@ model PhysicalReturnCustody {
 /// reviewed custody, original lot expiry, non-food policy and stock transfer.
 model PhysicalReturnResaleReview {
   itemId String @id
-  item PhysicalReturnItem @relation(fields: [itemId], references: [id], onDelete: Restrict)
+  item PhysicalReturnItem @relation(fields: [itemId], references: [id], onUpdate: NoAction)
   status String @default("pending") // pending | approved | rejected
   evidenceNote String
   safetyClassification String
@@ -626,15 +639,15 @@ model PhysicalReturnResaleReview {
   decidedAt DateTime? @db.Timestamptz(3)
   decisionNote String?
   saleableLotId String? @unique
-  saleableLot StockLot? @relation(fields: [saleableLotId], references: [id], onDelete: Restrict)
+  saleableLot StockLot? @relation(fields: [saleableLotId], references: [id], onDelete: Restrict, onUpdate: NoAction)
   transferReceiptId String?
-  transferReceipt StockReceipt? @relation(fields: [transferReceiptId], references: [id], onDelete: Restrict)
+  transferReceipt StockReceipt? @relation(fields: [transferReceiptId], references: [id], onDelete: Restrict, onUpdate: NoAction)
   @@index([status, proposedAt])
 }
 
 model PickupAppointmentPolicy {
   nodeId String @id
-  node LogisticsNode @relation(fields: [nodeId], references: [id], onDelete: Restrict)
+  node LogisticsNode @relation(fields: [nodeId], references: [id], onUpdate: NoAction)
   active Boolean @default(false)
   serviceDays Int[]
   opensAt String
@@ -644,35 +657,35 @@ model PickupAppointmentPolicy {
   minLeadMinutes Int
   maxDaysAhead Int
   updatedBy String
-  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @default(now()) @db.Timestamptz(3)
 }
 
 /// Explicit centre-specific local-calendar closure. An active closure must
 /// never silently displace an already booked collection appointment.
 model PickupCentreClosure {
   nodeId String
-  node LogisticsNode @relation(fields: [nodeId], references: [id], onDelete: Restrict)
+  node LogisticsNode @relation(fields: [nodeId], references: [id], onUpdate: NoAction)
   date DateTime @db.Date
   closed Boolean @default(true)
   reason String?
   updatedBy String
-  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @default(now()) @db.Timestamptz(3)
   @@id([nodeId, date])
   @@index([date, closed])
 }
 
 model PickupAppointment {
   orderId String @id
-  order Order @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  order Order @relation(fields: [orderId], references: [id], onUpdate: NoAction)
   nodeId String
-  node LogisticsNode @relation(fields: [nodeId], references: [id], onDelete: Restrict)
+  node LogisticsNode @relation(fields: [nodeId], references: [id], onUpdate: NoAction)
   startsAt DateTime @db.Timestamptz(3)
   endsAt DateTime @db.Timestamptz(3)
   status String // booked | cancelled | completed
   bookedAt DateTime @default(now()) @db.Timestamptz(3)
-  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @default(now()) @db.Timestamptz(3)
   completedAt DateTime? @db.Timestamptz(3)
-  @@index([nodeId, startsAt, status])
+  @@index([nodeId, startsAt, status], map: "PickupAppointment_node_start_status_idx")
 }
 
 /// Immutable staff observations only. A missed collection window is not
@@ -680,9 +693,9 @@ model PickupAppointment {
 model PickupAttendanceRecord {
   id String @id @default(uuid())
   orderId String
-  order Order @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  order Order @relation(fields: [orderId], references: [id])
   nodeId String
-  node LogisticsNode @relation(fields: [nodeId], references: [id], onDelete: Restrict)
+  node LogisticsNode @relation(fields: [nodeId], references: [id])
   appointmentBookedAt DateTime @db.Timestamptz(3)
   startsAt DateTime @db.Timestamptz(3)
   endsAt DateTime @db.Timestamptz(3)
@@ -691,7 +704,7 @@ model PickupAttendanceRecord {
   note String?
   observedAt DateTime @db.Timestamptz(3)
   recordedById String
-  recordedBy User @relation(fields: [recordedById], references: [id], onDelete: Restrict)
+  recordedBy User @relation(fields: [recordedById], references: [id])
   requestId String
   createdAt DateTime @default(now()) @db.Timestamptz(3)
   @@unique([orderId, appointmentBookedAt, kind])
@@ -701,9 +714,9 @@ model PickupAttendanceRecord {
 
 model OrderPickupSnapshot {
   orderId String @id
-  order Order @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  order Order @relation(fields: [orderId], references: [id], onUpdate: NoAction)
   nodeId String
-  node LogisticsNode @relation(fields: [nodeId], references: [id], onDelete: Restrict)
+  node LogisticsNode @relation(fields: [nodeId], references: [id], onUpdate: NoAction)
   name String
   locality String?
   region String?
@@ -803,7 +816,7 @@ model PaymentAttempt {
   failureReason String?
   providerExpiresAt DateTime? @db.Timestamptz(3)
   createdAt DateTime @default(now()) @db.Timestamptz(3)
-  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @default(now()) @db.Timestamptz(3)
   resolvedAt DateTime? @db.Timestamptz(3)
   version Int @default(1)
   providerEvents PaymentProviderEvent[]
@@ -820,7 +833,7 @@ model PaymentProviderEvent {
   providerEventId String?
   dedupeKey String
   paymentAttemptId String?
-  paymentAttempt PaymentAttempt? @relation(fields: [paymentAttemptId], references: [id])
+  paymentAttempt PaymentAttempt? @relation(fields: [paymentAttemptId], references: [id], onDelete: Restrict)
   providerRef String?
   rawBodyHash String
   verificationResult String
@@ -875,7 +888,7 @@ model Refund {
   approvedAt DateTime? @db.Timestamptz(3)
   failureReason String?
   createdAt DateTime @default(now()) @db.Timestamptz(3)
-  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @default(now()) @db.Timestamptz(3)
   resolvedAt DateTime? @db.Timestamptz(3)
   version Int @default(1)
   execution RefundExecution?
@@ -903,7 +916,7 @@ model RefundExecution {
   failureCode String?
   failureReason String?
   createdAt DateTime @default(now()) @db.Timestamptz(3)
-  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @default(now()) @db.Timestamptz(3)
   resolvedAt DateTime? @db.Timestamptz(3)
   version Int @default(1)
   reconciliations RefundReconciliation[]
@@ -949,7 +962,7 @@ model FulfilmentRun {
   handoverKind String?
   version Int @default(1)
   createdAt DateTime @default(now()) @db.Timestamptz(3)
-  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @default(now()) @db.Timestamptz(3)
   picks FulfilmentPick[]
   @@index([locationId, createdAt])
 }
@@ -1021,7 +1034,7 @@ model RiderProfile {
   lastAvailabilityChangedAt DateTime @db.Timestamptz(3)
   version Int @default(1)
   createdAt DateTime @default(now()) @db.Timestamptz(3)
-  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @default(now()) @db.Timestamptz(3)
   jobs DeliveryJob[]
   @@index([availabilityState, updatedAt])
 }
@@ -1032,7 +1045,7 @@ model DeliveryJob {
   order Order @relation(fields: [orderId], references: [id])
   assignmentKind String
   riderProfileId String?
-  riderProfile RiderProfile? @relation(fields: [riderProfileId], references: [id])
+  riderProfile RiderProfile? @relation(fields: [riderProfileId], references: [id], onDelete: Restrict)
   providerKey String?
   providerNameSnapshot String?
   manualProviderReference String?
@@ -1051,7 +1064,7 @@ model DeliveryJob {
   returnedToStoreAt DateTime? @db.Timestamptz(3)
   version Int @default(1)
   createdAt DateTime @default(now()) @db.Timestamptz(3)
-  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @default(now()) @db.Timestamptz(3)
   events DeliveryEvent[]
   proof DeliveryProof?
   @@index([status, updatedAt])
@@ -1135,9 +1148,9 @@ model LogisticsNode {
 model LogisticsLane {
   id String @id @default(uuid())
   originNodeId String
-  originNode LogisticsNode @relation("LogisticsLaneOrigin", fields: [originNodeId], references: [id], onDelete: Restrict)
+  originNode LogisticsNode @relation("LogisticsLaneOrigin", fields: [originNodeId], references: [id])
   destinationNodeId String
-  destinationNode LogisticsNode @relation("LogisticsLaneDestination", fields: [destinationNodeId], references: [id], onDelete: Restrict)
+  destinationNode LogisticsNode @relation("LogisticsLaneDestination", fields: [destinationNodeId], references: [id])
   mode String
   providerKey String?
   typicalMinutes Int
@@ -1169,7 +1182,7 @@ model DeliveryWorkflowTemplate {
 model DeliveryWorkflowVersion {
   id String @id @default(uuid())
   templateId String
-  template DeliveryWorkflowTemplate @relation("WorkflowTemplateVersions", fields: [templateId], references: [id], onDelete: Restrict)
+  template DeliveryWorkflowTemplate @relation("WorkflowTemplateVersions", fields: [templateId], references: [id])
   versionNumber Int
   status String
   defaultSlaMinutes Int?
@@ -1189,7 +1202,7 @@ model DeliveryWorkflowVersion {
 model WorkflowStageDefinition {
   id String @id @default(uuid())
   workflowVersionId String
-  workflowVersion DeliveryWorkflowVersion @relation(fields: [workflowVersionId], references: [id], onDelete: Restrict)
+  workflowVersion DeliveryWorkflowVersion @relation(fields: [workflowVersionId], references: [id])
   stageKey String
   eventKind String
   customerTitleTemplate String
@@ -1203,15 +1216,15 @@ model WorkflowStageDefinition {
   displayGroup String?
   exceptionSeverity String @default("info")
   notificationsAllowed Boolean @default(false)
-  @@unique([workflowVersionId, stageKey])
-  @@unique([workflowVersionId, sortOrder])
+  @@unique([workflowVersionId, stageKey], map: "WorkflowStageDefinition_version_stage_key")
+  @@unique([workflowVersionId, sortOrder], map: "WorkflowStageDefinition_version_sort_key")
 }
 
 model DeliveryRouteRule {
   id String @id @default(uuid())
   name String
   originNodeId String
-  originNode LogisticsNode @relation("DeliveryRouteRuleOrigin", fields: [originNodeId], references: [id], onDelete: Restrict)
+  originNode LogisticsNode @relation("DeliveryRouteRuleOrigin", fields: [originNodeId], references: [id])
   deliveryZoneId String?
   deliveryZone DeliveryZone? @relation(fields: [deliveryZoneId], references: [id], onDelete: Restrict)
   fulfilment String
@@ -1221,7 +1234,7 @@ model DeliveryRouteRule {
   finalPickupNode LogisticsNode? @relation("DeliveryRouteRuleFinalPickup", fields: [finalPickupNodeId], references: [id], onDelete: Restrict)
   serviceLevel String?
   workflowVersionId String
-  workflowVersion DeliveryWorkflowVersion @relation(fields: [workflowVersionId], references: [id], onDelete: Restrict)
+  workflowVersion DeliveryWorkflowVersion @relation(fields: [workflowVersionId], references: [id])
   priority Int @default(0)
   effectiveFrom DateTime? @db.Timestamptz(3)
   effectiveTo DateTime? @db.Timestamptz(3)
@@ -1233,37 +1246,37 @@ model DeliveryRouteRule {
   stops DeliveryRouteRuleStop[]
   legs DeliveryRouteRuleLeg[]
   shipments Shipment[]
-  @@index([originNodeId, deliveryZoneId, active, priority])
-  @@index([workflowVersionId, active])
-  @@index([finalPickupNodeId, active])
+  @@index([originNodeId, deliveryZoneId, active, priority], map: "DeliveryRouteRule_origin_zone_active_priority_idx")
+  @@index([workflowVersionId, active], map: "DeliveryRouteRule_workflow_active_idx")
+  @@index([finalPickupNodeId, active], map: "DeliveryRouteRule_pickup_active_idx")
 }
 
 model DeliveryRouteRuleStop {
   id String @id @default(uuid())
   ruleId String
-  rule DeliveryRouteRule @relation(fields: [ruleId], references: [id], onDelete: Restrict)
+  rule DeliveryRouteRule @relation(fields: [ruleId], references: [id])
   position Int
   nodeId String
-  node LogisticsNode @relation(fields: [nodeId], references: [id], onDelete: Restrict)
+  node LogisticsNode @relation(fields: [nodeId], references: [id])
   terminalRole String
   originLegs DeliveryRouteRuleLeg[] @relation("RouteRuleLegOriginStop")
   destinationLegs DeliveryRouteRuleLeg[] @relation("RouteRuleLegDestinationStop")
-  @@unique([ruleId, position])
+  @@unique([ruleId, position], map: "DeliveryRouteRuleStop_rule_position_key")
   @@index([nodeId])
 }
 
 model DeliveryRouteRuleLeg {
   id String @id @default(uuid())
   ruleId String
-  rule DeliveryRouteRule @relation(fields: [ruleId], references: [id], onDelete: Restrict)
+  rule DeliveryRouteRule @relation(fields: [ruleId], references: [id])
   position Int
   originStopId String
-  originStop DeliveryRouteRuleStop @relation("RouteRuleLegOriginStop", fields: [originStopId], references: [id], onDelete: Restrict)
+  originStop DeliveryRouteRuleStop @relation("RouteRuleLegOriginStop", fields: [originStopId], references: [id])
   destinationStopId String
-  destinationStop DeliveryRouteRuleStop @relation("RouteRuleLegDestinationStop", fields: [destinationStopId], references: [id], onDelete: Restrict)
+  destinationStop DeliveryRouteRuleStop @relation("RouteRuleLegDestinationStop", fields: [destinationStopId], references: [id])
   laneId String
-  lane LogisticsLane @relation(fields: [laneId], references: [id], onDelete: Restrict)
-  @@unique([ruleId, position])
+  lane LogisticsLane @relation(fields: [laneId], references: [id])
+  @@unique([ruleId, position], map: "DeliveryRouteRuleLeg_rule_position_key")
   @@index([originStopId])
   @@index([destinationStopId])
   @@index([laneId])
@@ -1272,16 +1285,16 @@ model DeliveryRouteRuleLeg {
 model Shipment {
   id                 String                  @id @default(uuid())
   orderId            String
-  order              Order                   @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  order              Order                   @relation(fields: [orderId], references: [id])
   sequence           Int
   workflowVersionId  String
-  workflowVersion    DeliveryWorkflowVersion @relation(fields: [workflowVersionId], references: [id], onDelete: Restrict)
+  workflowVersion    DeliveryWorkflowVersion @relation(fields: [workflowVersionId], references: [id])
   routeRuleId        String
-  routeRule          DeliveryRouteRule       @relation(fields: [routeRuleId], references: [id], onDelete: Restrict)
+  routeRule          DeliveryRouteRule       @relation(fields: [routeRuleId], references: [id])
   routeRevision      Int                     @default(1)
   status             String                  @default("planned")
   originNodeId       String
-  originNode         LogisticsNode           @relation("ShipmentOriginNode", fields: [originNodeId], references: [id], onDelete: Restrict)
+  originNode         LogisticsNode           @relation("ShipmentOriginNode", fields: [originNodeId], references: [id])
   destinationKind    String
   finalPickupNodeId  String?
   finalPickupNode    LogisticsNode?          @relation("ShipmentFinalPickupNode", fields: [finalPickupNodeId], references: [id], onDelete: Restrict)
@@ -1311,11 +1324,11 @@ model Shipment {
 model ShipmentStop {
   id                 String        @id @default(uuid())
   shipmentId         String
-  shipment           Shipment      @relation(fields: [shipmentId], references: [id], onDelete: Restrict)
+  shipment           Shipment      @relation(fields: [shipmentId], references: [id])
   routeRevision      Int
   position           Int
   nodeId             String
-  node               LogisticsNode @relation("ShipmentStopNode", fields: [nodeId], references: [id], onDelete: Restrict)
+  node               LogisticsNode @relation("ShipmentStopNode", fields: [nodeId], references: [id])
   nodeCode           String
   nodePublicName     String
   nodeKind           String
@@ -1333,15 +1346,15 @@ model ShipmentStop {
 model ShipmentLeg {
   id                 String          @id @default(uuid())
   shipmentId         String
-  shipment           Shipment        @relation("ShipmentLegOwner", fields: [shipmentId], references: [id], onDelete: Restrict)
+  shipment           Shipment        @relation("ShipmentLegOwner", fields: [shipmentId], references: [id])
   routeRevision      Int
   position           Int
   originStopId       String
-  originStop         ShipmentStop    @relation("ShipmentLegOriginStop", fields: [originStopId], references: [id], onDelete: Restrict)
+  originStop         ShipmentStop    @relation("ShipmentLegOriginStop", fields: [originStopId], references: [id])
   destinationStopId  String
-  destinationStop    ShipmentStop    @relation("ShipmentLegDestinationStop", fields: [destinationStopId], references: [id], onDelete: Restrict)
+  destinationStop    ShipmentStop    @relation("ShipmentLegDestinationStop", fields: [destinationStopId], references: [id])
   laneId             String
-  lane               LogisticsLane   @relation(fields: [laneId], references: [id], onDelete: Restrict)
+  lane               LogisticsLane   @relation(fields: [laneId], references: [id])
   mode               String
   providerKey        String?
   typicalMinutes     Int
@@ -1365,7 +1378,7 @@ model ShipmentLeg {
 model ShipmentEvent {
   id             String         @id @default(uuid())
   shipmentId     String
-  shipment       Shipment       @relation(fields: [shipmentId], references: [id], onDelete: Restrict)
+  shipment       Shipment       @relation(fields: [shipmentId], references: [id])
   routeRevision  Int
   legId          String?
   leg            ShipmentLeg?   @relation(fields: [legId], references: [id], onDelete: Restrict)
@@ -1397,13 +1410,13 @@ model ShipmentEvent {
 model ShipmentCollectionReceipt {
   id String @id @default(uuid())
   shipmentId String @unique
-  shipment Shipment @relation(fields: [shipmentId], references: [id], onDelete: Restrict)
+  shipment Shipment @relation(fields: [shipmentId], references: [id])
   orderId String
-  order Order @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  order Order @relation(fields: [orderId], references: [id])
   nodeId String
-  node LogisticsNode @relation(fields: [nodeId], references: [id], onDelete: Restrict)
+  node LogisticsNode @relation(fields: [nodeId], references: [id])
   eventId String @unique
-  event ShipmentEvent @relation(fields: [eventId], references: [id], onDelete: Restrict)
+  event ShipmentEvent @relation(fields: [eventId], references: [id])
   staffActorId String
   receiverName String
   identityCheck String
@@ -1436,20 +1449,26 @@ model CashierTillSession {
   movements CashierTillMovement[]
   stockHolds PosStockHold[]
   cashSales PosCashSale[]
-  @@index([locationId, status, openedAt])
-  @@index([openedByUserId, openedAt])
+  @@index([locationId, status, openedAt], map: "cashier_till_location_status")
+  @@index([openedByUserId, openedAt], map: "cashier_till_opened_by")
+  // Existing UAT database relationships; no database change.
+  User_CashierTillSession_closedByUserIdToUser User?                 @relation("CashierTillSession_closedByUserIdToUser", fields: [closedByUserId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  Location                                     Location              @relation(fields: [locationId], references: [id], onUpdate: NoAction)
+  User_CashierTillSession_openedByUserIdToUser User                  @relation("CashierTillSession_openedByUserIdToUser", fields: [openedByUserId], references: [id], onUpdate: NoAction)
 }
 
 model CashierTillMovement {
   id String @id @default(uuid())
   sessionId String
-  session CashierTillSession @relation(fields: [sessionId], references: [id], onDelete: Restrict)
+  session CashierTillSession @relation(fields: [sessionId], references: [id], onUpdate: NoAction)
   kind String
   amountMinor Int
   note String
   actorUserId String
   createdAt DateTime @default(now()) @db.Timestamptz(3)
-  @@index([sessionId, createdAt])
+  @@index([sessionId, createdAt], map: "cashier_till_movement_session_date")
+  // Existing UAT database relationships; no database change.
+  User        User               @relation(fields: [actorUserId], references: [id], onUpdate: NoAction)
 }
 
 /**
@@ -1460,7 +1479,7 @@ model CashierTillMovement {
 model PosStockHold {
   id String @id @default(uuid())
   tillSessionId String
-  till CashierTillSession @relation(fields: [tillSessionId], references: [id], onDelete: Restrict)
+  till CashierTillSession @relation(fields: [tillSessionId], references: [id], onUpdate: NoAction)
   locationId String
   createdByUserId String
   status String @default("held")
@@ -1471,19 +1490,25 @@ model PosStockHold {
   releaseNote String?
   lines PosStockHoldLine[]
   cashSale PosCashSale?
-  @@index([tillSessionId, status, expiresAt])
-  @@index([locationId, createdAt])
+  @@index([tillSessionId, status, expiresAt], map: "pos_holds_by_till")
+  @@index([locationId, createdAt], map: "pos_holds_by_location")
+  // Existing UAT database relationships; no database change.
+  User            User               @relation(fields: [createdByUserId], references: [id], onUpdate: NoAction)
+  Location        Location           @relation(fields: [locationId], references: [id], onUpdate: NoAction)
 }
 
 model PosStockHoldLine {
   id String @id @default(uuid())
   holdId String
-  hold PosStockHold @relation(fields: [holdId], references: [id], onDelete: Restrict)
+  hold PosStockHold @relation(fields: [holdId], references: [id], onUpdate: NoAction)
   variantId String
   quantity Decimal @db.Decimal(15,3)
   unitPriceMinor Int
   lineTotalMinor Int
-  @@unique([holdId, variantId])
+  @@unique([holdId, variantId], map: "pos_hold_line_unique")
+  // Existing UAT database relationships; no database change.
+  Variant            Variant             @relation(fields: [variantId], references: [id], onUpdate: NoAction)
+  posCashReceiptLine PosCashReceiptLine?
 }
 
 /**
@@ -1495,13 +1520,13 @@ model PosCashSale {
   id String @id @default(uuid())
   reference String @unique
   holdId String @unique
-  hold PosStockHold @relation(fields: [holdId], references: [id], onDelete: Restrict)
+  hold PosStockHold @relation(fields: [holdId], references: [id], onUpdate: NoAction)
   tillSessionId String
-  till CashierTillSession @relation(fields: [tillSessionId], references: [id], onDelete: Restrict)
+  till CashierTillSession @relation(fields: [tillSessionId], references: [id], onUpdate: NoAction)
   locationId String
   soldByUserId String
   stockDepletionId String @unique
-  depletion StockDepletion @relation(fields: [stockDepletionId], references: [id], onDelete: Restrict)
+  depletion StockDepletion @relation(fields: [stockDepletionId], references: [id], onUpdate: NoAction)
   // Immutable sale-time customer identity. Named walk-ins are NOT user accounts.
   customerMode String @default("walk_in")
   customerUserId String?
@@ -1516,9 +1541,12 @@ model PosCashSale {
   goodsHandedOver Boolean
   createdAt DateTime @default(now()) @db.Timestamptz(3)
   receiptLines PosCashReceiptLine[]
-  @@index([tillSessionId, createdAt])
-  @@index([locationId, createdAt])
+  @@index([tillSessionId, createdAt], map: "pos_cash_by_till")
+  @@index([locationId, createdAt], map: "pos_cash_by_location")
   @@index([customerUserId, createdAt])
+  // Existing UAT database relationships; no database change.
+  Location                            Location             @relation(fields: [locationId], references: [id], onUpdate: NoAction)
+  User_PosCashSale_soldByUserIdToUser User                 @relation("PosCashSale_soldByUserIdToUser", fields: [soldByUserId], references: [id], onUpdate: NoAction)
 }
 
 
@@ -1526,7 +1554,7 @@ model PosCashSale {
 model PosCashReceiptLine {
   id String @id @default(uuid())
   saleId String
-  sale PosCashSale @relation(fields: [saleId], references: [id], onDelete: Restrict)
+  sale PosCashSale @relation(fields: [saleId], references: [id], onUpdate: NoAction)
   holdLineId String @unique
   variantId String
   productName String
@@ -1535,7 +1563,10 @@ model PosCashReceiptLine {
   quantity Decimal @db.Decimal(15,3)
   unitPriceMinor Int
   lineTotalMinor Int
-  @@index([saleId, variantId])
+  @@index([saleId, variantId], map: "pos_receipt_sale_variant")
+  // Existing UAT database relationships; no database change.
+  PosStockHoldLine PosStockHoldLine @relation(fields: [holdLineId], references: [id], onUpdate: NoAction)
+  Variant          Variant          @relation(fields: [variantId], references: [id], onUpdate: NoAction)
 }
 
 
@@ -1565,7 +1596,7 @@ model CustomerSupportCase {
 model CustomerSupportActivity {
   id String @id @default(uuid())
   caseId String
-  supportCase CustomerSupportCase @relation(fields:[caseId],references:[id],onDelete:Restrict)
+  supportCase CustomerSupportCase @relation(fields: [caseId], references: [id])
   actorId String?
   action String
   privateNote String?
