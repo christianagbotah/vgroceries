@@ -126,6 +126,7 @@ import type {
   CreateDeliveryRouteRuleRequest,
   UpdateDeliveryRouteRuleRequest,
   ActivateDeliveryRouteRuleRequest,
+  CashierWorkspace,
   SessionLookupResponse,
   WebSessionResponse,
 } from "./contracts";
@@ -332,6 +333,9 @@ export const apiOps = {
   order: (orderId: string) => api<AdminOrderDetail>("admin.order", { query: { orderId } }),
   orderAction: (body: Record<string, unknown>) => api<PublicOrder>("admin.order.action", { body }),
   fulfilment: () => api<FulfilmentQueues>("admin.fulfilment"),
+
+  /* Real cashier — read-only, server-scoped UAT workspace. */
+  cashierWorkspace: () => api<CashierWorkspace>("cashier.workspace"),
 
   /* POS */
   posSearch: (q: string) => api<PosSearchRow[]>("admin.pos.search", { query: { q } }),

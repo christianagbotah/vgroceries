@@ -25,6 +25,7 @@ export * from "./returns";
 export * from "./inventory";
 export * from "./pos";
 export * from "./cashier-tills";
+export * from "./cashier-workspace";
 export * from "./pos-quote";
 export * from "./pos-holds";
 export * from "./pos-cash-sales";

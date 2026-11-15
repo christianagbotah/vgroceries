@@ -35,7 +35,9 @@ export function StaffLoginForm({ demoEnabled = false }: { demoEnabled?: boolean 
     let active = true;
     apiOps.staffSession().then((session) => {
       if (!active) return;
-      if (session.actor.role === "admin" || session.actor.role === "inventory_manager") {
+      if (session.actor.role === "cashier") {
+        router.replace("/staff/cashier/workspace");
+      } else if (session.actor.role === "admin" || session.actor.role === "inventory_manager") {
         router.replace(safeReturnPath);
       }
     }).catch(() => undefined);
@@ -57,9 +59,14 @@ export function StaffLoginForm({ demoEnabled = false }: { demoEnabled?: boolean 
     setError(null);
     try {
       const session = await apiOps.staffLogin(email, password);
+      if (session.actor.role === "cashier") {
+        router.replace("/staff/cashier/workspace");
+        router.refresh();
+        return;
+      }
       if (session.actor.role !== "admin" && session.actor.role !== "inventory_manager") {
         await apiOps.staffLogout().catch(() => undefined);
-        setError("This account does not have back-office access.");
+        setError("This account does not have staff access.");
         return;
       }
       router.replace(returnPath);
