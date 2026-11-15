@@ -45,6 +45,9 @@ jobs:
           npm run --prefix apps/api generate
       - name: Apply migrations to empty PostgreSQL
         run: npm run --prefix apps/api migrate:deploy
+      - name: Block destructive Prisma drift on fresh migrated PostgreSQL
+        working-directory: apps/api
+        run: bash scripts/assert-safe-schema-drift.sh
       - name: API integration and security tests
         run: npm test --prefix apps/api
       - name: Confirm production OpenAPI is deterministic and matches implementation
