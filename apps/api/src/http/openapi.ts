@@ -399,13 +399,17 @@ export function foundationOpenApi(app: INestApplication) {
         "/admin/pos/holds/{holdId}",
         "/admin/pos/holds/{holdId}/release",
       ].includes(suffix);
+      const documentedPasswordRecovery = [
+        "/auth/password-reset/request",
+        "/auth/password-reset/complete",
+      ].includes(suffix);
       const documentedStaff = [
         "/admin/staff",
         "/admin/staff/invitations",
         "/admin/staff/{staffId}/actions",
         "/auth/staff-invitations/accept",
       ].includes(suffix);
-      if (productionExtension || documentedProviderReturn || documentedPosTill || documentedStaff) continue;
+      if (productionExtension || documentedProviderReturn || documentedPosTill || documentedStaff || documentedPasswordRecovery) continue;
       throw new Error(`Undocumented foundation endpoint: ${path}`);
     }
     for (const method of ["get", "post"] as const) {

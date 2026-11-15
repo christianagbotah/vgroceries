@@ -10,19 +10,63 @@ import {
 } from "@nestjs/common";
 import { ApiBody, ApiCookieAuth, ApiTags } from "@nestjs/swagger";
 import type { Response } from "express";
-import { loginRequestSchema, refreshRequestSchema, registerRequestSchema } from "@variety/contracts";
+import { loginRequestSchema, refreshRequestSchema, registerRequestSchema, requestPasswordResetSchema, completePasswordResetSchema } from "@variety/contracts";
 import { API_CONFIG, ApiConfig } from "../config";
 import { ApiProblem, ApiRequest } from "../http/errors";
 import { AccessGuard } from "./access.guard";
 import { AuthRequest, IdentityService } from "./identity.service";
+import { PasswordRecoveryService } from "./password-recovery.service";
 
 @ApiTags("identity")
 @Controller("auth")
 export class IdentityController {
   constructor(
     private readonly identity: IdentityService,
+    private readonly recovery: PasswordRecoveryService,
     @Inject(API_CONFIG) private readonly config: ApiConfig,
   ) {}
+  @Post("password-reset/request")
+  @ApiBody({
+    schema: {
+      type: "object",
+      required: ["email"],
+      properties: { email: { type: "string", format: "email", maxLength: 254 } },
+      additionalProperties: false,
+    },
+  })
+  async requestPasswordReset(@Body() raw: unknown, @Req() req: ApiRequest) {
+    if (!this.config.passwordRecoveryEnabled)
+      throw new ApiProblem(503, "FEATURE_DISABLED", "Password recovery is not enabled.");
+    const parsed = requestPasswordResetSchema.safeParse(raw);
+    if (!parsed.success)
+      throw new ApiProblem(400, "VALIDATION_FAILED", "Enter a valid recovery email.");
+    return { ok: true, data: await this.recovery.requestReset(parsed.data.email, req) };
+  }
+
+  @Post("password-reset/complete")
+  @ApiBody({
+    schema: {
+      type: "object",
+      required: ["token", "password"],
+      properties: {
+        token: { type: "string", pattern: "^[a-f0-9]{64}$" },
+        password: { type: "string", minLength: 12, maxLength: 256 },
+      },
+      additionalProperties: false,
+    },
+  })
+  async completePasswordReset(@Body() raw: unknown, @Req() req: ApiRequest) {
+    if (!this.config.passwordRecoveryEnabled)
+      throw new ApiProblem(503, "FEATURE_DISABLED", "Password recovery is not enabled.");
+    const parsed = completePasswordResetSchema.safeParse(raw);
+    if (!parsed.success)
+      throw new ApiProblem(400, "VALIDATION_FAILED", "Invalid password reset request.");
+    return {
+      ok: true,
+      data: await this.recovery.completeReset(parsed.data.token, parsed.data.password, req),
+    };
+  }
+
   @Post("register")
   @ApiBody({
     schema: {
