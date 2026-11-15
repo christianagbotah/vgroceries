@@ -31,7 +31,7 @@ function request(path: string, cookie?: string, method = "GET") {
 function authenticated(role: string, id = "user-1") {
   globalThis.fetch = (async () => Response.json({
     ok: true, data: { actor: { role, id, name: "Test Staff", locationIds: ["loc_accra"] } },
-  })) as typeof fetch;
+  })) as unknown as typeof fetch;
 }
 
 describe("staging operational HTML routing", () => {
