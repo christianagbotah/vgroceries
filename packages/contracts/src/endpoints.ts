@@ -79,6 +79,11 @@ export const restEndpoints: Record<string, RestEndpoint> = {
   "admin.inventory.adjustments": {"method": "GET", "path": "/inventory/adjustments"},
   "admin.inventory.adjustments.create": {"method": "POST", "path": "/inventory/adjustments/create"},
   "admin.inventory.adjustments.decide": {"method": "POST", "path": "/inventory/adjustments/decide"},
+  // Real staff-only routes: separate from legacy demo correction shape.
+  "inventory.verified.adjustments.lots": {"method": "GET", "path": "/inventory/adjustments/lots"},
+  "inventory.verified.adjustments.history": {"method": "GET", "path": "/inventory/adjustments"},
+  "inventory.verified.adjustments.create": {"method": "POST", "path": "/inventory/adjustments/create"},
+  "inventory.verified.adjustments.decide": {"method": "POST", "path": "/inventory/adjustments/decide"},
   "admin.inventory.stocktakes": {"method": "GET", "path": "/inventory/stocktakes"},
   "admin.inventory.stocktakes.open": {"method": "POST", "path": "/inventory/stocktakes/open"},
   "admin.inventory.stocktakes.count": {"method": "POST", "path": "/inventory/stocktakes/count"},

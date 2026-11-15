@@ -64,6 +64,18 @@ export class InventoryController {
   }
   // Real stock corrections require separate inventory manager request and
   // administrator decision. Disabled until independent physical-count UAT.
+  @Get("adjustments/lots")
+  @Permission("inventory.read")
+  async adjustmentLots(@Req() req: AuthRequest, @Query() query: Record<string, unknown>) {
+    const parsed = z.strictObject({
+      locationId: z.string().regex(/^[A-Za-z0-9_-]{1,128}$/).optional(),
+      q: z.string().trim().max(120).optional(),
+    }).safeParse(query);
+    if (!parsed.success)
+      throw new ApiProblem(400, "VALIDATION_FAILED", "Invalid stock lot lookup filters.");
+    return {ok: true, data: await this.adjustments.lotOptions(req, parsed.data)};
+  }
+
   @Get("adjustments")
   @Permission("inventory.read")
   async adjustmentList(@Req() req: AuthRequest, @Query() query: Record<string, unknown>) {

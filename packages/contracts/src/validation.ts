@@ -24,6 +24,7 @@ import { pickupAppointmentViewSchema,bookPickupAppointmentRequestSchema,
   pickupCentreClosureInputSchema } from "./pickup-appointments";
 import { pickupAttendanceInputSchema } from "./pickup-attendance";
 import { loginRequestSchema, registerRequestSchema } from "./identity";
+import { requestAdjustmentSchema, decideAdjustmentSchema } from "./inventory-adjustments";
 import { paymentInitiationRequestSchema } from "./payments";
 import { cmsContentPageDraftRequestSchema, cmsHomepageDraftSchema } from "./cms";
 import {
@@ -697,6 +698,8 @@ export const requestSchemas: Record<string, z.ZodTypeAny> = {
   "admin.sessions.close": sessionCloseRequestSchema,
   "admin.inventory.receive": receiveRequestSchema,
   "admin.inventory.adjustments.create": adjustmentCreateRequestSchema,
+  "inventory.verified.adjustments.create": requestAdjustmentSchema,
+  "inventory.verified.adjustments.decide": decideAdjustmentSchema,
   "admin.inventory.stocktakes.count": stocktakeCountRequestSchema,
   "admin.dispatch.assign": legacyDispatchAssignRequestSchema,
   "admin.refund.action": legacyRefundActionRequestSchema,

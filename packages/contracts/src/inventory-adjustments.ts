@@ -39,3 +39,18 @@ export const adjustmentHistorySchema = z.array(adjustmentHistoryRowSchema);
 
 export type RequestAdjustment = z.infer<typeof requestAdjustmentSchema>;
 export type DecideAdjustment = z.infer<typeof decideAdjustmentSchema>;
+
+export const stockAdjustmentLotOptionsSchema = z.strictObject({
+  selectedLocationId: z.string(),
+  locations: z.array(z.strictObject({id:z.string(),name:z.string()})).max(100),
+  lots: z.array(z.strictObject({
+    id:z.string(), variantId:z.string(),
+    productName:z.string(), variantName:z.string(), lotNumber:z.string(),
+    quantity:z.string(),unit:z.string(),eligible:z.boolean(),
+    ineligibleReason:z.string().nullable(),
+  })).max(150),
+  capped:z.boolean(),
+});
+export type StockAdjustmentLotOptions=z.infer<typeof stockAdjustmentLotOptionsSchema>;
+export type StockAdjustmentHistory=z.infer<typeof adjustmentHistorySchema>;
+export type StockAdjustmentOutcome=z.infer<typeof adjustmentOutcomeSchema>;

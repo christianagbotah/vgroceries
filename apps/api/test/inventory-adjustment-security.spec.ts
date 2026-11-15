@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { InventoryAdjustmentService } from "../src/inventory/inventory-adjustment.service";
 import { hasPermission } from "../src/identity/permissions";
-import { requestAdjustmentSchema, decideAdjustmentSchema } from "@variety/contracts";
+import { requestAdjustmentSchema, decideAdjustmentSchema, validateRequest } from "@variety/contracts";
 import { ApiProblem } from "../src/http/errors";
 
 const actor = (role: string, locations: string[] = ["loc_accra"]) => ({
@@ -81,4 +81,20 @@ test("zero quantity corrections fail before DB access", async () => {
     await assert.rejects(svc.request(actor("admin"), { ...body, delta }, "valid-key-123"),
       (e) => rejects(e, 400));
   }
+});
+
+test("verified browser request contract rejects demo actor fields and legacy batch form", () => {
+  const shape={lotId:"lot-rice",variantId:"var-rice",locationId:"loc_accra",
+    delta:"-2",reason:"Physical count discrepancy"};
+  assert.equal(validateRequest("inventory.verified.adjustments.create",shape).ok,true);
+  assert.equal(validateRequest("inventory.verified.adjustments.create",
+    {...shape,actor:"synthetic-admin"}).ok,false);
+  assert.equal(validateRequest("inventory.verified.adjustments.create",
+    {lines:[{lotId:"lot-rice",variantId:"var-rice",delta:"-2",
+      reason:"Physical count discrepancy"}]}).ok,false);
+  assert.equal(validateRequest("inventory.verified.adjustments.decide",
+    {adjustmentId:"3a25da17-889a-45f8-90de-49c1043394a1",decision:"approve"}).ok,true);
+  assert.equal(validateRequest("inventory.verified.adjustments.decide",
+    {adjustmentId:"3a25da17-889a-45f8-90de-49c1043394a1",
+      decision:"approve",actor:"admin"}).ok,false);
 });
