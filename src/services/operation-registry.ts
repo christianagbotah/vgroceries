@@ -180,6 +180,9 @@ export const operationMeta: Record<string, OperationMeta> = {
   "admin.logistics.route-rule.activate": { invalidates: [...LOGISTICS, ...CONF] },
   "admin.logistics.route-rule.simulate": { tags: LOGISTICS },
   "admin.logistics.shipments": { tags: [...LOGISTICS, ...ORD, ...DEL] },
+  "admin.logistics.pickup-attendance": { tags: [...LOGISTICS, ...ORD] },
+  "admin.logistics.pickup-attendance.context": { tags: [...LOGISTICS, ...ORD] },
+  "admin.logistics.pickup-attendance.record": { invalidates: [...LOGISTICS, ...ORD] },
   "admin.logistics.shipment": { tags: [...LOGISTICS, ...ORD, ...DEL] },
   "admin.logistics.shipment.collect": { invalidates: [...LOGISTICS, ...ORD, ...DEL] },
 

@@ -1,39 +1,18 @@
 import { Inject, Injectable } from "@nestjs/common";
-import { z } from "zod";
+import { pickupAttendanceInputSchema, pickupAttendanceRecordSchema, pickupAttendanceContextSchema, type PickupAttendanceInput } from "@variety/contracts";
+export { pickupAttendanceInputSchema } from "@variety/contracts";
 import { API_CONFIG, type ApiConfig } from "../config";
 import { Database } from "../database/database";
 import { ApiProblem } from "../http/errors";
 import { logisticsCommandHash } from "./logistics.values";
 
-export const pickupAttendanceInputSchema = z.discriminatedUnion("kind", [
-  z.object({
-    kind: z.literal("late_arrival"),
-    reason: z.enum(["customer_arrived_after_start", "centre_delay", "other"]),
-    note: z.string().trim().min(3).max(350).optional(),
-  }).strict(),
-  z.object({
-    kind: z.literal("missed_window"),
-    reason: z.enum(["customer_not_present", "customer_unreachable", "other"]),
-    note: z.string().trim().min(3).max(350).optional(),
-  }).strict(),
-]);
-export type PickupAttendanceInput = z.infer<typeof pickupAttendanceInputSchema>;
-
-const attendanceViewSchema = z.object({
-  id: z.string(), orderId: z.string(), nodeId: z.string(),
-  appointmentBookedAt: z.string().datetime(),
-  startsAt: z.string().datetime(), endsAt: z.string().datetime(),
-  kind: z.enum(["late_arrival", "missed_window"]),
-  reason: z.string(), note: z.string().nullable(),
-  observedAt: z.string().datetime(), recordedById: z.string(),
-});
 function view(record: {
   id: string; orderId: string; nodeId: string;
   appointmentBookedAt: Date; startsAt: Date; endsAt: Date;
   kind: string; reason: string; note: string | null;
   observedAt: Date; recordedById: string;
 }) {
-  return attendanceViewSchema.parse({
+  return pickupAttendanceRecordSchema.parse({
     id: record.id, orderId: record.orderId, nodeId: record.nodeId,
     appointmentBookedAt: record.appointmentBookedAt.toISOString(),
     startsAt: record.startsAt.toISOString(), endsAt: record.endsAt.toISOString(),
@@ -50,6 +29,61 @@ function view(record: {
 @Injectable()
 export class PickupAttendanceService {
   constructor(private readonly db: Database, @Inject(API_CONFIG) private readonly config: ApiConfig) {}
+
+  /**
+   * Advisory admin UI context. Does not reserve a slot or grant mutation
+   * authority: record() always rechecks all evidence within its order lock.
+   */
+  async context(orderId: string) {
+    const order = await this.db.order.findUnique({ where: { id: orderId }, select: {
+      paymentStatus: true, fulfilmentStatus: true, cancelledAt: true,
+      stockConsumedAt: true,
+      pickupAppointment: true,
+      pickupSnapshot: { select: { nodeId: true } },
+      refunds: { select: { status: true } },
+      shipments: { where: { sequence: 1 }, take: 1, select: {
+        status: true, destinationKind: true, finalPickupNodeId: true,
+        currentNodeId: true, custody: true, completedAt: true, currentLegId: true,
+      } },
+    } });
+    if (!order) throw new ApiProblem(404, "NOT_FOUND", "Order not found.");
+    const appointment = order.pickupAppointment;
+    const shipment = order.shipments[0];
+    const centre = appointment ? await this.db.logisticsNode.findUnique({
+      where: { id: appointment.nodeId }, select: {
+        active: true, customerVisible: true, kind: true,
+        pickupAppointmentPolicy: { select: { active: true } },
+      },
+    }) : null;
+    const enabled = this.config.customerPickupEnabled &&
+      this.config.shipmentExecutionEnabled && this.config.pickupAttendanceEnabled;
+    const eligible = !!(enabled && appointment?.status === "booked" &&
+      order.paymentStatus === "succeeded" && order.fulfilmentStatus === "dispatched" &&
+      !order.cancelledAt && order.stockConsumedAt &&
+      order.pickupSnapshot?.nodeId === appointment.nodeId &&
+      shipment?.status === "ready_for_pickup" &&
+      shipment.destinationKind === "pickup_point" &&
+      shipment.finalPickupNodeId === appointment.nodeId &&
+      shipment.currentNodeId === appointment.nodeId &&
+      ["node_staff", "source_staff"].includes(shipment.custody ?? "") &&
+      !shipment.currentLegId && !shipment.completedAt &&
+      !order.refunds.some(r => ["awaiting_approval", "approved", "processing",
+        "requires_review", "succeeded"].includes(r.status)) &&
+      centre?.active && centre.customerVisible &&
+      centre.kind === "pickup_point" && centre.pickupAppointmentPolicy?.active);
+    const now = Date.now();
+    return pickupAttendanceContextSchema.parse({
+      enabled,
+      canRecordLateArrival: eligible && now >= appointment!.startsAt.getTime(),
+      canRecordMissedWindow: eligible && now >= appointment!.endsAt.getTime(),
+      appointment: appointment ? {
+        status: appointment.status,
+        startsAt: appointment.startsAt.toISOString(),
+        endsAt: appointment.endsAt.toISOString(),
+        bookedAt: appointment.bookedAt.toISOString(),
+      } : null,
+    });
+  }
 
   async list(orderId: string) {
     const order = await this.db.order.findUnique({
@@ -90,7 +124,7 @@ export class PickupAttendanceService {
         if (previous.requestHash !== requestHash)
           throw new ApiProblem(409, "IDEMPOTENCY_CONFLICT",
             "Attendance idempotency key was reused with different observations.");
-        return attendanceViewSchema.parse(previous.outcome);
+        return pickupAttendanceRecordSchema.parse(previous.outcome);
       }
 
       const order = await tx.order.findUnique({

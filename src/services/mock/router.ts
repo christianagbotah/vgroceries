@@ -1503,7 +1503,10 @@ export async function handleApi(req: ApiRequest): Promise<ApiResult> {
         return ok({ items: [], page: Math.max(1, n("page") || 1), perPage: Math.max(1, n("perPage") || 20), total: 0 });
       case "admin.logistics.shipment":
       case "admin.logistics.shipment.collect":
-        throw new OpError("UNAVAILABLE", "Verified shipment execution is unavailable in demo mode. Use a release-approved, authenticated backend.");
+      case "admin.logistics.pickup-attendance":
+      case "admin.logistics.pickup-attendance.context":
+      case "admin.logistics.pickup-attendance.record":
+        throw new OpError("UNAVAILABLE", "Verified pickup records require an authenticated release-approved API. Demo mode never fabricates attendance.");
 
       /* ---------------- Staff: dispatch & riders ---------------- */
       case "admin.dispatch.queue": {

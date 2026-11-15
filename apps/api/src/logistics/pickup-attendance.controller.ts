@@ -27,6 +27,12 @@ export class AdminPickupAttendanceController {
     return { ok: true, data: await this.attendance.list(orderId) };
   }
 
+  @Get("context")
+  async context(@Req() req: AuthRequest, @Param("orderId") orderId: string) {
+    this.admin(req);
+    return { ok: true, data: await this.attendance.context(orderId) };
+  }
+
   @Post() @HttpCode(200)
   async record(@Req() req: AuthRequest, @Param("orderId") orderId: string, @Body() raw: unknown) {
     this.admin(req);

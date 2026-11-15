@@ -22,6 +22,7 @@ import { physicalReturnReceiveSchema,physicalReturnInspectSchema,physicalReturnQ
 import { pickupAppointmentViewSchema,bookPickupAppointmentRequestSchema,
   cancelPickupAppointmentRequestSchema,pickupAppointmentPolicyInputSchema,
   pickupCentreClosureInputSchema } from "./pickup-appointments";
+import { pickupAttendanceInputSchema } from "./pickup-attendance";
 import { loginRequestSchema, registerRequestSchema } from "./identity";
 import { paymentInitiationRequestSchema } from "./payments";
 import { cmsContentPageDraftRequestSchema, cmsHomepageDraftSchema } from "./cms";
@@ -675,6 +676,7 @@ export const requestSchemas: Record<string, z.ZodTypeAny> = {
   "pickup.appointment.cancel": withoutTransportReplay(cancelPickupAppointmentRequestSchema),
   "admin.logistics.pickup-policy.save": withoutTransportReplay(pickupAppointmentPolicyInputSchema),
   "admin.logistics.pickup-closures.save": withoutTransportReplay(pickupCentreClosureInputSchema),
+  "admin.logistics.pickup-attendance.record": withoutTransportReplay(pickupAttendanceInputSchema),
   "account.return-claim.create": withoutTransportReplay(customerReturnClaimRequestSchema),
   "account.return-claim.cancel": withoutTransportReplay(customerReturnClaimCancelSchema),
   "admin.return-claim.decision": withoutTransportReplay(customerReturnClaimDecisionSchema),
