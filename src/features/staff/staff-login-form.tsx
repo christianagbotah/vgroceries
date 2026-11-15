@@ -145,6 +145,10 @@ export function StaffLoginForm({ demoEnabled = false }: { demoEnabled?: boolean 
           </CardContent>
         </Card>
 
+        {process.env.NEXT_PUBLIC_STAFF_ONBOARDING_UAT === "1" ? (
+          <p className="text-center text-sm"><Link className="font-medium text-primary hover:underline" href="/staff/activate">Activate a new cashier account</Link></p>
+        ) : null}
+
         <p className="text-center text-sm text-muted-foreground">
           <Link href="/" className="inline-flex items-center gap-1.5 font-medium hover:underline"><Store className="size-4" aria-hidden /> Back to the storefront</Link>
         </p>

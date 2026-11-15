@@ -127,6 +127,8 @@ import type {
   UpdateDeliveryRouteRuleRequest,
   ActivateDeliveryRouteRuleRequest,
   CashierWorkspace,
+  StaffList, StaffRow, InviteCashierRequest,
+  ManageCashierRequest, AcceptCashierInvitationRequest, IssuedCashierInvitation,
   SessionLookupResponse,
   WebSessionResponse,
 } from "./contracts";
@@ -336,6 +338,14 @@ export const apiOps = {
 
   /* Real cashier — read-only, server-scoped UAT workspace. */
   cashierWorkspace: () => api<CashierWorkspace>("cashier.workspace"),
+  // Real, server-verified onboarding only; never a demo/mock staff writer.
+  staffRealList: () => api<StaffList>("staff.admin.list"),
+  staffInvite: (body: InviteCashierRequest) =>
+    api<IssuedCashierInvitation>("staff.admin.invite", { body: body as Record<string, unknown> }),
+  staffManageCashier: (staffId: string, body: ManageCashierRequest) =>
+    api<StaffRow>("staff.admin.action", { query: { staffId }, body: body as Record<string, unknown> }),
+  staffAcceptInvitation: (body: AcceptCashierInvitationRequest) =>
+    api<{ activated: true }>("staff.invitation.accept", { body: body as Record<string, unknown> }),
 
   /* POS */
   posSearch: (q: string) => api<PosSearchRow[]>("admin.pos.search", { query: { q } }),

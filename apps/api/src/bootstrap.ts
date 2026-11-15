@@ -19,6 +19,7 @@ import { PhysicalReturnsModule } from "./physical-returns/physical-returns.modul
 import {CustomerReturnClaimsModule} from "./customer-return-claims/customer-return-claims.module";
 import {CashierTillsModule} from "./cashier-tills/cashier-tills.module";
 import { IdentityModule } from "./identity/identity.module";
+import { StaffManagementModule } from "./staff-management/staff-management.module";
 import { DatabaseModule } from "./database/database";
 import { HealthModule } from "./health/health.controller";
 import { CmsModule } from "./cms/cms.module";
@@ -73,6 +74,7 @@ export async function createApplication(
       DatabaseModule,
       HealthModule,
       IdentityModule,
+      StaffManagementModule,
       CatalogModule,
       CatalogAdminModule,
       CmsModule,
