@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { apiOps, ApiError } from "@/services/client";
 import type { PickupAppointmentOptions, PickupAppointmentSlot } from "@/services/contracts";
+import { classifyPickupAppointmentWindow } from "@/features/logistics/pickup-appointment-window";
 import { Button } from "@/components/ui/button";
 import { Clock3, CalendarCheck, ShieldCheck, RefreshCcw } from "lucide-react";
 
@@ -19,7 +20,15 @@ export function PickupAppointmentManager({
   const [selected, setSelected] = useState<string>("");
   const [saving, setSaving] = useState(false);
   const [confirmCancel, setConfirmCancel] = useState(false);
+  const [clockMs, setClockMs] = useState<number | null>(null);
   const pendingKey = useRef<{intent:string;key:string}|null>(null);
+  useEffect(() => {
+    // Classify appointment timing only after mount, avoiding SSR hydration drift.
+    const tick = () => setClockMs(Date.now());
+    tick();
+    const timer = setInterval(tick, 60_000);
+    return () => clearInterval(timer);
+  }, []);
   const refresh = useCallback(async () => {
     const next = await apiOps.pickupAppointments(orderId);
     setOptions(next);
@@ -44,6 +53,7 @@ export function PickupAppointmentManager({
     (options?.slots ?? []).filter(s => s.available > 0), [options?.slots]);
   const current = options?.appointment;
   const booked = current?.status === "booked";
+  const windowState = classifyPickupAppointmentWindow(current, clockMs);
 
   async function act(kind: "book" | "cancel") {
     if (saving || (kind === "book" && !options?.ready)) return;
@@ -91,6 +101,10 @@ export function PickupAppointmentManager({
         {booked ? "Your booked appointment" : current.status === "completed" ? "Collection appointment completed" : "Previous appointment cancelled"}
       </p>
       <p className="mt-1 text-sm">{display(current.startsAt)} – {new Intl.DateTimeFormat("en-GH", {timeStyle:"short",timeZone:"Africa/Accra"}).format(new Date(current.endsAt))}</p>
+      {booked && windowState === "elapsed" ? <div role="status" className="mt-3 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950">
+        <p className="font-semibold">Your scheduled collection window has passed.</p>
+        <p className="mt-1">This is a scheduling notice only: your order has not been automatically cancelled, collected or refunded. {options?.enabled && options.ready ? "You can select a new available collection time below, or contact the centre." : "Please contact the collection centre for guidance before travelling."}</p>
+      </div> : null}
       {booked ? <div className="mt-3 flex flex-wrap items-center gap-2">
         {!confirmCancel ? <Button size="sm" variant="outline" disabled={saving} onClick={() => setConfirmCancel(true)}>Cancel appointment</Button> :
           <>

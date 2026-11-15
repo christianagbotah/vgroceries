@@ -10,7 +10,7 @@ import { useCart } from "@/features/checkout/cart-store";
 import { WishlistButton } from "@/features/catalog/wishlist-button";
 import { apiOps, type CatalogProduct } from "@/services/client";
 import { formatMoney } from "@/lib/money";
-import { Check, ShoppingCart, Star } from "lucide-react";
+import { Check, ShoppingCart } from "lucide-react";
 import { cmpQty, subQty } from "@/lib/quantity";
 
 export function ProductTile({ product, priority }: { product: CatalogProduct; priority?: boolean }) {
@@ -20,7 +20,8 @@ export function ProductTile({ product, priority }: { product: CatalogProduct; pr
   const [variantId, setVariantId] = useState(available[0]?.id ?? product.variants[0]?.id ?? "");
   const [liveQuantities, setLiveQuantities] = useState<Record<string, string>>({});
   const [adding, setAdding] = useState(false);
-  const original = product.variants.find((v) => v.id === variantId) ?? available[0];
+  // Never silently replace a shopper-selected pack with a different SKU.
+  const original = product.variants.find((v) => v.id === variantId);
   const knownQty = original ? liveQuantities[original.id] ?? original.availableToSell : "0";
   const chosen = original ? { ...original, availableToSell: knownQty, isAvailable: cmpQty(knownQty, "0") > 0 } : undefined;
   const inCart = useCart((state) => state.lines.find((line) => line.variantId === chosen?.id)?.quantity ?? "0");
@@ -31,7 +32,7 @@ export function ProductTile({ product, priority }: { product: CatalogProduct; pr
   const productImage = product.featuredImage?.url ?? product.image;
 
   const quickAdd = async () => {
-    if (!chosen || !stockRemaining || adding) return;
+    if (!chosen?.isAvailable || !stockRemaining || adding) return;
     setAdding(true);
     try {
       // Refresh this exact SKU before add: another shopper may have reserved
@@ -71,8 +72,8 @@ export function ProductTile({ product, priority }: { product: CatalogProduct; pr
         <Link href={`/products/${product.slug}`} className="absolute inset-0 focus-visible:outline-2" aria-label={`${product.name} — view details`}>
           <Image src={productImage} alt={product.featuredImage?.altText || `${product.name} product photo`} fill unoptimized={Boolean(product.featuredImage)} sizes="(max-width:640px) 50vw, (max-width:1024px) 25vw, 190px" className="object-cover transition-transform duration-300 group-hover:scale-[1.035]" priority={priority} />
         </Link>
-        {chosen?.compareAtPriceMinor ? <span className="absolute left-2 top-2 rounded-full bg-brand-amber px-2 py-1 text-[10px] font-black text-[color:var(--brand-green-deep)] shadow-sm">Offer</span> : null}
-        {chosen ? <WishlistButton
+        {chosen?.isAvailable && chosen.compareAtPriceMinor ? <span className="absolute left-2 top-2 rounded-full bg-brand-amber px-2 py-1 text-[10px] font-black text-[color:var(--brand-green-deep)] shadow-sm">Offer</span> : null}
+        {chosen?.isAvailable ? <WishlistButton
           compact
           className="absolute right-2 top-2"
           item={{ variantId: chosen.id, productId: product.id, name: `${product.name} — ${chosen.name}`, image: productImage, priceMinor: chosen.priceMinor, slug: product.slug }}
@@ -80,19 +81,15 @@ export function ProductTile({ product, priority }: { product: CatalogProduct; pr
       </div>
 
       <div className="flex flex-1 flex-col p-2.5 sm:p-3">
-        <div className="mb-1 flex items-center gap-1 text-[10px] font-semibold text-brand-amber" aria-label="Popular product preview">
-          <Star className="size-3 fill-current" /><Star className="size-3 fill-current" /><Star className="size-3 fill-current" /><Star className="size-3 fill-current" /><Star className="size-3 fill-current" />
-          <span className="ml-0.5 text-muted-foreground">demo</span>
-        </div>
-        <Link href={`/products/${product.slug}`} className="line-clamp-2 text-[13px] font-extrabold leading-snug tracking-[-0.01em] hover:text-primary hover:underline sm:text-sm">{product.name}</Link>
+        <Link href={`/products/${product.slug}`} className="line-clamp-2 text-sm font-extrabold leading-snug tracking-[-0.01em] hover:text-primary hover:underline sm:text-[15px]">{product.name}</Link>
 
         {product.variants.length > 1 && available.length > 0 ? (
           <Select value={variantId} onValueChange={setVariantId} aria-label={`${product.name} variant`}>
-            <SelectTrigger className="mt-2 h-8 w-full rounded-lg bg-muted/35 px-2 text-[11px] shadow-none" size="sm"><SelectValue placeholder="Choose size" /></SelectTrigger>
-            <SelectContent>{product.variants.map((v) => <SelectItem key={v.id} value={v.id} disabled={cmpQty(liveQuantities[v.id] ?? v.availableToSell, "0") <= 0}>{v.name} · {v.priceLabel}{cmpQty(liveQuantities[v.id] ?? v.availableToSell, "0") > 0 ? "" : " (out of stock)"}</SelectItem>)}</SelectContent>
+            <SelectTrigger className="mt-2 h-11 min-h-11 w-full rounded-lg bg-muted/35 px-2 text-xs shadow-none sm:text-sm" size="sm"><SelectValue placeholder="Choose size" /></SelectTrigger>
+            <SelectContent>{product.variants.map((v) => <SelectItem key={v.id} value={v.id} className="min-h-11" disabled={cmpQty(liveQuantities[v.id] ?? v.availableToSell, "0") <= 0}>{v.name} · {v.priceLabel}{cmpQty(liveQuantities[v.id] ?? v.availableToSell, "0") > 0 ? "" : " (out of stock)"}</SelectItem>)}</SelectContent>
           </Select>
         ) : (
-          <p className="mt-1 truncate text-[11px] text-muted-foreground">{chosen?.name ?? product.variants[0]?.name}</p>
+          <p className="mt-1 truncate text-xs text-muted-foreground">{chosen?.name ?? "Choose an available size"}</p>
         )}
 
         <div className="mt-auto pt-2">
@@ -100,18 +97,19 @@ export function ProductTile({ product, priority }: { product: CatalogProduct; pr
             <p className="text-base font-black leading-none text-[color:var(--brand-green-deep)]">{chosen?.priceLabel ?? product.minPriceLabel}</p>
             {chosen?.compareAtPriceMinor ? <p className="text-[10px] leading-none text-muted-foreground line-through">{formatMoney(chosen.compareAtPriceMinor)}</p> : null}
           </div>
+          {!chosen?.isAvailable && available.length > 0 ? <p role="status" className="mb-2 text-xs font-medium text-amber-800">Selected size unavailable. Choose another available size.</p> : null}
           {chosen?.isAvailable ? (
             <>
               <p className={`mb-2 text-[11px] font-bold ${isLowStock ? "text-amber-700" : "text-muted-foreground"}`} aria-live="polite">
                 {isLowStock ? `Only ${chosen.availableToSell} left` : `${chosen.availableToSell} in stock`}
                 {cmpQty(inCart, "0") > 0 ? ` · ${inCart} in your cart` : ""}
               </p>
-            <Button disabled={!stockRemaining || adding} className="h-9 w-full rounded-xl text-[11px] font-extrabold sm:text-xs" onClick={quickAdd} aria-label={`Add ${product.name} (${chosen.name}) to cart`}>
+            <Button disabled={!stockRemaining || adding} className="h-11 w-full rounded-xl text-xs font-extrabold sm:text-sm" onClick={quickAdd} aria-label={`Add ${product.name} (${chosen.name}) to cart`}>
               <ShoppingCart className="size-3.5" /> {adding ? "Checking stock…" : stockRemaining ? "Add to cart" : "Stock limit reached"}
             </Button>
             </>
           ) : (
-            <Button size="sm" variant="outline" className="h-9 w-full rounded-xl" disabled>Sold out</Button>
+            <Button variant="outline" className="h-11 w-full rounded-xl" disabled>{available.length > 0 ? "Choose available size" : "Sold out"}</Button>
           )}
         </div>
       </div>
