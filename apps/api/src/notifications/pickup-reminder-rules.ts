@@ -48,7 +48,7 @@ export function pickupReminderOrderEligible(order: {
   paymentStatus: string;
   fulfilmentStatus: string;
   cancelledAt: Date | null;
-  pickupSnapshot: { nodeId: string } | null;
+  pickupSnapshot: { nodeId: string; node: { active: boolean; customerVisible: boolean; kind: string } } | null;
   refunds: readonly { status: string }[];
   shipments: readonly {
     status: string;
@@ -64,6 +64,8 @@ export function pickupReminderOrderEligible(order: {
     order.fulfilmentStatus === "dispatched" &&
     order.cancelledAt === null &&
     order.pickupSnapshot?.nodeId === nodeId &&
+    order.pickupSnapshot.node.active && order.pickupSnapshot.node.customerVisible &&
+    order.pickupSnapshot.node.kind === "pickup_point" &&
     !order.refunds.some(r => ["awaiting_approval", "approved", "processing",
       "requires_review", "succeeded"].includes(r.status)) &&
     !!shipment &&
