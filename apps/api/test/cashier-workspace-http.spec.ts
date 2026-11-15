@@ -6,6 +6,7 @@ import { createApplication } from "../src/bootstrap";
 import { readConfig } from "../src/config";
 import { Database } from "../src/database/database";
 import { CashierTillsService } from "../src/cashier-tills/cashier-tills.service";
+import { productionOpenApi } from "../src/http/production-openapi";
 
 let app: INestApplication;
 let db: Database;
@@ -98,4 +99,15 @@ test("HTTP previously authenticated cashier loses access after live branch revoc
   await db.userLocation.create({ data: { userId: "cashier-http", locationId: "branch-a" } });
   await db.location.update({ where: { id: "branch-a" }, data: { active: false } });
   assert.equal((await read(headers)).status, 403);
+});
+
+test("OpenAPI documents only a protected GET for cashier workspace", () => {
+  const paths = productionOpenApi(app).paths;
+  assert.equal(Object.keys(paths).length, 146);
+  const route = paths["/api/v1/cashier/pos/workspace"];
+  assert.ok(route?.get);
+  assert.equal(route?.post, undefined);
+  assert.deepEqual(route?.get?.security, [
+    { cookieAuth: [] }, { bearerAuth: [] },
+  ]);
 });
