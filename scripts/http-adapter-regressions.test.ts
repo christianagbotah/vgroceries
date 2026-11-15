@@ -91,6 +91,42 @@ describe("production HTTP contract", () => {
     expect(calls[0].key).toBe(idempotencyKey);
     expect(calls[0].body).toMatchObject({ idempotencyKey });
   });
+  test("verified stock correction uses a strict JSON body and header-only idempotency", async () => {
+    const body = {
+      lotId: "lot-rice", variantId: "var-rice", locationId: "loc_accra",
+      delta: "-2", reason: "Verified physical count discrepancy",
+    };
+    const key = "stock-review-20261115";
+    await new HttpServiceAdapter(`${base}/api/v1`).request({
+      op: "inventory.verified.adjustments.create", body, idempotencyKey: key,
+    });
+    expect(calls).toHaveLength(1);
+    expect(calls[0].method).toBe("POST");
+    expect(calls[0].path).toBe("/api/v1/inventory/adjustments/create");
+    expect(calls[0].key).toBe(key);
+    expect(calls[0].body).toEqual(body);
+    expect(calls[0].body).not.toHaveProperty("idempotencyKey");
+  });
+
+  test("strict stock correction still rejects conflicting or spoofed replay data", async () => {
+    const body = {
+      lotId: "lot-rice", variantId: "var-rice", locationId: "loc_accra",
+      delta: "-2", reason: "Verified physical count discrepancy",
+    };
+    const http = new HttpServiceAdapter(`${base}/api/v1`);
+    await expect(http.request({
+      op: "inventory.verified.adjustments.create",
+      body: { ...body, idempotencyKey: "wrong-body-key" },
+      idempotencyKey: "different-header-key",
+    })).rejects.toMatchObject({ code: "IDEMPOTENCY_CONFLICT" });
+    await expect(http.request({
+      op: "inventory.verified.adjustments.create",
+      body: { ...body, actor: "admin-commerce" },
+      idempotencyKey: "never-allow-actor",
+    })).rejects.toMatchObject({ code: "VALIDATION_FAILED" });
+    expect(calls).toHaveLength(0);
+  });
+
   test("conflicting header and body keys are rejected before sending", async () => {
     await expect(new HttpServiceAdapter(`${base}/api/v1`).request({ op: "checkout.complete", body: checkout,
       idempotencyKey: "different-key" })).rejects.toMatchObject({ code: "IDEMPOTENCY_CONFLICT" });

@@ -3,6 +3,9 @@ export interface RestEndpoint {
   method: "GET" | "POST";
   path: string;
   queryAliases?: Record<string, string>;
+  /** Opt-in strict REST action: retry token belongs in HTTP header only.
+   * Legacy/mock actions continue to receive replay metadata in JSON. */
+  replayTransport?: "headerOnly";
 }
 export const restEndpoints: Record<string, RestEndpoint> = {
   "auth.login": {"method": "POST", "path": "/auth/sessions"},
@@ -82,7 +85,7 @@ export const restEndpoints: Record<string, RestEndpoint> = {
   // Real staff-only routes: separate from legacy demo correction shape.
   "inventory.verified.adjustments.lots": {"method": "GET", "path": "/inventory/adjustments/lots"},
   "inventory.verified.adjustments.history": {"method": "GET", "path": "/inventory/adjustments"},
-  "inventory.verified.adjustments.create": {"method": "POST", "path": "/inventory/adjustments/create"},
+  "inventory.verified.adjustments.create": {"method": "POST", "path": "/inventory/adjustments/create", "replayTransport": "headerOnly"},
   "inventory.verified.adjustments.decide": {"method": "POST", "path": "/inventory/adjustments/decide"},
   "admin.inventory.stocktakes": {"method": "GET", "path": "/inventory/stocktakes"},
   "admin.inventory.stocktakes.open": {"method": "POST", "path": "/inventory/stocktakes/open"},
