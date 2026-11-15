@@ -1,13 +1,17 @@
-import { Injectable } from "@nestjs/common";
+import { Inject, Injectable } from "@nestjs/common";
 import { randomUUID } from "node:crypto";
 import { notificationCursorSchema, type NotificationListResponse } from "@variety/contracts";
 import { Database } from "../database/database";
+import { API_CONFIG, type ApiConfig } from "../config";
+import { PICKUP_REMINDER_TYPE, pickupReminderWindow,
+  pickupReminderEventId, pickupReminderPayloadMatches,
+  pickupReminderOrderEligible } from "./pickup-reminder-rules";
 import { ApiProblem } from "../http/errors";
 import { customerNotificationCopy, customerNotificationTypes, type CustomerNotificationType } from "./notification-templates";
 
 @Injectable()
 export class NotificationService {
-  constructor(private readonly db: Database) {}
+  constructor(private readonly db: Database, @Inject(API_CONFIG) private readonly config: ApiConfig) {}
 
   /** A durable, idempotent outbox consumer. Does not publish to any external provider. */
   async projectBatch(take = 100) {
@@ -19,7 +23,7 @@ export class NotificationService {
       if (!locks[0]?.locked) return { scanned: 0, created: 0, busy: true };
       const events = await tx.outboxEvent.findMany({
         where: { type: { in: [...customerNotificationTypes] }, notificationReceipt: { is: null } },
-        select: { id: true, type: true, aggregateId: true, createdAt: true },
+        select: { id: true, type: true, aggregateId: true, createdAt: true, payload: true },
         orderBy: [{ createdAt: "asc" }, { id: "asc" }],
         take,
       });
@@ -42,7 +46,26 @@ export class NotificationService {
         const recipient = order?.customerUser;
         const canNotify = !!(order && recipient?.role === "customer" && recipient.active
           && (!isReturnClaim || claim?.customerUserId === recipient.id));
-        const copy = canNotify && order
+        let reminderValid = event.type !== PICKUP_REMINDER_TYPE;
+        if (!reminderValid && order && this.config.pickupInAppRemindersEnabled &&
+            this.config.customerPickupEnabled && this.config.shipmentExecutionEnabled) {
+          // Serialize with booking/cancellation/physical handover (order-first).
+          await tx.$queryRaw`SELECT id FROM "Order" WHERE id=${order.id} FOR UPDATE`;
+          const appointment = await tx.pickupAppointment.findUnique({ where: { orderId: order.id } });
+          const fresh = await tx.order.findUnique({ where: { id: order.id }, select: {
+            paymentStatus: true, fulfilmentStatus: true, cancelledAt: true,
+            pickupSnapshot: { select: { nodeId: true } }, refunds: { select: { status: true } },
+            shipments: { where: { sequence: 1 }, take: 1, select: {
+              status: true, destinationKind: true, finalPickupNodeId: true,
+              currentNodeId: true, completedAt: true, currentLegId: true,
+            } },
+          } });
+          reminderValid = !!(appointment && fresh &&
+            pickupReminderPayloadMatches(event.payload, appointment) &&
+            appointment.startsAt.getTime() > Date.now() &&
+            pickupReminderOrderEligible(fresh, appointment.nodeId));
+        }
+        const copy = canNotify && order && reminderValid
           ? customerNotificationCopy(event.type as CustomerNotificationType, order.reference, order.fulfilment)
           : null;
         // A no-recipient receipt is essential so anonymous orders never starve the queue.
@@ -62,6 +85,77 @@ export class NotificationService {
       }
       return { scanned: events.length, created, busy: false };
     }, { timeout: 15000 });
+  }
+
+  /**
+   * Opt-in, manual-only UAT worker. Creates durable inbox outbox events,
+   * never calls any SMS, email or payment provider. Server-owned evidence
+   * must still match when the normal notification projector runs.
+   */
+  async stagePickupAppointmentReminders(take = 100, now = new Date()) {
+    if (!Number.isInteger(take) || take < 1 || take > 100)
+      throw new Error("Invalid pickup reminder batch size.");
+    if (!Number.isFinite(now.getTime())) throw new Error("Invalid reminder clock.");
+    if (!this.config.pickupInAppRemindersEnabled ||
+        !this.config.customerPickupEnabled || !this.config.shipmentExecutionEnabled)
+      return { disabled: true, scanned: 0, queued: 0 };
+
+    const upper = new Date(now.getTime() + 90 * 60_000);
+    let queued = 0, scanned = 0;
+    let cursor: string | undefined;
+    // Page beyond already-staged bookings, but impose a bounded scan per call.
+    for (let page = 0; page < 50 && queued < take; page++) {
+      const candidates = await this.db.pickupAppointment.findMany({
+        where: { status: "booked", startsAt: { gt: now, lte: upper } },
+        orderBy: [{ startsAt: "asc" }, { orderId: "asc" }],
+        ...(cursor ? { cursor: { orderId: cursor }, skip: 1 } : {}),
+        select: { orderId: true }, take: 100,
+      });
+      if (!candidates.length) break;
+      cursor = candidates[candidates.length - 1]!.orderId;
+      for (const candidate of candidates) {
+        scanned++;
+        const inserted = await this.db.$transaction(async tx => {
+          await tx.$queryRaw`SELECT id FROM "Order" WHERE id=${candidate.orderId} FOR UPDATE`;
+          const appointment = await tx.pickupAppointment.findUnique({
+            where: { orderId: candidate.orderId },
+          });
+          if (!appointment || appointment.status !== "booked" ||
+              !pickupReminderWindow(appointment.startsAt, now)) return 0;
+
+          const order = await tx.order.findUnique({ where: { id: candidate.orderId }, select: {
+            customerUser: { select: { id: true, role: true, active: true } },
+            paymentStatus: true, fulfilmentStatus: true, cancelledAt: true,
+            pickupSnapshot: { select: { nodeId: true } },
+            refunds: { select: { status: true } },
+            shipments: { where: { sequence: 1 }, take: 1, select: {
+              status: true, destinationKind: true, finalPickupNodeId: true,
+              currentNodeId: true, completedAt: true, currentLegId: true,
+            } },
+          } });
+          if (!order || order.customerUser?.role !== "customer" ||
+              !order.customerUser.active ||
+              !pickupReminderOrderEligible(order, appointment.nodeId)) return 0;
+          const id = pickupReminderEventId(appointment);
+          const created = await tx.outboxEvent.createMany({
+            data: [{
+              id, type: PICKUP_REMINDER_TYPE, aggregateId: candidate.orderId,
+              payload: {
+                nodeId: appointment.nodeId,
+                startsAt: appointment.startsAt.toISOString(),
+                bookedAt: appointment.bookedAt.toISOString(),
+              },
+            }],
+            skipDuplicates: true,
+          });
+          return created.count;
+        }, { timeout: 15000 });
+        queued += inserted;
+        if (queued >= take) break;
+      }
+      if (candidates.length < 100) break;
+    }
+    return { disabled: false, scanned, queued };
   }
 
   async list(recipientUserId: string, limit: number, cursor?: string): Promise<NotificationListResponse> {
