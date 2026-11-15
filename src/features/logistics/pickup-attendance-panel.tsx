@@ -8,7 +8,7 @@ import {
   type PickupAttendanceContext, type PickupAttendanceInput, type PickupAttendanceRecord,
 } from "@/services/contracts";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
@@ -176,7 +176,7 @@ export function PickupAttendancePanel({ orderId }: { orderId: string }) {
       </div>
       <div>
         <Label htmlFor={"attendance-note-" + orderId}>Additional observation (optional)</Label>
-        <Input id={"attendance-note-" + orderId} className="mt-1 min-h-11" value={note} maxLength={350}
+        <Textarea id={"attendance-note-" + orderId} className="mt-1 min-h-24 resize-y" rows={3} value={note} maxLength={350}
           onChange={e => changeNote(e.target.value)} disabled={saving} autoComplete="off"
           placeholder="Short factual note; avoid unnecessary personal details" />
         <p className="mt-1 text-xs text-muted-foreground">{note.length}/350 characters</p>
