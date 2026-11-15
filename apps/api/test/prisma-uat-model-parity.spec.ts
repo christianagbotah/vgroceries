@@ -65,3 +65,9 @@ test("cashier identity is supported by shared contracts without granting access"
   const actor = sessionActorSchema.parse({ id: "demo-id", name: "Demo Cashier", role: "cashier", locationIds: [] });
   assert.equal(actor.role, "cashier");
 });
+
+test("checked-in OpenAPI session actor matches the cashier contract", () => {
+  const documented = JSON.parse(readFileSync(join(process.cwd(), "..", "..", "docs", "openapi-foundation.json"), "utf8"));
+  const roles = documented.components.schemas.SessionActor.properties.role.enum;
+  assert.deepEqual(roles, ["admin", "inventory_manager", "cashier", "customer", "rider"]);
+});

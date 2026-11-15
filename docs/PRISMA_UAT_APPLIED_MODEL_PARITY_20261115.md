@@ -55,3 +55,27 @@ runtime feature and physical pickup acceptance gates.
 - Historical SQL migrations were **not changed**.
 - **Not yet checked in this branch:** full GitHub API/PostgreSQL security CI
   and restored-UAT database schema diff. Those are merge/deployment gates.
+
+## API workflow and read-only UAT comparison — follow-up
+
+- GitHub general CI passed on initial branch commit.
+- API foundation CI failed solely at the generated production OpenAPI snapshot
+  comparison: the schema's documented SessionActor role list did not yet include
+  the restored cashier role. Regenerated the tracked snapshot; its 145 API paths
+  were unchanged and only SessionActor changed.
+- Direct Prisma migration status on the existing UAT database (read-only):
+  **47 migration records applied; database schema up to date**.
+- Read-only live UAT-to-Prisma comparisons were executed against both the
+  previous canonical main schema and this candidate schema. The former would
+  propose five DROP TABLE statements and four POS customer identity DROP COLUMN
+  statements, plus existing foreign-key recreation statements. This branch
+  eliminates those destructive table/column proposals without adding new
+  destructive operations.
+- **Remaining pre-existing discrepancy:** 46 foreign-key DROP CONSTRAINT
+  statements are still proposed by Prisma's schema diff in both versions.
+  These have NOT been executed and need explicit relation/onDelete/constraint
+  parity review before *any future generated migration*. The comparison
+  did not apply SQL, modify UAT data or deploy an API.
+- The required isolated *restored-copy* check remains a separate merge safety
+  gate until independently verified. Database history and evidence backups
+  were not changed by this source-only repair.
