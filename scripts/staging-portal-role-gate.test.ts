@@ -61,7 +61,7 @@ describe("staging operational HTML routing", () => {
 
   test("feature OFF leaves unrelated routes and current staff login available", async () => {
     process.env.UAT_PORTAL_LOGIN_REQUIRED = "0";
-    globalThis.fetch = (async () => { throw Error("Should not probe identity when gate disabled."); }) as typeof fetch;
+    globalThis.fetch = (async () => { throw Error("Should not probe identity when gate disabled."); }) as unknown as typeof fetch;
     expect((await proxy(request("/staff/cashier/workspace"))).status).toBe(200);
     process.env.UAT_PORTAL_LOGIN_REQUIRED = "1";
     expect((await proxy(request("/staff/activate"))).status).toBe(200);
@@ -86,7 +86,7 @@ describe("staging operational HTML routing", () => {
     expect((await proxy(request("/staff/cashier/workspace", token))).status).toBe(307);
     authenticated("admin");
     expect((await proxy(request("/staff/cashier/workspace", token))).status).toBe(307);
-    globalThis.fetch = (async () => { throw Error("backend unavailable"); }) as typeof fetch;
+    globalThis.fetch = (async () => { throw Error("backend unavailable"); }) as unknown as typeof fetch;
     expect((await proxy(request("/staff/cashier/workspace", token))).status).toBe(307);
     delete process.env.API_BASE_URL;
     expect((await proxy(request("/staff/cashier/workspace", token))).status).toBe(307);
