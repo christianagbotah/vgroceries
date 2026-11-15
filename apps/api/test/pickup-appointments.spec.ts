@@ -9,6 +9,7 @@ import { ShipmentCollectionService } from "../src/logistics/shipment-collection.
 import { NotificationService } from "../src/notifications/notification.service";
 import { PickupAppointmentService, candidatePickupSlots } from "../src/logistics/pickup-appointment.service";
 import { VerificationCodeService } from "../src/orders/verification-code.service";
+import { NotificationService } from "../src/notifications/notification.service";
 import { commerceTestPassword,seedCommerceFixtures } from "./commerce-fixtures";
 import type { CheckoutPrincipal } from "../src/commerce-identity/checkout-principal.service";
 let app:INestApplication,db:Database,appointment:PickupAppointmentService,collection:ShipmentCollectionService,
@@ -21,6 +22,7 @@ const env=()=>readConfig({
   CHECKOUT_OFFLINE_HOLD_MINUTES:"1440",GUEST_CHECKOUT_TTL_MINUTES:"1440",
   ORDER_VERIFICATION_ACTIVE_VERSION:"1",ORDER_VERIFICATION_KEYS:JSON.stringify({1:"11".repeat(32)}),
   LOGISTICS_SHIPMENT_EXECUTION_ENABLED:"true",LOGISTICS_CUSTOMER_PICKUP_ENABLED:"true",
+  PICKUP_INAPP_REMINDERS_ENABLED:"true",
   PICKUP_INAPP_REMINDERS_ENABLED:"true",
 });
 const owner:CheckoutPrincipal={kind:"customer",userId:"customer-a",actorId:"customer-a",actorScope:"customer:customer-a"};
@@ -509,4 +511,80 @@ test("pickup reminders suppress unpaid, collected and inactive-customer appointm
  assert.equal(await db.notification.count({where:{
    orderId:x.order.id,title:"Collection appointment coming up",
  }}),0);
+});
+
+test("pickup appointment reminder stages once and projects to the owning customer's inbox only", async () => {
+  const x = await ready("REMINDER");
+  const service = app.get(NotificationService);
+  const start = (await appointment.options(x.order.id, owner)).slots[0]!.startsAt;
+  await appointment.change(x.order.id, owner, "reminder-book", {kind:"book",startsAt:start},"req-reminder-book");
+  const pretendNow = new Date(Date.parse(start) - 45*60_000);
+  const stockBefore=(await db.stockLot.findUniqueOrThrow({where:{id:"lot-rice"}})).quantity.toString();
+  const first = await service.stagePickupAppointmentReminders(10,pretendNow);
+  assert.equal(first.disabled,false);
+  assert.equal(first.queued,1);
+  assert.equal((await service.stagePickupAppointmentReminders(10,pretendNow)).queued,0);
+  const queued = await db.outboxEvent.findMany({where:{type:"pickup.appointment_reminder",aggregateId:x.order.id}});
+  assert.equal(queued.length,1);
+  assert.ok(!JSON.stringify(queued[0]?.payload).includes("phone"));
+  await service.projectBatch();
+  const reminder = await db.notification.findMany({where:{orderId:x.order.id,title:"Collection appointment coming up"}});
+  assert.equal(reminder.length,1);
+  assert.equal(reminder[0]?.recipientUserId,"customer-a");
+  assert.equal(reminder[0]?.sourceEventId,queued[0]?.id);
+  assert.match(reminder[0]!.body,/in-app reminder/i);
+  assert.equal((await service.projectBatch()).created,0);
+  assert.equal((await db.stockLot.findUniqueOrThrow({where:{id:"lot-rice"}})).quantity.toString(),stockBefore);
+  assert.equal(await db.paymentAttempt.count({where:{orderId:x.order.id}}),0);
+  assert.equal(await db.shipmentCollectionReceipt.count({where:{shipmentId:x.shipment.id}}),0);
+});
+
+test("pickup reminder queued before cancellation is suppressed when projected",async()=>{
+  const x = await ready("REMINDER_CANCEL");
+  const service = app.get(NotificationService);
+  const start = (await appointment.options(x.order.id,owner)).slots[0]!.startsAt;
+  await appointment.change(x.order.id,owner,"reminder-cancel-book",{kind:"book",startsAt:start},"req-reminder-cancel-book");
+  assert.equal((await service.stagePickupAppointmentReminders(10,new Date(Date.parse(start)-45*60_000))).queued,1);
+  await appointment.change(x.order.id,owner,"reminder-cancel",{kind:"cancel"},"req-reminder-cancel");
+  await service.projectBatch();
+  assert.equal(await db.notification.count({where:{orderId:x.order.id,title:"Collection appointment coming up"}}),0);
+  const source=await db.outboxEvent.findFirstOrThrow({where:{type:"pickup.appointment_reminder",aggregateId:x.order.id}});
+  assert.equal((await db.notificationOutboxReceipt.findUniqueOrThrow({where:{sourceEventId:source.id}})).outcome,"no_recipient");
+});
+
+test("rebooking invalidates old reminder and permits one reminder for the latest slot",async()=>{
+  const x=await ready("REMINDER_REBOOK");
+  const service=app.get(NotificationService);
+  const slots=(await appointment.options(x.order.id,owner)).slots;
+  assert.ok(slots.length>=2);
+  await appointment.change(x.order.id,owner,"reminder-rebook-first",
+    {kind:"book",startsAt:slots[0]!.startsAt},"req-reminder-rebook-first");
+  assert.equal((await service.stagePickupAppointmentReminders(10,
+    new Date(Date.parse(slots[0]!.startsAt)-45*60_000))).queued,1);
+  await appointment.change(x.order.id,owner,"reminder-rebook-second",
+    {kind:"book",startsAt:slots[1]!.startsAt},"req-reminder-rebook-second");
+  assert.equal((await service.stagePickupAppointmentReminders(10,
+    new Date(Date.parse(slots[1]!.startsAt)-45*60_000))).queued,1);
+  await service.projectBatch();
+  assert.equal(await db.notification.count({where:{orderId:x.order.id,title:"Collection appointment coming up"}}),1);
+  const sources=await db.outboxEvent.findMany({where:{type:"pickup.appointment_reminder",aggregateId:x.order.id}});
+  assert.equal(sources.length,2);
+  const receipts=await db.notificationOutboxReceipt.findMany({where:{sourceEventId:{in:sources.map(v=>v.id)}}});
+  assert.equal(receipts.filter(r=>r.outcome==="created").length,1);
+  assert.equal(receipts.filter(r=>r.outcome==="no_recipient").length,1);
+});
+
+test("refunds, unpaid orders and inactive centres suppress pickup reminders",async()=>{
+  const x=await ready("REMINDER_BLOCKED");
+  const service=app.get(NotificationService);
+  const start=(await appointment.options(x.order.id,owner)).slots[0]!.startsAt;
+  await appointment.change(x.order.id,owner,"reminder-block-book",
+    {kind:"book",startsAt:start},"req-reminder-block-book");
+  const now=new Date(Date.parse(start)-45*60_000);
+  await db.order.update({where:{id:x.order.id},data:{paymentStatus:"unpaid"}});
+  assert.equal((await service.stagePickupAppointmentReminders(10,now)).queued,0);
+  await db.order.update({where:{id:x.order.id},data:{paymentStatus:"succeeded"}});
+  await db.logisticsNode.update({where:{id:x.terminal.id},data:{active:false}});
+  assert.equal((await service.stagePickupAppointmentReminders(10,now)).queued,0);
+  assert.equal(await db.outboxEvent.count({where:{type:"pickup.appointment_reminder",aggregateId:x.order.id}}),0);
 });
