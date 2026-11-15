@@ -108,6 +108,7 @@ import type {
   TeamRow,
   ZoneView,
   ShipmentListItem, ShipmentDetailView, PickupCollectRequest, PickupCollectResponse,
+  PickupAttendanceInput, PickupAttendanceRecord, PickupAttendanceContext,
   LogisticsNodeView,
   LogisticsLaneView,
   DeliveryWorkflowView,
@@ -470,6 +471,16 @@ export const apiOps = {
     api<DeliveryRouteRuleView>("admin.logistics.route-rule.activate", { query: { ruleId }, body: body as unknown as Record<string, unknown>, idempotencyKey }),
   logisticsRouteRuleSimulate: (body: RouteSimulationRequest) =>
     api<RouteSimulationResponse>("admin.logistics.route-rule.simulate", { body: body as unknown as Record<string, unknown> }),
+
+  /* admin-only, evidence-only pickup attendance: never handover authority */
+  pickupAttendance: (orderId: string) =>
+    api<PickupAttendanceRecord[]>("admin.logistics.pickup-attendance", { query: { orderId } }),
+  pickupAttendanceContext: (orderId: string) =>
+    api<PickupAttendanceContext>("admin.logistics.pickup-attendance.context", { query: { orderId } }),
+  pickupAttendanceRecord: (orderId: string, body: PickupAttendanceInput, idempotencyKey: string) =>
+    api<PickupAttendanceRecord>("admin.logistics.pickup-attendance.record", {
+      query: { orderId }, body: body as Record<string, unknown>, idempotencyKey,
+    }),
 
   /* shipment execution — L2 read-only list/detail and gated verified customer handover */
   logisticsShipments: (query: { page?: number; perPage?: number; status?: ShipmentListItem["status"] } = {}) =>
