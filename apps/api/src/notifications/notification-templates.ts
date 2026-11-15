@@ -7,6 +7,7 @@ export const customerNotificationTypes = [
   "delivery.provider_out_for_delivery", "delivery.provider_delivered", "delivery.provider_failed",
   // Strictly order-bound booking/cancellation evidence. Never a transport ETA.
   "pickup.appointment_booked", "pickup.appointment_cancelled",
+  "pickup.appointment_reminder",
   // R3a customer-return claim status only: no goods, refund or settlement authority.
   "customer_return_claim.requested", "customer_return_claim.accepted",
   "customer_return_claim.rejected", "customer_return_claim.cancelled",
@@ -48,6 +49,9 @@ export function customerNotificationCopy(type: CustomerNotificationType, referen
     case "pickup.appointment_booked":
       return { kind: "delivery", title: "Collection appointment booked",
         body: prefix + "Your collection appointment has been reserved. View order details for the confirmed time and pickup centre. This is not a transport ETA." };
+    case "pickup.appointment_reminder":
+      return { kind: "delivery", title: "Collection appointment coming up",
+        body: prefix + "Your collection appointment starts soon. Open your order to confirm the current time and centre, and bring your verification code and photo ID. This is an in-app reminder, not proof of collection." };
     case "pickup.appointment_cancelled":
       return { kind: "delivery", title: "Collection appointment cancelled",
         body: prefix + "Your collection appointment was cancelled. Your order is not cancelled; view order details for available collection arrangements." };
