@@ -54,7 +54,9 @@ export class NotificationService {
           const appointment = await tx.pickupAppointment.findUnique({ where: { orderId: order.id } });
           const fresh = await tx.order.findUnique({ where: { id: order.id }, select: {
             paymentStatus: true, fulfilmentStatus: true, cancelledAt: true,
-            pickupSnapshot: { select: { nodeId: true } }, refunds: { select: { status: true } },
+            pickupSnapshot: { select: { nodeId: true, node: { select: {
+              active: true, customerVisible: true, kind: true,
+            } } } }, refunds: { select: { status: true } },
             shipments: { where: { sequence: 1 }, take: 1, select: {
               status: true, destinationKind: true, finalPickupNodeId: true,
               currentNodeId: true, completedAt: true, currentLegId: true,
@@ -126,7 +128,9 @@ export class NotificationService {
           const order = await tx.order.findUnique({ where: { id: candidate.orderId }, select: {
             customerUser: { select: { id: true, role: true, active: true } },
             paymentStatus: true, fulfilmentStatus: true, cancelledAt: true,
-            pickupSnapshot: { select: { nodeId: true } },
+            pickupSnapshot: { select: { nodeId: true, node: { select: {
+              active: true, customerVisible: true, kind: true,
+            } } } },
             refunds: { select: { status: true } },
             shipments: { where: { sequence: 1 }, take: 1, select: {
               status: true, destinationKind: true, finalPickupNodeId: true,
