@@ -43,6 +43,9 @@ jobs:
         run: |
           npm ci --prefix apps/api
           npm run --prefix apps/api generate
+      - name: Reject stale generated Prisma client in the release
+        working-directory: apps/api
+        run: npm run prisma:client:check
       - name: Apply migrations to empty PostgreSQL
         run: npm run --prefix apps/api migrate:deploy
       - name: Reject any Prisma schema drift on fresh migrated PostgreSQL
