@@ -45,9 +45,15 @@ named `variety_foundation_test` and verifies:
 - A cashier invitation's raw SQL expiry is ~48 hours ahead.
 
 This safeguards the canonical API's Prisma connections. It does **not**
-automatically patch the separately deployed POS-integrated API on
-port 3049 or its PostgreSQL database. The production/pickup/payment
-feature flags are unchanged.
+automatically patch the separately deployed POS-integrated API on port
+3049. **Verified UAT deployment detail:** API 3027 and API 3049 currently
+both point to the **same** PostgreSQL database,
+`localhost:5432/lightworld_variety_uat`, despite being built from different
+source versions. A separate POS PostgreSQL service on port 55436 also
+runs, but the 3049 API environment does **not** point at it. Therefore
+unpatched DateTime writes from API 3049 can still affect the shared UAT
+database. Do not treat a 3027-only release as full remediation. The
+production/pickup/payment feature flags are unchanged.
 
 ## Remaining operational gates
 
@@ -59,7 +65,17 @@ feature flags are unchanged.
   Nginx targets between the separate staging APIs.
 - Do not automatically rewrite already stored historical expiries:
   measure any affected UAT sessions/invitations/stock holds using SQL
-  clock and determine safe revocation/migration policy first.
+  clock and determine safe revocation/migration policy first. A read-only
+  aggregate on the **shared** UAT database found 13 historical web
+  sessions with recorded eight-hour lifetimes (none currently valid),
+  one staff invitation with a recorded 48-hour lifetime, and zero POS
+  stock holds; it did not expose user identity data. These aggregates
+  do not establish that every historical expiry was safe.
+- Coordinate a POS 3049 rollout of the same UTC adapter fix, including
+  PostgreSQL snapshot, stock/cash regression tests and rollback, or
+  deliberately isolate POS to its own database with full data-parity
+  review. **Never** redirect the production portal between 3049/3027
+  merely to make an endpoint return 200.
 - Continue broader audit of database and date comparisons, checkout
   stock holds, guest holds, pickup windows, and other workers.
   Timestamp storage and callback processing outside the canonical
