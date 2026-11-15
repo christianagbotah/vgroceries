@@ -180,7 +180,7 @@ model ProductMedia {
   rejectedAt DateTime? @db.Timestamptz(3)
   archivedAt DateTime? @db.Timestamptz(3)
   createdAt DateTime @default(now()) @db.Timestamptz(3)
-  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @default(now()) @db.Timestamptz(3)
   featuredFor Product? @relation("ProductFeaturedMedia")
   @@index([productId, status, galleryOrder])
   @@index([generationJobId])
@@ -209,7 +209,7 @@ model ImageGenerationJob {
   startedAt DateTime? @db.Timestamptz(3)
   completedAt DateTime? @db.Timestamptz(3)
   createdAt DateTime @default(now()) @db.Timestamptz(3)
-  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @default(now()) @db.Timestamptz(3)
   candidates ProductMedia[] @relation("GenerationCandidates")
   @@index([productId, createdAt])
   @@index([status, createdAt])
@@ -355,9 +355,9 @@ model CmsContent {
   kind String
   draft Json
   published Json
-  publishedAt DateTime @db.Timestamptz(3)
+  publishedAt DateTime @default(now()) @db.Timestamptz(3)
   createdAt DateTime @default(now()) @db.Timestamptz(3)
-  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @default(now()) @db.Timestamptz(3)
   @@index([kind])
 }
 
@@ -432,7 +432,7 @@ model CustomerAddress {
   ghanaPostGps String?
   isDefault Boolean @default(false)
   createdAt DateTime @default(now()) @db.Timestamptz(3)
-  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @default(now()) @db.Timestamptz(3)
   @@index([userId, isDefault])
 }
 
@@ -499,7 +499,7 @@ model Order {
   cancelledAt DateTime? @db.Timestamptz(3)
   cancelledReason String?
   createdAt DateTime @default(now()) @db.Timestamptz(3)
-  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @default(now()) @db.Timestamptz(3)
   lines OrderLine[]
   events OrderEvent[]
   deliveryAddress OrderDeliveryAddress?
@@ -545,9 +545,9 @@ model CustomerReturnClaim {
   cancelledAt DateTime? @db.Timestamptz(3)
   lines CustomerReturnClaimLine[]
   physicalReceipts PhysicalReturnReceipt[]
-  @@index([customerUserId, createdAt])
-  @@index([orderId, status])
-  @@index([status, createdAt])
+  @@index([customerUserId, createdAt], map: "customer_claim_customer_date")
+  @@index([orderId, status], map: "customer_claim_order_status")
+  @@index([status, createdAt], map: "customer_claim_status_date")
 }
 
 model CustomerReturnClaimLine {
@@ -558,7 +558,7 @@ model CustomerReturnClaimLine {
   quantity Decimal @db.Decimal(15, 3)
   reason String
   @@id([claimId, orderLineId])
-  @@index([orderLineId])
+  @@index([orderLineId], map: "customer_return_claim_line_original")
 }
 
 model PhysicalReturnReceipt {
@@ -579,9 +579,9 @@ model PhysicalReturnReceipt {
   items PhysicalReturnItem[]
   customerClaimId String?
   customerClaim CustomerReturnClaim? @relation(fields: [customerClaimId], references: [id], onDelete: Restrict, onUpdate: NoAction)
-  @@index([customerClaimId, receivedAt])
-  @@index([orderId, receivedAt])
-  @@index([locationId, receivedAt])
+  @@index([customerClaimId, receivedAt], map: "PhysicalReturnReceipt_claim_date_idx")
+  @@index([orderId, receivedAt], map: "PhysicalReturnReceipt_order_date_idx")
+  @@index([locationId, receivedAt], map: "PhysicalReturnReceipt_location_date_idx")
 }
 
 model PhysicalReturnItem {
@@ -599,8 +599,8 @@ model PhysicalReturnItem {
   inspectedAt DateTime? @db.Timestamptz(3)
   custody PhysicalReturnCustody?
   resaleReview PhysicalReturnResaleReview?
-  @@unique([receiptId, orderLineId])
-  @@index([orderLineId, disposition])
+  @@unique([receiptId, orderLineId], map: "PhysicalReturnItem_receipt_line_key")
+  @@index([orderLineId, disposition], map: "PhysicalReturnItem_line_status_idx")
 }
 
 /// An immutable, exactly-once transfer into NON-SELLABLE quarantine inventory.
@@ -657,7 +657,7 @@ model PickupAppointmentPolicy {
   minLeadMinutes Int
   maxDaysAhead Int
   updatedBy String
-  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @default(now()) @db.Timestamptz(3)
 }
 
 /// Explicit centre-specific local-calendar closure. An active closure must
@@ -669,7 +669,7 @@ model PickupCentreClosure {
   closed Boolean @default(true)
   reason String?
   updatedBy String
-  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @default(now()) @db.Timestamptz(3)
   @@id([nodeId, date])
   @@index([date, closed])
 }
@@ -683,9 +683,9 @@ model PickupAppointment {
   endsAt DateTime @db.Timestamptz(3)
   status String // booked | cancelled | completed
   bookedAt DateTime @default(now()) @db.Timestamptz(3)
-  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @default(now()) @db.Timestamptz(3)
   completedAt DateTime? @db.Timestamptz(3)
-  @@index([nodeId, startsAt, status])
+  @@index([nodeId, startsAt, status], map: "PickupAppointment_node_start_status_idx")
 }
 
 /// Immutable staff observations only. A missed collection window is not
@@ -816,7 +816,7 @@ model PaymentAttempt {
   failureReason String?
   providerExpiresAt DateTime? @db.Timestamptz(3)
   createdAt DateTime @default(now()) @db.Timestamptz(3)
-  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @default(now()) @db.Timestamptz(3)
   resolvedAt DateTime? @db.Timestamptz(3)
   version Int @default(1)
   providerEvents PaymentProviderEvent[]
@@ -888,7 +888,7 @@ model Refund {
   approvedAt DateTime? @db.Timestamptz(3)
   failureReason String?
   createdAt DateTime @default(now()) @db.Timestamptz(3)
-  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @default(now()) @db.Timestamptz(3)
   resolvedAt DateTime? @db.Timestamptz(3)
   version Int @default(1)
   execution RefundExecution?
@@ -916,7 +916,7 @@ model RefundExecution {
   failureCode String?
   failureReason String?
   createdAt DateTime @default(now()) @db.Timestamptz(3)
-  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @default(now()) @db.Timestamptz(3)
   resolvedAt DateTime? @db.Timestamptz(3)
   version Int @default(1)
   reconciliations RefundReconciliation[]
@@ -962,7 +962,7 @@ model FulfilmentRun {
   handoverKind String?
   version Int @default(1)
   createdAt DateTime @default(now()) @db.Timestamptz(3)
-  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @default(now()) @db.Timestamptz(3)
   picks FulfilmentPick[]
   @@index([locationId, createdAt])
 }
@@ -1034,7 +1034,7 @@ model RiderProfile {
   lastAvailabilityChangedAt DateTime @db.Timestamptz(3)
   version Int @default(1)
   createdAt DateTime @default(now()) @db.Timestamptz(3)
-  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @default(now()) @db.Timestamptz(3)
   jobs DeliveryJob[]
   @@index([availabilityState, updatedAt])
 }
@@ -1064,7 +1064,7 @@ model DeliveryJob {
   returnedToStoreAt DateTime? @db.Timestamptz(3)
   version Int @default(1)
   createdAt DateTime @default(now()) @db.Timestamptz(3)
-  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @default(now()) @db.Timestamptz(3)
   events DeliveryEvent[]
   proof DeliveryProof?
   @@index([status, updatedAt])
@@ -1216,8 +1216,8 @@ model WorkflowStageDefinition {
   displayGroup String?
   exceptionSeverity String @default("info")
   notificationsAllowed Boolean @default(false)
-  @@unique([workflowVersionId, stageKey])
-  @@unique([workflowVersionId, sortOrder])
+  @@unique([workflowVersionId, stageKey], map: "WorkflowStageDefinition_version_stage_key")
+  @@unique([workflowVersionId, sortOrder], map: "WorkflowStageDefinition_version_sort_key")
 }
 
 model DeliveryRouteRule {
@@ -1246,9 +1246,9 @@ model DeliveryRouteRule {
   stops DeliveryRouteRuleStop[]
   legs DeliveryRouteRuleLeg[]
   shipments Shipment[]
-  @@index([originNodeId, deliveryZoneId, active, priority])
-  @@index([workflowVersionId, active])
-  @@index([finalPickupNodeId, active])
+  @@index([originNodeId, deliveryZoneId, active, priority], map: "DeliveryRouteRule_origin_zone_active_priority_idx")
+  @@index([workflowVersionId, active], map: "DeliveryRouteRule_workflow_active_idx")
+  @@index([finalPickupNodeId, active], map: "DeliveryRouteRule_pickup_active_idx")
 }
 
 model DeliveryRouteRuleStop {
@@ -1261,7 +1261,7 @@ model DeliveryRouteRuleStop {
   terminalRole String
   originLegs DeliveryRouteRuleLeg[] @relation("RouteRuleLegOriginStop")
   destinationLegs DeliveryRouteRuleLeg[] @relation("RouteRuleLegDestinationStop")
-  @@unique([ruleId, position])
+  @@unique([ruleId, position], map: "DeliveryRouteRuleStop_rule_position_key")
   @@index([nodeId])
 }
 
@@ -1276,7 +1276,7 @@ model DeliveryRouteRuleLeg {
   destinationStop DeliveryRouteRuleStop @relation("RouteRuleLegDestinationStop", fields: [destinationStopId], references: [id])
   laneId String
   lane LogisticsLane @relation(fields: [laneId], references: [id])
-  @@unique([ruleId, position])
+  @@unique([ruleId, position], map: "DeliveryRouteRuleLeg_rule_position_key")
   @@index([originStopId])
   @@index([destinationStopId])
   @@index([laneId])
@@ -1449,8 +1449,8 @@ model CashierTillSession {
   movements CashierTillMovement[]
   stockHolds PosStockHold[]
   cashSales PosCashSale[]
-  @@index([locationId, status, openedAt])
-  @@index([openedByUserId, openedAt])
+  @@index([locationId, status, openedAt], map: "cashier_till_location_status")
+  @@index([openedByUserId, openedAt], map: "cashier_till_opened_by")
   // Existing UAT database relationships; no database change.
   User_CashierTillSession_closedByUserIdToUser User?                 @relation("CashierTillSession_closedByUserIdToUser", fields: [closedByUserId], references: [id], onDelete: Restrict, onUpdate: NoAction)
   Location                                     Location              @relation(fields: [locationId], references: [id], onUpdate: NoAction)
@@ -1466,7 +1466,7 @@ model CashierTillMovement {
   note String
   actorUserId String
   createdAt DateTime @default(now()) @db.Timestamptz(3)
-  @@index([sessionId, createdAt])
+  @@index([sessionId, createdAt], map: "cashier_till_movement_session_date")
   // Existing UAT database relationships; no database change.
   User        User               @relation(fields: [actorUserId], references: [id], onUpdate: NoAction)
 }
@@ -1490,8 +1490,8 @@ model PosStockHold {
   releaseNote String?
   lines PosStockHoldLine[]
   cashSale PosCashSale?
-  @@index([tillSessionId, status, expiresAt])
-  @@index([locationId, createdAt])
+  @@index([tillSessionId, status, expiresAt], map: "pos_holds_by_till")
+  @@index([locationId, createdAt], map: "pos_holds_by_location")
   // Existing UAT database relationships; no database change.
   User            User               @relation(fields: [createdByUserId], references: [id], onUpdate: NoAction)
   Location        Location           @relation(fields: [locationId], references: [id], onUpdate: NoAction)
@@ -1505,7 +1505,7 @@ model PosStockHoldLine {
   quantity Decimal @db.Decimal(15,3)
   unitPriceMinor Int
   lineTotalMinor Int
-  @@unique([holdId, variantId])
+  @@unique([holdId, variantId], map: "pos_hold_line_unique")
   // Existing UAT database relationships; no database change.
   Variant            Variant             @relation(fields: [variantId], references: [id], onUpdate: NoAction)
   posCashReceiptLine PosCashReceiptLine?
@@ -1541,8 +1541,8 @@ model PosCashSale {
   goodsHandedOver Boolean
   createdAt DateTime @default(now()) @db.Timestamptz(3)
   receiptLines PosCashReceiptLine[]
-  @@index([tillSessionId, createdAt])
-  @@index([locationId, createdAt])
+  @@index([tillSessionId, createdAt], map: "pos_cash_by_till")
+  @@index([locationId, createdAt], map: "pos_cash_by_location")
   @@index([customerUserId, createdAt])
   // Existing UAT database relationships; no database change.
   Location                            Location             @relation(fields: [locationId], references: [id], onUpdate: NoAction)
@@ -1563,7 +1563,7 @@ model PosCashReceiptLine {
   quantity Decimal @db.Decimal(15,3)
   unitPriceMinor Int
   lineTotalMinor Int
-  @@index([saleId, variantId])
+  @@index([saleId, variantId], map: "pos_receipt_sale_variant")
   // Existing UAT database relationships; no database change.
   PosStockHoldLine PosStockHoldLine @relation(fields: [holdLineId], references: [id], onUpdate: NoAction)
   Variant          Variant          @relation(fields: [variantId], references: [id], onUpdate: NoAction)
