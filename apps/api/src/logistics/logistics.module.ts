@@ -2,6 +2,8 @@ import { Module } from "@nestjs/common";
 import { CommerceIdentityModule } from "../commerce-identity/commerce-identity.module";
 import { IdentityModule } from "../identity/identity.module";
 import { PickupAppointmentService } from "./pickup-appointment.service";
+import { PickupAttendanceService } from "./pickup-attendance.service";
+import { AdminPickupAttendanceController } from "./pickup-attendance.controller";
 import { CustomerPickupAppointmentController,AdminPickupAppointmentPolicyController,
   AdminPickupCentreClosuresController } from "./pickup-appointment.controller";
 import { CheckoutPickupPointsController } from "./checkout-pickup-points.controller";
@@ -25,8 +27,8 @@ import { ShipmentQueryService } from "./shipment-query.service";
 import { ShipmentCustomerTrackingService } from "./shipment-customer-tracking.service";
 @Module({
   imports:[CommerceIdentityModule,IdentityModule],
-  controllers:[CustomerPickupAppointmentController,AdminPickupAppointmentPolicyController,AdminPickupCentreClosuresController,CheckoutPickupPointsController,AdminLogisticsNodesController,AdminLogisticsLanesController,AdminLogisticsWorkflowsController,AdminLogisticsRouteRulesController,AdminLogisticsShipmentsController],
-  providers:[PickupAppointmentService,VerificationCodeService,ShipmentCollectionService,CheckoutPickupPointsService,LogisticsNodeService,LogisticsLaneService,LogisticsWorkflowService,LogisticsRouteRuleService,LogisticsBootstrapService,ShipmentPlanningService,ShipmentExecutionService,ShipmentFinalMileService,ShipmentQueryService,ShipmentCustomerTrackingService],
-  exports:[PickupAppointmentService,CheckoutPickupPointsService,LogisticsNodeService,LogisticsLaneService,LogisticsWorkflowService,LogisticsRouteRuleService,LogisticsBootstrapService,ShipmentPlanningService,ShipmentExecutionService,ShipmentFinalMileService,ShipmentQueryService,ShipmentCustomerTrackingService],
+  controllers:[CustomerPickupAppointmentController,AdminPickupAppointmentPolicyController,AdminPickupCentreClosuresController,AdminPickupAttendanceController,CheckoutPickupPointsController,AdminLogisticsNodesController,AdminLogisticsLanesController,AdminLogisticsWorkflowsController,AdminLogisticsRouteRulesController,AdminLogisticsShipmentsController],
+  providers:[PickupAppointmentService,PickupAttendanceService,VerificationCodeService,ShipmentCollectionService,CheckoutPickupPointsService,LogisticsNodeService,LogisticsLaneService,LogisticsWorkflowService,LogisticsRouteRuleService,LogisticsBootstrapService,ShipmentPlanningService,ShipmentExecutionService,ShipmentFinalMileService,ShipmentQueryService,ShipmentCustomerTrackingService],
+  exports:[PickupAppointmentService,PickupAttendanceService,CheckoutPickupPointsService,LogisticsNodeService,LogisticsLaneService,LogisticsWorkflowService,LogisticsRouteRuleService,LogisticsBootstrapService,ShipmentPlanningService,ShipmentExecutionService,ShipmentFinalMileService,ShipmentQueryService,ShipmentCustomerTrackingService],
 })
 export class LogisticsModule {}
