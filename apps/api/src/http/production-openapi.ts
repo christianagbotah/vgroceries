@@ -87,6 +87,8 @@ import {
   inviteCashierSchema, acceptCashierInvitationSchema,
   manageCashierSchema, staffListSchema, staffRowSchema,
   requestPasswordResetSchema, completePasswordResetSchema, passwordRecoveryNoticeSchema,
+  requestAdjustmentSchema, decideAdjustmentSchema,
+  adjustmentOutcomeSchema, adjustmentHistorySchema,
   posTillReconciliationViewSchema,
   posQuoteRequestSchema,posQuoteViewSchema,
   posHoldCreateSchema,posHoldReleaseSchema,posHoldViewSchema,posHoldListSchema,
@@ -260,6 +262,14 @@ export function productionOpenApi(app: INestApplication): OpenAPIObject {
   const schemas = doc.components!.schemas as Record<string, SchemaObject>;
 
   Object.assign(schemas, {
+    StockAdjustmentRequest: json(requestAdjustmentSchema),
+    StockAdjustmentDecide: json(decideAdjustmentSchema),
+    StockAdjustmentOutcomeEnvelope: json(z.object({
+      ok: z.literal(true), data: adjustmentOutcomeSchema,
+    }).strict()),
+    StockAdjustmentHistoryEnvelope: json(z.object({
+      ok: z.literal(true), data: adjustmentHistorySchema,
+    }).strict()),
     PasswordResetRequest: json(requestPasswordResetSchema),
     PasswordResetComplete: json(completePasswordResetSchema),
     PasswordRecoveryNoticeEnvelope: json(z.object({
@@ -1161,6 +1171,36 @@ export function productionOpenApi(app: INestApplication): OpenAPIObject {
       description: "Opt-in, single-use credential reset via browser fragment token; consumed atomically with password update and all-session revocation.",
       requestBody: { required: true, content: { "application/json": { schema: ref("PasswordResetComplete") } } },
       responses: authorityResponses("PasswordRecoveryNoticeEnvelope"),
+    },
+  };
+  doc.paths["/api/v1/inventory/adjustments"] = {
+    get: readOperation(
+      "Administrator and assigned inventory-manager adjustment history for an active branch. Default OFF.",
+      "StockAdjustmentHistoryEnvelope", [
+        { name: "locationId", in: "query", required: false,
+          schema: { type: "string", minLength: 1, maxLength: 128 } },
+      ]),
+  };
+  doc.paths["/api/v1/inventory/adjustments/create"] = {
+    post: {
+      security,
+      description: "Maker-only audited physical lot correction request with actor-scoped idempotency. Does not change stock until independently approved. Default OFF.",
+      parameters: [replay, csrf],
+      requestBody: { required: true, content: {
+        "application/json": { schema: ref("StockAdjustmentRequest") },
+      } },
+      responses: authorityResponses("StockAdjustmentOutcomeEnvelope"),
+    },
+  };
+  doc.paths["/api/v1/inventory/adjustments/decide"] = {
+    post: {
+      security,
+      description: "Independent administrator decision; requester cannot approve or reject own request. Approval atomically checks active stock reservations and writes stock movement, audit and outbox. Default OFF.",
+      parameters: [csrf],
+      requestBody: { required: true, content: {
+        "application/json": { schema: ref("StockAdjustmentDecide") },
+      } },
+      responses: authorityResponses("StockAdjustmentOutcomeEnvelope"),
     },
   };
   return doc;

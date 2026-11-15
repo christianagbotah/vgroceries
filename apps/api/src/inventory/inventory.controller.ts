@@ -13,11 +13,14 @@ import { ApiBody, ApiCookieAuth, ApiHeader, ApiTags } from "@nestjs/swagger";
 import {
   catalogQuerySchema,
   stockReceiveRequestSchema,
+  requestAdjustmentSchema, decideAdjustmentSchema,
 } from "@variety/contracts";
 import { ApiProblem } from "../http/errors";
+import { z } from "zod";
 import { AccessGuard, Permission } from "../identity/access.guard";
 import { AuthRequest } from "../identity/identity.service";
 import { AllocationService } from "./allocation.service";
+import { InventoryAdjustmentService } from "./inventory-adjustment.service";
 import { ClaimCoverageService } from "./claim-coverage.service";
 import { InventoryService } from "./inventory.service";
 import { StockDepletionService } from "./stock-depletion.service";
@@ -27,7 +30,10 @@ import { StockDepletionService } from "./stock-depletion.service";
 @Controller("inventory")
 @UseGuards(AccessGuard)
 export class InventoryController {
-  constructor(private readonly inventory: InventoryService) {}
+  constructor(
+    private readonly inventory: InventoryService,
+    private readonly adjustments: InventoryAdjustmentService,
+  ) {}
   @Get("overview")
   @Permission("inventory.read")
   async overview(
@@ -56,6 +62,41 @@ export class InventoryController {
       ),
     };
   }
+  // Real stock corrections require separate inventory manager request and
+  // administrator decision. Disabled until independent physical-count UAT.
+  @Get("adjustments")
+  @Permission("inventory.read")
+  async adjustmentList(@Req() req: AuthRequest, @Query() query: Record<string, unknown>) {
+    const parsed = z.strictObject({
+      locationId: z.string().regex(/^[A-Za-z0-9_-]{1,128}$/).optional(),
+    }).safeParse(query);
+    if (!parsed.success)
+      throw new ApiProblem(400, "VALIDATION_FAILED", "Invalid adjustment location.");
+    return { ok: true, data: await this.adjustments.list(req, parsed.data.locationId) };
+  }
+
+  @Post("adjustments/create")
+  @Permission("inventory.adjust.request")
+  @ApiHeader({ name: "Idempotency-Key", required: true,
+    description: "Unique, retry-safe stock adjustment request key" })
+  async adjustmentCreate(@Req() req: AuthRequest, @Body() raw: unknown,
+    @Headers("idempotency-key") key?: string) {
+    const parsed = requestAdjustmentSchema.safeParse(raw);
+    if (!parsed.success || !key || !/^[A-Za-z0-9:_-]{8,128}$/.test(key))
+      throw new ApiProblem(400, "VALIDATION_FAILED",
+        "Valid lot, signed quantity, reason and Idempotency-Key required.");
+    return { ok: true, data: await this.adjustments.request(req, parsed.data, key) };
+  }
+
+  @Post("adjustments/decide")
+  @Permission("inventory.adjust.approve")
+  async adjustmentDecide(@Req() req: AuthRequest, @Body() raw: unknown) {
+    const parsed = decideAdjustmentSchema.safeParse(raw);
+    if (!parsed.success)
+      throw new ApiProblem(400, "VALIDATION_FAILED", "Invalid adjustment decision.");
+    return { ok: true, data: await this.adjustments.decide(req, parsed.data) };
+  }
+
   @Post("receive")
   @Permission("inventory.receive")
   @ApiHeader({
@@ -117,6 +158,7 @@ export class InventoryController {
   controllers: [InventoryController],
   providers: [
     InventoryService,
+    InventoryAdjustmentService,
     AllocationService,
     ClaimCoverageService,
     StockDepletionService,
