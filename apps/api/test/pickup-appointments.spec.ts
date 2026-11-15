@@ -6,11 +6,13 @@ import { createApplication } from "../src/bootstrap";
 import { readConfig } from "../src/config";
 import { Database } from "../src/database/database";
 import { ShipmentCollectionService } from "../src/logistics/shipment-collection.service";
+import { NotificationService } from "../src/notifications/notification.service";
 import { PickupAppointmentService, candidatePickupSlots } from "../src/logistics/pickup-appointment.service";
 import { VerificationCodeService } from "../src/orders/verification-code.service";
 import { commerceTestPassword,seedCommerceFixtures } from "./commerce-fixtures";
 import type { CheckoutPrincipal } from "../src/commerce-identity/checkout-principal.service";
 let app:INestApplication,db:Database,appointment:PickupAppointmentService,collection:ShipmentCollectionService,
+  inbox:NotificationService,
   verification:VerificationCodeService,base:string;
 const env=()=>readConfig({
   DATABASE_URL:process.env.DATABASE_URL!,WEB_ORIGINS:"http://localhost:3000",
@@ -19,6 +21,7 @@ const env=()=>readConfig({
   CHECKOUT_OFFLINE_HOLD_MINUTES:"1440",GUEST_CHECKOUT_TTL_MINUTES:"1440",
   ORDER_VERIFICATION_ACTIVE_VERSION:"1",ORDER_VERIFICATION_KEYS:JSON.stringify({1:"11".repeat(32)}),
   LOGISTICS_SHIPMENT_EXECUTION_ENABLED:"true",LOGISTICS_CUSTOMER_PICKUP_ENABLED:"true",
+  PICKUP_INAPP_REMINDERS_ENABLED:"true",
 });
 const owner:CheckoutPrincipal={kind:"customer",userId:"customer-a",actorId:"customer-a",actorScope:"customer:customer-a"};
 const other:CheckoutPrincipal={kind:"customer",userId:"customer-b",actorId:"customer-b",actorScope:"customer:customer-b"};
@@ -119,6 +122,7 @@ before(async()=>{
  app=await createApplication(env());await app.listen(0,"127.0.0.1");
  base=await app.getUrl();db=app.get(Database);
  appointment=app.get(PickupAppointmentService);collection=app.get(ShipmentCollectionService);
+ inbox=app.get(NotificationService);
  verification=app.get(VerificationCodeService);
 });
 beforeEach(async()=>{await seedCommerceFixtures(db);});
@@ -440,4 +444,69 @@ test("direct SQL closure and booking race serialize without leaving a booked clo
  }}});
  const booking=await db.pickupAppointment.findUnique({where:{orderId:x.order.id}});
  assert.ok(!(closure?.closed&&booking?.status==="booked"));
+});
+
+test("in-app pickup reminder stages once and projects to the owned customer inbox",async()=>{
+ const x=await ready("REMINDER_INBOX");
+ const slot=(await appointment.options(x.order.id,owner)).slots[0]!;
+ await appointment.change(x.order.id,owner,"reminder-book",
+   {kind:"book",startsAt:slot.startsAt},"req-reminder-book");
+ const now=new Date(Date.parse(slot.startsAt)-30*60_000);
+ const first=await inbox.stagePickupAppointmentReminders(100,now);
+ assert.equal(first.disabled,false);
+ assert.equal(first.queued,1);
+ assert.equal((await inbox.stagePickupAppointmentReminders(100,now)).queued,0);
+ await inbox.projectBatch(100);
+ const messages=await db.notification.findMany({where:{
+   orderId:x.order.id,title:"Collection appointment coming up",
+ }});
+ assert.equal(messages.length,1);
+ assert.equal(messages[0]?.recipientUserId,"customer-a");
+ assert.ok(messages[0]?.body.includes("in-app reminder"));
+ assert.equal(await db.paymentAttempt.count({where:{orderId:x.order.id}}),0);
+});
+
+test("a cancelled or rescheduled pickup cannot deliver an obsolete reminder",async()=>{
+ const x=await ready("REMINDER_STALE");
+ const slots=(await appointment.options(x.order.id,owner)).slots;
+ await appointment.change(x.order.id,owner,"stale-original",
+   {kind:"book",startsAt:slots[0]!.startsAt},"req-stale-original");
+ assert.equal((await inbox.stagePickupAppointmentReminders(100,
+   new Date(Date.parse(slots[0]!.startsAt)-30*60_000))).queued,1);
+ await appointment.change(x.order.id,owner,"stale-rebook",
+   {kind:"book",startsAt:slots[1]!.startsAt},"req-stale-rebook");
+ assert.equal((await inbox.stagePickupAppointmentReminders(100,
+   new Date(Date.parse(slots[1]!.startsAt)-30*60_000))).queued,1);
+ await inbox.projectBatch(100);
+ assert.equal(await db.notification.count({where:{
+   orderId:x.order.id,title:"Collection appointment coming up",
+ }}),1);
+ assert.equal(await db.notificationOutboxReceipt.count({where:{
+   outcome:"no_recipient",sourceEvent:{type:"pickup.appointment_reminder"},
+ }}),1);
+ await appointment.change(x.order.id,owner,"stale-cancel",{kind:"cancel"},"req-stale-cancel");
+ assert.equal((await inbox.stagePickupAppointmentReminders(100,
+   new Date(Date.parse(slots[1]!.startsAt)-30*60_000))).queued,0);
+});
+
+test("pickup reminders suppress unpaid, collected and inactive-customer appointments",async()=>{
+ const x=await ready("REMINDER_BLOCKED");
+ const start=(await appointment.options(x.order.id,owner)).slots[0]!.startsAt;
+ await appointment.change(x.order.id,owner,"blocked-book",
+   {kind:"book",startsAt:start},"req-blocked-book");
+ const now=new Date(Date.parse(start)-30*60_000);
+ await db.order.update({where:{id:x.order.id},data:{paymentStatus:"pending"}});
+ assert.equal((await inbox.stagePickupAppointmentReminders(100,now)).queued,0);
+ await db.order.update({where:{id:x.order.id},data:{paymentStatus:"succeeded"}});
+ await db.user.update({where:{id:"customer-a"},data:{active:false}});
+ assert.equal((await inbox.stagePickupAppointmentReminders(100,now)).queued,0);
+ await db.user.update({where:{id:"customer-a"},data:{active:true}});
+ assert.equal((await inbox.stagePickupAppointmentReminders(100,now)).queued,1);
+ await collection.collect(x.shipment.id,"admin-commerce","blocked-collect",
+   {verificationCode:x.code,receiverName:"Ama Mensah",identityCheck:"recipient_photo_id_checked"},
+   "req-blocked-collect");
+ await inbox.projectBatch(100);
+ assert.equal(await db.notification.count({where:{
+   orderId:x.order.id,title:"Collection appointment coming up",
+ }}),0);
 });

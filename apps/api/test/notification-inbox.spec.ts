@@ -54,6 +54,13 @@ before(async () => {
 beforeEach(async () => { await seedCommerceFixtures(db); });
 after(async () => { await app.close(); });
 
+test("pickup reminder worker remains inert in the default-off API configuration", async () => {
+  assert.deepEqual(await inbox.stagePickupAppointmentReminders(10), {
+    disabled: true, scanned: 0, queued: 0,
+  });
+  assert.equal(await db.outboxEvent.count(), 0);
+});
+
 test("projector is exact-once, ignores forged recipient payload and records guest skip", async () => {
   const source = await createOrder("notification-order-a", "customer-a", "VG-INBOX-A");
   await createOrder("notification-guest", null, "VG-INBOX-GUEST");
