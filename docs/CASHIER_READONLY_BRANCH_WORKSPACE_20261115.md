@@ -46,8 +46,15 @@ POS feature flags remain server owned:
   PII/authority contract exclusion.
 - API and frontend TypeScript, targeted ESLint, reproducible OpenAPI
   contract generation and GitHub full CI should pass before merge.
-- Full PostgreSQL HTTP/session/RBAC tests and authenticated mobile UAT
-  remain required before staff use. Real cashier invitation/activation
-  onboarding is still a separate release gate.
+- Three real HTTP + PostgreSQL regressions passed in a separately created
+  disposable PostgreSQL 18 database with the full migration chain:
+  anonymous=401, non-cashier=403, cashier sees only assigned open tills,
+  and the same authenticated cookie loses access immediately after branch
+  grant deletion or disabling a branch.
+- That disposable database was stopped and removed after testing. No UAT
+  or production records were changed.
+- Authenticated **mobile operator UAT**, real cashier invitation/activation,
+  POS transaction reconciliation and written cashier shift procedures are
+  still separate release gates.
 - The original staging database, payment provider, public Coming Soon
   site and live VPS services must not be changed by this patch.
