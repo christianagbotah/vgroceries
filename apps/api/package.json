@@ -7,6 +7,7 @@
   },
   "scripts": {
     "generate": "prisma generate",
+    "prisma:client:check": "node scripts/assert-generated-prisma-models.mjs",
     "migrate:deploy": "prisma migrate deploy",
     "build": "tsc -p tsconfig.json",
     "test": "npm run build && node --test --test-concurrency=1 dist/test/*.spec.js",
