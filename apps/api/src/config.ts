@@ -94,6 +94,7 @@ export interface ApiConfig {
   commerce: CommerceConfig | null;
   shipmentExecutionEnabled: boolean;
   customerPickupEnabled: boolean;
+  pickupInAppRemindersEnabled: boolean;
   physicalReturnsEnabled: boolean;
   customerReturnClaimsEnabled: boolean;
   physicalReturnClaimLinkEnabled: boolean;
@@ -150,6 +151,12 @@ export function readConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
   if (rawCustomerPickupEnabled !== undefined && !["true", "false"].includes(rawCustomerPickupEnabled))
     throw new Error("LOGISTICS_CUSTOMER_PICKUP_ENABLED must be true or false");
   const customerPickupEnabled = rawCustomerPickupEnabled === "true";
+  const rawPickupReminders = env.PICKUP_INAPP_REMINDERS_ENABLED;
+  if (rawPickupReminders !== undefined && !["true", "false"].includes(rawPickupReminders))
+    throw new Error("PICKUP_INAPP_REMINDERS_ENABLED must be true or false");
+  const pickupInAppRemindersEnabled = rawPickupReminders === "true";
+  if (pickupInAppRemindersEnabled && (!customerPickupEnabled || !shipmentExecutionEnabled))
+    throw new Error("Pickup in-app reminders require both remote pickup and shipment execution enabled");
   const rawReturnClaimsEnabled=env.CUSTOMER_RETURN_CLAIMS_ENABLED;
   if(rawReturnClaimsEnabled!==undefined&&!["true","false"].includes(rawReturnClaimsEnabled))
     throw new Error("CUSTOMER_RETURN_CLAIMS_ENABLED must be true or false");
@@ -670,6 +677,7 @@ export function readConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
     commerce,
     shipmentExecutionEnabled,
     customerPickupEnabled,
+    pickupInAppRemindersEnabled,
     physicalReturnsEnabled,
     customerReturnClaimsEnabled,
     physicalReturnClaimLinkEnabled,
