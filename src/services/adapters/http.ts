@@ -88,13 +88,20 @@ export class HttpServiceAdapter implements ServiceAdapter {
   }
 
   async request<T = unknown>(req: ServiceRequest): Promise<T> {
-    const body = normalizedRequestBody(req);
+    // Mock/legacy calls carry replay metadata in JSON. A strict REST route
+    // can instead opt into header-only transport without changing checkout
+    // or older mock contracts. Always validate the exact body sent on wire.
+    const normalized = normalizedRequestBody(req);
+    const endpoint = this.protocol === "rest" ? restEndpoints[req.op] : undefined;
+    const body = endpoint?.replayTransport === "headerOnly" && normalized
+      ? Object.fromEntries(Object.entries(normalized).filter(([field]) => field !== "idempotencyKey"))
+      : normalized;
     const { url, method } = buildRequest(this.base, req, body, this.protocol);
     if (method === "POST" && req.formData === undefined && !req.skipValidation) {
       const checked = validateRequest(req.op, body ?? {});
       if (!checked.ok) throw new ApiError("VALIDATION_FAILED", `Invalid request for ${req.op}: ${checked.issues.join("; ")}`);
     }
-    const key = req.idempotencyKey ?? textField(body?.idempotencyKey);
+    const key = req.idempotencyKey ?? textField(normalized?.idempotencyKey);
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), this.timeoutMs);
     try {
