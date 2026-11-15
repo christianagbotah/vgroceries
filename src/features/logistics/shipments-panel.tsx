@@ -5,6 +5,7 @@ import Link from "next/link";
 import { apiOps, ApiError } from "@/services/client";
 import { useApiData } from "@/features/staff/admin-data";
 import { canOfferPickupCollection, shipmentCurrentStop, validPickupProof } from "./pickup-collection-policy";
+import { PickupAttendancePanel } from "./pickup-attendance-panel";
 import type {
   ShipmentListItem, ShipmentDetailView, ShipmentStatus,
   PickupCollectRequest, PickupCollectResponse,
@@ -264,6 +265,7 @@ export function ShipmentsPanel() {
                 </li>)}
               </ol> : <p className="mt-2 text-sm text-muted-foreground">No physical events recorded.</p>}
             </div>
+            {detail.destinationKind === "pickup_point" ? <PickupAttendancePanel key={detail.orderId} orderId={detail.orderId} /> : null}
             {detail.blockers.length ? <p className="rounded-lg border p-3 text-sm text-muted-foreground">
               Current constraints: {detail.blockers.map(readable).join(", ")}.
             </p> : null}
