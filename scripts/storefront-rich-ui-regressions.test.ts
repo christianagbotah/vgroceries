@@ -43,16 +43,17 @@ describe("rich storefront visual system", () => {
     const layout = read("src/app/layout.tsx");
 
     expect(legacyLogo).not.toContain("z-breathe");
-    expect(legacyLogo).toContain("Variety Groceries V mark");
+    expect(legacyLogo).toContain("Variety Groceries official gold VG monogram");
+    expect(read("public/brand/variety-lockup.svg")).toContain("Variety Groceries official gold VG logo");
     expect(legacyLogo).toBe(mark);
     expect(layout).toContain('icon: "/brand/variety-mark.svg"');
     expect(layout).toContain('apple: "/brand/variety-mark.svg"');
   });
 
-  test("storefront shell uses V branding and commerce-style header/footer", () => {
+  test("storefront shell uses official VG branding and commerce-style header/footer", () => {
     const shell = read("src/components/layout/storefront-shell.tsx");
 
-    expect(shell).toContain("/brand/variety-mark.svg");
+    expect(shell).toContain("/brand/variety-lockup.svg");
     expect(shell).toContain("All Categories");
     expect(shell).toContain("Deliver to");
     expect(shell).toContain("storefront-footer-rich");

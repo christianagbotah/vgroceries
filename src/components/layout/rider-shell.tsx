@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -45,9 +46,7 @@ export function RiderShell({ children, riderName }: { children: React.ReactNode;
     <div className="flex min-h-screen flex-col bg-background">
       <header className="sticky top-0 z-30 bg-primary text-primary-foreground">
         <div className="mx-auto flex h-14 max-w-xl items-center gap-3 px-4">
-          <span className="flex size-9 items-center justify-center rounded-lg bg-sidebar-primary font-serif text-lg font-bold text-sidebar-primary-foreground" aria-hidden>
-            V
-          </span>
+          <Image src="/brand/variety-mark.svg" alt="" width={36} height={38} className="h-9 w-9 shrink-0 object-contain" aria-hidden />
           <div className="min-w-0 flex-1 leading-tight">
             <p className="truncate text-sm font-bold">Variety Groceries · Rider</p>
             {riderName ? <p className="truncate text-xs opacity-80">{riderName}</p> : null}
