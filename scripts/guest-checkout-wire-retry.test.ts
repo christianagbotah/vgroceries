@@ -96,7 +96,7 @@ describe("actual browser -> HTTP transport -> guest checkout retry", () => {
       return Response.json({ ok: false, error: {
         code: "FORBIDDEN", message: "Valid guest checkout CSRF token required.",
       } }, { status: 403 });
-    }) as typeof fetch;
+    }) as unknown as typeof fetch;
     const adapter = resolveClientAdapter();
     await expect(withFreshGuestCheckoutRetry(() => adapter.request({
       op: "checkout.complete",
