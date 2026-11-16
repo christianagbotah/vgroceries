@@ -14,7 +14,7 @@ import {
 export function StorefrontEditorialHero({ content }: { content: CmsHomepageView }) {
   const reducedMotion = useReducedMotion();
   const reveal = (delay = 0) => ({
-    initial: reducedMotion ? false : { opacity: 0, y: 24 },
+    initial: reducedMotion ? false : { opacity: 1, y: 12 },
     animate: { opacity: 1, y: 0 },
     transition: { duration: reducedMotion ? 0 : .72, delay: reducedMotion ? 0 : delay, ease: "easeOut" as const },
   });
@@ -82,7 +82,7 @@ export function StorefrontEditorialHero({ content }: { content: CmsHomepageView 
         <div aria-label="Editorial grocery photography" className="relative isolate min-h-[360px] overflow-hidden px-5 pb-12 sm:min-h-[440px] lg:h-full lg:min-h-[570px] lg:pb-0">
           <div className="absolute bottom-5 left-1/2 top-6 w-[min(88%,520px)] -translate-x-1/2 rounded-[46%_46%_30%_30%] border border-white/15 bg-[#e0ead5]/15 lg:bottom-12 lg:top-10" aria-hidden />
           <motion.div
-            initial={reducedMotion ? false : { opacity: 0, scale: .88, rotate: -5 }}
+            initial={reducedMotion ? false : { opacity: 1, scale: .96, rotate: -3 }}
             animate={{ opacity: 1, scale: 1, rotate: 0 }}
             transition={{ duration: reducedMotion ? 0 : .9, ease: "easeOut", delay: .23 }}
             className="absolute inset-x-8 bottom-8 top-7 overflow-hidden rounded-[45%_45%_24%_24%] border-[7px] border-white/10 shadow-[0_25px_65px_rgba(0,0,0,.28)] sm:inset-x-16 lg:inset-x-9 lg:bottom-12 lg:top-9"
@@ -98,7 +98,7 @@ export function StorefrontEditorialHero({ content }: { content: CmsHomepageView 
             </div>
           </motion.div>
           <motion.div
-            initial={reducedMotion ? false : { opacity: 0, y: 30, rotate: -10 }}
+            initial={reducedMotion ? false : { opacity: 1, y: 16, rotate: -10 }}
             animate={{ opacity: 1, y: 0, rotate: -7 }}
             transition={{ duration: .8, delay: .7 }}
             className="absolute bottom-5 left-3 hidden w-[28%] max-w-[170px] overflow-hidden rounded-[22px] border-[5px] border-[#fff8e5] bg-white shadow-[0_20px_35px_rgba(0,0,0,.27)] sm:block lg:bottom-[12%] lg:left-0"
@@ -110,7 +110,7 @@ export function StorefrontEditorialHero({ content }: { content: CmsHomepageView 
             <p className="py-2 text-center font-serif text-xs font-black italic text-[#155038]">Market fresh</p>
           </motion.div>
           <motion.div
-            initial={reducedMotion ? false : { opacity: 0, x: 34, rotate: 10 }}
+            initial={reducedMotion ? false : { opacity: 1, x: 16, rotate: 10 }}
             animate={{ opacity: 1, x: 0, rotate: 7 }}
             transition={{ duration: .8, delay: .82 }}
             className="absolute right-3 top-4 hidden w-[26%] max-w-[150px] overflow-hidden rounded-[22px] border-[5px] border-[#fff8e5] bg-white shadow-[0_20px_35px_rgba(0,0,0,.27)] sm:block lg:right-3 lg:top-[12%]"

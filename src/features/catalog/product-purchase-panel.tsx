@@ -8,10 +8,8 @@ import { Label } from "@/components/ui/label";
 import { QuantityInput } from "@/components/shared/quantity-input";
 import { useCart } from "@/features/checkout/cart-store";
 import { flyProductToCart } from "@/features/checkout/cart-motion";
-import { useToast } from "@/hooks/use-toast";
 import type { CatalogProduct, CatalogVariant } from "@/services/client";
 import { ShoppingCart, TriangleAlert } from "lucide-react";
-import { formatQty } from "@/lib/quantity";
 import { cn } from "@/lib/utils";
 
 /**
@@ -24,7 +22,6 @@ export function ProductPurchasePanel({ product }: { product: CatalogProduct }) {
   const [variantId, setVariantId] = useState(available[0]?.id ?? product.variants[0]?.id ?? "");
   const [quantity, setQuantity] = useState("1");
   const { add } = useCart();
-  const { toast } = useToast();
   const reducedMotion = useReducedMotion();
   const addRef = useRef<HTMLButtonElement>(null);
 
@@ -43,10 +40,6 @@ export function ProductPurchasePanel({ product }: { product: CatalogProduct }) {
     });
     flyProductToCart(addRef.current,
       document.querySelector<HTMLImageElement>("[data-vg-product-hero] img"));
-    toast({
-      title: "Added to cart",
-      description: `${formatQty(quantity)} × ${product.name} — ${variant.name}`,
-    });
   };
 
   return (
