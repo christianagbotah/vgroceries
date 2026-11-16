@@ -385,6 +385,7 @@ export function foundationOpenApi(app: INestApplication) {
       // unimplemented legacy routes.
       const documentedPosTill = [
         "/cashier/pos/workspace",
+        "/admin/pos/customers",
         "/admin/pos/tills",
         "/admin/pos/tills/{sessionId}",
         "/admin/pos/tills/{sessionId}/reconciliation",

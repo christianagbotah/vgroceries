@@ -103,6 +103,7 @@ export interface ApiConfig {
   passwordRecoveryEnabled: boolean;
   stockAdjustmentsEnabled: boolean;
   posTillFoundationEnabled: boolean;
+  posCustomerLookupEnabled: boolean;
   posQuoteEnabled: boolean;
   posStockHoldsEnabled: boolean;
   posCashSalesEnabled: boolean;
@@ -187,6 +188,12 @@ export function readConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
   if(rawPosTill!==undefined&&!["true","false"].includes(rawPosTill))
     throw new Error("POS_TILL_FOUNDATION_ENABLED must be true or false");
   const posTillFoundationEnabled=rawPosTill==="true";
+  const rawPosCustomers=env.POS_CUSTOMER_LOOKUP_ENABLED;
+  if(rawPosCustomers!==undefined&&!["true","false"].includes(rawPosCustomers))
+    throw new Error("POS_CUSTOMER_LOOKUP_ENABLED must be true or false");
+  const posCustomerLookupEnabled=rawPosCustomers==="true";
+  if(posCustomerLookupEnabled&&!posTillFoundationEnabled)
+    throw new Error("POS_CUSTOMER_LOOKUP_ENABLED requires POS_TILL_FOUNDATION_ENABLED");
   const rawPosQuote=env.POS_QUOTE_ENABLED;
   if(rawPosQuote!==undefined&&!["true","false"].includes(rawPosQuote))
     throw new Error("POS_QUOTE_ENABLED must be true or false");
@@ -708,6 +715,7 @@ export function readConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
     passwordRecoveryEnabled,
     stockAdjustmentsEnabled,
     posTillFoundationEnabled,
+    posCustomerLookupEnabled,
     posQuoteEnabled,
     posStockHoldsEnabled,
     posCashSalesEnabled,

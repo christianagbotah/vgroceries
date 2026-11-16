@@ -84,6 +84,7 @@ import {
   cashierTillOpenSchema,cashierTillMoveSchema,cashierTillCloseSchema,
   cashierTillSessionViewSchema,cashierTillListSchema,
   cashierWorkspaceSchema,
+  posCustomerSearchResultSchema,
   inviteCashierSchema, acceptCashierInvitationSchema,
   manageCashierSchema, staffListSchema, staffRowSchema,
   requestPasswordResetSchema, completePasswordResetSchema, passwordRecoveryNoticeSchema,
@@ -402,6 +403,7 @@ export function productionOpenApi(app: INestApplication): OpenAPIObject {
     CashierTillSessionView:json(cashierTillSessionViewSchema),
     CashierTillList:json(cashierTillListSchema),
     CashierWorkspace:json(cashierWorkspaceSchema),
+    PosCustomerSearchResult:json(posCustomerSearchResultSchema),
     PosTillReconciliationView:json(posTillReconciliationViewSchema),
     PosQuoteRequest:json(posQuoteRequestSchema),
     PosQuoteView:json(posQuoteViewSchema),
@@ -485,7 +487,7 @@ export function productionOpenApi(app: INestApplication): OpenAPIObject {
     "PhysicalReturnResaleReviewView",
     "CustomerReturnClaimView","CustomerReturnClaimsList",
     "CustomerReturnClaimEligibility",
-    "CashierTillSessionView","CashierTillList","CashierWorkspace","PosTillReconciliationView","PosQuoteView",
+    "CashierTillSessionView","CashierTillList","CashierWorkspace","PosCustomerSearchResult","PosTillReconciliationView","PosQuoteView",
     "PosHoldView","PosHoldList","PosCashSaleView","PosCashSaleList",
     "CmsHomepage", "CmsHomepageAdminView", "CmsContentPage", "CmsContentPageAdminView", "CmsOverviewView",
   ])
@@ -820,6 +822,13 @@ export function productionOpenApi(app: INestApplication): OpenAPIObject {
     get:readOperation(
       "Cashier-only read of current assigned active branches, open till codes and own completed cash-sale summaries. No drawer balances, customer identity, stock reservations, sale mutations, refund or payment authority. All branch and ownership filters are enforced by the server.",
       "CashierWorkspaceEnvelope"),
+  };
+  doc.paths["/api/v1/admin/pos/customers"] = {
+    get: readOperation(
+      "Default-OFF, rate-limited cashier/admin registered customer selector. A cashier is restricted to registered customers with completed POS sales in currently granted active branches. At most 15 rows; returns only ID, name and last four phone digits; no email, full phone, password, transaction, or account roster.",
+      "PosCustomerSearchResultEnvelope", [
+        { name: "q", in: "query", required: true, schema: { type: "string", minLength: 2, maxLength: 80 } },
+      ]),
   };
   // POS P0a: administrator-only cash-drawer session preparation. These
   // operations do not create sale/payment authority or decrement stock.

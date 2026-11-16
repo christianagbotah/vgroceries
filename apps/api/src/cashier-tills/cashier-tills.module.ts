@@ -1,4 +1,6 @@
 import { CashierWorkspaceController } from "./cashier-workspace.controller";
+import { PosCustomersController } from "./pos-customers.controller";
+import { PosCustomersService } from "./pos-customers.service";
 import { CashierWorkspaceService } from "./cashier-workspace.service";
 import {Module} from "@nestjs/common";
 import {CashierTillsController} from "./cashier-tills.controller";
@@ -16,11 +18,11 @@ import {PosCashSalesController} from "./pos-cash-sales.controller";
   imports:[OrdersModule,InventoryModule],
   controllers:[
     CashierTillsController,PosQuoteController,PosHoldsController,
-    PosCashSalesController,CashierWorkspaceController,
+    PosCashSalesController,CashierWorkspaceController,PosCustomersController,
   ],
   providers:[
     CashierTillsService,PosQuoteService,PosHoldsService,PosCashSalesService,
-    PosTillReconciliationService,CashierWorkspaceService,
+    PosTillReconciliationService,CashierWorkspaceService,PosCustomersService,
   ],
   exports:[CashierTillsService],
 })
