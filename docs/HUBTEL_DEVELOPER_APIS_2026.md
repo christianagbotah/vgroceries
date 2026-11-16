@@ -1,0 +1,305 @@
+# Hubtel API Integration — Developer Reference Handoff (14 November 2026)
+
+## Status and scope
+
+Source: owner-supplied Hubtel Developer Portal pages, all marked **last updated 12 October 2026**; in particular `pasted-1794474800958.txt` (Online Checkout) and `pasted-1794475101935.txt` (SMS). These are implementation contracts, **not** proof that each merchant service is enabled.
+
+**Current release status:** No live Hubtel operations are activated by this change. The existing `HubtelPaymentProvider` remains the Request Money/paylink adapter; `HubtelRefundProvider` and its callback authority remain unchanged. The new `HubtelOnlineCheckoutProvider` remains **unregistered**. The `HubtelSmsClient` is connected only to an opt-in ledger/CLI worker, with **no active timer or live sends**. No new user-facing checkout or automatic SMS is claimed.
+
+The public `varietygroceries.com` site remains Coming Soon; `portal.varietygroceries.com` is the staging application. Do not deploy live payments or switch the public site as part of this documentation handoff.
+
+## API contracts supplied by the owner
+
+| Use | Method and endpoint | Notes |
+| --- | --- | --- |
+| Hosted Online Checkout | `POST https://payproxyapi.hubtel.com/items/initiate` | Basic Sales API ID/Key; required `totalAmount`, `description`, `callbackUrl`, `returnUrl`, `cancellationUrl`, `merchantAccountNumber`, `clientReference`. Returns `checkoutUrl`, `checkoutId`, `checkoutDirectUrl`. |
+| Payment status | `GET https://api-txnstatus.hubtel.com/transactions/{Collection_Account_Number}/status?clientReference=...` | Basic Sales auth; mandatory reconciliation after five minutes without final callback. Status `Paid`, `Unpaid`, `Refunded`; `currencyCode` may be null. |
+| Direct Mobile Money receipt | `POST https://rmp.hubtel.com/merchantaccount/merchants/{Collection_Account_Number}/receive/mobilemoney` | Channel `mtn-gh`, `vodafone-gh`, `tigo-gh`; customer approval required. Owner-provided docs require registration/OTP protection against unsolicited prompts. |
+| Full Mobile Money refund | `POST https://refund-api.hubtel.com/refund/{Collection_Account_Number}/order/{orderId}` | JSON `{ "callbackUrl": "https://..." }`. Original Hubtel **orderId**, not an arbitrary checkout ID. |
+| Refund callback | Merchant-hosted HTTPS POST | `responseCode=0001` means **pending**, final `0000` with amount and external transaction ID indicates success. |
+| Disbursement to MoMo | `POST https://smp.hubtel.com/api/merchants/{Disbursement_Account_Number}/send/mobilemoney` | Requires funded disbursement account, unique `ClientReference`, callback and status reconciliation. |
+| Disbursement status | `GET https://smrsc.hubtel.com/api/merchants/{Disbursement_Account_Number}/transactions/status?clientReference=...` | Poll after five minutes only when callback missing. |
+| Send to bank | `POST https://smp.hubtel.com/api/merchants/{Disbursement_Account_Number}/send/bank/gh/{BankCode}` | Optional later; requires verified recipient and bank code. |
+| Merchant balances/transfers | `GET/POST https://trnf.hubtel.com/api/inter-transfers/{Collection_Account_Number}` | Separate collection vs. disbursement balances; transfer is asynchronous, needs callback/status. |
+| Simple/batch SMS | `POST https://sms.hubtel.com/v1/messages/batch/simple/send` | Matches the working iEduPro `application/models/Sms_model.php`; Basic SMS auth; JSON `From`, `Recipients` array, `Content`. The separate `/v1/messages/send` single route accepts `To` instead. Submission is **not** delivery. |
+| SMS status | `GET https://sms.hubtel.com/v1/messages/{messageId}` | Track delivery receipt statuses; optional batch endpoints also documented. |
+| Wallet verification | `GET https://rnv.hubtel.com/v2/merchantaccount/merchants/{Collection_Account_Number}/mobilemoney/verify` | Optional, purpose-limited account checks before payouts. Do not request national identity documents for routine grocery checkout. |
+
+Hubtel also provided Direct Debit preapproval, Recurring Invoice, Programmable Services/USSD and mobile SDK references. Those are **not** necessary to ship single-purchase grocery checkout; avoid activating customer preapprovals or recurring debits without a new product requirement.
+
+## Hubtel SMS — owner-selected school model parity
+
+The implementation reference is **`/home/lightworld/webapps/iedupro/application/models/Sms_model.php`**, NOT the library in `application/libraries/hubtel-sms-api` and NOT a newer school provider.
+
+That model's actual *simple batch* request uses:
+
+- `POST https://sms.hubtel.com/v1/messages/batch/simple/send`
+- Basic Auth from SMS ClientID/ClientSecret
+- JSON `{ "From": "APPROVED_SENDER", "Recipients": ["+233XXXXXXXXX"], "Content": "message" }`
+- Hubtel numeric `status == 0` means the **SMS submission was accepted**, not delivered
+- The model normalizes common Ghana phone forms into `+233` E.164 strings
+
+The staged Variety SMS client now follows that exact contract with stricter validation. The separate SMS status lookup remains untested, and no live SMS has been sent. The Hubtel documentation also describes a different *single send* route (`/v1/messages/send` with `To`); **do not mix that single-send request schema with the verified school model's batch route**.
+
+## SweetMothersGH payment implementation cross-check (14 November 2026)
+
+The owner directed us to inspect the existing live project:
+`/home/lightworld/websites/sweetmothersgh/src/app/api/hubtel/route.ts`
+and its shop wrapper
+`/home/lightworld/websites/sweetmothersgh/src/app/api/shop/payment/route.ts`.
+
+The SweetMothersGH **onsite-checkout** action sends a POST to the exact
+documented `https://payproxyapi.hubtel.com/items/initiate` URL with
+`totalAmount`, `description`, `callbackUrl`, `returnUrl`,
+`cancellationUrl`, `merchantAccountNumber` and `clientReference`.
+It reads `checkoutUrl` from either a top-level response field or `data`,
+with optional letter-case variations. Variety now also recognizes these
+response shapes, **but only** with a documented `responseCode=0000`,
+a nonempty `checkoutId`, HTTPS URL, and a clientReference matching the
+original request. The API documentation's canonical response remains
+`{ responseCode: "0000", data: { checkoutUrl, checkoutId, clientReference } }`.
+
+SweetMothersGH also includes **direct mobile-money** initiation using
+`/v1/merchantaccount/merchants/.../receive/mobilemoney`, and callback
+code that directly updates paid status from a callback body. Neither this
+legacy direct-mobile-money endpoint nor its direct callback trust behavior
+has been adopted. For Variety, callback success is an *untrusted hint*;
+authenticated status verification, exact reference, currency and amount
+checks, and the existing payment authority remain mandatory.
+
+The existing global Variety reference generator previously emitted 39
+characters. For the `hubtel_checkout` adapter *only*, it now produces
+`VG-PAY-` plus 25 random hexadecimal digits (32 characters total,
+100 random bits). Other payment provider formats remain unchanged.
+
+**Live VPS observations:** `api.env` was verified present with mode
+`600`, all six owner-configured Hubtel Sales/SMS variables present and
+the collection account/sender ID in valid formats; no secrets were printed.
+The existing API and portal both returned HTTP 200. A read-only transaction
+status probe against `api-txnstatus.hubtel.com` returned **HTTP 403**.
+The owner-supplied Online Checkout documentation explicitly says this
+status endpoint requires service IP allowlisting. This is evidence about
+**status lookup**, not SMS or Online Checkout initiation. No checkout
+creation, customer debit, refund, disbursement, or SMS was executed.
+Do not activate checkout while authoritative status verification returns 403.
+
+## Staged transactional SMS delivery ledger (inactive by default)
+
+Variety now has a source-linked SMS ledger under
+`apps/api/prisma/migrations/202611140039_hubtel_sms_dispatch_ledger`
+and `apps/api/src/notifications/hubtel-sms-dispatch.service.ts`.
+
+- The source is an already-created, immutable in-app `Notification` and
+  its authoritative order/customer relation; outbox payload phone numbers
+  are NEVER trusted for delivery.
+- Each notification can create at most one SMS row. Invalid or unauthorized
+  recipient snapshots are recorded as `skipped`, not retried indefinitely.
+- A network attempt must atomically transition `queued → attempting`
+  before the provider is contacted. `attempting → submitted` stores the
+  individual Hubtel `messageId` where available; a timeout/ambiguous
+  failure becomes `uncertain`. Neither `attempting` nor `uncertain`
+  can be automatically retried.
+- All outbound sends require the operator-set
+  `HUBTEL_SMS_DISPATCH_ENABLED=true`, a UTC
+  `HUBTEL_SMS_NOT_BEFORE` cutoff, and 1–10 explicit Ghana numbers in
+  `HUBTEL_SMS_ALLOWED_RECIPIENTS`. No such settings are currently enabled
+  on the VPS. Merely storing credentials cannot send an SMS.
+- There is NO public SMS dispatch HTTP route, recurring timer, or auto-start
+  service. `apps/api/scripts/dispatch-hubtel-sms.ts` is a manually invoked
+  opt-in testing tool. It prints counts only, not recipient numbers or messages.
+- A submitted SMS must NOT be labelled delivered: a separately verified Hubtel
+  delivery receipt is needed. Consent/preference and mass-delivery policy
+  remain a distinct production activation gate.
+
+The uploaded 12 October SMS docs show that the batch/simple response wraps
+per-recipient message IDs under `data: [{ recipient, messageId }]`.
+The adapted client extracts the message ID for the matching recipient rather
+than assuming a top-level `messageId`.
+
+## Read-only SMS delivery receipts (second inactive migration)
+
+A follow-up migration `202611140040_hubtel_sms_delivery_receipts`
+adds separate nullable `deliveryState` and `deliveryCheckedAt` fields
+to `SmsDispatch`. The database trigger continues to forbid resubmitting a
+message or modifying the original recipient, body and accepted provider ID;
+it permits only later verified receipt updates on a `submitted` row.
+`delivered` and `failed` are final, immutable receipt states.
+`sent`, `pending` and `unknown` remain eligible for **manual GET-only**
+status rechecks; they never trigger a second SMS.
+
+The manually invoked script
+`apps/api/scripts/check-hubtel-sms-deliveries.ts` uses
+`HubtelSmsDispatchService.checkSubmittedDeliveryBatch()` and
+`HubtelSmsClient.status()`. It is disabled unless the same
+`HUBTEL_SMS_DISPATCH_ENABLED=true` gate and approved-recipient allowlist
+are configured. The CLI has **no send path**, no timer, no public HTTP route
+and logs only counts. A request failure or mismatched provider message ID
+does not mark the message delivered or cause a retry.
+
+All database migrations remain **unapplied to the VPS** in this draft branch;
+the new receipt schema must be applied only as part of a reviewed staging
+release, not directly to production. No real Hubtel SMS receipt has been
+verified yet.
+
+## Security and money-state invariants
+
+1. The supplied documentation explicitly identifies IP whitelisting for **transaction status**, direct receive/send, refunds and certain transfer/verification endpoints. **Online Checkout initiation and SMS sending are not documented as requiring IP whitelisting.** Do not generalize requirements from one endpoint to all Hubtel services. The financial APIs are live-only in these references; never trigger a real debit, refund, transfer or customer SMS without controlled approval.
+2. Sales Basic Auth uses `API ID:API Key`; SMS Basic Auth uses **different** `ClientID:ClientSecret`. Base64 is encoding, not encryption. Keep keys in server secrets, never public `NEXT_PUBLIC_*`, browser JavaScript, screenshots, GitHub, access logs, or query strings.
+3. Use the **POST** SMS route; the supplied GET route places secrets and message body in URL parameters.
+4. Treat callback body as an **untrusted event hint** unless cryptographic verification is independently established. For checkout, look up transaction status over the authenticated server connection and match merchant reference, GHS amount, and provider identity before applying capture truth. Verify callback ingress with Hubtel before any production go-live; source-IP allowlisting alone is not a signature.
+5. A checkout initiation `responseCode=0000` means the checkout URL was created; it is **not** evidence that the customer paid. A Direct Receive Money `0001` means pending. SMS `status=0` means submitted; delivery is determined separately.
+6. Preserve the repository's existing idempotent `PaymentAttempt`, `PaymentOutcomeService`, `RefundObligation`, `RefundExecution`, staff approvals and reconcile-on-uncertain-result rules. Never re-send an uncertain debit or payout blindly.
+7. **Hubtel hosted checkout clientReference must be at most 32 characters.** The new provider-specific 32-character reference generator and regression tests are implemented on this branch. Already-created legacy payment references are left untouched.
+8. The hosted checkout returns `checkoutId` at initiation, which is **not** a refund ID. Hubtel's official developer refund guide (updated 2 November 2026) explicitly accepts the original paid `OrderId` **or** `TransactionId`; the API path specifies `{transactionId}`. For verified **mobile-money** captures, preserve the authenticated status lookup's `transactionId` as the immutable refund reference. This does not establish card/GhQR refund support or merchant-specific eligibility. Source: https://code.hubtel.com/docs/guides/refunds and https://code.hubtel.com/docs/api/v1/refunds.
+9. The supplied refund endpoint has no `amount` parameter. Restrict to **full eligible Mobile Money refunds**, completed within **45 days**, with a minimum original transaction amount of **₵1.00**. It cannot be used as a general partial-refund/payout endpoint. After 45 days the documentation directs the merchant to `business@hubtel.com`. A `4515` in-progress response must not trigger a second refund.
+10. Hosted checkout may allow cards or other methods that the current Hubtel refund adapter does not support. The `PaymentPolicyService` requires method-compatible refund authority. Avoid misrepresenting `hosted_checkout` as `mobile_money`; do not register the hosted adapter until the non-MoMo refund policy and provider capabilities are approved.
+11. New cash movement needs role-based approval, immutable audit, recipient verification, limits, and a funded disbursement account. No automatic customer payouts or Collection → Disbursement transfers from an AI recommendation.
+
+## Work staged in this branch
+
+- `apps/api/src/payments/hubtel-online-checkout-provider.ts`: documented checkout creation, lookup-required callback hints, authoritative transaction status, Ghana money normalization, failed-closed reference validation.
+- `apps/api/src/notifications/hubtel-sms-client.ts`: server-only **batch/simple** SMS POST (school-model parity) and separate delivery-status client. SMS dispatch can run only via the explicitly enabled, recipient-allowlisted CLI worker.
+- `apps/api/test/hubtel-online-checkout-provider.spec.ts`: unit fixtures for correct checkout payload, callback trust boundary, status reconciliation and malformed references.
+
+## Owner-configured secrets: staging configuration
+
+The merchant has confirmed that the Sales API ID/Key, Collection Account Number,
+SMS ClientID/Secret, and approved Sender ID were placed in
+`/home/lightworld/config/varietygroceries/api.env`. The VPS was subsequently reached through Remote Desktop Commander; the environment file is mode `600` and the six expected variable names are present. Account number and sender ID passed format checks. **Credentials themselves were neither printed nor tested by a real payment or SMS.**
+
+The backend `readConfig()` now parses the following independent, all-or-nothing
+server-side groups:
+
+- Sales: `HUBTEL_SALES_API_ID`, `HUBTEL_SALES_API_KEY`,
+  `HUBTEL_COLLECTION_ACCOUNT_NUMBER`
+- SMS: `HUBTEL_SMS_CLIENT_ID`, `HUBTEL_SMS_CLIENT_SECRET`,
+  `HUBTEL_SMS_SENDER_ID`
+
+An incomplete group or invalid format fails configuration validation; when valid,
+both remain **staged/inactive**. No callbacks, payment adapter, SMS worker or
+refund execution are automatically enabled by their presence. Existing legacy
+`HUBTEL_CLIENT_ID` / `HUBTEL_REQUEST_MONEY_URL` is a *different* adapter
+configuration. Do not set it using Sales keys without verifying that contract.
+
+After the branch is approved, deployed and the API package is compiled, this
+**offline, no-network** preflight checks only presence/format and never prints
+secrets (use the service-account rights required to read the protected env file):
+
+```bash
+/home/lightworld/runtime/node24/bin/node \
+  --env-file=/home/lightworld/config/varietygroceries/api.env \
+  /home/lightworld/webapps/varietygroceries-api/current/apps/api/dist/scripts/check-hubtel-merchant-config.js
+```
+
+The preflight cannot verify merchant scope, account ownership, whitelisting,
+real payment results or current VPS deployment status. It does not replace
+end-to-end staging acceptance. **Do not send the full `api.env` file in chat.**
+
+## Isolated VPS verification — 14 November 2026
+
+Read-only examination on `vps.lightworldtech.com` reconfirmed the status API
+responds **HTTP 403**, despite the existing sales credentials; only response
+status was surfaced. This is consistent with missing IP allowlisting or an
+unauthorized service scope. The outbound IPv4 is `163.245.212.15`.
+
+A fresh Git clone of `feature/hubtel-documented-apis-20261114` was made in
+`/home/lightworld/workspaces/vgroceries-hubtel-verification-20261114`.
+Using the separate Node 24 runtime and no active service changes:
+
+- `npm ci` for contracts and API, shared-contract build, Prisma client
+  generation and API TypeScript compilation completed successfully.
+- **22/22 database-free Hubtel tests passed** (merchant config, online
+  checkout, SMS client).
+- The offline credential preflight reported the Sales and SMS groups
+  configured. No credentials or SMS recipient numbers were printed.
+- The broader test glob includes refund callback and dispatch tests that need
+  a dedicated test database and test environment configuration. These failed
+  in the standalone workspace because that environment was absent; the full
+  repository GitHub CI passed. **Do not point those integration tests to the
+  live operational database.**
+- No production systemd service was restarted, no Prisma migration was run,
+  no payment or SMS was sent, and no public DNS was changed.
+
+Hubtel's November 2026 documentation explicitly describes IP allowlisting
+for transaction-status and refund services. The vendor request is saved
+as `docs/HUBTEL_ALLOWLIST_VENDOR_REQUEST_2026.md`.
+
+## Controlled Hubtel SMS submission — 14 November 2026
+
+With the owner's explicit authorization for a **single test recipient**,
+a one-off test was executed directly from the connected VPS using the
+compiled branch's `HubtelSmsClient` and protected server-side SMS credentials.
+The recipient's full number, credentials, and provider message ID were **not
+committed** to the repository. A private local once-only attempt guard was
+created before the network request to prevent ambiguous retries.
+
+- `POST https://sms.hubtel.com/v1/messages/batch/simple/send` returned
+  **HTTP 201**, and the Hubtel adapter returned `state=submitted` with a
+  nonempty provider `messageId`.
+- A subsequent **GET-only** lookup using that message ID returned
+  **HTTP 404**, with the same message ID in its response but no confirmed
+  delivery status. **Handset delivery is not established.**
+- Exactly **one** SMS submission was attempted; there was **no second send**
+  and no real charge, refund, or payout. Automatic SMS dispatch, timers and
+  customer messaging remained disabled.
+- This was a **controlled live provider test**, not an end-to-end application
+  order-notification acceptance test. The live API release and production
+  website were not updated.
+
+**Next:** Confirm with the recipient whether the test text arrived, and
+investigate the 404 receipt endpoint behavior with Hubtel before marking
+messages delivered. Do not retry sending an uncertain or accepted message
+just to obtain a status.
+
+## New Sales API credential test — 14 November 2026
+
+The owner generated new Sales API credentials and updated the protected
+`/home/lightworld/config/varietygroceries/api.env` file (observed modified
+**14 November 2026 at 21:30:47 UTC**). We used the credentials already on
+the VPS, without displaying or copying them to GitHub.
+
+- **Read-only Transaction Status:** HTTP **403** from
+  `api-txnstatus.hubtel.com`; the service still needs IP allowlisting and/or
+  merchant-specific scope authorization. Outbound server IPv4:
+  `163.245.212.15`.
+- **Online Checkout initiation:** one controlled call to
+  `POST https://payproxyapi.hubtel.com/items/initiate` using the documented
+  Basic Sales authentication, `₵1.00` total and unique client reference
+  returned **HTTP 200** and Hubtel `responseCode=0000`. The provider adapter
+  validated the echoed client reference, checkout ID and HTTPS checkout URL
+  on `pay.hubtel.com`. This confirms **checkout creation**, **not payment**.
+- No customer was redirected, no checkout link was published, **no money was
+  debited** and no callbacks/refunds/payouts were issued.
+- The one-time initiation record is stored privately on the VPS with file
+  mode `600` to prevent accidental duplicate calls. The payable checkout
+  URL and account credentials have not been committed to GitHub.
+- Production payment activation remains **off**; this probe did not touch
+  the live Variety API process. `hubtel_checkout` still requires the full
+  refund, callback, stock and authoritative-reconciliation safety gates.
+
+Hubtel's official developer docs distinguish these services:
+Online Checkout creation requires **no IP allowlisting**, while Transaction
+Status **does require** an allowlisted IPv4. See
+https://code.hubtel.com/docs/api/v1/online-checkout and
+https://code.hubtel.com/docs/api/v1/transaction-status .
+
+## Next gates before activation
+
+1. The merchant Sales/SMS credentials are already stored in the protected backend environment. Verify merchant scopes and fix the documented **transaction-status service** access (observed HTTP 403) before accepting real money. SMS/checkout initiation need not wait on whitelisting merely to run safe offline tests.
+2. Confirm merchant-approved callback paths, signed callback guarantees (if any), trusted callback IP list and inbound firewall rules. Hubtel's official November 2026 refund guide confirms `TransactionId` may be used for eligible mobile-money refunds, but the initial `checkoutId` must never be treated as the paid transaction identifier.
+3. Shorten new merchant references to <= 32 characters, then test old reference reconciliation. Determine precise method capability of hosted checkout and implement supported refund handling for card vs. MoMo **without** loosening existing refund-gate checks.
+4. Wire the provider through `ApiConfig`, registry and `PaymentPolicyService` behind disabled-by-default configuration; do not overwrite existing payment credentials or provider selections. Reconcile incomplete payment outcomes after five minutes.
+5. Introduce SMS outbox receipts/retries, sender ID configuration, consent checks, delivery receipts, no duplicate customer notifications, and no raw PII or credential logging.
+6. Run `npm run build` and `npm test` in `apps/api` on Node 24 with the connected PostgreSQL test setup, complete end-to-end negative cases and load/staging UAT. No tests or API calls in this branch are evidence of live provider connectivity.
+
+## Acceptance scenarios
+
+- Two callback deliveries for the same captured payment produce only one order/payment/stock effect.
+- Browser redirect without an authenticated status lookup cannot mark paid.
+- Last-unit reservation conflict after late payment routes to staff `requires_review`, never fictional stock.
+- A failed/unknown charge remains pending/review and does not prompt an automatic repeat payment.
+- Partial or older-than-45-days Hubtel refund is declined or routed to controlled alternative; never pretends to succeed.
+- A sent-but-undelivered SMS remains distinct from Delivered.
+- Refunds, payouts and transfers are not possible from customer-controlled amounts or without staff authority.
+
+All integration credentials and account numbers in these docs are placeholders, **not** live merchant values.
