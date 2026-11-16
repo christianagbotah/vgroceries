@@ -319,3 +319,95 @@ test("reprints preserve sale-time item names and escape hostile catalog markup",
     });
   assert.equal(missing.status,404);
 });
+
+test("legacy cash sale remains an anonymous walk-in with immutable default identity",async()=>{
+  const {hold}=await held();
+  const admin=await token("admin-commerce@example.test");
+  const result=await api("POST","/admin/pos/cash-sales",admin,request(hold.id),"pos-customer-default-walk-in");
+  assert.equal(result.status,200,JSON.stringify(result.payload));
+  assert.equal(result.payload.data.customerMode,"walk_in");
+  assert.equal(result.payload.data.customerUserId,null);
+  assert.equal(result.payload.data.customerName,"Walk-in Customer");
+  const stored=await db.posCashSale.findUniqueOrThrow({where:{id:result.payload.data.id}});
+  assert.equal(stored.customerMode,"walk_in");
+  assert.equal(stored.customerUserId,null);
+  assert.equal(stored.customerPhone,null);
+  assert.match(await sales.printReceipt(stored.id),/Walk-in Customer/);
+});
+
+test("cash sale binds active registered customer using server identity before consuming stock",async()=>{
+  const {hold}=await held();
+  const admin=await token("admin-commerce@example.test");
+  const before=await db.stockDepletion.count();
+  const rejected=await api("POST","/admin/pos/cash-sales",admin,{
+    ...request(hold.id),customerMode:"existing",customerUserId:"admin-commerce",
+  },"pos-customer-invalid-role");
+  assert.equal(rejected.status,422,JSON.stringify(rejected.payload));
+  assert.equal(await db.posCashSale.count(),0);
+  assert.equal(await db.stockDepletion.count(),before);
+  const ok=await api("POST","/admin/pos/cash-sales",admin,{
+    ...request(hold.id),customerMode:"existing",customerUserId:"customer-a",
+  },"pos-customer-existing-authorised");
+  assert.equal(ok.status,200,JSON.stringify(ok.payload));
+  const sale=ok.payload.data;
+  assert.equal(sale.customerMode,"existing");
+  assert.equal(sale.customerUserId,"customer-a");
+  assert.equal(sale.customerName,"Ama Customer");
+  const saved=await db.posCashSale.findUniqueOrThrow({where:{id:sale.id}});
+  assert.equal(saved.customerMode,"existing");
+  assert.equal(saved.customerUserId,"customer-a");
+  assert.equal(saved.customerName,"Ama Customer");
+  assert.match(await sales.printReceipt(sale.id),/Customer<\/span><span>Ama Customer/);
+  assert.equal(await db.stockDepletion.count({where:{claimType:"pos_draft"}}),1);
+  const replay=await api("POST","/admin/pos/cash-sales",admin,{
+    ...request(hold.id),customerMode:"existing",customerUserId:"customer-a",
+  },"pos-customer-existing-authorised");
+  assert.equal(replay.status,200);
+  assert.equal(replay.payload.data.id,sale.id);
+  assert.equal(await db.posCashSale.count(),1);
+});
+
+test("named walk-in preserves escaped receipt name but never creates account",async()=>{
+  const {hold}=await held();
+  const admin=await token("admin-commerce@example.test");
+  const before=await db.user.count();
+  const name="  Ama <script>alert(1)</script>  ";
+  const result=await api("POST","/admin/pos/cash-sales",admin,{
+    ...request(hold.id),customerMode:"named",customerName:name,
+  },"pos-customer-named-walkin");
+  assert.equal(result.status,200,JSON.stringify(result.payload));
+  const sale=result.payload.data;
+  assert.equal(sale.customerMode,"named");
+  assert.equal(sale.customerUserId,null);
+  assert.equal(sale.customerName,name.trim());
+  assert.equal(await db.user.count(),before);
+  const saved=await db.posCashSale.findUniqueOrThrow({where:{id:sale.id}});
+  assert.equal(saved.customerMode,"named");
+  assert.equal(saved.customerUserId,null);
+  assert.equal(saved.customerPhone,null);
+  const html=await sales.printReceipt(sale.id);
+  assert.match(html,/Ama &lt;script&gt;alert\(1\)&lt;\/script&gt;/);
+  assert.ok(!html.includes("<script>alert(1)</script>"));
+});
+
+test("rejects mismatched customer identity modes and supplied customer phone before handover",async()=>{
+  const {hold}=await held();
+  const admin=await token("admin-commerce@example.test");
+  const invalid=[
+    {customerMode:"existing"},
+    {customerMode:"named"},
+    {customerMode:"walk_in",customerUserId:"customer-a"},
+    {customerMode:"existing",customerUserId:"customer-a",customerName:"Fake Identity"},
+    {customerMode:"named",customerName:"A"},
+    {customerMode:"walk_in",customerName:"Fake Name"},
+    {customerPhone:"+233241234567"},
+  ];
+  for(let i=0;i<invalid.length;i++){
+    const result=await api("POST","/admin/pos/cash-sales",admin,{
+      ...request(hold.id),...invalid[i],
+    },"pos-invalid-customer-mode-"+i);
+    assert.equal(result.status,400,JSON.stringify(result.payload));
+  }
+  assert.equal(await db.posCashSale.count(),0);
+  assert.equal(await db.stockDepletion.count({where:{claimType:"pos_draft"}}),0);
+});

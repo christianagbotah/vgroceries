@@ -1,9 +1,10 @@
 /** Print-safe, data-only 80 mm cash receipt. No scripts, requests, fonts,
- * tax invoice claims, customer PII or mutable catalog lookup.
+ * tax invoice claims, customer phone/email or mutable catalog lookup.
  */
 export interface PosCashReceiptPrintData {
   reference:string;
   tillCode:string;
+  customerName:string;
   createdAt:Date;
   subtotalMinor:number;
   cashReceivedMinor:number;
@@ -78,6 +79,7 @@ export function renderPosCashReceiptHtml(data:PosCashReceiptPrintData):string{
     "<span>Date · Ghana time</span><span>"+
       escapeHtml(localTime(data.createdAt))+"</span>",
     "<span>Till</span><span>"+escapeHtml(data.tillCode)+"</span>",
+    "<span>Customer</span><span>"+escapeHtml(data.customerName)+"</span>",
     "<span>Payment</span><span>CASH</span></div>",
     "<hr class='rule'>",
     "<table aria-label='Purchased grocery items'><thead><tr>",
