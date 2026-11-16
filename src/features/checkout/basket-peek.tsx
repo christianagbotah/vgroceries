@@ -123,7 +123,8 @@ export function BasketPeekDock() {
             <SheetDescription className="text-sm leading-6 text-[#d5e8d7]">
               {lines.length > 0
                 ? lines.length + " grocery " + (lines.length === 1 ? "selection" : "selections") +
-                    " · " + totalQuantity.toLocaleString("en-GH") + " units in your basket."
+                    " · " + totalQuantity.toLocaleString("en-GH") + " " +
+                    (totalQuantity === 1 ? "unit" : "units") + " in your basket."
                 : "Your next good grocery find starts here."}
             </SheetDescription>
           </SheetHeader>

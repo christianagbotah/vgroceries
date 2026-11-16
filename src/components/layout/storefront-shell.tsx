@@ -175,7 +175,7 @@ export function StorefrontHeader() {
             <Link href="/account/lists" className="hidden min-w-[58px] flex-col items-center justify-center gap-0.5 rounded-xl px-2 py-1.5 text-foreground transition hover:bg-accent md:flex" aria-label="Wishlist">
               <Heart className="size-5" aria-hidden /><span className="text-[10px] font-semibold">Wishlist</span>
             </Link>
-            <Link href="/cart" className="relative flex min-w-[48px] flex-col items-center justify-center gap-0.5 rounded-xl px-2 py-1.5 text-foreground transition hover:bg-accent sm:min-w-[58px]" aria-label={`Cart, ${itemCount} items`}>
+            <Link href="/cart" className="relative flex min-w-[48px] flex-col items-center justify-center gap-0.5 rounded-xl px-2 py-1.5 text-foreground transition hover:bg-accent sm:min-w-[58px]" aria-label={"Cart, " + itemCount + (itemCount === 1 ? " item" : " items")}>
               <MotionCartIcon count={itemCount} />
               <span className="hidden text-[10px] font-semibold sm:block">Cart</span>
             </Link>

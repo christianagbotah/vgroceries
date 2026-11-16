@@ -84,6 +84,20 @@ describe("non-authoritative basket peek", () => {
     expect(src).toContain("Checkout independently confirms sellable stock");
   });
 
+  test("add-to-cart has one accessible confirmation, not overlapping generic toasts", () => {
+    const card = read("src/features/catalog/product-tile.tsx");
+    const detail = read("src/features/catalog/product-purchase-panel.tsx");
+    const preview = read("src/features/checkout/basket-peek.tsx");
+    const shell = read("src/components/layout/storefront-shell.tsx");
+    expect(card).toContain("flyProductToCart(");
+    expect(detail).toContain("flyProductToCart(");
+    expect(card).not.toContain("useToast");
+    expect(detail).not.toContain("useToast");
+    expect(preview).toContain("Added to your basket");
+    expect(preview).toContain('totalQuantity === 1 ? "unit" : "units"');
+    expect(shell).toContain('itemCount === 1 ? " item" : " items"');
+  });
+
   test("cart-flight event remains decorative after the real cart mutation", () => {
     const flight = read("src/features/checkout/cart-motion.ts");
     const tile = read("src/features/catalog/product-tile.tsx");

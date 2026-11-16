@@ -5,7 +5,6 @@ import Link from "next/link";
 import { useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { useToast } from "@/hooks/use-toast";
 import { useCart } from "@/features/checkout/cart-store";
 import { flyProductToCart } from "@/features/checkout/cart-motion";
 import { WishlistButton } from "@/features/catalog/wishlist-button";
@@ -16,7 +15,6 @@ import { Check, ShoppingCart } from "lucide-react";
 
 export function ProductTile({ product, priority }: { product: CatalogProduct; priority?: boolean }) {
   const { add } = useCart();
-  const { toast } = useToast();
   const photoRef = useRef<HTMLDivElement>(null);
   const addRef = useRef<HTMLButtonElement>(null);
   const available = product.variants.filter((v) => v.isAvailable);
@@ -37,7 +35,6 @@ export function ProductTile({ product, priority }: { product: CatalogProduct; pr
       priceMinor: purchasable.priceMinor,
     });
     flyProductToCart(addRef.current, photoRef.current?.querySelector("img"));
-    toast({ title: "Added to cart", description: `${product.name} — ${purchasable.name}` });
   };
 
   return (

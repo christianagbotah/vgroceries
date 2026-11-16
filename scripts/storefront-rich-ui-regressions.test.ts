@@ -29,6 +29,14 @@ describe("rich storefront visual system", () => {
     expect(page).toContain("Featured products");
   });
 
+  test("hero headline and photography are visible before client hydration", () => {
+    const hero = read("src/features/catalog/storefront-editorial-hero.tsx");
+    expect(hero).toContain("initial: reducedMotion ? false : { opacity: 1, y: 12 }");
+    expect(hero).toContain("initial={reducedMotion ? false : { opacity: 1, scale: .96");
+    expect(hero).not.toContain("opacity: 0");
+    expect(hero).toContain('id="home-hero-title"');
+  });
+
   test("legacy Z logo is fully retired from public branding and metadata", () => {
     const legacyLogo = read("public/logo.svg");
     const mark = read("public/brand/variety-mark.svg");

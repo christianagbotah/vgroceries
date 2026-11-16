@@ -57,8 +57,21 @@ Offline regression tests cover quantity math, fractional groceries,
 overflow/invalid persisted prices, no server actions, one drawer in
 storefront layout, original cart link preserved, appropriate labels,
 motion/reduced-motion, accessibility hooks and event order.
-The full local Bun frontend suite passed **308 tests, 0 failures**, and
-targeted ESLint/whitespace checks passed. The clean GitHub CI/API
+The final local Bun frontend suite passed **310 tests, 0 failures**, and
+targeted ESLint/whitespace checks passed. This suite includes an
+additional first-paint regression: the CMS hero's headline and featured
+photography must not begin at zero opacity awaiting JavaScript hydration.
+An isolated loopback-only Next.js mock page returned HTTP 200, and a
+1280×900 headless Chromium capture with JavaScript disabled confirmed
+that the headline, grocery imagery and CTAs remain visible on first paint.
+An isolated Chrome DevTools browser smoke also verified opening the drawer,
+adding an exact selected Perfumed Local Rice 5 kg SKU, the normal cart
+count incrementing from 1 to 2, the single line quantity becoming 2,
+and the indicative subtotal updating from ₵120.00 to ₵240.00. It found
+an overlapping legacy generic add-toast: the duplicate was removed
+from product cards and the product detail add action, leaving one
+accessible animated cart confirmation and correct singular/plural labels.
+The clean GitHub CI/API
 Foundation checks and production TypeScript are required before merge.
 
 Before preview or live rollout, conduct real Android/iOS and desktop
