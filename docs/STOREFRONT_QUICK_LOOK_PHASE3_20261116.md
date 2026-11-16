@@ -16,7 +16,10 @@ The dialog displays a large photo, thumbnail navigator, approved media
 order, category, short description, the identical pack/stock/quantity
 purchase panel as full product details, safety text and a link to the
 complete product page. The gallery supports swipe, arrow keys, previous/
-next controls, animation and reduced-motion preference.
+next controls, animation and reduced-motion preference. On narrow screens,
+its content scrolls independently of a fixed bottom action bar; the
+"View pack sizes" action moves the viewer to the existing purchase panel
+instead of secretly adding an item. It respects reduced motion.
 
 ## Data provenance and correctness
 
@@ -63,3 +66,33 @@ cash/stock/payment mutation, receipt or order creation is introduced.
 The product media team must approve real SKU front/back/pack images
 before the public launch; placeholders cannot be marketed as exact
 packaging. No external AI-generated products or visual claims.
+
+
+## Completed local verification — source branch
+
+- Bun frontend: **318 passed, 0 failed** across 53 files; targeted
+  quick-look and existing checkout/cart regressions pass.
+- Targeted ESLint/whitespace checks: pass; TypeScript noEmit passed
+  before the final mobile scroll-footer layout change. GitHub CI
+  typecheck is the required final compiler gate for that change.
+- Local isolated Next.js mock server returned HTTP 200; headless
+  Chromium desktop at 1280x900 opened the Quick Look for
+  "Perfumed Local Rice", displayed the exact available 5 kg bag
+  at ₵120.00, and successfully added one item to the existing cart.
+  The overlay closed and the basket confirmation appeared.
+- Mobile Chrome emulation at 390x844: Quick Look modal width 374,
+  document width 390 (no horizontal page overflow), close button
+  visible. After the mobile footer update, "View pack sizes" was
+  visibly pinned at the bottom and moved the modal scroll to 574px,
+  revealing the existing Add to Cart purchase controls.
+- The isolated HTTP adapter timeout test had one flaky failure under
+  concurrent dev-server/Chromium contention; after stopping *only*
+  this branch's preview processes, its 24 tests passed, and the
+  full 318-test suite passed again. The existing HTTP code and
+  timeout thresholds were not altered.
+- The temporary preview was bound to 127.0.0.1:4194 and the Chrome
+  debug port 9235 only. Both are stopped; production POS services
+  remained active.
+
+These checks do not substitute for physical-device touch/a11y
+acceptance or exact-SHA GitHub CI on the final amended branch.

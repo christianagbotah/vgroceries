@@ -28,6 +28,7 @@ export function ProductQuickLook({ product, open, onOpenChange }: QuickLookProps
   const [direction, setDirection] = useState(1);
   const reduced = useReducedMotion();
   const touchX = useRef<number | null>(null);
+  const purchaseRef = useRef<HTMLDivElement>(null);
   const currentIndex = Math.max(0, media.findIndex(x => x.id === activeId));
   const active = media[currentIndex];
 
@@ -43,8 +44,9 @@ export function ProductQuickLook({ product, open, onOpenChange }: QuickLookProps
       {open ? (
         <DialogContent
           data-vg-quicklook-root
-          className="max-h-[94dvh] w-[min(96vw,1050px)] max-w-[1050px] gap-0 overflow-y-auto rounded-3xl border-0 bg-[#f6f8f1] p-0 shadow-[0_28px_90px_rgba(7,42,25,.3)] sm:max-w-[1050px] motion-reduce:duration-0 [&>button]:z-30 [&>button]:rounded-full [&>button]:bg-white [&>button]:p-1.5"
+          className="flex max-h-[94dvh] w-[min(96vw,1050px)] max-w-[1050px] flex-col gap-0 overflow-hidden rounded-3xl border-0 bg-[#f6f8f1] p-0 shadow-[0_28px_90px_rgba(7,42,25,.3)] sm:max-w-[1050px] motion-reduce:duration-0 [&>button]:z-30 [&>button]:rounded-full [&>button]:bg-white [&>button]:p-1.5"
         >
+          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
           <div className="grid min-w-0 gap-0 lg:grid-cols-[minmax(0,.97fr)_minmax(0,1.03fr)]">
             <div className="min-w-0 bg-[radial-gradient(ellipse_at_45%_26%,white_5%,#eaf2e4_72%,#e3eddc_100%)] px-4 pb-5 pt-10 sm:px-7 sm:pb-7 sm:pt-8">
               <div className="mb-3 flex items-center gap-2 text-[11px] font-black uppercase tracking-[.18em] text-[#246747]">
@@ -146,7 +148,7 @@ export function ProductQuickLook({ product, open, onOpenChange }: QuickLookProps
                 </DialogDescription>
               </div>
 
-              <div className="rounded-2xl border border-[#dae9d5] bg-white p-3.5 shadow-[0_6px_24px_rgba(12,63,32,.04)] sm:p-4">
+              <div ref={purchaseRef} className="scroll-mt-5 rounded-2xl border border-[#dae9d5] bg-white p-3.5 shadow-[0_6px_24px_rgba(12,63,32,.04)] sm:p-4">
                 <ProductPurchasePanel product={product} onAdded={() => onOpenChange(false)} />
               </div>
 
@@ -165,6 +167,20 @@ export function ProductQuickLook({ product, open, onOpenChange }: QuickLookProps
                 See full product details <ArrowRight className="size-4" aria-hidden />
               </Link>
             </div>
+          </div>
+          </div>
+          <div className="flex shrink-0 items-center justify-between gap-3 border-t border-[#dce6d7] bg-white/95 px-4 py-3 shadow-[0_-8px_25px_rgba(14,62,37,.08)] backdrop-blur lg:hidden">
+            <div>
+              <p className="text-xs font-extrabold text-[#144a32]">{product.anyAvailable ? "Choose your pack" : "Check available options"}</p>
+              <p className="text-[10px] text-[#667b6a]">Final price checked at checkout</p>
+            </div>
+            <button type="button"
+              onClick={() => purchaseRef.current?.scrollIntoView({
+                behavior: reduced ? "auto" : "smooth", block: "start",
+              })}
+              className="inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-full bg-[#0c5938] px-4 text-xs font-black text-white shadow-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">
+              View pack sizes <ArrowRight className="size-4" aria-hidden />
+            </button>
           </div>
         </DialogContent>
       ) : null}

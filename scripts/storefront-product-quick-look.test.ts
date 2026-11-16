@@ -75,6 +75,10 @@ describe("source-only accessible product quick-look overlay", () => {
     expect(look).toContain("useReducedMotion()");
     expect(look).toContain('href={"/products/" + encodeURIComponent(product.slug)}');
     expect(look).toContain("focus-visible:outline-2");
+    expect(look).toContain("View pack sizes");
+    expect(look).toContain("purchaseRef.current?.scrollIntoView");
+    expect(look).toContain("min-h-0 flex-1 overflow-y-auto");
+    expect(look).toContain('behavior: reduced ? "auto" : "smooth"');
   });
 
   test("gallery never describes a seed image as approved photography", () => {
