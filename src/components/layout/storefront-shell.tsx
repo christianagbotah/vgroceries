@@ -60,16 +60,22 @@ const NAV: NavItem[] = [
 
 function Brand({ compact = false, inverse = false }: { compact?: boolean; inverse?: boolean }) {
   return (
-    <Link href="/" className="flex shrink-0 items-center gap-2.5 focus-visible:rounded-lg" aria-label="Variety Groceries home">
-      <Image src="/brand/variety-mark.svg" alt="" width={48} height={48} className={compact ? "size-9" : "size-11 sm:size-12"} priority />
-      <span className={cn("leading-none", compact && "hidden sm:block")}>
-        <span className={cn("block text-[19px] font-black tracking-[-0.055em] sm:text-[24px]", inverse ? "text-white" : "text-[color:var(--brand-green-deep)]")}>
-          Variety<span className="text-brand-amber">Groceries</span>
-        </span>
-        <span className={cn("mt-1 hidden text-[10px] font-semibold tracking-wide sm:block", inverse ? "text-white/55" : "text-muted-foreground")}>
-          Quality groceries. Brighter everyday living.
-        </span>
-      </span>
+    <Link
+      href="/"
+      aria-label="Variety Groceries home"
+      className={cn(
+        "flex shrink-0 items-center rounded-lg focus-visible:ring-2 focus-visible:ring-brand-amber",
+        inverse && "bg-white px-2.5 py-1.5 shadow-sm",
+      )}
+    >
+      <Image
+        src="/brand/variety-lockup.svg"
+        alt="Variety Groceries"
+        width={240}
+        height={91}
+        priority
+        className={cn("w-auto object-contain", compact ? "h-10" : "h-12 sm:h-14")}
+      />
     </Link>
   );
 }
