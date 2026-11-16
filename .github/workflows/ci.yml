@@ -13,6 +13,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Offline Hubtel access diagnostic tests (no provider requests)
+        run: python3 -m unittest discover -s scripts -p 'test_hubtel_transaction_status_probe.py' -v
+
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: latest
