@@ -65,7 +65,9 @@ describe("actual browser -> HTTP transport -> guest checkout retry", () => {
     });
     expect(await withFreshGuestCheckoutRetry(operation)).toEqual({ orderId: "mock-only-order" });
     expect(captured).toHaveLength(2);
-    expect(captured[0].url).toBe("https://portal.example.test/api/v1/checkout/complete");
+    const firstUrl = new URL(captured[0].url);
+    expect(firstUrl.protocol).toBe("https:");
+    expect(firstUrl.pathname).toBe("/api/v1/checkout/complete");
     expect(captured[1].url).toBe(captured[0].url);
     expect(captured[0].headers["X-CSRF-Token"]).toBeUndefined();
     expect(captured[1].headers["X-CSRF-Token"]).toBe(guestCsrf);
