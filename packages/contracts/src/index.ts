@@ -26,6 +26,7 @@ export * from "./inventory";
 export * from "./pos";
 export * from "./cashier-tills";
 export * from "./cashier-workspace";
+export * from "./pos-customers";
 export * from "./staff-management";
 export * from "./password-recovery";
 export * from "./inventory-adjustments";
