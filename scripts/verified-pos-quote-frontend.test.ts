@@ -91,7 +91,7 @@ describe("POS quote-only canonical admin frontend", () => {
     const adapter = new HttpServiceAdapter("https://portal.example.test/api/v1", {
       credentials: "include",
     });
-    expect(await adapter.request({ op: "pos.verified.quote", body })).toEqual({ quoteOnly: true });
+    expect(await adapter.request<{ quoteOnly: boolean }>({ op: "pos.verified.quote", body })).toEqual({ quoteOnly: true });
     expect(count).toBe(1);
   });
 
