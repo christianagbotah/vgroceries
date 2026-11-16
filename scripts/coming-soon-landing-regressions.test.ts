@@ -12,13 +12,14 @@ function read(path: string) {
 }
 
 describe("rich coming-soon landing page", () => {
-  test("uses the Variety V identity and removes the old Z mark", () => {
+  test("uses the official gold VG monogram/lockup and removes the old V/Z marks", () => {
     const html = read(htmlPath);
     const logo = read(logoPath);
 
     expect(html).toContain("Variety Groceries");
     expect(html).toContain("logo.svg");
-    expect(logo).toContain('aria-label="Variety Groceries V mark"');
+    expect(logo).toContain('aria-label="Variety Groceries official gold VG monogram"');
+    expect(html).toContain('src="/variety-lockup.svg"');
     expect(logo).not.toContain("z-breathe");
   });
 
