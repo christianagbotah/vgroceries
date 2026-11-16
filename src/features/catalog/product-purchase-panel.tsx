@@ -17,13 +17,14 @@ import { cn } from "@/lib/utils";
  * A saved link to a sold-out product shows a clear unavailable state
  * with purchasing disabled.
  */
-export function ProductPurchasePanel({ product }: { product: CatalogProduct }) {
+export function ProductPurchasePanel({ product, onAdded }: { product: CatalogProduct; onAdded?: () => void }) {
   const available = product.variants.filter((v) => v.isAvailable);
   const [variantId, setVariantId] = useState(available[0]?.id ?? product.variants[0]?.id ?? "");
   const [quantity, setQuantity] = useState("1");
   const { add } = useCart();
   const reducedMotion = useReducedMotion();
   const addRef = useRef<HTMLButtonElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
 
   const variant = product.variants.find((v) => v.id === variantId);
   const isAvailable = !!variant?.isAvailable;
@@ -38,12 +39,15 @@ export function ProductPurchasePanel({ product }: { product: CatalogProduct }) {
       image: product.featuredImage?.url ?? product.image,
       priceMinor: variant.priceMinor,
     });
+    const localImage = panelRef.current?.closest("[data-vg-quicklook-root]")
+      ?.querySelector<HTMLImageElement>("[data-vg-product-hero] img");
     flyProductToCart(addRef.current,
-      document.querySelector<HTMLImageElement>("[data-vg-product-hero] img"));
+      localImage ?? document.querySelector<HTMLImageElement>("[data-vg-product-hero] img"));
+    onAdded?.();
   };
 
   return (
-    <div className="space-y-4">
+    <div ref={panelRef} className="space-y-4">
       <div className="overflow-hidden rounded-xl border border-primary/15 bg-white/75 p-4">
         <p className="text-[11px] font-extrabold uppercase tracking-[.14em] text-primary">Your selected pack</p>
         <AnimatePresence mode="wait" initial={false}>

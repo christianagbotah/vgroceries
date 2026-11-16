@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import { useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -11,7 +12,12 @@ import { WishlistButton } from "@/features/catalog/wishlist-button";
 import { selectedPurchasableVariant } from "@/features/catalog/selected-purchasable-variant";
 import type { CatalogProduct } from "@/services/client";
 import { formatMoney } from "@/lib/money";
-import { Check, ShoppingCart } from "lucide-react";
+import { Check, Eye, ShoppingCart } from "lucide-react";
+
+const ProductQuickLook = dynamic(
+  () => import("@/features/catalog/product-quick-look").then(module => module.ProductQuickLook),
+  { ssr: false },
+);
 
 export function ProductTile({ product, priority }: { product: CatalogProduct; priority?: boolean }) {
   const { add } = useCart();
@@ -19,6 +25,8 @@ export function ProductTile({ product, priority }: { product: CatalogProduct; pr
   const addRef = useRef<HTMLButtonElement>(null);
   const available = product.variants.filter((v) => v.isAvailable);
   const [variantId, setVariantId] = useState(available[0]?.id ?? product.variants[0]?.id ?? "");
+  const [quickLookOpen, setQuickLookOpen] = useState(false);
+  const [quickLookVisited, setQuickLookVisited] = useState(false);
   const chosen = product.variants.find((v) => v.id === variantId);
   const purchasable = selectedPurchasableVariant(product.variants, variantId);
   const productImage = product.featuredImage?.url ?? product.image;
@@ -38,11 +46,18 @@ export function ProductTile({ product, priority }: { product: CatalogProduct; pr
   };
 
   return (
+    <>
     <article className="group flex h-full min-w-0 flex-col overflow-hidden rounded-2xl border bg-white shadow-[0_4px_15px_rgba(0,0,0,.035)] transition duration-200 hover:-translate-y-0.5 hover:border-primary/25 hover:shadow-[0_12px_28px_rgba(5,74,49,.10)]">
       <div ref={photoRef} className="product-card-photo relative aspect-[1.18/1] overflow-hidden bg-[#f8f8f4]">
         <Link href={`/products/${product.slug}`} className="absolute inset-0 focus-visible:outline-2" aria-label={`${product.name} — view details`}>
           <Image src={productImage} alt={product.featuredImage?.altText || `${product.name} product photo`} fill unoptimized={Boolean(product.featuredImage)} sizes="(max-width:640px) 50vw, (max-width:1024px) 25vw, 190px" className="object-cover transition-transform duration-300 group-hover:scale-[1.035]" priority={priority} />
         </Link>
+        <button type="button"
+          aria-label={"Quick look at " + product.name}
+          onClick={() => { setQuickLookVisited(true); setQuickLookOpen(true); }}
+          className="absolute bottom-2 left-2 z-10 inline-flex min-h-10 items-center gap-2 rounded-full border border-white/75 bg-white/95 px-3 text-[11px] font-extrabold text-[#164b31] shadow-[0_6px_20px_rgba(10,50,22,.13)] backdrop-blur transition hover:-translate-y-0.5 hover:bg-white focus-visible:outline-2 focus-visible:outline-primary sm:text-xs">
+          <Eye className="size-4" aria-hidden /> Quick look
+        </button>
         {purchasable?.compareAtPriceMinor ? <span className="absolute left-2 top-2 rounded-full bg-brand-amber px-2 py-1 text-[10px] font-black text-[color:var(--brand-green-deep)] shadow-sm">Offer</span> : null}
         {purchasable ? <WishlistButton
           compact
@@ -81,6 +96,9 @@ export function ProductTile({ product, priority }: { product: CatalogProduct; pr
         </div>
       </div>
     </article>
+    {quickLookVisited ? <ProductQuickLook product={product} open={quickLookOpen}
+      onOpenChange={setQuickLookOpen} /> : null}
+    </>
   );
 }
 
