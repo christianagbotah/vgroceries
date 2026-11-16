@@ -22,13 +22,17 @@ import { invalidatesTags, readTags } from "../operation-registry";
 import type { CacheInvalidationEvent, CacheTag } from "../contracts/common";
 import { restEndpoints } from "../contracts/endpoints";
 import { isDemoStaffSessionActive } from "@/features/staff/staff-demo-session";
+import { readGuestCheckoutCsrfToken } from "../checkout-guest-csrf";
 
 export const CACHE_INVALIDATED_EVENT = "vg:cache-invalidated";
 const CSRF_TOKEN_KEY = "vg-csrf-token-v1";
 
 export function getBrowserCsrfToken(): string | undefined {
   if (typeof window === "undefined") return undefined;
-  return window.sessionStorage.getItem(CSRF_TOKEN_KEY) ?? undefined;
+  // Signed-in customer/staff CSRF always takes precedence. For anonymous
+  // checkout use the API-issued double-submit guest CSRF cookie instead.
+  const accountToken = window.sessionStorage.getItem(CSRF_TOKEN_KEY);
+  return accountToken || readGuestCheckoutCsrfToken();
 }
 export function setBrowserCsrfToken(token?: string): void {
   if (typeof window === "undefined") return;
