@@ -14,6 +14,7 @@
  */
 
 import { clearBrowserCsrfToken, resolveClientAdapter, setBrowserCsrfToken } from "./adapters/browser";
+import { withFreshGuestCheckoutRetry } from "./checkout-guest-csrf";
 import { normalizePaymentLedgerResponse } from "./payment-ledger";
 import type { QueryValue, ServiceRequest } from "./adapters/types";
 import type {
@@ -202,7 +203,11 @@ export const apiOps = {
     pickup?: { destinationKind: "pickup_point"; finalPickupNodeId: string }) =>
     api<QuoteResponse>("checkout.quote", { body: { lines, zoneId, ...(pickup ?? {}) } }),
   complete: (body: CompleteOrderRequest) =>
-    api<CompleteOrderResponse>("checkout.complete", { body: body as unknown as Record<string, unknown> }),
+    withFreshGuestCheckoutRetry(() =>
+      api<CompleteOrderResponse>("checkout.complete", {
+        body: body as unknown as Record<string, unknown>,
+      }),
+    ),
   paymentInitiate: (orderId: string, payerPhone: string | undefined, idempotencyKey: string) =>
     api<PaymentInitiationResult>("payments.initiate", {
       query: { orderId },
