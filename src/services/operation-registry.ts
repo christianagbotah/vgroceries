@@ -95,6 +95,8 @@ export const operationMeta: Record<string, OperationMeta> = {
   "admin.fulfilment": { tags: [...ORD, ...STOCK] },
 
   /* staff: POS */
+  // Private identity lookup must never be cached across staff sessions.
+  "cashier.pos.customers": {},
   "admin.pos.search": { tags: [...CAT, ...STOCK] },
   "admin.pos.complete": { invalidates: [...CAT, ...STOCK, ...ORD, ...PAY, ...SESS] },
   "admin.pos.hold": { invalidates: STOCK },
