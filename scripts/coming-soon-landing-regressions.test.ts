@@ -5,6 +5,7 @@ import { join } from "node:path";
 const root = join(import.meta.dir, "..");
 const htmlPath = join(root, "deploy", "coming-soon", "index.html");
 const logoPath = join(root, "deploy", "coming-soon", "logo.svg");
+const lockupPath = join(root, "deploy", "coming-soon", "variety-lockup.svg");
 const socialPreviewPath = join(root, "deploy", "coming-soon", "social-preview.jpg");
 
 function read(path: string) {
@@ -12,13 +13,15 @@ function read(path: string) {
 }
 
 describe("rich coming-soon landing page", () => {
-  test("uses the Variety V identity and removes the old Z mark", () => {
+  test("uses the official Variety Groceries gold VG logo and retires the old Z/V marks", () => {
     const html = read(htmlPath);
     const logo = read(logoPath);
+    const lockup = read(lockupPath);
 
     expect(html).toContain("Variety Groceries");
-    expect(html).toContain("logo.svg");
-    expect(logo).toContain('aria-label="Variety Groceries V mark"');
+    expect(html).toContain("/variety-lockup.svg");
+    expect(logo).toContain('aria-label="Variety Groceries official gold VG monogram"');
+    expect(lockup).toContain('aria-label="Variety Groceries official gold VG logo"');
     expect(logo).not.toContain("z-breathe");
   });
 
