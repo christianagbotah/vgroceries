@@ -66,4 +66,20 @@ describe("single official gold VG identity across Coming Soon and POS-integrated
     expect(client).toContain("withFreshGuestCheckoutRetry");
     expect(source("src/services/adapters/browser.ts")).toContain("readGuestCheckoutCsrfToken");
   });
+
+  test("staff login, admin sidebar, cashier and rider screens use the actual approved mark", () => {
+    const admin = source("src/components/layout/admin-shell.tsx");
+    const login = source("src/features/staff/staff-login-form.tsx");
+    const cashier = source("src/features/staff/cashier-workspace.tsx");
+    const rider = source("src/components/layout/rider-shell.tsx");
+    expect(admin).toContain('src="/brand/variety-lockup.svg"');
+    expect(login).toContain('src="/brand/variety-lockup.svg"');
+    expect(cashier).toContain('src="/brand/variety-mark.svg"');
+    expect(rider).toContain('src="/brand/variety-mark.svg"');
+    for (const screen of [admin, login, cashier, rider]) {
+      expect(screen).toContain('import Image from "next/image"');
+      expect(screen).not.toContain('aria-hidden>V</span>');
+      expect(screen).not.toMatch(/>\s*V\s*<\/span>/);
+    }
+  });
 });

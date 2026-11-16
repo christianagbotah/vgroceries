@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -141,14 +142,10 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
 
   const sidebar = (
     <div className="flex h-full flex-col">
-      <div className="flex items-center gap-2 border-b border-sidebar-border p-4">
-        <span className="flex size-9 items-center justify-center rounded-lg bg-sidebar-primary font-serif text-lg font-bold text-sidebar-primary-foreground" aria-hidden>
-          V
-        </span>
-        <div className="leading-tight">
-          <p className="font-serif font-bold text-sidebar-foreground">Variety Groceries</p>
-          <p className="text-[11px] text-sidebar-foreground/70">{demoSessionActive ? "Back office · demo" : "Back office"}</p>
-        </div>
+      <div className="flex flex-col items-start gap-1 border-b border-sidebar-border p-4">
+        <Image src="/brand/variety-lockup.svg" alt="Variety Groceries" width={180} height={68}
+          className="h-12 w-auto rounded-lg bg-white p-1.5 object-contain" priority />
+        <p className="text-[11px] text-sidebar-foreground/70">{demoSessionActive ? "Back office · demo" : "Back office"}</p>
       </div>
 
       <nav className="scroll-soft flex-1 overflow-y-auto p-2" aria-label="Admin navigation">

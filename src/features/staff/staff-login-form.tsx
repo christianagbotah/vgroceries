@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FlaskConical, LockKeyhole, Mail, Store, UserRound, ArrowRight, ShoppingBag } from "lucide-react";
@@ -81,7 +82,8 @@ export function StaffLoginForm({ demoEnabled = false, uatAccounts = [] }: {
     <div className="flex min-h-screen flex-col items-center justify-center bg-background px-4 py-10">
       <div className="w-full max-w-md space-y-5">
         <div className="text-center">
-          <span className="mx-auto flex size-14 items-center justify-center rounded-xl bg-primary font-serif text-2xl font-bold text-primary-foreground" aria-hidden>V</span>
+          <Image src="/brand/variety-lockup.svg" alt="Variety Groceries" width={220} height={83}
+            className="mx-auto h-[76px] w-auto rounded-xl bg-white p-1.5 object-contain" priority />
           <h1 className="mt-4 font-serif text-2xl font-bold">Variety Groceries staff</h1>
           <p className="mt-1 text-sm text-muted-foreground">Sign in securely with your own staff password. No separate browser password is needed.</p>
         </div>

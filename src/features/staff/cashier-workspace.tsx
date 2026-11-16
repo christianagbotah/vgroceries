@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -116,7 +117,8 @@ export function CashierWorkspace() {
   return <main className="mx-auto min-h-screen max-w-6xl space-y-5 px-4 py-6 sm:px-6">
     <header className="flex flex-wrap items-center justify-between gap-4 border-b pb-5">
       <div className="flex min-w-0 items-center gap-3">
-        <span className="flex size-12 shrink-0 items-center justify-center rounded-xl bg-primary font-serif text-2xl font-bold text-primary-foreground">V</span>
+        <Image src="/brand/variety-mark.svg" alt="" width={48} height={48}
+          className="size-12 shrink-0 rounded-xl bg-white p-1 object-contain" />
         <div className="min-w-0">
           <p className="text-sm font-semibold text-primary">Variety Groceries</p>
           <h1 className="font-serif text-2xl font-bold">Cashier workspace</h1>

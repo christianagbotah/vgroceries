@@ -30,3 +30,18 @@ Before deploying the full lockup, require a clean exact-head GitHub Actions buil
 ## Testing
 
 Focused identity, Coming Soon, rich storefront and CSRF regressions: 26 passed, 0 failed. Lint and git diff checks passed. Clean remote build and functional browser checks are additional gates.
+
+## Staff/POS completion follow-up
+
+The primary site/header/footer logo was deployed as approved build 84e00d4.
+One further scan found plain V placeholder badges in the admin sidebar,
+staff login, read-only cashier workspace and rider header. This change
+replaces all four with the same approved SVG lockup or its matching
+monogram, leaving routes and business logic untouched. The staff login
+uses the full logo, and the admin sidebar uses a compact full logo;
+smaller cashier/rider headers use the official monogram with existing
+workspace labels. No extra dependencies or external images.
+
+The final release must again pass a remote build, exact source-SHA
+checksum, route-parity and staff/checkout smoke before switch, with
+84e00d4 retained for rollback.

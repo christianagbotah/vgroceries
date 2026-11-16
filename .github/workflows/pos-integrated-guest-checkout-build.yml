@@ -4,6 +4,7 @@ on:
     branches:
       - fix/pos-integrated-guest-csrf-hotfix-20261116
       - feat/pos-integrated-official-vg-logo-20261116
+      - feat/pos-integrated-gold-vg-all-surfaces-20261116
   workflow_dispatch:
 
 permissions:
