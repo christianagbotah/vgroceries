@@ -8,7 +8,7 @@ PORTAL_VHOST="${PORTAL_VHOST:-/usr/local/apps/nginx/etc/conf.d/zzz-varietygrocer
 API_PROXY_TARGET="${API_PROXY_TARGET:-/usr/local/apps/nginx/etc/conf.d/includes/varietygroceries-api-proxy.conf}"
 PORTAL_UNIT_TARGET="${PORTAL_UNIT_TARGET:-/etc/systemd/system/varietygroceries-portal.service}"
 SOURCE_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-BACKUP_DIR="$(mktemp -d /tmp/variety-portal-rollout.XXXXXX)"
+BACKUP_DIR=""
 OLD_RELEASE="$(readlink -f "$PORTAL_LINK" 2>/dev/null || true)"
 ROLLED_BACK=0
 
@@ -56,11 +56,18 @@ rollback() {
   nginx -t >/dev/null 2>&1 && reload_nginx >/dev/null 2>&1 || true
   rm -rf "$BACKUP_DIR"
 }
-trap rollback ERR INT TERM
-
 [[ "$(id -u)" == 0 ]] || { echo "Run as root." >&2; exit 1; }
 [[ -f "$PORTAL_RELEASE_DIR/server.js" ]] || { echo "Verified standalone release is missing server.js: $PORTAL_RELEASE_DIR" >&2; exit 1; }
 [[ -f "$PORTAL_VHOST" ]] || { echo "Portal Nginx vhost missing: $PORTAL_VHOST" >&2; exit 1; }
+
+# The legacy rollout rewires public POS staging (currently 3049/3052) to 3027/3037.
+# Require separately audited, root-controlled, short-lived release-pair approval
+# before creating backups or changing any runtime file, service or symlink.
+API_RELEASE_DIR="${API_RELEASE_DIR:-/home/lightworld/webapps/varietygroceries-api/current}"
+python3 "$SOURCE_ROOT/deploy/scripts/assert-canonical-portal-cutover.py" \
+  "${PORTAL_CUTOVER_APPROVAL_FILE:-}" "$PORTAL_RELEASE_DIR" "$API_RELEASE_DIR"
+BACKUP_DIR="$(mktemp -d /tmp/variety-portal-rollout.XXXXXX)"
+trap rollback ERR INT TERM
 
 backup_if_present "$PORTAL_ENV_FILE" portal.env
 backup_if_present "$API_PROXY_TARGET" api-proxy.conf
