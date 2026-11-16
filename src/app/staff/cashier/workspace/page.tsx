@@ -9,6 +9,8 @@ import { isDemoStaffSessionActive } from "@/features/staff/staff-demo-session";
 import { formatMoney } from "@/lib/money";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { VerifiedPosCustomerPicker } from "@/features/staff/verified-pos-customer-picker";
+import { posCustomerLookupUatEnabled } from "@/features/staff/verified-pos-customer-lookup";
 
 const when = (value: string) => new Date(value).toLocaleString("en-GB", {
   timeZone: "Africa/Accra", day: "2-digit", month: "2-digit", year: "numeric",
@@ -94,6 +96,7 @@ export default function CashierWorkspacePage() {
               </CardContent>
             </Card>
           </div>
+          {posCustomerLookupUatEnabled ? <VerifiedPosCustomerPicker /> : null}
           <Card>
             <CardHeader>
               <CardTitle className="text-lg">My recent cash sales</CardTitle>

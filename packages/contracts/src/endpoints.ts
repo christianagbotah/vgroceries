@@ -58,6 +58,7 @@ export const restEndpoints: Record<string, RestEndpoint> = {
   "admin.order.action": {"method": "POST", "path": "/admin/orders/{orderId}/actions"},
   "admin.fulfilment": {"method": "GET", "path": "/admin/fulfilment"},
   "cashier.workspace": {"method": "GET", "path": "/cashier/pos/workspace"},
+  "cashier.pos.customers": {"method": "GET", "path": "/admin/pos/customers"},
   "staff.admin.list": {"method": "GET", "path": "/admin/staff"},
   "staff.admin.invite": {"method": "POST", "path": "/admin/staff/invitations"},
   "staff.admin.action": {"method": "POST", "path": "/admin/staff/{staffId}/actions"},
