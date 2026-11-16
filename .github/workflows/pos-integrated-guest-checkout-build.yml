@@ -1,0 +1,71 @@
+name: POS integrated guest checkout build
+on:
+  push:
+    branches:
+      - fix/pos-integrated-guest-csrf-hotfix-20261116
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-portal-only:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      NODE_ENV: production
+      NEXT_TELEMETRY_DISABLED: "1"
+      NEXT_PUBLIC_API_BASE_URL: https://portal.varietygroceries.com/api/v1
+      NEXT_PUBLIC_CACHE_TTL_MS: "0"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.3.14"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - name: Install locked frontend dependencies
+        run: bun install --frozen-lockfile
+      - name: Targeted guest checkout security regressions
+        run: bun test scripts/guest-checkout-csrf-recovery.test.ts scripts/checkout-auth-choice-regressions.test.ts
+      - name: Typecheck POS-integrated storefront
+        run: bunx tsc --noEmit --incremental false
+      - name: Build standalone POS-integrated portal
+        run: bun run build
+      - name: Verify critical routes and release provenance
+        run: |
+          node <<'NODE'
+          const fs = require("node:fs");
+          const routes = Object.values(JSON.parse(fs.readFileSync(".next/app-path-routes-manifest.json", "utf8")));
+          for (const route of ["/", "/checkout", "/cart", "/staff/pos", "/admin/pos", "/admin/pos/till-operations", "/staff/cashier", "/admin/inventory/lots"]) {
+            if (!routes.includes(route)) throw Error("Missing required POS-integrated route: " + route);
+          }
+          if (routes.filter(x => !x.startsWith("/_")).length !== 85) throw Error("Unexpected application route count");
+          if (!fs.existsSync(".next/standalone/server.js")) throw Error("Standalone server is missing");
+          console.log("All 85 required app routes retained; generated error routes ignored");
+          NODE
+      - name: Package auditable standalone artifact
+        run: |
+          set -eu
+          mkdir -p /tmp/variety-pos-hotfix-build
+          cp -a .next/standalone/. /tmp/variety-pos-hotfix-build/
+          test -e /tmp/variety-pos-hotfix-build/server.js
+          mkdir -p /tmp/variety-pos-hotfix-build/.next
+          cp -a .next/static /tmp/variety-pos-hotfix-build/.next/static
+          cp -a public /tmp/variety-pos-hotfix-build/public
+          cp -a .next/app-path-routes-manifest.json /tmp/variety-pos-hotfix-build/routes.json
+          printf '%s\n' "${GITHUB_SHA}" > /tmp/variety-pos-hotfix-build/SOURCE_COMMIT
+          (cd /tmp && tar czf "${GITHUB_WORKSPACE}/pos-integrated-guest-csrf.tar.gz" variety-pos-hotfix-build)
+          sha256sum pos-integrated-guest-csrf.tar.gz > pos-integrated-guest-csrf.sha256
+          ls -lh pos-integrated-guest-csrf.tar.gz pos-integrated-guest-csrf.sha256
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pos-integrated-guest-csrf-${{ github.sha }}
+          path: |
+            pos-integrated-guest-csrf.tar.gz
+            pos-integrated-guest-csrf.sha256
+          if-no-files-found: error
+          retention-days: 5
