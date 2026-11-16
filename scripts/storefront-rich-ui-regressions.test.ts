@@ -19,7 +19,10 @@ describe("rich storefront visual system", () => {
   test("homepage contains the approved rich grocery composition", () => {
     const page = read("src/app/(storefront)/page.tsx");
 
-    expect(page).toContain("storefront-hero");
+    expect(page).toContain("<StorefrontEditorialHero content={homepageContent} />");
+    const hero = read("src/features/catalog/storefront-editorial-hero.tsx");
+    expect(hero).toContain("The feel-good grocery run");
+    expect(hero).toContain("useReducedMotion");
     expect(page).toContain("Fresh Groceries");
     expect(page).toContain("category-image-grid");
     expect(page).toContain("storefront-promo-grid");

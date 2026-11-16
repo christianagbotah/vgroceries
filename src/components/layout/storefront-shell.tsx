@@ -25,11 +25,11 @@ import {
   Menu,
   Package,
   Search,
-  ShoppingCart,
   Store,
   UserRound,
 } from "lucide-react";
 import { useCart } from "@/features/checkout/cart-store";
+import { MotionCartIcon } from "@/features/checkout/motion-cart-icon";
 
 const CATEGORY_NAV = [
   { slug: "fresh-produce", label: "Fresh Produce" },
@@ -174,7 +174,7 @@ export function StorefrontHeader() {
               <Heart className="size-5" aria-hidden /><span className="text-[10px] font-semibold">Wishlist</span>
             </Link>
             <Link href="/cart" className="relative flex min-w-[48px] flex-col items-center justify-center gap-0.5 rounded-xl px-2 py-1.5 text-foreground transition hover:bg-accent sm:min-w-[58px]" aria-label={`Cart, ${itemCount} items`}>
-              <span className="relative"><ShoppingCart className="size-5" aria-hidden />{itemCount > 0 ? <span className="absolute -right-3 -top-2 grid size-5 place-items-center rounded-full bg-primary text-[10px] font-black text-white">{itemCount}</span> : null}</span>
+              <MotionCartIcon count={itemCount} />
               <span className="hidden text-[10px] font-semibold sm:block">Cart</span>
             </Link>
           </div>
@@ -224,7 +224,7 @@ export function StorefrontMobileNav() {
         <Link href="/" className={cn("flex min-h-14 flex-col items-center justify-center gap-1 rounded-xl text-[10px] font-semibold", active("/") ? "text-primary" : "text-muted-foreground")}><House className="size-5" aria-hidden />Home</Link>
         <Link href="/shop" className={cn("flex min-h-14 flex-col items-center justify-center gap-1 rounded-xl text-[10px] font-semibold", active("/shop") || pathname.startsWith("/categories") || pathname.startsWith("/products") ? "text-primary" : "text-muted-foreground")}><Store className="size-5" aria-hidden />Shop</Link>
         <button type="button" onClick={() => setSearchOpen(true)} className="flex min-h-14 flex-col items-center justify-center gap-1 rounded-xl text-[10px] font-semibold text-muted-foreground" aria-label="Search groceries"><Search className="size-5" aria-hidden />Search</button>
-        <Link href="/cart" className={cn("relative flex min-h-14 flex-col items-center justify-center gap-1 rounded-xl text-[10px] font-semibold", active("/cart") ? "text-primary" : "text-muted-foreground")}><span className="relative"><ShoppingCart className="size-5" aria-hidden />{itemCount > 0 ? <span className="absolute -right-3 -top-2 grid size-4 place-items-center rounded-full bg-primary text-[9px] font-black text-white">{itemCount}</span> : null}</span>Cart</Link>
+        <Link href="/cart" className={cn("relative flex min-h-14 flex-col items-center justify-center gap-1 rounded-xl text-[10px] font-semibold", active("/cart") ? "text-primary" : "text-muted-foreground")}><MotionCartIcon count={itemCount} mobile />Cart</Link>
         <Link href="/account" className={cn("flex min-h-14 flex-col items-center justify-center gap-1 rounded-xl text-[10px] font-semibold", active("/account") ? "text-primary" : "text-muted-foreground")}><UserRound className="size-5" aria-hidden />Account</Link>
       </nav>
 

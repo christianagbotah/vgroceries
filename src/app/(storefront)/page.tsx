@@ -3,6 +3,7 @@ import Link from "next/link";
 import { getCmsHomepage, getHomeData, getShopData } from "@/services/server-data";
 import type { CatalogProduct, CmsHomepageView } from "@/services/contracts";
 import { ProductTile } from "@/features/catalog/product-tile";
+import { StorefrontEditorialHero } from "@/features/catalog/storefront-editorial-hero";
 import { AdSenseSlot } from "@/components/ads/adsense-slot";
 import { Button } from "@/components/ui/button";
 import {
@@ -24,7 +25,6 @@ import {
 import { formatDateTime } from "@/lib/format";
 import {
   categoryImageFor,
-  storefrontHeroImage,
   storefrontPantryPromoImage,
   storefrontProducePromoImage,
 } from "@/lib/product-image-map";
@@ -111,33 +111,7 @@ export default async function HomePage() {
 
   return (
     <div className="mx-auto max-w-[1500px] px-3 pb-12 sm:px-4">
-      <section className="storefront-hero relative mt-3 min-h-[350px] overflow-hidden rounded-[26px] border bg-[#eef4e8] shadow-[0_16px_50px_rgba(6,64,43,0.10)] lg:min-h-[420px]" aria-labelledby="home-hero-title">
-        <Image src={storefrontHeroImage} alt="Abundant fresh groceries ready for shopping" fill priority sizes="100vw" className="object-cover object-center" />
-        <div className="absolute inset-0 bg-gradient-to-r from-[#f9fbee] via-[#f9fbee]/95 to-[#f9fbee]/10 lg:via-[#f9fbee]/72" />
-        <div className="relative z-10 max-w-[760px] px-5 py-8 sm:px-10 sm:py-11 lg:px-12 lg:py-14">
-          <span className="inline-flex items-center gap-2 rounded-full bg-white/85 px-3 py-1.5 text-xs font-bold text-primary shadow-sm backdrop-blur"><Leaf className="size-3.5" /> {homepageContent.badge}</span>
-          <h1 id="home-hero-title" className="mt-4 max-w-[700px] font-serif text-[42px] font-black leading-[0.95] tracking-[-0.045em] text-[color:var(--brand-green-deep)] sm:text-6xl lg:text-[70px]">
-            {homepageContent.headline} <span className="text-brand-amber">{homepageContent.emphasis}</span>
-          </h1>
-          <p className="mt-4 max-w-xl text-sm font-medium leading-relaxed text-foreground/80 sm:text-base">
-            {homepageContent.body}
-          </p>
-          <div className="mt-5 grid max-w-2xl grid-cols-2 gap-2 text-[11px] font-bold sm:grid-cols-4">
-            <div className="flex items-center gap-2"><span className="grid size-8 place-items-center rounded-full bg-[#e3eed1] text-primary"><Leaf className="size-4" /></span>Fresh everyday picks</div>
-            <div className="flex items-center gap-2"><span className="grid size-8 place-items-center rounded-full bg-[#e3eed1] text-primary"><Truck className="size-4" /></span>Delivery &amp; collection</div>
-            <div className="flex items-center gap-2"><span className="grid size-8 place-items-center rounded-full bg-[#e3eed1] text-primary"><ShieldCheck className="size-4" /></span>Stock-aware checkout</div>
-            <div className="flex items-center gap-2"><span className="grid size-8 place-items-center rounded-full bg-[#e3eed1] text-primary"><Tags className="size-4" /></span>Prices in Ghana cedis</div>
-          </div>
-          <div className="mt-6 flex flex-wrap gap-2.5">
-            <Button asChild size="lg" className="h-12 rounded-xl px-6 shadow-lg shadow-primary/15"><Link href={homepageContent.primaryCtaHref}>{homepageContent.primaryCtaLabel} <ArrowRight className="size-4" /></Link></Button>
-            <Button asChild size="lg" variant="outline" className="h-12 rounded-xl border-primary/25 bg-white/85 px-5"><Link href={homepageContent.secondaryCtaHref}><Sparkles className="size-4 text-brand-amber" /> {homepageContent.secondaryCtaLabel}</Link></Button>
-          </div>
-        </div>
-        <div className="absolute right-5 top-5 hidden rotate-[-2deg] rounded-[28px_8px_28px_10px] bg-brand-amber/95 px-7 py-5 text-center shadow-xl lg:block">
-          <p className="font-serif text-3xl font-black italic leading-none text-[color:var(--brand-green-deep)]">Fresh choices</p>
-          <p className="mt-2 text-xs font-extrabold text-[color:var(--brand-green-deep)]">for brighter everyday living</p>
-        </div>
-      </section>
+      <StorefrontEditorialHero content={homepageContent} />
 
       <section className="mt-4" aria-labelledby="home-categories">
         <div className="mb-3 flex items-end justify-between gap-3 px-1">
