@@ -14,4 +14,7 @@ import {
 export const restEndpoints: Record<string, RestEndpoint> = {
   ...sharedRestEndpoints,
   "admin.categories.create": { method: "POST", path: "/admin/categories" },
+  // Administrator-only UAT preview; no stock reservation or payment action.
+  "pos.verified.tills": { method: "GET", path: "/admin/pos/tills" },
+  "pos.verified.quote": { method: "POST", path: "/admin/pos/quote" },
 };

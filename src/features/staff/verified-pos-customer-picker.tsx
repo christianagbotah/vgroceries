@@ -40,8 +40,10 @@ function describeLookupFailure(error: unknown): string {
 export function VerifiedPosCustomerPicker({
   disabled = false,
   searchCustomers = searchVerifiedPosCustomers,
+  scopeNote = "Only customers linked to your current active branches appear. Phone numbers are masked.",
 }: {
   disabled?: boolean;
+  scopeNote?: string;
   /** Explicit injection allows offline fixture tests without real accounts. */
   searchCustomers?: (query: string) => Promise<PosCustomerSearchItem[]>;
 }) {
@@ -160,7 +162,7 @@ export function VerifiedPosCustomerPicker({
                 setSelection({ mode: "existing", customerUserId: "", label: "" });
               }} />
             <p className="text-xs text-muted-foreground">
-              Only customers linked to your current active branches appear. Phone numbers are masked.
+              {scopeNote}
             </p>
           </div>
           {busy ? <p role="status" className="text-sm">Searching allowed customer records…</p> : null}
