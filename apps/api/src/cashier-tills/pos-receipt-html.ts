@@ -25,7 +25,7 @@ const escapeHtml=(value:string)=>String(value).replace(/[&<>"']/g,c=>
 const money=(minor:number)=>{
   if(!Number.isSafeInteger(minor)||minor<0||minor>100000000)
     throw new Error("Invalid receipt currency amount");
-  return "₵"+(minor/100).toFixed(2);
+  return "₵"+(minor/100).toLocaleString("en-GH",{minimumFractionDigits:2,maximumFractionDigits:2});
 };
 const localTime=(value:Date)=>new Intl.DateTimeFormat("en-GH",{
   timeZone:"Africa/Accra",dateStyle:"medium",timeStyle:"short",
@@ -53,9 +53,13 @@ export function renderPosCashReceiptHtml(data:PosCashReceiptPrintData):string{
     '<title>Cash receipt '+escapeHtml(data.reference)+'</title>',
     "<style>",
     "@page{size:80mm auto;margin:4mm}",
-    "html{font-family:system-ui,Arial,sans-serif;color:#151515;background:#f7f7f7}",
-    "body{margin:0;padding:20px}",
-    ".paper{width:80mm;max-width:100%;box-sizing:border-box;background:white;padding:12px;margin:auto;border:1px solid #ddd}",
+    "html{font-family:system-ui,Arial,sans-serif;color:#151515;background:#eef2ea}",
+    "body{margin:0;padding:20px;min-height:100dvh;box-sizing:border-box}",
+    ".printer-shell{width:80mm;max-width:100%;height:30px;box-sizing:border-box;margin:0 auto;position:relative;background:linear-gradient(160deg,#18563a,#083221);border-radius:18px 18px 4px 4px;box-shadow:0 8px 28px #0a32232b}",
+    ".printer-slot{position:absolute;left:16px;right:16px;bottom:3px;height:7px;border-radius:10px;background:#061d14;box-shadow:inset 0 2px 4px #0009}",
+    ".paper{width:80mm;max-width:100%;box-sizing:border-box;background:white;padding:12px;margin:auto;border:1px solid #ddd;box-shadow:0 16px 38px #092f2529;transform-origin:top center;animation:vg-paper-feed .9s cubic-bezier(.2,.74,.2,1) both}",
+    "@keyframes vg-paper-feed{from{clip-path:inset(0 0 100% 0);transform:translateY(-25px)}to{clip-path:inset(0 0 0% 0);transform:translateY(0)}}",
+    "@media(prefers-reduced-motion:reduce){.paper{animation:none!important;clip-path:none!important;transform:none!important}}",
     "h1{font-size:18px;text-align:center;margin:0 0 6px}",
     "h2{font-size:12px;text-align:center;margin:0 0 12px;letter-spacing:.06em}",
     ".muted{color:#555;font-size:10px;text-align:center}",
@@ -70,8 +74,8 @@ export function renderPosCashReceiptHtml(data:PosCashReceiptPrintData):string{
     ".totals{display:grid;grid-template-columns:1fr auto;gap:6px;font-size:12px}",
     ".totals strong{font-size:13px}",
     ".footer{text-align:center;font-size:10px;margin-top:14px}",
-    "@media print{html,body{background:white;margin:0;padding:0}.paper{border:0;margin:0;width:100%;padding:0}}",
-    "</style></head><body><main class='paper'>",
+    "@media print{html,body{background:white;margin:0;padding:0;min-height:0}.printer-shell{display:none!important}.paper{border:0;margin:0;width:100%;padding:0;box-shadow:none;animation:none!important;clip-path:none!important;transform:none!important}}",
+    "</style></head><body><div class='printer-shell' aria-hidden='true'><div class='printer-slot'></div></div><main class='paper'>",
     "<h1>VARIETY GROCERIES</h1>",
     "<h2>CASH SALE RECEIPT</h2>",
     "<div class='meta'><span>Reference</span><strong>"+
