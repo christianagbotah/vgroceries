@@ -3,7 +3,7 @@ import {
   posCustomerSearchResultSchema,
   type PosCustomerSearchItem,
 } from "@/services/contracts";
-import { api, ApiError } from "@/services/client";
+import { ApiError } from "@/services/adapters/types";
 import { isDemoStaffSessionActive } from "./staff-demo-session";
 
 export const posCustomerLookupUatEnabled =
@@ -53,8 +53,11 @@ export async function searchVerifiedPosCustomers(query: string): Promise<PosCust
   const parsed = posCustomerSearchQuerySchema.safeParse(query);
   if (!parsed.success)
     throw new ApiError("VALIDATION_FAILED", "Enter 2–80 characters to search registered customers.");
+  // Lazy-load the browser client only for an explicitly authorised search.
+  // This avoids initialising the browser cache on pure validation imports.
   // The shared browser adapter supplies real cookies, no-store and timeout.
   // The server rechecks current staff grants, branch scope and rate limits.
+  const { api } = await import("@/services/client");
   const payload = await api<unknown>("cashier.pos.customers", { query: { q: parsed.data } });
   return parsePosCustomerMatches(payload);
 }

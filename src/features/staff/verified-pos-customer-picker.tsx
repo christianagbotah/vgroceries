@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { PosCustomerSearchItem } from "@/services/contracts";
-import { ApiError } from "@/services/client";
+import { ApiError } from "@/services/adapters/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {

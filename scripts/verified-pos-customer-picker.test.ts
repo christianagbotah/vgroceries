@@ -79,6 +79,14 @@ describe("gated cashier customer picker frontend parity", () => {
     }
   });
 
+  test("validation imports never eagerly initialise shared browser cache", () => {
+    const lookup = readFileSync(
+      resolve(root, "src/features/staff/verified-pos-customer-lookup.ts"), "utf8",
+    );
+    expect(lookup).toContain('const { api } = await import("@/services/client")');
+    expect(lookup).not.toMatch(/^import\s+.*from\s+["']@\/services\/client["']/m);
+  });
+
   test("cashier workspace embeds preview only behind build flag, no real sale functionality", () => {
     const workspace = readFileSync(
       resolve(root, "src/app/staff/cashier/workspace/page.tsx"), "utf8",
