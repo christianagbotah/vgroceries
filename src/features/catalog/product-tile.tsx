@@ -2,11 +2,12 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { useCart } from "@/features/checkout/cart-store";
+import { flyProductToCart } from "@/features/checkout/cart-motion";
 import { WishlistButton } from "@/features/catalog/wishlist-button";
 import { selectedPurchasableVariant } from "@/features/catalog/selected-purchasable-variant";
 import type { CatalogProduct } from "@/services/client";
@@ -16,6 +17,8 @@ import { Check, ShoppingCart } from "lucide-react";
 export function ProductTile({ product, priority }: { product: CatalogProduct; priority?: boolean }) {
   const { add } = useCart();
   const { toast } = useToast();
+  const photoRef = useRef<HTMLDivElement>(null);
+  const addRef = useRef<HTMLButtonElement>(null);
   const available = product.variants.filter((v) => v.isAvailable);
   const [variantId, setVariantId] = useState(available[0]?.id ?? product.variants[0]?.id ?? "");
   const chosen = product.variants.find((v) => v.id === variantId);
@@ -33,12 +36,13 @@ export function ProductTile({ product, priority }: { product: CatalogProduct; pr
       image: productImage,
       priceMinor: purchasable.priceMinor,
     });
+    flyProductToCart(addRef.current, photoRef.current?.querySelector("img"));
     toast({ title: "Added to cart", description: `${product.name} — ${purchasable.name}` });
   };
 
   return (
     <article className="group flex h-full min-w-0 flex-col overflow-hidden rounded-2xl border bg-white shadow-[0_4px_15px_rgba(0,0,0,.035)] transition duration-200 hover:-translate-y-0.5 hover:border-primary/25 hover:shadow-[0_12px_28px_rgba(5,74,49,.10)]">
-      <div className="product-card-photo relative aspect-[1.18/1] overflow-hidden bg-[#f8f8f4]">
+      <div ref={photoRef} className="product-card-photo relative aspect-[1.18/1] overflow-hidden bg-[#f8f8f4]">
         <Link href={`/products/${product.slug}`} className="absolute inset-0 focus-visible:outline-2" aria-label={`${product.name} — view details`}>
           <Image src={productImage} alt={product.featuredImage?.altText || `${product.name} product photo`} fill unoptimized={Boolean(product.featuredImage)} sizes="(max-width:640px) 50vw, (max-width:1024px) 25vw, 190px" className="object-cover transition-transform duration-300 group-hover:scale-[1.035]" priority={priority} />
         </Link>
@@ -71,7 +75,7 @@ export function ProductTile({ product, priority }: { product: CatalogProduct; pr
             <p role="status" className="mb-2 text-xs font-medium text-amber-800">Selected size unavailable. Choose another available size.</p>
           ) : null}
           {purchasable ? (
-            <Button className="h-11 w-full rounded-xl text-xs font-extrabold sm:text-sm" onClick={quickAdd} aria-label={`Add ${product.name} (${purchasable.name}) to cart`}>
+            <Button ref={addRef} className="h-11 w-full rounded-xl text-xs font-extrabold sm:text-sm" onClick={quickAdd} aria-label={`Add ${product.name} (${purchasable.name}) to cart`}>
               <ShoppingCart className="size-3.5" /> Add to cart
             </Button>
           ) : (

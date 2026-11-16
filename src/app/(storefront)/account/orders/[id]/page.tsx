@@ -7,6 +7,7 @@ import { apiOps, ApiError, type PublicOrder } from "@/services/client";
 import { LoadingState, ErrorState } from "@/components/shared/states";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { OrderTrackingJourney } from "@/components/orders/order-tracking-journey";
+import { OrderReceiptExperience } from "@/features/orders/order-receipt-experience";
 import { PickupCentreDetails } from "@/components/orders/pickup-centre-details";
 import { PickupAppointmentManager } from "@/components/orders/pickup-appointment-manager";
 import { Button } from "@/components/ui/button";
@@ -78,6 +79,7 @@ export default function AccountOrderDetailPage() {
           <StatusBadge kind="payment" status={order.paymentStatus} />
           <StatusBadge kind="fulfilment" status={order.fulfilmentStatus} />
           {order.fulfilment === "delivery" ? <StatusBadge kind="delivery" status={order.deliveryStatus} /> : null}
+          <OrderReceiptExperience order={order} />
           <Button asChild size="sm" className="h-9">
             <Link href={`/track?orderId=${encodeURIComponent(order.id)}`}>
               <Navigation className="size-4" aria-hidden /> Track order
