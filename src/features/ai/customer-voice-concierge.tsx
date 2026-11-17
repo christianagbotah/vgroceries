@@ -95,9 +95,14 @@ export function CustomerVoiceConcierge(){
          <button type="button" onClick={()=>setLauncherExpanded(true)}
            aria-label="Expand shopping assistant shortcut" aria-expanded="false"
            title="Ask or speak"
-           className="flex size-11 items-center justify-center gap-0.5 rounded-full border border-white/20 bg-primary text-white shadow-xl transition hover:brightness-110 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">
-           <MessageCircle className="size-4 shrink-0" aria-hidden />
-           <ChevronLeft className="size-3 shrink-0" aria-hidden />
+           className="relative isolate flex size-11 items-center justify-center gap-0.5 rounded-full border border-[#f8cd78]/70 bg-primary text-white shadow-[0_0_0_1px_rgba(248,205,120,.35),0_0_16px_rgba(248,205,120,.48),0_5px_14px_rgba(0,0,0,.19)] transition hover:brightness-110 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">
+           {/* The slow gold halo catches attention without moving the actual
+               44px target or blocking anything below it. Reduced motion
+               disables the halo animation; the gold indicator remains. */}
+           <span aria-hidden="true" className="vg-assistant-attention-ring pointer-events-none absolute -inset-1.5 -z-10 rounded-full border-2 border-[#f8cd78]/80" />
+           <span aria-hidden="true" className="pointer-events-none absolute -right-0.5 -top-0.5 size-2.5 rounded-full border border-primary bg-[#f8cd78] shadow-[0_0_9px_rgba(248,205,120,.95)]" />
+           <MessageCircle className="relative size-4 shrink-0" aria-hidden />
+           <ChevronLeft className="relative size-3 shrink-0" aria-hidden />
          </button>
        )}
      </div>
