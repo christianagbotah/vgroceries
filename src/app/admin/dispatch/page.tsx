@@ -383,18 +383,18 @@ export default function AdminDispatchPage() {
 
       {/* assign dialog */}
       <Dialog open={!!assignTarget} onOpenChange={(o) => !o && setAssignTarget(null)}>
-        <DialogContent className="max-w-md">
+        <DialogContent style={{ width: "min(calc(100vw - 2rem), 28rem)" }} className="min-w-0 max-w-md overflow-x-hidden [&_[data-slot=select-trigger]]:min-w-0">
           <DialogHeader>
             <DialogTitle>Assign {assignTarget?.reference}</DialogTitle>
-            <DialogDescription>
+            <DialogDescription className="min-w-0 break-words">
               {assignTarget?.zone} · {assignTarget?.customerName} · {assignTarget?.slotLabel}
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-3">
-            <div>
+          <div className="min-w-0 w-full space-y-3">
+            <div className="min-w-0 w-full">
               <Label htmlFor="assign-rider">In-house or contracted rider</Label>
               <Select value={assignRider} onValueChange={(v) => { setAssignRider(v === "none" ? "" : v); setAssignProvider(""); }}>
-                <SelectTrigger id="assign-rider" className="h-11 w-full"><SelectValue placeholder="Choose an available rider" /></SelectTrigger>
+                <SelectTrigger id="assign-rider" className="h-11 min-w-0 w-full max-w-full"><SelectValue placeholder="Choose an available rider" /></SelectTrigger>
                 <SelectContent>
                   {availableRiders.map((r) => (
                     <SelectItem key={r.id} value={r.id}>
@@ -408,10 +408,10 @@ export default function AdminDispatchPage() {
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <span className="flex-1 border-t" aria-hidden /> or book externally <span className="flex-1 border-t" aria-hidden />
             </div>
-            <div>
+            <div className="min-w-0 w-full">
               <Label htmlFor="assign-provider">External provider (manual booking)</Label>
               <Select value={assignProvider} onValueChange={(v) => { setAssignProvider(v); setAssignRider(""); }}>
-                <SelectTrigger id="assign-provider" className="h-11 w-full"><SelectValue placeholder="Choose a provider" /></SelectTrigger>
+                <SelectTrigger id="assign-provider" className="h-11 min-w-0 w-full max-w-full"><SelectValue placeholder="Choose a provider" /></SelectTrigger>
                 <SelectContent>
                   {data.providers.filter((p) => p.id !== "prv_inhouse").map((p) => (
                     <SelectItem key={p.id} value={p.id}>
@@ -436,16 +436,16 @@ export default function AdminDispatchPage() {
 
       {/* manage job dialog — reschedule / reassign / return to store */}
       <Dialog open={!!jobTarget} onOpenChange={(o) => !o && setJobTarget(null)}>
-        <DialogContent className="max-w-md">
+        <DialogContent style={{ width: "min(calc(100vw - 2rem), 28rem)" }} className="min-w-0 max-w-md overflow-x-hidden [&_[data-slot=select-trigger]]:min-w-0">
           <DialogHeader>
             <DialogTitle>Manage job {jobTarget?.orderReference}</DialogTitle>
             <DialogDescription>Failed or stalled deliveries can be rescheduled, reassigned or returned to store.</DialogDescription>
           </DialogHeader>
-          <div className="space-y-3">
-            <div>
+          <div className="min-w-0 w-full space-y-3">
+            <div className="min-w-0 w-full">
               <Label htmlFor="job-action">Action</Label>
               <Select value={jobAction} onValueChange={(v) => setJobAction(v as typeof jobAction)}>
-                <SelectTrigger id="job-action" className="h-11 w-full"><SelectValue /></SelectTrigger>
+                <SelectTrigger id="job-action" className="h-11 min-w-0 w-full max-w-full"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="reschedule">Reschedule to a new window</SelectItem>
                   <SelectItem value="reassign" disabled={!jobTarget || !REASSIGNABLE.includes(jobTarget.status)}>
@@ -464,7 +464,7 @@ export default function AdminDispatchPage() {
               <div>
                 <Label htmlFor="job-rider">New rider</Label>
                 <Select value={jobRider} onValueChange={setJobRider}>
-                  <SelectTrigger id="job-rider" className="h-11 w-full"><SelectValue placeholder="Choose an available rider" /></SelectTrigger>
+                  <SelectTrigger id="job-rider" className="h-11 min-w-0 w-full max-w-full"><SelectValue placeholder="Choose an available rider" /></SelectTrigger>
                   <SelectContent>
                     {availableRiders.map((r) => (
                       <SelectItem key={r.id} value={r.id}>

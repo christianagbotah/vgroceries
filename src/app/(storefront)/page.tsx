@@ -110,7 +110,8 @@ export default async function HomePage() {
 
   return (
     <div className="mx-auto max-w-[1500px] px-3 pb-12 sm:px-4">
-      <StorefrontEditorialHero content={homepageContent} />
+      <StorefrontEditorialHero content={homepageContent}
+        featuredProducts={unique([...offers, ...trendingNew, ...popular, ...allProducts]).filter(product => product.anyAvailable).slice(0, 3)} />
 
       <section className="mt-4" aria-labelledby="home-categories">
         <div className="mb-3 flex items-end justify-between gap-3 px-1">
