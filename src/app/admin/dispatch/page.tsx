@@ -383,7 +383,7 @@ export default function AdminDispatchPage() {
 
       {/* assign dialog */}
       <Dialog open={!!assignTarget} onOpenChange={(o) => !o && setAssignTarget(null)}>
-        <DialogContent className="max-w-md min-w-0 overflow-x-hidden [&_[data-slot=select-trigger]]:min-w-0">
+        <DialogContent style={{ width: "min(calc(100vw - 2rem), 28rem)" }} className="min-w-0 max-w-md overflow-x-hidden [&_[data-slot=select-trigger]]:min-w-0">
           <DialogHeader>
             <DialogTitle>Assign {assignTarget?.reference}</DialogTitle>
             <DialogDescription className="min-w-0 break-words">
@@ -436,7 +436,7 @@ export default function AdminDispatchPage() {
 
       {/* manage job dialog — reschedule / reassign / return to store */}
       <Dialog open={!!jobTarget} onOpenChange={(o) => !o && setJobTarget(null)}>
-        <DialogContent className="max-w-md min-w-0 overflow-x-hidden [&_[data-slot=select-trigger]]:min-w-0">
+        <DialogContent style={{ width: "min(calc(100vw - 2rem), 28rem)" }} className="min-w-0 max-w-md overflow-x-hidden [&_[data-slot=select-trigger]]:min-w-0">
           <DialogHeader>
             <DialogTitle>Manage job {jobTarget?.orderReference}</DialogTitle>
             <DialogDescription>Failed or stalled deliveries can be rescheduled, reassigned or returned to store.</DialogDescription>

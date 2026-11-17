@@ -52,3 +52,11 @@ change, migrations, POS service restart, checkout authority or public
 Coming Soon cutover. Require strict request contract regressions,
 lint, typecheck, production Next build and mobile (360/390 px)
 dialog/hero/menu browser checks before portal-only rollout with rollback.
+
+## Mobile UAT refinement
+
+At 390px the first Chromium test measured a dispatch dialog width of 390px
+rather than the desired 358px, even though document overflow stayed at 390px.
+The generic Radix Dialog base and both dispatch assignment/manage dialogs
+now use explicit viewport-minus-2rem width, capped at 28rem for dispatch,
+retaining a consistent 16px gutter on each side.
