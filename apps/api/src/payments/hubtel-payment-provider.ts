@@ -213,13 +213,14 @@ export class HubtelPaymentProvider implements PaymentProviderAdapter {
     let root: JsonRecord | null = null;
     try { root = record(await response.json()); } catch { /* reject invalid provider data */ }
     const data = record(root?.data ?? root?.Data);
+    // Hubtel documents 0005 as an UNKNOWN provider/partner outcome. Even a
+    // network error, 4000 validation response or malformed body may leave the
+    // merchant reference recorded on its side. Never label these events as a
+    // definitive failed charge and invite a new checkout. Let the initiating
+    // authority keep the original attempt uncertain for reconciliation.
     if (!response.ok || text(root, "responseCode", "ResponseCode") !== "0000" ||
         text(root, "status", "Status")?.toLowerCase() !== "success" || !data) {
-      return {
-        kind: "rejected",
-        failureCode: "HUBTEL_HOSTED_INITIALIZE_REJECTED",
-        customerSafeMessage: "Hubtel could not open secure checkout. Please try again.",
-      };
+      throw new Error("Hubtel hosted checkout initiation could not be authoritatively confirmed.");
     }
     const reference = text(data, "clientReference", "ClientReference");
     const checkoutId = text(data, "checkoutId", "CheckoutId");
