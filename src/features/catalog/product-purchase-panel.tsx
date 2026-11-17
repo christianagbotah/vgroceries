@@ -65,9 +65,7 @@ export function ProductPurchasePanel({ product }: { product: CatalogProduct }) {
         try { flyProductToCart(addRef.current, document.querySelector<HTMLImageElement>("[data-vg-product-hero] img")); }
         catch { /* Decorative motion must never affect an accepted cart addition. */ }
       }
-      toast(accepted
-        ? { title: "Added to cart", description: `${formatQty(selectedQuantity)} × ${product.name} — ${variant.name}` }
-        : { title: "Stock limit reached", description: `Only ${latestQty} available.`, variant: "destructive" });
+      if (!accepted) toast({ title: "Stock limit reached", description: `Only ${latestQty} available.`, variant: "destructive" });
     } catch {
       toast({ title: "Could not verify stock", description: "Please try again before adding this item.", variant: "destructive" });
     } finally { setAdding(false); }
