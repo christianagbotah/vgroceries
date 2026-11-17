@@ -83,7 +83,9 @@ export class HubtelPaymentProvider implements PaymentProviderAdapter {
     return {
       // Hosted Checkout lets Hubtel select mobile money, card or wallet.
       // Direct Request Money remains a separate mobile-money-only mode.
-      methods: this.config.onlineCheckout ? ["hosted_checkout", "mobile_money"] : ["mobile_money"],
+      methods: this.config.onlineCheckout
+        ? (this.config.requestMoneyUrl ? ["hosted_checkout", "mobile_money"] : ["hosted_checkout"])
+        : ["mobile_money"],
       trustMode: "lookup_required",
       safeInitiationRetry: false,
     };
@@ -98,7 +100,7 @@ export class HubtelPaymentProvider implements PaymentProviderAdapter {
         customerSafeMessage: "This Hubtel payment method is not enabled yet.",
       };
     }
-    if (!this.config.requestMoneyUrl) return {
+    if (!this.config.requestMoneyUrl || !this.config.statusUrl) return {
       kind: "rejected",
       failureCode: "HUBTEL_DIRECT_NOT_CONFIGURED",
       customerSafeMessage: "Direct mobile money requests are not enabled.",
@@ -317,13 +319,7 @@ export class HubtelPaymentProvider implements PaymentProviderAdapter {
     };
   }
 
-  private async lookupRequestMoney(inputUrl: string, input: PaymentProviderLookupInput): Promise<PaymentProviderObservation> {
-    const url = inputUrl;
-      reference: input.merchantReference,
-      clientReference: input.merchantReference,
-      providerReference: input.providerReference,
-      paylinkId: input.providerReference,
-    });
+  private async lookupRequestMoney(url: string, input: PaymentProviderLookupInput): Promise<PaymentProviderObservation> {
     const response = await this.fetcher(url, {
       method: "GET",
       headers: { authorization: basicAuth(this.config), accept: "application/json" },
