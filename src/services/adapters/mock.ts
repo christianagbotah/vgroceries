@@ -53,7 +53,12 @@ export class MockServiceAdapter implements ServiceAdapter {
     }
     // The mock engines read idempotency keys from the body; surface the
     // header-style key there so both transports behave identically.
-    const body = req.formData ? multipartBody : (normalizedBody ?? {});
+    // The demo router needs header-only generation metadata to emulate
+    // server-side replay. Add it AFTER validating the strict request body.
+    const body = req.formData ? multipartBody :
+      req.op === "admin.product-media.generate" && req.idempotencyKey
+        ? { ...(normalizedBody ?? {}), idempotencyKey: req.idempotencyKey }
+        : (normalizedBody ?? {});
 
     const result = await handleApi({
       path: req.op,

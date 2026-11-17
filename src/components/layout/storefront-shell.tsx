@@ -18,16 +18,24 @@ import {
 } from "@/components/ui/dropdown-menu";
 import {
   ChevronDown,
+  Apple,
+  Wheat,
+  CookingPot,
+  Milk,
+  GlassWater,
+  Cookie,
   CircleHelp,
   Heart,
   House,
   MapPin,
+  ShoppingBasket,
   Menu,
   Package,
   Search,
   Store,
   UserRound,
   PanelRightOpen,
+  Truck,
 } from "lucide-react";
 import { useCart } from "@/features/checkout/cart-store";
 import { MotionCartIcon } from "@/features/checkout/motion-cart-icon";
@@ -47,6 +55,15 @@ const CATEGORY_NAV = [
 ] as const;
 
 type NavItem = { href: string; label: string; category?: string };
+
+const CATEGORY_ICON = {
+  "fresh-produce": Apple,
+  "grains-staples": Wheat,
+  "oils-sauces": CookingPot,
+  "dairy-eggs": Milk,
+  beverages: GlassWater,
+  snacks: Cookie,
+} as const;
 
 const NAV: NavItem[] = [
   { href: "/shop", label: "All groceries" },
@@ -124,17 +141,40 @@ export function StorefrontHeader() {
               <SheetTrigger asChild>
                 <Button variant="ghost" size="icon" className="size-10 lg:hidden" aria-label="Open menu"><Menu className="size-5" /></Button>
               </SheetTrigger>
-              <SheetContent side="left" className="w-[310px] p-0">
-                <SheetTitle className="border-b p-4"><Brand compact /></SheetTitle>
-                <nav className="flex flex-col p-2" aria-label="Mobile navigation">
-                  {NAV.map((item) => (
-                    <Link key={item.href} href={item.href} onClick={() => setOpen(false)} className={cn("rounded-xl px-3 py-3 text-[15px] font-medium hover:bg-accent", isActive(item) && "bg-[color:var(--brand-green-deep)] font-bold text-white shadow-sm hover:bg-[color:var(--brand-green-deep)] hover:text-white")}>{item.label}</Link>
+              <SheetContent side="left" className="flex h-full w-[min(78vw,286px)] max-w-[286px] min-w-0 flex-col overflow-hidden border-r border-[#dfebdf] bg-[#fbfcf8] p-0 shadow-2xl">
+                <SheetTitle className="shrink-0 border-b border-primary/10 bg-white px-3 pb-3 pt-5">
+                  <Brand compact />
+                  <span className="mt-2 block text-left text-[10px] font-bold uppercase tracking-[.14em] text-primary/75">Your everyday market</span>
+                </SheetTitle>
+                <nav className="scroll-soft min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-2.5 py-3" aria-label="Mobile navigation">
+                  <p className="px-3 pb-2 text-[10px] font-black uppercase tracking-[.14em] text-muted-foreground">Explore the shop</p>
+                  {NAV.map((item) => {
+                    const ItemIcon = item.category ? CATEGORY_ICON[item.category as keyof typeof CATEGORY_ICON] : item.href === "/help" ? CircleHelp : ShoppingBasket;
+                    return <Link key={item.href} href={item.href} onClick={() => setOpen(false)}
+                      aria-current={isActive(item) ? "page" : undefined}
+                      className={cn("mb-1 flex min-h-11 min-w-0 items-center gap-3 rounded-xl px-3 py-2.5 text-[13px] font-semibold transition-colors hover:bg-primary/10",
+                        isActive(item) && "bg-[color:var(--brand-green-deep)] text-white shadow-sm hover:bg-[color:var(--brand-green-deep)] hover:text-white")}>
+                      <ItemIcon className="size-[18px] shrink-0" aria-hidden /><span className="min-w-0 truncate">{item.label}</span>
+                    </Link>;
+                  })}
+                  <div className="my-3 border-t border-primary/10" />
+                  <p className="px-3 pb-2 text-[10px] font-black uppercase tracking-[.14em] text-muted-foreground">Your account & orders</p>
+                  {([
+                    { href: "/account", label: "My account", Icon: UserRound },
+                    { href: "/account/lists", label: "Saved lists", Icon: Heart },
+                    { href: "/track", label: "Track an order", Icon: Truck },
+                  ] as const).map(({ href, label, Icon }) => (
+                    <Link key={href} href={href} onClick={() => setOpen(false)}
+                      className="mb-1 flex min-h-11 min-w-0 items-center gap-3 rounded-xl px-3 py-2.5 text-[13px] font-semibold text-foreground transition hover:bg-primary/10">
+                      <Icon className="size-[18px] shrink-0 text-primary" aria-hidden />
+                      <span className="min-w-0 truncate">{label}</span>
+                    </Link>
                   ))}
-                  <div className="my-2 border-t" />
-                  <Link href="/account" onClick={() => setOpen(false)} className="rounded-xl px-3 py-3 text-[15px] hover:bg-accent">My account</Link>
-                  <Link href="/account/lists" onClick={() => setOpen(false)} className="rounded-xl px-3 py-3 text-[15px] hover:bg-accent">Saved lists</Link>
-                  <Link href="/track" onClick={() => setOpen(false)} className="rounded-xl px-3 py-3 text-[15px] hover:bg-accent">Track an order</Link>
                 </nav>
+                <div className="shrink-0 border-t border-primary/10 bg-white px-4 py-3 text-[11px] leading-5 text-muted-foreground">
+                  Fresh groceries, made easy.
+                  <span className="block font-semibold text-primary">Variety Groceries · Ghana</span>
+                </div>
               </SheetContent>
             </Sheet>
             <Brand />

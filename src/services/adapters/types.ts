@@ -64,6 +64,10 @@ export function normalizedRequestBody(req: ServiceRequest): Record<string, unkno
     throw new ApiError("IDEMPOTENCY_CONFLICT", "The transport and body idempotency keys disagree.");
   }
   if (req.body === undefined && req.idempotencyKey === undefined) return undefined;
+  // Product image generation accepts replay metadata in the Idempotency-Key
+  // HTTP header only. Its strict body schema rejects unknown metadata keys.
+  // Keep the existing body-based convention for operations that require it.
+  if (req.op === "admin.product-media.generate") return { ...(req.body ?? {}) };
   return { ...(req.body ?? {}), ...(req.idempotencyKey !== undefined ? { idempotencyKey: req.idempotencyKey } : {}) };
 }
 
