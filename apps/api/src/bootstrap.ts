@@ -33,6 +33,7 @@ import { PaymentsModule } from "./payments/payments.module";
 import { HubtelRefundCallbackModule } from "./payments/hubtel-refund-callback.module";
 import { HubtelPaymentProvider } from "./payments/hubtel-payment-provider";
 import { PaystackPaymentProvider } from "./payments/paystack-payment-provider";
+import { FlutterwavePaymentProvider } from "./payments/flutterwave-payment-provider";
 import { EtranzactPaymentProvider } from "./payments/etranzact-payment-provider";
 import { PaystackRefundProvider } from "./payments/paystack-refund-provider";
 import type { PaymentProviderAdapter } from "./payments/payment-provider";
@@ -51,6 +52,8 @@ export async function createApplication(
     resolvedPaymentAdapters.push(new HubtelPaymentProvider(config.hubtelPayment));
   if (config.paystack && !resolvedPaymentAdapters.some((adapter) => adapter.id === "paystack"))
     resolvedPaymentAdapters.push(new PaystackPaymentProvider(config.paystack));
+  if (config.flutterwavePayment && !resolvedPaymentAdapters.some((adapter) => adapter.id === "flutterwave"))
+    resolvedPaymentAdapters.push(new FlutterwavePaymentProvider(config.flutterwavePayment));
   if (config.etranzact && !resolvedPaymentAdapters.some((adapter) => adapter.id === "etranzact"))
     resolvedPaymentAdapters.push(new EtranzactPaymentProvider(config.etranzact));
 

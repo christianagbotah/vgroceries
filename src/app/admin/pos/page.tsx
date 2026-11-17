@@ -162,6 +162,10 @@ function DemoPosPage() {
       toast({ title: "Choose a valid customer", description: "Select an existing customer, a walk-in, or enter a new customer's name.", variant: "destructive" });
       return;
     }
+    if (method === "electronic") {
+      toast({ title: "Electronic counter checkout is not active", description: "A verified provider-backed payment must complete before a paid POS receipt can be issued.", variant: "destructive" });
+      return;
+    }
     if (method === "cash_counter" && cashMinor < total) {
       toast({ title: "Cash received is less than the total", variant: "destructive" });
       return;
@@ -507,11 +511,10 @@ function DemoPosPage() {
           {/* payment method */}
           <div>
             <Label>Payment</Label>
-            <div className="grid grid-cols-3 gap-1.5">
+            <div className="grid grid-cols-2 gap-2">
               {([
                 ["cash_counter", "Cash", Banknote],
-                ["mobile_money", "MoMo", Smartphone],
-                ["card_hosted", "Card", CreditCard],
+                ["electronic", "Electronic", CreditCard],
               ] as const).map(([m, label, Icon]) => (
                 <button
                   key={m}
@@ -541,13 +544,15 @@ function DemoPosPage() {
             </div>
           ) : (
             <p className="rounded-lg bg-muted/60 p-2.5 text-xs text-muted-foreground">
-              {method === "mobile_money" ? "Customer approves the Mobile Money prompt; the provider outcome is recorded on the order." : "Card payment captured on the terminal; status is recorded on the order."}
+              A provider-hosted checkout will let the customer choose MoMo, card, or an available bank option. This demo counter cannot yet create a gateway-backed in-store payment attempt. Do not hand over goods or record an electronic sale as paid before server verification.
             </p>
           )}
 
           <div className="grid grid-cols-[1fr_auto] gap-2">
-            <Button size="lg" className="h-12" onClick={complete} disabled={!lines.length || completing || !customerValid}>
-              {completing ? "Completing…" : `Complete · ${formatMoney(total)}`}
+            <Button size="lg" className="h-12" onClick={complete}
+              disabled={!lines.length || completing || !customerValid || method === "electronic"}
+              title={method === "electronic" ? "Electronic counter sales require a verified payment gateway and server-owned order intent" : undefined}>
+              {completing ? "Completing…" : method === "electronic" ? "Gateway verification required" : `Complete · ${formatMoney(total)}`}
             </Button>
             <Button size="lg" variant="outline" className="h-12" onClick={hold} disabled={!lines.length} aria-label="Hold current sale">
               <Pause className="size-4" aria-hidden />
