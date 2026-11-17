@@ -215,7 +215,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
         className={cn("scroll-soft min-h-0 flex-1 overflow-y-auto p-2", compact && "px-1")}
         aria-label="Admin navigation"
       >
-        {visibleGroups.map((g) => {
+        {(compact ? authorizedGroups : visibleGroups).map((g) => {
           const items = g.items;
           return (
             <div key={g.title} className={cn("mb-3", compact && "border-t border-sidebar-border pt-2 first:border-t-0")}>
