@@ -38,6 +38,13 @@ activation is included in this change.
 - The checkout ID is **not** substituted for the transaction ID. Once a
   payment settles, provider status may return a distinct `transactionId`;
   the durable merchant reference is used to correlate the payment.
+- **Important:** Hubtel's Online Checkout *initiation* endpoint does not
+  require a fixed server-IP allowlist, but the independent **collection-status**
+  endpoint does. Register the Variety Groceries VPS outbound IP with Hubtel
+  before live activation; otherwise orders could remain unresolved even though
+  Hubtel accepted a checkout request.
+- Online payment status polling continues while an Electronic order is unpaid
+  or pending. A browser return alone never changes payment truth.
 - Existing PaymentOutcomeService checks original reference, amount, currency,
   idempotency, stock holds and exception handling before marking an order paid.
   Callbacks are lookup-required evidence, not trusted settlement instructions.
