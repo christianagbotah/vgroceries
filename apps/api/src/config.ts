@@ -30,8 +30,8 @@ export interface HubtelOnlineCheckoutConfig {
 export interface HubtelPaymentConfig {
   clientId: string;
   clientSecret: string;
-  requestMoneyUrl: string;
-  statusUrl: string;
+  requestMoneyUrl?: string;
+  statusUrl?: string;
   callbackUrl: string;
   returnUrl: string;
   cancellationUrl: string;
@@ -389,11 +389,13 @@ export function readConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
   const hubtelPaymentNames = [
     "HUBTEL_CLIENT_ID",
     "HUBTEL_CLIENT_SECRET",
-    "HUBTEL_REQUEST_MONEY_URL",
-    "HUBTEL_STATUS_URL",
     "HUBTEL_CALLBACK_URL",
     "HUBTEL_RETURN_URL",
     "HUBTEL_CANCELLATION_URL",
+  ] as const;
+  const hubtelDirectNames = [
+    "HUBTEL_REQUEST_MONEY_URL",
+    "HUBTEL_STATUS_URL",
   ] as const;
   const hubtelPaymentSupplied = hubtelPaymentNames.filter(
     (name) => env[name] !== undefined && env[name] !== "",
@@ -421,12 +423,20 @@ export function readConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
       return value;
     };
 
-    const requestMoneyUrl = hubtelUrl("HUBTEL_REQUEST_MONEY_URL", env.HUBTEL_REQUEST_MONEY_URL!);
-    if (!requestMoneyUrl.includes("{mobileNumber}"))
-      throw new Error("HUBTEL_REQUEST_MONEY_URL must contain {mobileNumber}");
-    const statusUrl = hubtelUrl("HUBTEL_STATUS_URL", env.HUBTEL_STATUS_URL!);
-    if (!["{reference}", "{clientReference}", "{providerReference}", "{paylinkId}"].some((token) => statusUrl.includes(token)))
-      throw new Error("HUBTEL_STATUS_URL must contain a supported reference template");
+    const directSupplied = hubtelDirectNames.filter((name) => env[name] !== undefined && env[name] !== "");
+    const directEnabled = payments.enabledMethods.includes("mobile_money");
+    if ((directEnabled || directSupplied.length > 0) && directSupplied.length !== hubtelDirectNames.length)
+      throw new Error("Hubtel direct Request Money requires the complete Request Money and status URL bundle");
+    let requestMoneyUrl: string | undefined;
+    let statusUrl: string | undefined;
+    if (directSupplied.length) {
+      requestMoneyUrl = hubtelUrl("HUBTEL_REQUEST_MONEY_URL", env.HUBTEL_REQUEST_MONEY_URL!);
+      if (!requestMoneyUrl.includes("{mobileNumber}"))
+        throw new Error("HUBTEL_REQUEST_MONEY_URL must contain {mobileNumber}");
+      statusUrl = hubtelUrl("HUBTEL_STATUS_URL", env.HUBTEL_STATUS_URL!);
+      if (!["{reference}", "{clientReference}", "{providerReference}", "{paylinkId}"].some((token) => statusUrl!.includes(token)))
+        throw new Error("HUBTEL_STATUS_URL must contain a supported reference template");
+    }
 
     const hostedNames = [
       "HUBTEL_COLLECTION_ACCOUNT_NUMBER",
@@ -469,8 +479,8 @@ export function readConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
     hubtelPayment = {
       clientId: env.HUBTEL_CLIENT_ID!,
       clientSecret: env.HUBTEL_CLIENT_SECRET!,
-      requestMoneyUrl,
-      statusUrl,
+      ...(requestMoneyUrl ? { requestMoneyUrl } : {}),
+      ...(statusUrl ? { statusUrl } : {}),
       callbackUrl: hubtelUrl("HUBTEL_CALLBACK_URL", env.HUBTEL_CALLBACK_URL!),
       returnUrl: hubtelUrl("HUBTEL_RETURN_URL", env.HUBTEL_RETURN_URL!),
       cancellationUrl: hubtelUrl("HUBTEL_CANCELLATION_URL", env.HUBTEL_CANCELLATION_URL!),
