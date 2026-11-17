@@ -55,7 +55,8 @@ export default function CheckoutStatusPage() {
 
   useEffect(() => {
     // stop polling once the payment outcome is final
-    if (order && ["succeeded", "failed", "requires_review", "refunded", "partially_refunded", "unpaid"].includes(order.paymentStatus)) {
+    if (order && (["succeeded", "failed", "requires_review", "refunded", "partially_refunded"].includes(order.paymentStatus) ||
+      (order.paymentStatus === "unpaid" && !["electronic", "mobile_money", "card_hosted", "bank_transfer"].includes(order.paymentMethod)))) {
       if (pollRef.current) clearInterval(pollRef.current);
     }
   }, [order]);

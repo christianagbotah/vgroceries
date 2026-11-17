@@ -40,6 +40,16 @@ export interface HubtelRefundConfig {
   callbackSecret: string;
 }
 
+export interface FlutterwaveConfig {
+  secretKey: string;
+  webhookSecret: string;
+  initiateUrl: string;
+  lookupUrl: string;
+  returnUrl: string;
+  technicalEmailDomain: string;
+  identityHmacKey: Buffer;
+}
+
 export interface PaystackConfig {
   secretKey: string;
   initializeUrl: string;
@@ -111,6 +121,7 @@ export interface ApiConfig {
   hubtelPayment: HubtelPaymentConfig | null;
   hubtelRefund: HubtelRefundConfig | null;
   paystack: PaystackConfig | null;
+  flutterwavePayment?: FlutterwaveConfig | null;
   etranzact: EtranzactConfig | null;
   productMedia: ProductMediaConfig | null;
   imageGeneration: ImageGenerationConfig | null;
@@ -542,6 +553,60 @@ export function readConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
     };
   }
 
+  // Flutterwave v3 hosted checkout uses the provider's own mobile-money and
+  // card selection. No client-side card capture or wallet PIN is ever enabled.
+  const flutterwaveNames = [
+    "FLUTTERWAVE_SECRET_KEY",
+    "FLUTTERWAVE_WEBHOOK_SECRET",
+    "FLUTTERWAVE_RETURN_URL",
+    "FLUTTERWAVE_TECHNICAL_EMAIL_DOMAIN",
+    "FLUTTERWAVE_IDENTITY_HMAC_KEY",
+  ] as const;
+  const flutterwaveSupplied = flutterwaveNames.filter(
+    (name) => env[name] !== undefined && env[name] !== "",
+  );
+  let flutterwavePayment: FlutterwaveConfig | null = null;
+  if (flutterwaveSupplied.length || payments?.providerId === "flutterwave") {
+    if (!payments || payments.providerId !== "flutterwave")
+      throw new Error("Flutterwave credentials require PAYMENT_PROVIDER_ID=flutterwave");
+    if (flutterwaveSupplied.length !== flutterwaveNames.length)
+      throw new Error("Flutterwave configuration must be supplied as a complete bundle");
+    if (!payments.enabledMethods.every(method => method === "hosted_checkout"))
+      throw new Error("Flutterwave accepts hosted_checkout only; payment rails belong to the provider");
+    if (!payments.hostedDomains.includes("checkout.flutterwave.com"))
+      throw new Error("Flutterwave hosted domains must include checkout.flutterwave.com");
+    const secretKey = env.FLUTTERWAVE_SECRET_KEY!;
+    const webhookSecret = env.FLUTTERWAVE_WEBHOOK_SECRET!;
+    if (secretKey.length < 12 || secretKey.length > 256)
+      throw new Error("FLUTTERWAVE_SECRET_KEY has an invalid length");
+    if (webhookSecret.length < 16 || webhookSecret.length > 256)
+      throw new Error("FLUTTERWAVE_WEBHOOK_SECRET must contain 16–256 characters");
+    const returnUrl = env.FLUTTERWAVE_RETURN_URL!;
+    let parsedReturn: URL;
+    try { parsedReturn = new URL(returnUrl); }
+    catch { throw new Error("FLUTTERWAVE_RETURN_URL must be an absolute URL"); }
+    if (!["https:", "http:"].includes(parsedReturn.protocol) || parsedReturn.username || parsedReturn.password ||
+      (env.NODE_ENV === "production" && parsedReturn.protocol !== "https:"))
+      throw new Error("FLUTTERWAVE_RETURN_URL must be HTTPS in production without embedded credentials");
+    if (!parsedReturn.pathname.endsWith("/checkout/payment-return"))
+      throw new Error("FLUTTERWAVE_RETURN_URL must point to /checkout/payment-return");
+    const technicalEmailDomain = env.FLUTTERWAVE_TECHNICAL_EMAIL_DOMAIN!;
+    if (!/^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z0-9]{2,}$/.test(technicalEmailDomain))
+      throw new Error("FLUTTERWAVE_TECHNICAL_EMAIL_DOMAIN must be a lowercase valid hostname");
+    const rawIdentityKey = env.FLUTTERWAVE_IDENTITY_HMAC_KEY!;
+    if (!/^[0-9a-fA-F]{64}$/.test(rawIdentityKey))
+      throw new Error("FLUTTERWAVE_IDENTITY_HMAC_KEY must be a 32-byte hex key");
+    flutterwavePayment = {
+      secretKey,
+      webhookSecret,
+      returnUrl,
+      technicalEmailDomain,
+      identityHmacKey: Buffer.from(rawIdentityKey, "hex"),
+      initiateUrl: "https://api.flutterwave.com/v3/payments",
+      lookupUrl: "https://api.flutterwave.com/v3/transactions/verify_by_reference",
+    };
+  }
+
   const etranzactNames = [
     "ETRANZACT_TERMINAL_ID",
     "ETRANZACT_SECRET_KEY",
@@ -697,6 +762,7 @@ export function readConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
     hubtelPayment,
     hubtelRefund,
     paystack,
+    flutterwavePayment,
     etranzact,
     productMedia,
     imageGeneration,
