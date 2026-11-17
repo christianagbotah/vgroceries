@@ -115,7 +115,7 @@ test("Hubtel-hosted payment only returns an action, never an immediate paid rece
   const http = mockFetch({ json: checkoutReply() });
   const provider = new HubtelPaymentProvider(hostedConfig(), http.fetcher);
   assert.deepEqual(provider.capabilities(), {
-    methods: ["hosted_checkout", "mobile_money"],
+    methods: ["hosted_checkout"],
     trustMode: "lookup_required",
     safeInitiationRetry: false,
   });
