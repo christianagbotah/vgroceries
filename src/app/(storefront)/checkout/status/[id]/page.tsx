@@ -7,6 +7,7 @@ import { apiOps, ApiError, type PublicOrder } from "@/services/client";
 import { LoadingState, ErrorState } from "@/components/shared/states";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { OrderTrackingJourney } from "@/components/orders/order-tracking-journey";
+import { OrderReceiptExperience } from "@/features/orders/order-receipt-experience";
 import { PickupCentreDetails } from "@/components/orders/pickup-centre-details";
 import { PickupAppointmentManager } from "@/components/orders/pickup-appointment-manager";
 import { Button } from "@/components/ui/button";
@@ -193,6 +194,7 @@ export default function CheckoutStatusPage() {
           {order.fulfilment === "delivery" ? <StatusBadge kind="delivery" status={order.deliveryStatus} /> : null}
           <span className="text-muted-foreground">Placed {order.createdAtLabel} UTC</span>
         </div>
+        <div className="mt-4"><OrderReceiptExperience order={order} /></div>
       </div>
 
       {needsAction ? (

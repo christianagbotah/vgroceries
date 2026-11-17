@@ -6,6 +6,7 @@ on:
       - feat/pos-integrated-official-vg-logo-20261116
       - feat/pos-integrated-gold-vg-all-surfaces-20261116
       - feat/pos-integrated-storefront-motion-20261117
+      - feat/pos-integrated-order-receipt-20261117
   workflow_dispatch:
 
 permissions:
@@ -33,7 +34,7 @@ jobs:
       - name: Install locked frontend dependencies
         run: bun install --frozen-lockfile
       - name: Targeted guest checkout security regressions
-        run: bun test scripts/guest-checkout-csrf-recovery.test.ts scripts/checkout-auth-choice-regressions.test.ts scripts/official-vg-branding-regressions.test.ts scripts/pos-storefront-motion-port.test.ts
+        run: bun test scripts/guest-checkout-csrf-recovery.test.ts scripts/checkout-auth-choice-regressions.test.ts scripts/official-vg-branding-regressions.test.ts scripts/pos-storefront-motion-port.test.ts scripts/pos-receipt-motion-security.test.ts
       - name: Typecheck POS-integrated storefront
         run: bunx tsc --noEmit --incremental false
       - name: Build standalone POS-integrated portal
