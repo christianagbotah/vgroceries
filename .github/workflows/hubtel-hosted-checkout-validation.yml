@@ -1,0 +1,65 @@
+name: Hubtel hosted checkout validation
+on:
+  push:
+    branches:
+      - feat/hubtel-online-checkout-hosted-20261117
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  hosted-checkout-api:
+    name: Build and test Hubtel without real charges
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: variety_hubtel_test
+        ports: [5432:5432]
+        options: >-
+          --health-cmd "pg_isready -U postgres -d variety_hubtel_test"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/variety_hubtel_test
+      WEB_ORIGINS: http://localhost:3000
+      API_STOCK_LOCATION_ID: loc_accra
+      API_INSECURE_COOKIES: "true"
+      COMMERCE_LOCATION_ID: loc_accra
+      CHECKOUT_PAYMENT_HOLD_MINUTES: "15"
+      CHECKOUT_OFFLINE_HOLD_MINUTES: "1440"
+      GUEST_CHECKOUT_TTL_MINUTES: "1440"
+      ORDER_VERIFICATION_ACTIVE_VERSION: "1"
+      ORDER_VERIFICATION_KEYS: '{"1":"1111111111111111111111111111111111111111111111111111111111111111"}'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Node 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - name: Install and compile shared payment contracts
+        run: |
+          npm ci --prefix packages/contracts
+          npm run --prefix packages/contracts build
+      - name: Install API dependencies and generate Prisma client (test database)
+        run: |
+          npm ci --prefix apps/api
+          npm run --prefix apps/api generate
+      - name: Compile the complete API and test sources
+        run: npm run --prefix apps/api build
+      - name: Run Hubtel Online Checkout, legacy Hubtel and Paystack mock tests
+        run: |
+          node --test --test-concurrency=1 \
+            apps/api/dist/test/hubtel-online-checkout.spec.js \
+            apps/api/dist/test/hubtel-payment-provider.spec.js \
+            apps/api/dist/test/paystack-payment-provider.spec.js
+      - name: Apply migrations to isolated PostgreSQL test database
+        run: npm run --prefix apps/api migrate:deploy
+      - name: Full API integration and security regressions (no live providers)
+        run: node --test --test-concurrency=1 apps/api/dist/test/*.spec.js
