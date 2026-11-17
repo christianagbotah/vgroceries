@@ -21,6 +21,12 @@ export interface PaymentConfig {
   hostedDomains: string[];
 }
 
+export interface HubtelOnlineCheckoutConfig {
+  merchantAccountNumber: string;
+  initiateUrl: string;
+  statusUrl: string;
+}
+
 export interface HubtelPaymentConfig {
   clientId: string;
   clientSecret: string;
@@ -29,6 +35,7 @@ export interface HubtelPaymentConfig {
   callbackUrl: string;
   returnUrl: string;
   cancellationUrl: string;
+  onlineCheckout?: HubtelOnlineCheckoutConfig;
 }
 
 export interface HubtelRefundConfig {
@@ -421,6 +428,40 @@ export function readConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
     if (!["{reference}", "{clientReference}", "{providerReference}", "{paylinkId}"].some((token) => statusUrl.includes(token)))
       throw new Error("HUBTEL_STATUS_URL must contain a supported reference template");
 
+    const hostedNames = [
+      "HUBTEL_COLLECTION_ACCOUNT_NUMBER",
+      "HUBTEL_ONLINE_CHECKOUT_URL",
+      "HUBTEL_COLLECTION_STATUS_URL",
+    ] as const;
+    const hostedSupplied = hostedNames.filter((name) => env[name] !== undefined && env[name] !== "");
+    const hostedEnabled = payments.enabledMethods.includes("hosted_checkout");
+    if ((hostedEnabled || hostedSupplied.length > 0) && hostedSupplied.length !== hostedNames.length)
+      throw new Error("Hubtel hosted checkout requires the complete merchant account and URLs bundle");
+    if (hostedSupplied.length && !hostedEnabled)
+      throw new Error("Hubtel hosted checkout config requires PAYMENT_ENABLED_METHODS to include hosted_checkout");
+    const merchantAccountNumber = env.HUBTEL_COLLECTION_ACCOUNT_NUMBER;
+    if (hostedEnabled && !/^\d{3,32}$/.test(merchantAccountNumber ?? ""))
+      throw new Error("HUBTEL_COLLECTION_ACCOUNT_NUMBER must be 3-32 digits");
+    let onlineCheckout: HubtelOnlineCheckoutConfig | undefined;
+    if (hostedEnabled) {
+      const initiateUrl = hubtelUrl("HUBTEL_ONLINE_CHECKOUT_URL", env.HUBTEL_ONLINE_CHECKOUT_URL!);
+      const statusUrl = hubtelUrl("HUBTEL_COLLECTION_STATUS_URL", env.HUBTEL_COLLECTION_STATUS_URL!);
+      const init = new URL(initiateUrl);
+      const status = new URL(statusUrl.replaceAll("{merchantAccountNumber}", "merchant").replaceAll("{reference}", "ref"));
+      const prodCheckout = init.origin === "https://payproxyapi.hubtel.com" && init.pathname === "/items/initiate";
+      const prodStatus = status.origin === "https://api-txnstatus.hubtel.com" &&
+        status.pathname === "/transactions/merchant/status" && status.searchParams.get("clientReference") === "ref";
+      const sandboxCheckout = init.origin === "https://code.hubtel.com" &&
+        init.pathname === "/sandbox/v1/payproxyapi/items/initiate";
+      const sandboxStatus = status.origin === "https://code.hubtel.com" &&
+        status.pathname === "/sandbox/v1/api-txnstatus/transactions/merchant/status" && status.searchParams.get("clientReference") === "ref";
+      if (!(prodCheckout && prodStatus) && !(env.NODE_ENV !== "production" && sandboxCheckout && sandboxStatus))
+        throw new Error("Hubtel Online Checkout URLs must match the official production or sandbox host/path pair");
+      if (init.search || init.hash || status.hash)
+        throw new Error("Hubtel Online Checkout URLs must not contain extra query parameters or fragments");
+      onlineCheckout = { merchantAccountNumber: merchantAccountNumber!, initiateUrl, statusUrl };
+    }
+
     hubtelPayment = {
       clientId: env.HUBTEL_CLIENT_ID!,
       clientSecret: env.HUBTEL_CLIENT_SECRET!,
@@ -429,6 +470,7 @@ export function readConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
       callbackUrl: hubtelUrl("HUBTEL_CALLBACK_URL", env.HUBTEL_CALLBACK_URL!),
       returnUrl: hubtelUrl("HUBTEL_RETURN_URL", env.HUBTEL_RETURN_URL!),
       cancellationUrl: hubtelUrl("HUBTEL_CANCELLATION_URL", env.HUBTEL_CANCELLATION_URL!),
+      ...(onlineCheckout ? { onlineCheckout } : {}),
     };
   }
 
