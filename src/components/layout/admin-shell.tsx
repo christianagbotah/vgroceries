@@ -13,7 +13,7 @@ import { useStaff, DEMO_ROLE_OPTIONS } from "@/features/staff/role-context";
 import { clearDemoStaffSession, isDemoStaffSessionActive } from "@/features/staff/staff-demo-session";
 import { ROLE_LABELS } from "@/types/domain";
 import type { Permission } from "@/lib/perms";
-import { LayoutDashboard, Menu, ShoppingCart, Store, Boxes, Package, ClipboardList, Truck, Users, RotateCcw, CreditCard, UserRound, BarChart3, Sparkles, ShieldCheck, ScrollText, Settings2, FlaskConical, LogOut, Warehouse, ClipboardCheck, TriangleAlert, ReceiptText, Landmark, Network, FileText, Home, ExternalLink } from "lucide-react";
+import { LayoutDashboard, Menu, ShoppingCart, Store, Boxes, Package, ClipboardList, Truck, Users, RotateCcw, CreditCard, UserRound, BarChart3, Sparkles, ShieldCheck, ScrollText, Settings2, FlaskConical, LogOut, Warehouse, ClipboardCheck, TriangleAlert, ReceiptText, Landmark, Network, FileText, Home, ExternalLink, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 
 interface NavItem {
   href: string;
@@ -110,6 +110,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const { role, setRole, can } = useStaff();
   const [open, setOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
   const [demoSessionActive, setDemoSessionActive] = useState(false);
 
@@ -117,6 +118,27 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
     const timer = window.setTimeout(() => setDemoSessionActive(isDemoStaffSessionActive()), 0);
     return () => window.clearTimeout(timer);
   }, []);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      try {
+        setSidebarCollapsed(window.localStorage.getItem("vg-admin-sidebar-collapsed") === "true");
+      } catch {
+        // Sidebar remains usable when browser storage is unavailable.
+      }
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, []);
+
+  const toggleSidebar = () => {
+    const next = !sidebarCollapsed;
+    setSidebarCollapsed(next);
+    try {
+      window.localStorage.setItem("vg-admin-sidebar-collapsed", String(next));
+    } catch {
+      // Preference is optional; the toggle still works.
+    }
+  };
 
   const signOut = async () => {
     setLoggingOut(true);
@@ -139,23 +161,25 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
     .sort((a, b) => b.href.length - a.href.length)[0];
   const isActive = (href: string) => activeItem?.href === href;
 
-  const sidebar = (
+  const sidebar = (compact = false) => (
     <div className="flex h-full flex-col">
-      <div className="flex items-center gap-2 border-b border-sidebar-border p-4">
-        <Image src="/brand/variety-mark.svg" alt="" width={36} height={38} className="h-9 w-9 shrink-0 object-contain" aria-hidden />
-        <div className="leading-tight">
-          <p className="font-serif font-bold text-sidebar-foreground">Variety Groceries</p>
-          <p className="text-[11px] text-sidebar-foreground/70">{demoSessionActive ? "Back office · demo" : "Back office"}</p>
-        </div>
+      <div className={cn("flex items-center gap-2 border-b border-sidebar-border px-3 py-3", compact && "justify-center px-1")}>
+        <Image src="/brand/variety-mark.svg" alt="Variety Groceries" width={36} height={38} className="h-9 w-9 shrink-0 object-contain" />
+        {!compact && (
+          <div className="min-w-0 leading-tight">
+            <p className="truncate font-serif text-sm font-bold text-sidebar-foreground">Variety Groceries</p>
+            <p className="text-[11px] text-sidebar-foreground/70">{demoSessionActive ? "Back office · demo" : "Back office"}</p>
+          </div>
+        )}
       </div>
 
-      <nav className="scroll-soft flex-1 overflow-y-auto p-2" aria-label="Admin navigation">
+      <nav className={cn("scroll-soft min-h-0 flex-1 overflow-y-auto p-2", compact && "px-1")} aria-label="Admin navigation">
         {GROUPS.map((g) => {
           const items = g.items.filter((i) => can(i.permission));
           if (!items.length) return null;
           return (
-            <div key={g.title} className="mb-3">
-              <p className="px-3 pb-1 pt-2 text-[11px] font-semibold uppercase tracking-wider text-sidebar-foreground/60">
+            <div key={g.title} className={cn("mb-3", compact && "border-t border-sidebar-border pt-2 first:border-t-0")}>
+              <p className={cn("px-3 pb-1 pt-2 text-[11px] font-semibold uppercase tracking-wider text-sidebar-foreground/60", compact && "sr-only")}>
                 {g.title}
               </p>
               <ul>
@@ -165,13 +189,16 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
                       href={item.href}
                       onClick={() => setOpen(false)}
                       aria-current={isActive(item.href) ? "page" : undefined}
+                      aria-label={compact ? item.label : undefined}
+                      title={compact ? item.label : undefined}
                       className={cn(
                         "flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm text-sidebar-foreground/90 transition-colors hover:bg-sidebar-accent",
+                        compact && "justify-center px-2",
                         isActive(item.href) && "bg-sidebar-accent font-semibold text-sidebar-accent-foreground"
                       )}
                     >
                       <item.icon className="size-4 shrink-0" aria-hidden />
-                      <span className="truncate">{item.label}</span>
+                      <span className={cn("truncate", compact && "sr-only")}>{item.label}</span>
                     </Link>
                   </li>
                 ))}
@@ -179,9 +206,11 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
             </div>
           );
         })}
-        <p className="px-3 py-2 text-[11px] text-sidebar-foreground/50">
-          Menus are role-filtered UX only — the backend must enforce access.
-        </p>
+        {!compact && (
+          <p className="px-3 py-2 text-[11px] text-sidebar-foreground/50">
+            Menus are role-filtered UX only — the backend must enforce access.
+          </p>
+        )}
       </nav>
     </div>
   );
@@ -189,8 +218,37 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex min-h-screen bg-background">
       {/* desktop sidebar */}
-      <aside className="sticky top-0 hidden h-screen w-64 shrink-0 bg-sidebar text-sidebar-foreground lg:block" aria-label="Admin sidebar">
-        {sidebar}
+      <aside
+        className={cn(
+          "sticky top-0 hidden h-screen shrink-0 bg-sidebar text-sidebar-foreground transition-[width] duration-200 lg:block",
+          sidebarCollapsed ? "w-16" : "w-56"
+        )}
+        aria-label="Admin sidebar"
+      >
+        <div className="flex h-full flex-col">
+          <div className="min-h-0 flex-1">{sidebar(sidebarCollapsed)}</div>
+          <div className={cn("shrink-0 border-t border-sidebar-border p-2", sidebarCollapsed ? "flex justify-center" : "flex justify-end")}>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-9 gap-2 text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+              onClick={toggleSidebar}
+              aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+              aria-expanded={!sidebarCollapsed}
+              title={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+            >
+              {sidebarCollapsed ? (
+                <PanelLeftOpen className="size-4" aria-hidden />
+              ) : (
+                <>
+                  <PanelLeftClose className="size-4" aria-hidden />
+                  <span className="text-xs">Collapse</span>
+                </>
+              )}
+            </Button>
+          </div>
+        </div>
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
@@ -202,9 +260,9 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
                 <Menu className="size-5" />
               </Button>
             </SheetTrigger>
-            <SheetContent side="left" className="w-72 border-0 bg-sidebar p-0 text-sidebar-foreground">
+            <SheetContent side="left" className="w-64 max-w-[85vw] border-0 bg-sidebar p-0 text-sidebar-foreground">
               <SheetTitle className="sr-only">Admin navigation</SheetTitle>
-              {sidebar}
+              {sidebar(false)}
             </SheetContent>
           </Sheet>
 
