@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { MessageCircle, Mic, MicOff, Send, Volume2, VolumeX, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, MessageCircle, Mic, MicOff, Send, Volume2, VolumeX, X } from "lucide-react";
 import { groundedShoppingAnswer } from "./grounded-catalog";
 import { formatMoney } from "@/lib/money";
 import type { AssistantResponse } from "@/services/client";
@@ -16,6 +16,8 @@ type SpeechWindow=Window&{SpeechRecognition?:new()=>Recognition;webkitSpeechReco
 type Message={who:"customer"|"assistant";text:string;answer?:AssistantResponse};
 export function CustomerVoiceConcierge(){
  const [open,setOpen]=useState(false),[draft,setDraft]=useState(""),[busy,setBusy]=useState(false);
+ // Minimise by default on mobile so the button never blankets products.
+ const [launcherExpanded,setLauncherExpanded]=useState(false);
  const [messages,setMessages]=useState<Message[]>([]);
  const [speechCapable,setSpeechCapable]=useState(false),[listening,setListening]=useState(false);
  const [readAloud,setReadAloud]=useState(false),[error,setError]=useState("");
@@ -43,10 +45,10 @@ export function CustomerVoiceConcierge(){
    }catch{setListening(false);setError("The microphone could not start. You can type instead.");}
  };
  return <div className="fixed bottom-20 right-3 z-[60] md:bottom-6 md:right-6">
-   {open?<section role="dialog" aria-label="Variety Groceries shopping assistant" className="flex max-h-[min(75dvh,640px)] w-[min(400px,calc(100vw-24px))] flex-col overflow-hidden rounded-2xl border bg-white shadow-2xl">
+   {open?<section role="dialog" aria-modal="false" aria-label="Variety Groceries shopping assistant" className="flex max-h-[min(68dvh,580px)] w-[min(400px,calc(100vw-24px))] min-w-0 flex-col overflow-hidden rounded-2xl border bg-white shadow-2xl md:max-h-[min(75dvh,640px)]">
      <header className="flex items-center justify-between bg-primary px-4 py-3 text-primary-foreground">
        <div><h2 className="text-base font-bold">Variety Groceries Assistant</h2><p className="text-xs opacity-85">Catalogue-grounded chat and optional voice</p></div>
-       <button type="button" onClick={()=>{setOpen(false);recognition.current?.stop();window.speechSynthesis?.cancel();}} className="rounded-lg p-2 hover:bg-white/10 focus-visible:outline-2" aria-label="Close assistant"><X className="size-5"/></button>
+       <button type="button" onClick={()=>{setOpen(false);setLauncherExpanded(false);recognition.current?.stop();window.speechSynthesis?.cancel();}} className="rounded-lg p-2 hover:bg-white/10 focus-visible:outline-2" aria-label="Close assistant"><X className="size-5"/></button>
      </header>
      <div ref={scrollRef} className="min-h-40 flex-1 space-y-3 overflow-y-auto bg-[#f7f9f5] p-3" aria-live="polite" aria-relevant="additions">
        {!messages.length?<div className="space-y-3 text-sm"><p className="font-semibold">How can I help you shop today?</p><p className="text-muted-foreground">Ask about available groceries and prices. For private order details, use verified order tracking.</p>
@@ -73,6 +75,37 @@ export function CustomerVoiceConcierge(){
        </form>
        <p className="mt-2 text-[11px] leading-4 text-muted-foreground">Catalogue guidance, not a human or connected generative AI. No checkout actions are taken. Speech recognition may use your browser provider's service.</p>
      </div>
-   </section>:<button type="button" onClick={()=>setOpen(true)} className="flex min-h-12 items-center gap-2 rounded-full bg-primary px-5 py-3 text-sm font-bold text-white shadow-xl hover:brightness-110 focus-visible:outline-2 focus-visible:outline-offset-2" aria-label="Open grocery chat and voice assistant"><MessageCircle className="size-5"/> Ask or speak</button>}
+   </section>:<>
+     <div className="md:hidden" aria-label="Mobile shopping assistant controls">
+       {launcherExpanded ? (
+         <div className="flex max-w-[min(78vw,252px)] items-center gap-1 rounded-full border border-white/20 bg-primary p-1 text-white shadow-xl motion-safe:animate-in motion-safe:slide-in-from-right-2 motion-safe:fade-in motion-safe:duration-200">
+           <button type="button" onClick={()=>setOpen(true)}
+             className="inline-flex min-h-11 min-w-0 flex-1 items-center justify-center gap-1.5 rounded-full px-2 text-xs font-bold hover:bg-white/10 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
+             aria-label="Open grocery chat and voice assistant">
+             <MessageCircle className="size-4 shrink-0" aria-hidden />
+             <span className="whitespace-nowrap">Ask or speak</span>
+           </button>
+           <button type="button" onClick={()=>setLauncherExpanded(false)}
+             aria-label="Collapse shopping assistant shortcut" aria-expanded="true"
+             className="grid size-11 shrink-0 place-items-center rounded-full bg-white/10 hover:bg-white/20 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white">
+             <ChevronRight className="size-5" aria-hidden />
+           </button>
+         </div>
+       ) : (
+         <button type="button" onClick={()=>setLauncherExpanded(true)}
+           aria-label="Expand shopping assistant shortcut" aria-expanded="false"
+           title="Ask or speak"
+           className="flex size-11 items-center justify-center gap-0.5 rounded-full border border-white/20 bg-primary text-white shadow-xl transition hover:brightness-110 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">
+           <MessageCircle className="size-4 shrink-0" aria-hidden />
+           <ChevronLeft className="size-3 shrink-0" aria-hidden />
+         </button>
+       )}
+     </div>
+     <button type="button" onClick={()=>setOpen(true)}
+       className="hidden min-h-12 items-center gap-2 rounded-full bg-primary px-5 py-3 text-sm font-bold text-white shadow-xl hover:brightness-110 focus-visible:outline-2 focus-visible:outline-offset-2 md:flex"
+       aria-label="Open grocery chat and voice assistant">
+       <MessageCircle className="size-5" aria-hidden /> Ask or speak
+     </button>
+   </>}
  </div>;
 }

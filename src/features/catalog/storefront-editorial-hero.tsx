@@ -142,14 +142,20 @@ export function StorefrontEditorialHero({
               <p className="mt-5 line-clamp-3 max-w-[530px] text-sm leading-6 text-[#e5eee2]/95 sm:text-base sm:leading-7">
                 {current.body}
               </p>
-              <div className="mt-6 flex flex-wrap items-center gap-2.5">
+              {/* Keep BOTH actions on one horizontal row on phones.
+                  Text may wrap within a button, never force the second button
+                  onto a separate row or widen the mobile viewport. */}
+              <div className="mt-6 grid min-w-0 grid-cols-2 items-stretch gap-2 sm:flex sm:flex-wrap sm:items-center sm:gap-2.5">
                 <Link href={current.ctaHref}
-                  className="inline-flex min-h-12 items-center gap-2 rounded-full bg-[#f8cd78] px-5 py-3 text-sm font-black text-[#113d2b] transition hover:-translate-y-0.5 hover:bg-[#ffe09a] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white">
-                  <ShoppingBasket className="size-4" aria-hidden /> {current.ctaLabel} <ArrowRight className="size-4" aria-hidden />
+                  className="inline-flex min-h-12 min-w-0 w-full items-center justify-center gap-1 rounded-full bg-[#f8cd78] px-2 py-2.5 text-center text-[11px] font-black leading-[1.2] text-[#113d2b] transition hover:-translate-y-0.5 hover:bg-[#ffe09a] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white sm:w-auto sm:gap-2 sm:px-5 sm:py-3 sm:text-sm">
+                  <ShoppingBasket className="size-3.5 shrink-0 sm:size-4" aria-hidden />
+                  <span className="min-w-0 break-words">{current.ctaLabel}</span>
+                  <ArrowRight className="hidden size-4 shrink-0 sm:block" aria-hidden />
                 </Link>
                 <Link href={current.secondaryCtaHref}
-                  className="inline-flex min-h-12 items-center gap-2 rounded-full border border-white/40 bg-white/10 px-4 py-3 text-xs font-bold text-white backdrop-blur-sm transition hover:bg-white/20 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white">
-                  <Sparkles className="size-4 text-[#f3c973]" aria-hidden /> {current.secondaryCtaLabel}
+                  className="inline-flex min-h-12 min-w-0 w-full items-center justify-center gap-1 rounded-full border border-white/40 bg-white/10 px-2 py-2.5 text-center text-[11px] font-bold leading-[1.2] text-white backdrop-blur-sm transition hover:bg-white/20 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white sm:w-auto sm:gap-2 sm:px-4 sm:py-3 sm:text-xs">
+                  <Sparkles className="size-3.5 shrink-0 text-[#f3c973] sm:size-4" aria-hidden />
+                  <span className="min-w-0 break-words">{current.secondaryCtaLabel}</span>
                 </Link>
               </div>
             </motion.div>
