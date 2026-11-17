@@ -47,7 +47,7 @@ const env = ()=>({
   FLUTTERWAVE_IDENTITY_HMAC_KEY:"11".repeat(32),
 });
 test("Flutterwave config rejects incomplete or non-hosted payment methods",()=>{
-  assert.equal(readConfig({DATABASE_URL:"postgresql://u:p@localhost/db",API_STOCK_LOCATION_ID:"loc"}).flutterwavePayment,null);
+  assert.equal(readConfig({DATABASE_URL:"postgresql://u:p@localhost/db",API_STOCK_LOCATION_ID:"loc",WEB_ORIGINS:"http://localhost:3000"}).flutterwavePayment,null);
   assert.throws(()=>readConfig({...env(),FLUTTERWAVE_WEBHOOK_SECRET:""}),/complete bundle/);
   assert.throws(()=>readConfig({...env(),PAYMENT_ENABLED_METHODS:"mobile_money"}),/hosted_checkout/);
   assert.equal(readConfig(env()).flutterwavePayment?.returnUrl,config().returnUrl);

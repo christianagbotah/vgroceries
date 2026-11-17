@@ -68,3 +68,18 @@ is authorized by this source work.
 
 Other providers remain available via their existing adapters. Existing
 Hubtel status/authorization limitations must be resolved independently.
+
+## Source verification record
+
+- Backend TypeScript compile: success.
+- Flutterwave fake-gateway tests: 6 passed, 0 failed.
+- Existing Hubtel and Paystack adapter tests: 12 passed, 0 failed.
+- Flutterwave configured adapter registration into NestJS: success without
+  starting a listener or contacting any live provider.
+- Frontend Cash/Electronic regression tests: 4 passed, 0 failed.
+- Targeted frontend/backend ESLint: success.
+- A separate database-backed payment-provider integration suite was not run
+  because no isolated test DATABASE_URL was provided. It must NOT be pointed
+  at live customer/stock/finance data for a quick smoke test.
+- No real charge, provider webhook, refund, payment receipt, stock movement
+  or merchant-provider activation was made during these tests.
