@@ -2,11 +2,12 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { useCart } from "@/features/checkout/cart-store";
+import { flyProductToCart } from "@/features/checkout/cart-motion";
 import { WishlistButton } from "@/features/catalog/wishlist-button";
 import { apiOps, type CatalogProduct } from "@/services/client";
 import { formatMoney } from "@/lib/money";
@@ -15,6 +16,8 @@ import { cmpQty, subQty } from "@/lib/quantity";
 
 export function ProductTile({ product, priority }: { product: CatalogProduct; priority?: boolean }) {
   const { add } = useCart();
+  const photoRef = useRef<HTMLDivElement>(null);
+  const addRef = useRef<HTMLButtonElement>(null);
   const { toast } = useToast();
   const available = product.variants.filter((v) => v.isAvailable);
   const [variantId, setVariantId] = useState(available[0]?.id ?? product.variants[0]?.id ?? "");
@@ -55,6 +58,10 @@ export function ProductTile({ product, priority }: { product: CatalogProduct; pr
         image: productImage,
         priceMinor: fresh?.priceMinor ?? chosen.priceMinor,
       }, latestQty);
+      if (accepted) {
+        try { flyProductToCart(addRef.current, photoRef.current?.querySelector("img")); }
+        catch { /* Decorative motion must never affect an accepted cart addition. */ }
+      }
       toast(accepted
         ? { title: "Added to cart", description: `${quantity} × ${product.name} — ${chosen.name}` }
         : { title: "Stock limit reached", description: `Only ${latestQty} available for this option.`, variant: "destructive" });
@@ -67,7 +74,7 @@ export function ProductTile({ product, priority }: { product: CatalogProduct; pr
 
   return (
     <article className="group flex h-full min-w-0 flex-col overflow-hidden rounded-2xl border bg-white shadow-[0_4px_15px_rgba(0,0,0,.035)] transition duration-200 hover:-translate-y-0.5 hover:border-primary/25 hover:shadow-[0_12px_28px_rgba(5,74,49,.10)]">
-      <div className="product-card-photo relative aspect-[1.18/1] overflow-hidden bg-[#f8f8f4]">
+      <div ref={photoRef} className="product-card-photo relative aspect-[1.18/1] overflow-hidden bg-[#f8f8f4]">
         <Link href={`/products/${product.slug}`} className="absolute inset-0 focus-visible:outline-2" aria-label={`${product.name} — view details`}>
           <Image src={productImage} alt={product.featuredImage?.altText || `${product.name} product photo`} fill unoptimized={Boolean(product.featuredImage)} sizes="(max-width:640px) 50vw, (max-width:1024px) 25vw, 190px" className="object-cover transition-transform duration-300 group-hover:scale-[1.035]" priority={priority} />
         </Link>
@@ -106,7 +113,7 @@ export function ProductTile({ product, priority }: { product: CatalogProduct; pr
                 {isLowStock ? `Only ${chosen.availableToSell} left` : `${chosen.availableToSell} in stock`}
                 {cmpQty(inCart, "0") > 0 ? ` · ${inCart} in your cart` : ""}
               </p>
-            <Button disabled={!stockRemaining || adding} className="h-9 w-full rounded-xl text-[11px] font-extrabold sm:text-xs" onClick={quickAdd} aria-label={`Add ${product.name} (${chosen.name}) to cart`}>
+            <Button ref={addRef} disabled={!stockRemaining || adding} className="h-9 w-full rounded-xl text-[11px] font-extrabold sm:text-xs" onClick={quickAdd} aria-label={`Add ${product.name} (${chosen.name}) to cart`}>
               <ShoppingCart className="size-3.5" /> {adding ? "Checking stock…" : stockRemaining ? "Add to cart" : "Stock limit reached"}
             </Button>
             </>

@@ -1,11 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import { QuantityInput } from "@/components/shared/quantity-input";
 import { useCart } from "@/features/checkout/cart-store";
+import { flyProductToCart } from "@/features/checkout/cart-motion";
 import { useToast } from "@/hooks/use-toast";
 import { apiOps, type CatalogProduct, type CatalogVariant } from "@/services/client";
 import { ShoppingCart, TriangleAlert } from "lucide-react";
@@ -24,6 +25,7 @@ export function ProductPurchasePanel({ product }: { product: CatalogProduct }) {
   const [liveQuantities, setLiveQuantities] = useState<Record<string, string>>({});
   const [adding, setAdding] = useState(false);
   const { add } = useCart();
+  const addRef = useRef<HTMLButtonElement>(null);
   const { toast } = useToast();
 
   const original = product.variants.find((v) => v.id === variantId);
@@ -56,9 +58,13 @@ export function ProductPurchasePanel({ product }: { product: CatalogProduct }) {
         productId: product.id,
         quantity: selectedQuantity,
         name: `${product.name} — ${variant.name}`,
-        image: product.image,
+        image: product.featuredImage?.url ?? product.image,
         priceMinor: fresh?.priceMinor ?? variant.priceMinor,
       }, latestQty);
+      if (accepted) {
+        try { flyProductToCart(addRef.current, document.querySelector<HTMLImageElement>("[data-vg-product-hero] img")); }
+        catch { /* Decorative motion must never affect an accepted cart addition. */ }
+      }
       toast(accepted
         ? { title: "Added to cart", description: `${formatQty(selectedQuantity)} × ${product.name} — ${variant.name}` }
         : { title: "Stock limit reached", description: `Only ${latestQty} available.`, variant: "destructive" });
@@ -127,7 +133,7 @@ export function ProductPurchasePanel({ product }: { product: CatalogProduct }) {
               unit={variant.unit}
               ariaLabel={`Quantity of ${product.name} ${variant.name}`}
             />
-            <Button size="lg" className="h-12 flex-1 min-w-40" disabled={!canAdd || adding} onClick={addToCart}>
+            <Button ref={addRef} size="lg" className="h-12 flex-1 min-w-40" disabled={!canAdd || adding} onClick={addToCart}>
               <ShoppingCart className="size-5" aria-hidden /> {adding ? "Checking stock…" : "Add to cart"}
             </Button>
           </div>
