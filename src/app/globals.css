@@ -232,3 +232,18 @@
     width: 100%;
   }
 }
+
+
+/* Mobile assistant: a gentle attention pulse only while its corner tab is
+   collapsed. The interactive 44px target stays stationary and accessible. */
+@keyframes vg-assistant-halo {
+  0%, 12%, 100% { transform: scale(0.92); opacity: 0; }
+  23% { opacity: 0.8; }
+  56% { transform: scale(1.4); opacity: 0; }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .vg-assistant-attention-ring {
+    animation: vg-assistant-halo 4.2s ease-out infinite;
+  }
+}

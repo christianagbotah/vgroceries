@@ -304,33 +304,77 @@ export function StorefrontMobileNav() {
 }
 
 export function StorefrontFooter() {
+  const footerLinkClass = "block min-h-8 min-w-0 break-words py-1 text-[12px] leading-5 text-white/75 transition-colors hover:text-[#f8cd78] focus-visible:rounded-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#f8cd78]";
+
   return (
-    <footer className="storefront-footer-rich mt-auto bg-[color:var(--brand-green-deep)] text-white">
-      <div className="mx-auto grid max-w-[1500px] gap-8 px-4 py-10 sm:grid-cols-2 lg:grid-cols-[1.35fr_.8fr_.9fr_.8fr_1.3fr]">
-        <div className="space-y-4 sm:col-span-2 lg:col-span-1">
+    <footer className="storefront-footer-rich mt-auto min-w-0 overflow-hidden bg-[color:var(--brand-green-deep)] text-white">
+      {/* Mobile: brand full-width, then a true 2×2 link grid, then a full-width
+          action panel. Desktop keeps the original five-column structure. */}
+      <div className="mx-auto grid max-w-[1500px] grid-cols-2 gap-x-4 gap-y-6 px-4 py-8 min-[360px]:gap-x-6 sm:gap-x-8 sm:gap-y-8 lg:grid-cols-[1.35fr_.8fr_.9fr_.8fr_1.3fr] lg:gap-8 lg:py-10">
+        <div className="col-span-2 min-w-0 space-y-3 border-b border-white/15 pb-5 sm:pb-6 lg:col-span-1 lg:border-b-0 lg:pb-0">
           <Brand compact inverse />
-          <p className="max-w-xs text-sm leading-relaxed text-white/70">A connected grocery experience for everyday Ghanaian homes — fresh food, pantry staples, household essentials and order support in one place.</p>
-          <p className="text-xs font-semibold text-brand-amber">Prices shown in Ghana cedis (₵).</p>
+          <p className="max-w-sm text-[12px] leading-5 text-white/75 sm:text-sm sm:leading-relaxed">
+            Fresh food, pantry staples and household essentials, with order support in one place.
+          </p>
+          <p className="text-xs font-semibold text-brand-amber">Prices in Ghana cedis (₵).</p>
         </div>
-        <div>
-          <p className="mb-3 text-sm font-bold">Shop</p>
-          <ul className="space-y-2 text-xs text-white/70"><li><Link href="/shop">All products</Link></li><li><Link href="/shop?category=fresh-produce">Fresh produce</Link></li><li><Link href="/shop?category=dairy-eggs">Dairy & eggs</Link></li><li><Link href="/shop?category=meat-fish">Meat & fish</Link></li></ul>
+        <div className="min-w-0">
+          <h2 className="mb-2 text-[13px] font-bold tracking-wide text-white sm:mb-3 sm:text-sm">Shop</h2>
+          <ul className="space-y-0.5">
+            <li><Link className={footerLinkClass} href="/shop">All products</Link></li>
+            <li><Link className={footerLinkClass} href="/shop?category=fresh-produce">Fresh produce</Link></li>
+            <li><Link className={footerLinkClass} href="/shop?category=dairy-eggs">Dairy & eggs</Link></li>
+            <li><Link className={footerLinkClass} href="/shop?category=meat-fish">Meat & fish</Link></li>
+          </ul>
         </div>
-        <div>
-          <p className="mb-3 text-sm font-bold">Customer service</p>
-          <ul className="space-y-2 text-xs text-white/70"><li><Link href="/track">Track your order</Link></li><li><Link href="/account/returns">Returns & refunds</Link></li><li><Link href="/help">Help centre</Link></li><li><Link href="/delivery">Delivery information</Link></li></ul>
+        <div className="min-w-0">
+          <h2 className="mb-2 text-[13px] font-bold tracking-wide text-white sm:mb-3 sm:text-sm">Customer service</h2>
+          <ul className="space-y-0.5">
+            <li><Link className={footerLinkClass} href="/track">Track your order</Link></li>
+            <li><Link className={footerLinkClass} href="/account/returns">Returns & refunds</Link></li>
+            <li><Link className={footerLinkClass} href="/help">Help centre</Link></li>
+            <li><Link className={footerLinkClass} href="/delivery">Delivery information</Link></li>
+          </ul>
         </div>
-        <div>
-          <p className="mb-3 text-sm font-bold">About</p>
-          <ul className="space-y-2 text-xs text-white/70"><li><Link href="/privacy">Privacy</Link></li><li><Link href="/terms">Terms</Link></li><li><Link href="/returns-policy">Returns policy</Link></li><li><Link href="/assistant">Shopping assistant</Link></li></ul>
+        <div className="min-w-0">
+          <h2 className="mb-2 text-[13px] font-bold tracking-wide text-white sm:mb-3 sm:text-sm">About</h2>
+          <ul className="space-y-0.5">
+            <li><Link className={footerLinkClass} href="/privacy">Privacy</Link></li>
+            <li><Link className={footerLinkClass} href="/terms">Terms</Link></li>
+            <li><Link className={footerLinkClass} href="/returns-policy">Returns policy</Link></li>
+            <li><Link className={footerLinkClass} href="/assistant">Shopping assistant</Link></li>
+          </ul>
         </div>
-        <div>
-          <p className="text-sm font-bold">Stay connected</p>
-          <p className="mt-1 text-xs leading-relaxed text-white/65">Use your account for order history and repeat shopping. Public notification channels remain demo-only until launch configuration is complete.</p>
-          <div className="mt-4 flex gap-2"><Button asChild variant="secondary" className="h-10"><Link href="/account">My account</Link></Button><Button asChild className="h-10 bg-brand-amber text-[color:var(--brand-green-deep)] hover:bg-brand-amber/90"><Link href="/shop">Shop now</Link></Button></div>
+        <div className="min-w-0 lg:hidden">
+          <h2 className="mb-2 text-[13px] font-bold tracking-wide text-white sm:mb-3 sm:text-sm">Your shopping</h2>
+          <ul className="space-y-0.5">
+            <li><Link className={footerLinkClass} href="/account">My account</Link></li>
+            <li><Link className={footerLinkClass} href="/account/orders">Order history</Link></li>
+            <li><Link className={footerLinkClass} href="/account/lists">Saved lists</Link></li>
+            <li><Link className={footerLinkClass} href="/cart">My basket</Link></li>
+          </ul>
+        </div>
+        <div className="col-span-2 min-w-0 rounded-2xl border border-white/10 bg-white/[.07] p-4 lg:col-span-1 lg:rounded-none lg:border-0 lg:bg-transparent lg:p-0">
+          <h2 className="text-[13px] font-bold text-white sm:text-sm">Stay connected</h2>
+          <p className="mt-1 text-[12px] leading-5 text-white/70">
+            Review orders, save your favourites and shop again. Notifications remain demo-only until launch.
+          </p>
+          <div className="mt-3 grid grid-cols-2 gap-2 lg:flex lg:flex-wrap">
+            <Button asChild variant="secondary" className="h-10 min-w-0 px-2 text-xs sm:text-sm">
+              <Link href="/account">My account</Link>
+            </Button>
+            <Button asChild className="h-10 min-w-0 bg-brand-amber px-2 text-xs text-[color:var(--brand-green-deep)] hover:bg-brand-amber/90 sm:text-sm">
+              <Link href="/shop">Shop now</Link>
+            </Button>
+          </div>
         </div>
       </div>
-      <div className="border-t border-white/10"><div className="mx-auto flex max-w-[1500px] flex-wrap items-center justify-between gap-2 px-4 py-4 text-[11px] text-white/55"><p>© {new Date().getFullYear()} Variety Groceries · Ghana · Demo storefront</p><p>Mobile Money · Card · Bank transfer · Cash — provider connections remain clearly labelled in the checkout.</p></div></div>
+      <div className="border-t border-white/15">
+        <div className="mx-auto grid max-w-[1500px] gap-2 px-4 py-4 text-center text-[11px] leading-5 text-white/65 sm:flex sm:flex-wrap sm:items-center sm:justify-between sm:text-left">
+          <p>© {new Date().getFullYear()} Variety Groceries · Ghana · Demo storefront</p>
+          <p>Cash options where permitted · Electronic methods via approved payment providers</p>
+        </div>
+      </div>
     </footer>
   );
 }
