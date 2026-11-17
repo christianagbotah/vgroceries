@@ -44,6 +44,11 @@ const eslintConfig = [...nextCoreWebVitals, ...nextTypescript, {
     "no-useless-escape": "off",
   },
 }, {
+  // CommonJS scripts and integration fixtures use require() by design.
+  // Scope the exception to .cjs; application TS/ESM imports remain checked.
+  files: ["**/*.cjs"],
+  rules: { "@typescript-eslint/no-require-imports": "off" },
+}, {
   ignores: ["apps/api/dist/**", "packages/contracts/dist/**", "node_modules/**", ".next/**", "out/**", "build/**", "next-env.d.ts", "examples/**", "skills"]
 }];
 

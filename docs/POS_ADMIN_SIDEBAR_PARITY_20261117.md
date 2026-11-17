@@ -43,3 +43,13 @@ scripts/pos-admin-sidebar-parity.test.ts`, ESLint, full TypeScript and
 Next.js production build; verify desktop/sidebar toggle and mobile navigation
 in a browser, and have an immutable, reversible portal-only release. Do not
 infer a live deployment from a GitHub commit.
+
+## Compatibility lint correction
+
+The integrated POS baseline includes maintained `.cjs` operations and
+test fixtures that intentionally use CommonJS `require()`. Full ESLint was
+failing on those unchanged scripts. The flat ESLint configuration now
+disables only `@typescript-eslint/no-require-imports` for `**/*.cjs`,
+without changing the rule for TypeScript or ECMAScript modules. This is a
+configuration compatibility correction, not an authorization or runtime
+behavior change.
