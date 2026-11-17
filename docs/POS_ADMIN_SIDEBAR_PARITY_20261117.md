@@ -53,3 +53,43 @@ disables only `@typescript-eslint/no-require-imports` for `**/*.cjs`,
 without changing the rule for TypeScript or ECMAScript modules. This is a
 configuration compatibility correction, not an authorization or runtime
 behavior change.
+
+## Actual portal deployment and verification — 17 November 2026
+
+**Immutable deployed source commit:** `0a6502050b37939a3b096464ba8dacb5562c7192`.
+**Release:** `/home/lightworld/releases/varietygroceries-portal-admin-sidebar-0a65020-20261117`.
+**Portal unit:** `varietygroceries-portal-canonical.service` (port `3052`).
+**New systemd override:** `90-admin-sidebar-20261117.conf` changes only
+`WorkingDirectory`. Existing API port `3049` and configuration remain
+unchanged. No schema migrations, payment operations, stock changes or new
+providers were activated.
+
+**Completed checks:**
+- Frozen Bun dependencies installed; 10 focused tests passed (30 expectations).
+- Repository-wide ESLint: **0 errors** (one pre-existing password-recovery
+  warning); TypeScript check passed.
+- Next.js 16.1.3 production build passed, **63 static pages** generated;
+  customer, admin, cashier, POS, support, inventory and stock routes retained.
+- Pre-release canary: HTTP 200 on `/`, `/shop`, `/cart`, `/checkout`,
+  `/staff/login`, `/staff/demo/owner_admin`, `/admin/pos`.
+- Isolated Chromium demo-role UI test: expanded desktop measured **224 px**,
+  search `support` showed only permitted `/admin/support`, collapsed
+  width **64 px** with accessible icon label and official mark, preference
+  persisted across reload; mobile drawer at 390 px viewport measured **256 px**
+  and retained search/support visibility.
+- After the portal-only restart: HTTP 200 on the shop, cart, checkout, staff
+  login and POS routes; public `portal.varietygroceries.com` returned HTTPS
+  HTTP 200; previous storefront quick view remained present; the public
+  `varietygroceries.com` Coming Soon page remained in place.
+
+**Rollback, if a defect is found:** remove only
+`/etc/systemd/system/varietygroceries-portal-canonical.service.d/90-admin-sidebar-20261117.conf`,
+then `systemctl daemon-reload` and
+`systemctl restart varietygroceries-portal-canonical.service`.
+The previous `80-storefront-editorial-basket-20261117.conf` override will
+select `/home/lightworld/releases/varietygroceries-portal-editorial-basket-2323916-20261117`.
+Do not roll back to the legacy 3037/3027 canonical portal.
+
+**Remaining limitations:** Real-user browser/assistive-tech UAT and staff-role
+operations still need owner acceptance. These demo-role checks do not prove
+server-side permission enforcement or live payment/cashier/stock acceptance.
