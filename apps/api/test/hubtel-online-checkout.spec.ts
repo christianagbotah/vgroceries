@@ -108,7 +108,7 @@ test("Hubtel hosted config works without Direct Request Money URLs", () => {
   assert.throws(() => readConfig({ ...baseEnv(), PAYMENT_HOSTED_DOMAINS: "bad.example" }), /pay\.hubtel\.com/);
   assert.throws(() => readConfig({ ...baseEnv(), PAYMENT_ENABLED_METHODS: "mobile_money,hosted_checkout" }), /direct Request Money|hosted_checkout must be first/);
   assert.throws(() => readConfig({ ...baseEnv(), HUBTEL_ONLINE_CHECKOUT_URL: "https://evil.example/items/initiate" }), /official production or sandbox/);
-  assert.throws(() => readConfig({ ...baseEnv(), NODE_ENV: "production", HUBTEL_ONLINE_CHECKOUT_URL: "https://code.hubtel.com/sandbox/v1/payproxyapi/items/initiate" }), /official production or sandbox/);
+  assert.throws(() => readConfig({ ...baseEnv(), NODE_ENV: "production", WEB_ORIGINS: "https://portal.varietygroceries.com", API_INSECURE_COOKIES: "false", HUBTEL_ONLINE_CHECKOUT_URL: "https://code.hubtel.com/sandbox/v1/payproxyapi/items/initiate" }), /official production or sandbox/);
 });
 
 test("Hubtel-hosted payment only returns an action, never an immediate paid receipt", async () => {
@@ -183,6 +183,7 @@ test("Hubtel Online Checkout callback is evidence requiring an authoritative loo
   }));
   const verification = await provider.verifyEvent({ rawBody, headers: {} });
   assert.equal(verification.verification, "lookup_required");
+  if (verification.verification !== "lookup_required") throw new Error("Event should require lookup");
   assert.equal(verification.merchantReference, reference);
 });
 
