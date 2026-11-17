@@ -435,6 +435,10 @@ export function readConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
     ] as const;
     const hostedSupplied = hostedNames.filter((name) => env[name] !== undefined && env[name] !== "");
     const hostedEnabled = payments.enabledMethods.includes("hosted_checkout");
+    if (hostedEnabled && payments.enabledMethods[0] !== "hosted_checkout")
+      throw new Error("Hubtel hosted_checkout must be first so generic Electronic opens secure checkout");
+    if (hostedEnabled && !payments.hostedDomains.includes("pay.hubtel.com"))
+      throw new Error("PAYMENT_HOSTED_DOMAINS must allow pay.hubtel.com for Hubtel Online Checkout");
     if ((hostedEnabled || hostedSupplied.length > 0) && hostedSupplied.length !== hostedNames.length)
       throw new Error("Hubtel hosted checkout requires the complete merchant account and URLs bundle");
     if (hostedSupplied.length && !hostedEnabled)
