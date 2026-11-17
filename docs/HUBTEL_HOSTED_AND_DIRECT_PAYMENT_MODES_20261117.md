@@ -113,3 +113,53 @@ Official Hubtel documentation (updated Nov 2, 2026):
 - https://code.hubtel.com/docs/guides/receive-money
 - https://code.hubtel.com/docs/guides/reconciliation
 - https://code.hubtel.com/docs/testing
+
+## Owner decision: choose Online Checkout, not Direct MoMo (17 Nov 2026)
+
+The preferred Hubtel configuration is now **hosted checkout ONLY**:
+`PAYMENT_ENABLED_METHODS=hosted_checkout`.
+The hosted-only Hubtel adapter exposes only `hosted_checkout` as its available
+payment method. It does not need a phone number, user-selected network, the
+Direct Request Money URL, or the Direct Request Money status template.
+Customers click Electronic, open Hubtel's own checkout UI, and select mobile
+money or card there. If they select MoMo, Hubtel asks for the relevant mobile
+number and sends the normal phone approval prompt; Variety Groceries never
+collects PINs or card details.
+
+### Exact IP-whitelist distinction
+
+Hubtel explicitly documents that `POST https://payproxyapi.hubtel.com/items/initiate`
+does **not** require IP allowlisting. It is therefore **not** a prerequisite to
+*creating* the checkout, and the frontend must not display a misleading
+"IP allowlisting required for Hubtel Checkout" error.
+
+Hubtel separately documents that
+`GET https://api-txnstatus.hubtel.com/transactions/{account}/status` **does**
+require an allowlisted server IPv4 address. It must still work as a
+reconciliation fallback when callbacks are missing. Do **not** disable
+verification, treat a browser redirect as paid, or mark payments failed merely
+because a status check timed out. Keep the order unresolved and investigate.
+Production merchant setup must include the status-API allowlist or another
+Hubtel-approved safe reconciliation mechanism.
+
+Sources:
+- https://code.hubtel.com/docs/api/v1/online-checkout (explicit no allowlist)
+- https://code.hubtel.com/docs/guides/online-checkout (Hubtel handles MoMo prompts)
+- https://code.hubtel.com/docs/api/v1/transaction-status (IP allowlist)
+- https://code.hubtel.com/docs/guides/reconciliation (mandatory status fallback)
+
+### Separate outstanding production blocker: refund parity
+
+The existing `PaymentPolicyService` deliberately requires a refund capability
+for every enabled payment method. The existing Hubtel refund adapter supports
+only direct `mobile_money`; Hubtel's documented refund API supports mobile
+money payments, not all cards accepted by Online Checkout. Thus the new
+`hosted_checkout` flow remains **staged and intentionally not activatable**
+until a compliant refund/dispute process covering every selected hosted
+payment method is implemented and verified. Do not bypass this safety gate
+by claiming that card refunds use the mobile-money refund endpoint.
+The current live API/service configuration has not been changed.
+
+Source-only corrections in this branch also repair a legacy lookup helper
+and make the hosted-only adapter advertise `hosted_checkout` alone;
+all test execution and production deployment remain pending.
