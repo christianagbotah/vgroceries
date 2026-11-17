@@ -13,6 +13,7 @@ import { PickupAppointmentManager } from "@/components/orders/pickup-appointment
 import { Button } from "@/components/ui/button";
 import { PAYMENT_METHOD_LABELS } from "@/types/domain";
 import { formatMoney } from "@/lib/money";
+import { electronicPaymentPhase, shouldPollPaymentStatus } from "@/features/checkout/electronic-payment-state";
 import { formatDateTime } from "@/lib/format";
 import { CheckCircle2, Clock, Loader2, PartyPopper, PhoneCall, ShieldQuestion, TriangleAlert, XCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -31,6 +32,9 @@ export default function CheckoutStatusPage() {
   const [error, setError] = useState<string | null>(null);
   const [initiating, setInitiating] = useState(false);
   const [paymentMessage, setPaymentMessage] = useState<string | null>(null);
+  // Keep gateway-initiation failures visible through order polling; the
+  // ordinary status-fetch error gets cleared by each successful poll.
+  const [initiationError, setInitiationError] = useState<string | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const load = useCallback(async () => {
@@ -54,16 +58,18 @@ export default function CheckoutStatusPage() {
   }, [load]);
 
   useEffect(() => {
-    // stop polling once the payment outcome is final
-    if (order && ["succeeded", "failed", "requires_review", "refunded", "partially_refunded", "unpaid"].includes(order.paymentStatus)) {
+    // Only server-authoritative terminal outcomes stop polling. A new
+    // electronic order can be "pending" before the first provider attempt.
+    if (order && !shouldPollPaymentStatus(order)) {
       if (pollRef.current) clearInterval(pollRef.current);
     }
   }, [order]);
 
   const startPayment = async () => {
-    if (!order) return;
+    if (!order || initiating || electronicPaymentPhase(order) !== "start") return;
     setInitiating(true);
     setPaymentMessage(null);
+    setInitiationError(null);
     setError(null);
     try {
       const keyName = `vg_payment_attempt_key_${id}`;
@@ -104,7 +110,7 @@ export default function CheckoutStatusPage() {
       }
       await load();
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : "The secure payment request could not be started.");
+      setInitiationError(e instanceof ApiError ? e.message : "The secure payment request could not be started.");
     } finally {
       setInitiating(false);
     }
@@ -130,7 +136,9 @@ export default function CheckoutStatusPage() {
 
   const electronic = order.paymentMethod === "electronic" || ["mobile_money", "card_hosted", "bank_transfer"].includes(order.paymentMethod);
   const paid = ["succeeded", "partially_refunded", "refunded"].includes(order.paymentStatus);
-  const needsAction = electronic && (order.paymentStatus === "pending" || order.paymentStatus === "unpaid") && order.fulfilmentStatus !== "cancelled";
+  const paymentPhase = electronicPaymentPhase(order);
+  const needsAction = paymentPhase === "start";
+  const awaitingVerification = paymentPhase === "verifying";
 
   return (
     <div className="mx-auto max-w-2xl px-4 pb-10 pt-8">
@@ -163,6 +171,13 @@ export default function CheckoutStatusPage() {
             title="Payment did not go through"
             tone="danger"
             copy="The provider declined this payment, so the order was cancelled and its stock hold released. You can place the order again — nothing was charged twice."
+          />
+        ) : awaitingVerification ? (
+          <StatusHead
+            icon={<Clock className="size-8 animate-pulse text-primary" aria-hidden />}
+            title="Waiting for payment verification"
+            tone="warning"
+            copy="A provider payment request has already been started for this order. Please do not pay again. The status updates when the server verifies the provider's result."
           />
         ) : needsAction ? (
           <StatusHead
@@ -209,9 +224,29 @@ export default function CheckoutStatusPage() {
               {initiating ? "Opening secure payment…" : "Continue to secure payment"}
             </Button>
           </div>
+          {initiationError ? <p role="alert" className="mt-3 rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">{initiationError}</p> : null}
           {paymentMessage ? <p role="status" className="mt-3 rounded-lg bg-white/70 p-3 text-sm text-foreground">{paymentMessage}</p> : null}
           <p className="mt-2 text-xs text-muted-foreground">
             Returning from the provider does not mark the order paid. The status changes only after server-side provider evidence is independently verified.
+          </p>
+        </div>
+      ) : null}
+
+      {awaitingVerification ? (
+        <div className="mt-4 rounded-2xl border border-primary/20 bg-primary/5 p-4 sm:p-5">
+          <h2 className="font-semibold">Payment verification in progress</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Your previous electronic payment request is still being checked.
+            Do not start another payment or approve a second prompt for this order.
+          </p>
+          {paymentMessage ? <p role="status" className="mt-3 text-sm">{paymentMessage}</p> : null}
+          {initiationError ? <p role="alert" className="mt-3 text-sm text-destructive">{initiationError}</p> : null}
+          <div className="mt-3 flex flex-wrap gap-2">
+            <Button type="button" variant="outline" onClick={() => void load()}>Refresh payment status</Button>
+            <Button type="button" asChild variant="outline"><Link href="/support">Contact support</Link></Button>
+          </div>
+          <p className="mt-2 text-xs text-muted-foreground">
+            Only server-verified provider evidence can mark the order paid.
           </p>
         </div>
       ) : null}
