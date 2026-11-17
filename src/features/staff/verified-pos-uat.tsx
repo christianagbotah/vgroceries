@@ -12,6 +12,7 @@ import type {
 import { ApiError } from "@/services/adapters/types";
 import { verifiedPosUat, type CashierTillList } from "./verified-pos-uat-transport";
 import { PosCustomerPicker, type PosCustomerSelection } from "./pos-customer-picker";
+import { lockPosCashSaleAttempt, type LockedPosCashSaleAttempt } from "./pos-sale-retry";
 
 type CartLine = { variantId: string; quantity: string };
 type ProductChoice = {
@@ -43,6 +44,8 @@ export function VerifiedPosUat() {
   const [quote, setQuote] = useState<PosQuoteView | null>(null);
   const [hold, setHold] = useState<PosHoldView | null>(null);
   const [sale, setSale] = useState<PosCashSaleView | null>(null);
+  const [saleAttempt, setSaleAttempt] = useState<LockedPosCashSaleAttempt | null>(null);
+  const [saleStatusUncertain, setSaleStatusUncertain] = useState(false);
   const [report, setReport] = useState<PosTillReconciliationView | null>(null);
   const [cashInput, setCashInput] = useState("");
   const [handoverNote, setHandoverNote] = useState("");
@@ -95,6 +98,7 @@ export function VerifiedPosUat() {
   function resetCart() {
     setCart([]); setQuote(null); setHold(null); setSale(null); setReport(null);
     setCashInput(""); setHandoverNote(""); setCashConfirmed(false); setGoodsConfirmed(false);
+    setSaleAttempt(null); setSaleStatusUncertain(false);
     setCustomer({ mode: "walk_in" });
     setNotice(null); setError(null);
   }
@@ -236,7 +240,7 @@ export function VerifiedPosUat() {
               setQuote(result);
               setNotice("Server quote refreshed. Quoting does not reserve stock or collect cash.");
             })}>Check price and availability</Button>
-          <Button type="button" variant="outline" disabled={busy || !!hold} onClick={resetCart}>Clear basket</Button>
+          <Button type="button" variant="outline" disabled={busy || !!hold || !!saleAttempt} onClick={resetCart}>Clear basket</Button>
         </div>
         {quote && <div className="space-y-1 rounded-lg border p-3 text-sm">
           <p>Server-quoted total: <strong className="tabular-nums">{formatMoney(quote.pricing.totalMinor)}</strong></p>
@@ -252,14 +256,14 @@ export function VerifiedPosUat() {
         </div>}
       </section>
 
-      <PosCustomerPicker value={customer} onChange={setCustomer} disabled={busy || !!sale} />
+      <PosCustomerPicker value={customer} onChange={setCustomer} disabled={busy || !!sale || !!saleAttempt} />
       {hold && <section className="space-y-4 rounded-xl border bg-card p-4">
         <h2 className="text-lg font-semibold">3. Simulate a cash sale</h2>
         <p className="text-sm">Reserved sample cart · {formatMoney(hold.subtotalMinor)} · Expires at {new Date(hold.expiresAt).toLocaleTimeString("en-GH")}</p>
         <label className="block space-y-1 text-sm font-medium">
           <span>Simulated cash received (₵)</span>
           <Input type="text" value={cashInput} onChange={e => setCashInput(e.target.value)}
-            inputMode="decimal" placeholder="e.g. 40.00" disabled={busy || !!sale} />
+            inputMode="decimal" placeholder="e.g. 40.00" disabled={busy || !!sale || !!saleAttempt} />
         </label>
         <p className="text-sm">
           Amount due: <strong>{formatMoney(totalMinor)}</strong> ·
@@ -270,37 +274,60 @@ export function VerifiedPosUat() {
         <label className="block space-y-1 text-sm font-medium">
           <span>Simulated handover note (minimum 10 characters)</span>
           <textarea className="min-h-20 w-full rounded-md border bg-background p-3 text-base"
-            value={handoverNote} disabled={busy || !!sale} onChange={e => setHandoverNote(e.target.value)}
+            value={handoverNote} disabled={busy || !!sale || !!saleAttempt} onChange={e => setHandoverNote(e.target.value)}
             placeholder="UAT simulation only: sample cash and groceries handed over" />
         </label>
         <label className="flex items-start gap-2 text-sm">
-          <input type="checkbox" checked={cashConfirmed} disabled={busy || !!sale}
+          <input type="checkbox" checked={cashConfirmed} disabled={busy || !!sale || !!saleAttempt}
             onChange={e => setCashConfirmed(e.target.checked)} />
           <span>I confirm this is simulated cash counted for a staging-only test.</span>
         </label>
         <label className="flex items-start gap-2 text-sm">
-          <input type="checkbox" checked={goodsConfirmed} disabled={busy || !!sale}
+          <input type="checkbox" checked={goodsConfirmed} disabled={busy || !!sale || !!saleAttempt}
             onChange={e => setGoodsConfirmed(e.target.checked)} />
           <span>I confirm this is a simulated goods handover, not a real customer transaction.</span>
         </label>
         <div className="flex flex-wrap gap-2">
-          <Button type="button" disabled={busy || !!sale || !validCustomer || tenderMinor < hold.subtotalMinor ||
-            !cashConfirmed || !goodsConfirmed || handoverNote.trim().length < 10}
+          {saleStatusUncertain && !sale && <p role="alert" className="w-full rounded-lg border border-amber-500/50 bg-amber-500/10 p-3 text-sm">
+            The server's final result has not been confirmed. Do not collect sample cash twice,
+            release this reservation, or start another sale. You may retry the <strong>same request</strong>
+            using the original replay key and unchanged cash/customer details; ask an administrator
+            to inspect the till reconciliation if confirmation remains unavailable.
+          </p>}
+          <Button type="button" disabled={busy || !!sale || (!saleAttempt &&
+            (!validCustomer || tenderMinor < hold.subtotalMinor ||
+             !cashConfirmed || !goodsConfirmed || handoverNote.trim().length < 10))}
             onClick={() => void execute(async () => {
-              if (!window.confirm("Record this SYNTHETIC staging-only cash sale and deduct its sample stock?")) return;
+              if (!window.confirm(saleAttempt
+                ? "Retry the ORIGINAL staging cash-sale request with the same replay key? No new sale or payment should be created."
+                : "Record this SYNTHETIC staging-only cash sale and deduct its sample stock?")) return;
               const customerInput = customer.mode === "existing"
                 ? { mode: "existing" as const, customerUserId: customer.customerUserId }
                 : customer.mode === "named"
                   ? { mode: "named" as const, customerName: customer.customerName.trim() }
                   : { mode: "walk_in" as const };
-              const created = await verifiedPosUat.sale(csrf, hold.id, tenderMinor,
-                handoverNote.trim(), customerInput);
-              setSale(created);
-              setNotice("Synthetic sale recorded. The server issued a cash-only test receipt.");
-              try { setReport(await verifiedPosUat.reconciliation(tillId)); }
-              catch { setReport(null); }
-            })}>Complete simulated cash sale</Button>
-          <Button type="button" variant="outline" disabled={busy || !!sale}
+              const attempt = lockPosCashSaleAttempt(saleAttempt, {
+                holdId: hold.id, cashReceivedMinor: tenderMinor,
+                handoverNote, customer: customerInput,
+              });
+              setSaleAttempt(attempt);
+              try {
+                const created = await verifiedPosUat.sale(csrf, attempt.holdId,
+                  attempt.cashReceivedMinor, attempt.handoverNote, attempt.customer,
+                  attempt.replayKey);
+                setSale(created);
+                setSaleStatusUncertain(false);
+                setNotice("Synthetic sale confirmed. The server issued a cash-only test receipt.");
+                try { setReport(await verifiedPosUat.reconciliation(tillId)); }
+                catch { setReport(null); }
+              } catch (cause) {
+                // A timeout or malformed response may happen AFTER a committed
+                // sale. Keep the original key and payload for an exact retry.
+                setSaleStatusUncertain(true);
+                throw new Error(`${describeError(cause)} Sale outcome not confirmed; retry the original request or verify the till with a supervisor.`);
+              }
+            })}>{saleAttempt ? "Retry original cash-sale request" : "Complete simulated cash sale"}</Button>
+          <Button type="button" variant="outline" disabled={busy || !!sale || !!saleAttempt}
             onClick={() => void execute(async () => {
               await verifiedPosUat.release(csrf, hold.id);
               setHold(null); setQuote(null);

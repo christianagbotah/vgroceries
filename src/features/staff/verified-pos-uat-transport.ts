@@ -102,9 +102,10 @@ export const verifiedPosUat = {
     handoverNote: string, customer?:
       | { mode: "walk_in" }
       | { mode: "existing"; customerUserId: string }
-      | { mode: "named"; customerName: string }) =>
+      | { mode: "named"; customerName: string },
+    retryKey?: string) =>
     apiRequest<PosCashSaleView>("/admin/pos/cash-sales", {
-      method: "POST", csrf, key: crypto.randomUUID(),
+      method: "POST", csrf, key: retryKey ?? crypto.randomUUID(),
       body: { holdId, cashReceivedMinor, cashCountConfirmed: true,
         goodsHandedOver: true, handoverNote,
         ...(customer ? { customerMode: customer.mode } : {}),
