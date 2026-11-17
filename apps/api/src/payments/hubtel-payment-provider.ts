@@ -98,6 +98,11 @@ export class HubtelPaymentProvider implements PaymentProviderAdapter {
         customerSafeMessage: "This Hubtel payment method is not enabled yet.",
       };
     }
+    if (!this.config.requestMoneyUrl) return {
+      kind: "rejected",
+      failureCode: "HUBTEL_DIRECT_NOT_CONFIGURED",
+      customerSafeMessage: "Direct mobile money requests are not enabled.",
+    };
     if (!input.payerPhone) {
       return {
         kind: "rejected",
@@ -261,7 +266,9 @@ export class HubtelPaymentProvider implements PaymentProviderAdapter {
     // The official collection-status endpoint works for Online Checkout and
     // Direct Receive Money, and identifies the attempt by clientReference.
     const hostedStatus = this.config.onlineCheckout;
-    const url = endpoint(hostedStatus?.statusUrl ?? this.config.statusUrl, {
+    const statusTemplate = hostedStatus?.statusUrl ?? this.config.statusUrl;
+    if (!statusTemplate) throw new Error("Hubtel collection status is not configured.");
+    const url = endpoint(statusTemplate, {
       merchantAccountNumber: hostedStatus?.merchantAccountNumber,
       reference: input.merchantReference,
       clientReference: input.merchantReference,
