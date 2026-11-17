@@ -409,7 +409,7 @@ export function readConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
     if (env.HUBTEL_CLIENT_ID!.length > 256 || env.HUBTEL_CLIENT_SECRET!.length > 256)
       throw new Error("Hubtel payment credentials are too long");
 
-    const hubtelUrl = (name: (typeof hubtelPaymentNames)[number], value: string) => {
+    const hubtelUrl = (name: string, value: string) => {
       let parsed: URL;
       try {
         parsed = new URL(value.replace(/\{[A-Za-z][A-Za-z0-9_]*\}/g, "value"));
