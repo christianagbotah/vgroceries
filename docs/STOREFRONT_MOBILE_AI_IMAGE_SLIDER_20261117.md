@@ -67,3 +67,52 @@ track's min-content width. The shared DialogContent now explicitly uses
 grid-template-columns: minmax(0, 1fr), with shrinkable dialog section
 wrappers. This fixes the intrinsic layout constraint instead of merely
 clipping long text.
+
+## Actual POS portal deployment and evidence — 17 November 2026
+
+**Immutable deployed application commit:** 67936ce797db7c58bf32631f97617f3a6f295ea7.
+**Release directory:** /home/lightworld/releases/varietygroceries-portal-storefront-polish-67936ce-20261117.
+**Unit:** varietygroceries-portal-canonical.service (port 3052).
+**Override:** 99-storefront-polish-20261117.conf.
+**Previous release preserved:** /home/lightworld/releases/varietygroceries-portal-pos-retry-fd4a845-20261117.
+
+The override changes only the portal working directory, not the API 3049,
+public Coming Soon site, payment handlers, stock ledger, schema, staff roles
+or transaction feature flags.
+
+Completed release gates:
+- 18 targeted media/studio/hero/mobile contract tests / 125 assertions passed.
+- Follow-up mobile dialog source tests passed after each refinement.
+- Targeted ESLint and full TypeScript checks passed.
+- Next.js 16.1.3 production build passed for the deployed SHA; 63 static
+  pages generated, including POS, dispatch, product editing, checkout,
+  inventory and staff routes.
+- Production-mode isolated release on port 3094: HTTP 200 on /, /shop,
+  /cart, /checkout, /staff/login, /admin/pos, /admin/dispatch,
+  /admin/products and /staff/demo/dispatcher.
+- Chromium canary browser: six populated carousel slides, manual advance,
+  pause stability, 360px menu width approximately 280.8px, 390px menu
+  width 286px, zero document horizontal overflow, and long external
+  provider selection inside 358px dialog / 308px trigger at 390px viewport.
+  These checks used demo staff session data; no dispatch job was assigned.
+- Live portal after rollout: HTTP 200 on shop, cart, checkout, staff
+  login, POS, dispatch and product pages. Public portal homepage retained
+  the existing quick-basket and new carousel markup. Public main domain
+  continued to show Coming Soon.
+- Public HTTPS portal also passed Chromium browser checks for six-slide
+  hero advance/pause and mobile menu at 360px/390px without page overflow.
+- Production POS API not changed or restarted.
+
+Rollback: remove
+/etc/systemd/system/varietygroceries-portal-canonical.service.d/99-storefront-polish-20261117.conf,
+run systemctl daemon-reload, then restart only
+varietygroceries-portal-canonical.service. The existing 95-pos-retry-safety
+override restores the prior immutable release. Do not use 3037/3027
+legacy rollout scripts.
+
+**AI provider limitation:** The currently running POS staging API has
+AI_IMAGE_PROVIDER=fake and no configured OpenAI provider credential.
+The strict request-validation defect is fixed, but genuine model-generated
+product images are not available until an approved real provider and
+credentials are configured. This release does not submit real paid image
+generation jobs or silently publish unapproved media.
