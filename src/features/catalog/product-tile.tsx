@@ -62,9 +62,7 @@ export function ProductTile({ product, priority }: { product: CatalogProduct; pr
         try { flyProductToCart(addRef.current, photoRef.current?.querySelector("img")); }
         catch { /* Decorative motion must never affect an accepted cart addition. */ }
       }
-      toast(accepted
-        ? { title: "Added to cart", description: `${quantity} × ${product.name} — ${chosen.name}` }
-        : { title: "Stock limit reached", description: `Only ${latestQty} available for this option.`, variant: "destructive" });
+      if (!accepted) toast({ title: "Stock limit reached", description: `Only ${latestQty} available for this option.`, variant: "destructive" });
     } catch {
       toast({ title: "Could not verify stock", description: "Please try again before adding this item.", variant: "destructive" });
     } finally {

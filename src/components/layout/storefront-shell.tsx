@@ -27,9 +27,11 @@ import {
   Search,
   Store,
   UserRound,
+  PanelRightOpen,
 } from "lucide-react";
 import { useCart } from "@/features/checkout/cart-store";
 import { MotionCartIcon } from "@/features/checkout/motion-cart-icon";
+import { openBasketPeek } from "@/features/checkout/basket-peek-model";
 
 const CATEGORY_NAV = [
   { slug: "fresh-produce", label: "Fresh Produce" },
@@ -183,6 +185,11 @@ export function StorefrontHeader() {
               <MotionCartIcon count={itemCount} />
               <span className="hidden text-[10px] font-semibold sm:block">Cart</span>
             </Link>
+            <button type="button" onClick={openBasketPeek}
+              aria-label={"Quick view of basket with " + itemCount + (itemCount === 1 ? " item" : " items")}
+              className="hidden min-h-11 items-center gap-1.5 rounded-xl border border-primary/20 px-3 text-xs font-semibold text-primary transition-colors hover:bg-accent focus-visible:outline-2 focus-visible:outline-offset-2 lg:inline-flex">
+              <PanelRightOpen className="size-4" aria-hidden /> Quick view
+            </button>
           </div>
         </div>
 
