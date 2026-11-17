@@ -40,7 +40,7 @@ function requestHash(orderId: string, input: PaymentInitiationRequest) {
 }
 
 function merchantReference() {
-  return `VG-PAY-${randomUUID().replaceAll("-", "").toUpperCase()}`;
+  // Hubtel Online Checkout permits at most 32 chars; 96 random bits still\n  // provide ample uniqueness for a durable payment-attempt reference.\n  return `VG-PAY-${randomUUID().replaceAll("-", "").slice(0, 24).toUpperCase()}`;
 }
 
 @Injectable()
