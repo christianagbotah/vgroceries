@@ -194,3 +194,38 @@ test("Direct Mobile Money remains separately guarded when only Online Checkout i
   assert.equal(result.kind, "rejected");
   assert.equal(http.calls.length, 0);
 });
+
+test("ambiguous Hubtel checkout creation remains uncertain rather than inviting a duplicate payment", async () => {
+  for (const response of [
+    { status: 200, json: { responseCode: "0005", status: "Failed", data: null } },
+    { status: 400, json: { responseCode: "4000", status: "Failed", data: null } },
+    { status: 503, json: { responseCode: "0000", status: "Success", data: checkoutReply().data } },
+    { status: 200, json: { responseCode: "0000", status: "Success", data: null } },
+  ]) {
+    const http = mockFetch(response);
+    const provider = new HubtelPaymentProvider(hostedConfig(), http.fetcher);
+    await assert.rejects(provider.initiate(paymentInput()), /could not be authoritatively confirmed/);
+    assert.equal(http.calls.length, 1);
+    assert.equal(JSON.parse(String(http.calls[0].options?.body)).clientReference, reference);
+  }
+});
+
+test("a card payment records only the verified provider channel, without guessing a network", async () => {
+  const provider = new HubtelPaymentProvider(hostedConfig(), mockFetch({
+    json: statusReply({ paymentMethod: "visa", status: "Paid" }),
+  }).fetcher);
+  const paid = await provider.lookup({ merchantReference: reference, signal: new AbortController().signal });
+  assert.equal(paid.state, "succeeded");
+  assert.equal(paid.settledChannel, "visa");
+  assert.equal(paid.amountMinor, 12345);
+});
+
+test("status API failures never turn an unresolved checkout into a completed payment", async () => {
+  for (const response of [
+    { status: 403, json: { message: "IP not allowlisted", responseCode: "4030" } },
+    { status: 200, json: { responseCode: "0005", data: null } },
+  ]) {
+    const provider = new HubtelPaymentProvider(hostedConfig(), mockFetch(response).fetcher);
+    await assert.rejects(provider.lookup({ merchantReference: reference, signal: new AbortController().signal }), /status is not available/);
+  }
+});
