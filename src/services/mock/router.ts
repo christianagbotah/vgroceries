@@ -223,7 +223,7 @@ export function publicOrder(store: VgStore, orderId: string) {
     deliveryStatus: order.deliveryStatus,
     paymentAttempts: store.paymentAttempts
       .filter((a) => a.orderId === order.id)
-      .map((a) => ({ id: a.id, method: a.method, status: a.status, amountMinor: a.amountMinor, amountLabel: formatMoney(a.amountMinor), callbackCount: a.callbackCount, providerRef: a.providerRef, settlementState: a.settlementState, failureReason: a.failureReason, note: a.note, createdAt: a.createdAt })),
+      .map((a) => ({ id: a.id, method: a.method, status: a.status, amountMinor: a.amountMinor, amountLabel: formatMoney(a.amountMinor), callbackCount: a.callbackCount, providerRef: a.providerRef, settlementState: a.settlementState, gatewayInitiated: a.gatewayInitiated, failureReason: a.failureReason, note: a.note, createdAt: a.createdAt })),
     lines: lines.map((l) => ({
       id: l.id, productName: l.productName, variantName: l.variantName, unit: l.unit,
       quantity: l.quantity, unitPriceMinor: l.unitPriceMinor, unitPriceLabel: formatMoney(l.unitPriceMinor),
@@ -458,8 +458,15 @@ export async function handleApi(req: ApiRequest): Promise<ApiResult> {
         if (!order) throw new OpError("NOT_FOUND", "Order not found.");
         if (!["electronic", "mobile_money", "card_hosted", "bank_transfer"].includes(order.paymentMethod))
           throw new OpError("RULE_VIOLATION", "This order does not require an electronic payment.");
+        const attempt = store.paymentAttempts.find((entry) => entry.orderId === order.id && entry.status === "initiated");
+        if (!attempt) throw new OpError("RULE_VIOLATION", "No unconfirmed payment attempt is available for this order.");
+        // Demo only: the provisional attempt was created at checkout so older
+        // scenarios could emulate callbacks. This operation marks it sent.
+        // It never claims a successful electronic charge.
+        attempt.gatewayInitiated = true;
+        attempt.status = "pending";
         return ok({
-          attemptId: nextId("pay"),
+          attemptId: attempt.id,
           method: order.paymentMethod,
           attemptStatus: "pending",
           paymentStatus: order.paymentStatus,

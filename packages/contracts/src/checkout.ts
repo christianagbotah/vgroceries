@@ -220,6 +220,8 @@ export interface PaymentAttemptView {
   callbackCount: number;
   providerRef?: string;
   settlementState: string;
+  /** False only for a demo/prepared order before any provider request. */
+  gatewayInitiated?: boolean;
   failureReason?: string;
   note?: string;
   createdAt: string;
