@@ -117,6 +117,7 @@ describe("carousel and responsive navigation", () => {
     expect(select).toContain("max-w-[calc(100vw-2rem)]");
     expect(select).toContain("overflow-hidden");
     expect(dialog).toContain("overflow-x-hidden");
+    expect(dialog).toContain("grid-cols-[minmax(0,1fr)]");
     expect(dispatch).toContain("min-w-0 break-words");
     expect(dispatch).toContain('width: "min(calc(100vw - 2rem), 28rem)"');
     expect(dispatch).toContain('id="assign-provider" className="h-11 min-w-0 w-full max-w-full"');

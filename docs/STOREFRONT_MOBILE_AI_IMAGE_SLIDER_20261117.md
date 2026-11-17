@@ -60,3 +60,10 @@ rather than the desired 358px, even though document overflow stayed at 390px.
 The generic Radix Dialog base and both dispatch assignment/manage dialogs
 now use explicit viewport-minus-2rem width, capped at 28rem for dispatch,
 retaining a consistent 16px gutter on each side.
+
+The follow-up 390px browser test showed the modal itself at 358px but
+a Radix SelectTrigger stretching to 484px due to the implicit CSS grid
+track's min-content width. The shared DialogContent now explicitly uses
+grid-template-columns: minmax(0, 1fr), with shrinkable dialog section
+wrappers. This fixes the intrinsic layout constraint instead of merely
+clipping long text.

@@ -390,8 +390,8 @@ export default function AdminDispatchPage() {
               {assignTarget?.zone} · {assignTarget?.customerName} · {assignTarget?.slotLabel}
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-3">
-            <div>
+          <div className="min-w-0 w-full space-y-3">
+            <div className="min-w-0 w-full">
               <Label htmlFor="assign-rider">In-house or contracted rider</Label>
               <Select value={assignRider} onValueChange={(v) => { setAssignRider(v === "none" ? "" : v); setAssignProvider(""); }}>
                 <SelectTrigger id="assign-rider" className="h-11 min-w-0 w-full max-w-full"><SelectValue placeholder="Choose an available rider" /></SelectTrigger>
@@ -408,7 +408,7 @@ export default function AdminDispatchPage() {
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <span className="flex-1 border-t" aria-hidden /> or book externally <span className="flex-1 border-t" aria-hidden />
             </div>
-            <div>
+            <div className="min-w-0 w-full">
               <Label htmlFor="assign-provider">External provider (manual booking)</Label>
               <Select value={assignProvider} onValueChange={(v) => { setAssignProvider(v); setAssignRider(""); }}>
                 <SelectTrigger id="assign-provider" className="h-11 min-w-0 w-full max-w-full"><SelectValue placeholder="Choose a provider" /></SelectTrigger>
@@ -441,8 +441,8 @@ export default function AdminDispatchPage() {
             <DialogTitle>Manage job {jobTarget?.orderReference}</DialogTitle>
             <DialogDescription>Failed or stalled deliveries can be rescheduled, reassigned or returned to store.</DialogDescription>
           </DialogHeader>
-          <div className="space-y-3">
-            <div>
+          <div className="min-w-0 w-full space-y-3">
+            <div className="min-w-0 w-full">
               <Label htmlFor="job-action">Action</Label>
               <Select value={jobAction} onValueChange={(v) => setJobAction(v as typeof jobAction)}>
                 <SelectTrigger id="job-action" className="h-11 min-w-0 w-full max-w-full"><SelectValue /></SelectTrigger>
