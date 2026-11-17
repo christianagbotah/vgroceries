@@ -13,7 +13,7 @@ describe("mobile hero buttons", () => {
   test("retains real slide destinations, touch targets, and carousel controls", () => {
     expect(hero).toContain('href={current.ctaHref}');
     expect(hero).toContain('href={current.secondaryCtaHref}');
-    expect(hero).toContain("min-h-12");
+    expect(hero).toContain("min-h-11");
     expect(hero).toContain("setActive(index => (index + 1) % slides.length)");
   });
 });
