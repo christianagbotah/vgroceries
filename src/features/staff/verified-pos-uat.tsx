@@ -51,6 +51,7 @@ export function VerifiedPosUat() {
   const [handoverNote, setHandoverNote] = useState("");
   const [cashConfirmed, setCashConfirmed] = useState(false);
   const [goodsConfirmed, setGoodsConfirmed] = useState(false);
+  const [uatInventoryAcknowledged, setUatInventoryAcknowledged] = useState(false);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -98,6 +99,7 @@ export function VerifiedPosUat() {
   function resetCart() {
     setCart([]); setQuote(null); setHold(null); setSale(null); setReport(null);
     setCashInput(""); setHandoverNote(""); setCashConfirmed(false); setGoodsConfirmed(false);
+    setUatInventoryAcknowledged(false);
     setSaleAttempt(null); setSaleStatusUncertain(false);
     setCustomer({ mode: "walk_in" });
     setNotice(null); setError(null);
@@ -148,7 +150,7 @@ export function VerifiedPosUat() {
   return <main className="mx-auto max-w-5xl space-y-5 p-4 pb-12 sm:p-6">
     <header className="flex flex-wrap items-start justify-between gap-4">
       <div>
-        <p className="text-sm font-semibold text-primary">Variety Groceries · Isolated UAT</p>
+        <p className="text-sm font-semibold text-primary">Variety Groceries · Staging UAT</p>
         <h1 className="font-serif text-2xl font-bold sm:text-3xl">Verified sample cash checkout</h1>
         <p className="mt-2 text-sm text-muted-foreground">
           Real staging API · Synthetic grocery stock · Simulated cash only
@@ -160,9 +162,12 @@ export function VerifiedPosUat() {
     </header>
 
     <section className="rounded-xl border border-amber-500/50 bg-amber-500/5 p-4 text-sm leading-6">
-      <strong>Testing only — no real customers or tender.</strong> This screen records
-      a simulated cash sale and deducts stock in the <strong>separate UAT database</strong>.
-      It must never be used for actual cash, MoMo, card payments or physical goods handover.
+      <strong>Testing only — no real customers or tender.</strong> Completing a simulated
+      cash sale <strong>changes real records in the connected UAT database</strong>:
+      available stock, till balances and transaction history. The POS staging API may
+      share those UAT records with other testing services; do not assume this is a
+      disposable or separate database. Never use real customer orders, live stock,
+      actual cash, MoMo, cards or physical goods handover on this test screen.
       Cashiers are limited to assigned locations and carts they create. Administrators manage till opening, closing and movements.
     </section>
 
@@ -282,6 +287,13 @@ export function VerifiedPosUat() {
             onChange={e => setCashConfirmed(e.target.checked)} />
           <span>I confirm this is simulated cash counted for a staging-only test.</span>
         </label>
+        <label className="flex items-start gap-2 rounded-lg border border-amber-500/40 bg-amber-500/5 p-3 text-sm">
+          <input type="checkbox" checked={uatInventoryAcknowledged}
+            disabled={busy || !!sale || !!saleAttempt}
+            onChange={e => setUatInventoryAcknowledged(e.target.checked)} />
+          <span>I understand a simulated sale changes the connected UAT stock and cash ledger,
+            which may be shared with other staging services. I am using only authorised test data.</span>
+        </label>
         <label className="flex items-start gap-2 text-sm">
           <input type="checkbox" checked={goodsConfirmed} disabled={busy || !!sale || !!saleAttempt}
             onChange={e => setGoodsConfirmed(e.target.checked)} />
@@ -296,11 +308,11 @@ export function VerifiedPosUat() {
           </p>}
           <Button type="button" disabled={busy || !!sale || (!saleAttempt &&
             (!validCustomer || tenderMinor < hold.subtotalMinor ||
-             !cashConfirmed || !goodsConfirmed || handoverNote.trim().length < 10))}
+             !cashConfirmed || !goodsConfirmed || !uatInventoryAcknowledged || handoverNote.trim().length < 10))}
             onClick={() => void execute(async () => {
               if (!window.confirm(saleAttempt
                 ? "Retry the ORIGINAL staging cash-sale request with the same replay key? No new sale or payment should be created."
-                : "Record this SYNTHETIC staging-only cash sale and deduct its sample stock?")) return;
+                : "This simulated sale WILL update the connected UAT inventory, till ledger and transaction history, possibly shared with other staging services. Confirm test-only sale?")) return;
               const customerInput = customer.mode === "existing"
                 ? { mode: "existing" as const, customerUserId: customer.customerUserId }
                 : customer.mode === "named"
