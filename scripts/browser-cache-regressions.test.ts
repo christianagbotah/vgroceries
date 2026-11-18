@@ -22,6 +22,25 @@ afterAll(() => {
   if (originalPublic === undefined) delete process.env.NEXT_PUBLIC_API_BASE_URL;
   else process.env.NEXT_PUBLIC_API_BASE_URL = originalPublic;
 });
+test("cache reads use configured TTL even when adapter was pre-imported", async () => {
+  const previous = process.env.NEXT_PUBLIC_CACHE_TTL_MS;
+  try {
+    // A disabled cache must not store a read or reuse an earlier hit.
+    process.env.NEXT_PUBLIC_CACHE_TTL_MS = "0";
+    await adapter.request({ op: "catalog.list", query: { q: "ttl-sensitive" } });
+    await adapter.request({ op: "catalog.list", query: { q: "ttl-sensitive" } });
+    expect(calls).toBe(2);
+    // An enabled cache must work on that same, already-imported adapter.
+    process.env.NEXT_PUBLIC_CACHE_TTL_MS = "60000";
+    await adapter.request({ op: "catalog.list", query: { q: "ttl-sensitive" } });
+    await adapter.request({ op: "catalog.list", query: { q: "ttl-sensitive" } });
+    expect(calls).toBe(3);
+  } finally {
+    if (previous === undefined) delete process.env.NEXT_PUBLIC_CACHE_TTL_MS;
+    else process.env.NEXT_PUBLIC_CACHE_TTL_MS = previous;
+  }
+});
+
 test("distinct query values cannot collide in the client cache", async () => {
   const first = await adapter.request({ op: "catalog.list", query: { q: "tea&z=1" } });
   const second = await adapter.request({ op: "catalog.list", query: { q: "tea", z: "1" } });
