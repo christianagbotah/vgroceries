@@ -108,3 +108,25 @@ test("configured Hubtel bundle auto-registers the collection adapter in NestJS",
     await app.close();
   }
 });
+
+
+test("Hubtel Direct status refuses missing or mismatched merchant reference even with Paid state", async () => {
+  const inputRef = { merchantReference: "VG-PAY-ABC123", providerReference: "paylink-001", signal: new AbortController().signal };
+  for (const data of [
+    { status: "Paid", amount: 123.45, paylinkId: "paylink-001" },
+    { status: "Paid", amount: 123.45, paylinkId: "paylink-001", clientReference: "VG-OTHER-CUSTOMER" },
+    { status: "Paid", amount: 123.45, paylinkId: "paylink-001", clientReference: "" },
+  ]) {
+    const http = fakeFetch({ body: { responseCode: "0000", data } });
+    const provider = new HubtelPaymentProvider(providerConfig(), http.fetcher);
+    await assert.rejects(provider.lookup(inputRef), /reference could not be verified/);
+    assert.equal(http.calls.length, 1);
+    assert.equal(http.calls[0].init?.method, "GET");
+  }
+});
+
+test("Hubtel Direct status never treats a 403 as proof of a paid transaction", async () => {
+  const http = fakeFetch({ status: 403, body: { data: { status: "Paid", amount: 123.45, clientReference: "VG-PAY-ABC123" } } });
+  const provider = new HubtelPaymentProvider(providerConfig(), http.fetcher);
+  await assert.rejects(provider.lookup({ merchantReference: "VG-PAY-ABC123", signal: new AbortController().signal }), /lookup failed/);
+});
