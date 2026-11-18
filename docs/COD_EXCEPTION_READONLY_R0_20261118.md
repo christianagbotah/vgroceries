@@ -41,3 +41,14 @@ Run shared contract validation, focused COD read-only API/role tests, full API
 CI, deterministic OpenAPI generation and test DB drift guard. Before any live
 API deployment require a protected data backup, isolated restore, and staging
 role test. This patch does not require merchant credentials or live funds.
+
+## Administrator review page
+
+`/admin/dispatch/cod-exceptions` provides a responsive read-only, filterable
+exception list and gross face-value summary in ₵. It requires a **real**
+administrator session (demo sessions and inventory-only staff are rejected),
+fetches only the same-origin real `/api/v1` route, validates the response against
+the strict shared Zod contract and suppresses all figures on an unavailable or
+malformed response. Page navigation and error-retry do not alter any order,
+inventory, remittance or payment record. The admin sidebar links to the page;
+no button is provided to mark cash paid or remitted.

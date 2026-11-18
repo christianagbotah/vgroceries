@@ -73,6 +73,7 @@ const GROUPS: NavGroup[] = [
     items: [
       { href: "/admin/logistics", label: "Logistics & Delivery", permission: "logistics.manage", icon: Network },
       { href: "/admin/dispatch", label: "Dispatch", permission: "dispatch.view", icon: Truck },
+      { href: "/admin/dispatch/cod-exceptions", label: "COD exceptions", permission: "dispatch.view", icon: TriangleAlert },
       { href: "/admin/riders", label: "Riders", permission: "riders.manage", icon: Users },
       { href: "/admin/providers", label: "Providers", permission: "dispatch.view", icon: Landmark },
     ],
