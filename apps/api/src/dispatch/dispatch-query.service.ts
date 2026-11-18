@@ -2,6 +2,7 @@ import { Injectable } from "@nestjs/common";
 import {
   dispatchJobDetailResponseSchema,
   dispatchQueueResponseSchema,
+  codExceptionInboxSchema,
   dispatchRiderDetailResponseSchema,
   dispatchRiderFleetResponseSchema,
   riderHistoryResponseSchema,
@@ -9,6 +10,8 @@ import {
   riderJobsResponseSchema,
   riderSelfResponseSchema,
   type DispatchListQuery,
+  type CodExceptionQuery,
+  type CodExceptionInbox,
   type DispatchJobDetailResponse,
   type DispatchRiderFleetResponse,
   type ProductionDispatchQueueResponse,
@@ -86,6 +89,67 @@ export class DispatchQueryService {
   private proof(proof: DeliveryProof | null) {
     if (!proof?.reference) return undefined;
     return { method: proof.method as "signature" | "photo_note", reference: proof.reference, note: proof.note ?? undefined };
+  }
+
+  /**
+   * P0 COD review queue: order/delivery facts ONLY, no assertion of cash
+   * collection, payment capture, rider debt or remittance. All those need
+   * a separate, audited, transaction-backed COD accounting authority.
+   *
+   * RepeatableRead ensures the page, count and face-value aggregate come
+   * from one consistent database snapshot without modifying any rows.
+   */
+  async listCodExceptions(query: CodExceptionQuery): Promise<CodExceptionInbox> {
+    const deliveredOnly = { deliveryJob: { is: { status: "delivered" } } } as Prisma.OrderWhereInput;
+    const where: Prisma.OrderWhereInput = {
+      fulfilment: "delivery", paymentMethod: "cash_on_delivery",
+      cancelledAt: null, stockConsumedAt: { not: null },
+      fulfilmentStatus: { in: ["dispatched", "delivered"] },
+      ...(query.phase === "delivered" ? deliveredOnly : {}),
+      ...(query.phase === "in_transit" ? {
+        NOT: deliveredOnly,
+      } : {}),
+    };
+    const [total, value, orders] = await this.db.$transaction([
+      this.db.order.count({ where }),
+      this.db.order.aggregate({ where, _sum: { totalMinor: true } }),
+      this.db.order.findMany({
+        where,
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+        skip: (query.page - 1) * query.perPage,
+        take: query.perPage,
+        select: {
+          id: true, reference: true, paymentStatus: true,
+          deliveryStatus: true, totalMinor: true,
+          deliveryJob: { select: {
+            id: true, riderProfileId: true, status: true, deliveredAt: true,
+          } },
+        },
+      }),
+    ], { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead });
+    return codExceptionInboxSchema.parse({
+      page: query.page, perPage: query.perPage, total,
+      totalOrderFaceValueMinor: value._sum.totalMinor ?? 0,
+      evidenceStatus: "collection_and_remittance_not_yet_implemented",
+      items: orders.map(order => {
+        const job = order.deliveryJob;
+        const delivered = job?.status === "delivered" &&
+          job.deliveredAt != null && order.deliveryStatus === "delivered";
+        const paymentConflict = !["unpaid", "pending", "requires_review"].includes(order.paymentStatus);
+        return {
+          orderId: order.id, orderReference: order.reference,
+          deliveryJobId: job?.id, riderProfileId: job?.riderProfileId ?? undefined,
+          paymentStatus: order.paymentStatus, deliveryStatus: order.deliveryStatus,
+          orderFaceValueMinor: order.totalMinor,
+          deliveredAt: job?.deliveredAt?.toISOString(),
+          exception: paymentConflict ? "payment_state_requires_review" as const
+            : delivered ? "delivered_collection_unverified" as const
+            : "delivery_incomplete" as const,
+          collectionEvidence: "not_recorded_in_variety" as const,
+          remittanceEvidence: "not_recorded_in_variety" as const,
+        };
+      }),
+    });
   }
 
   async listDispatch(query: DispatchListQuery): Promise<ProductionDispatchQueueResponse> {
