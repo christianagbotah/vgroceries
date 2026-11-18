@@ -9,6 +9,7 @@ import {
 import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { API_CONFIG, ApiConfig } from "../config";
+import { assertUtcDeadlineClock, type DatabaseClockEvidence } from "./utc-deadline-guard";
 
 @Injectable()
 export class Database
@@ -33,6 +34,19 @@ export class Database
   }
   async onModuleInit() {
     await this.$connect();
+    try {
+      // Check the actual PrismaPg connection, not the PostgreSQL server's
+      // global default. The adapter's `options: -c timezone=UTC` applies to
+      // every pooled connection. A drifted session or clock must halt startup.
+      const rows = await this.$queryRaw<DatabaseClockEvidence[]>`
+        SELECT current_setting('TimeZone') AS timezone,
+               EXTRACT(EPOCH FROM clock_timestamp())::float8 AS epoch_seconds
+      `;
+      assertUtcDeadlineClock(rows);
+    } catch (error) {
+      await this.$disconnect();
+      throw error;
+    }
   }
   async onModuleDestroy() {
     await this.$disconnect();
