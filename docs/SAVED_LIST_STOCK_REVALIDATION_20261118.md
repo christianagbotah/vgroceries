@@ -18,3 +18,18 @@ Status: **source-only, not deployed**. This frontend improvement is independent 
 Run `bun test scripts/saved-list-live-stock-regressions.test.ts scripts/account-wishlist-regressions.test.ts`, `bunx tsc --noEmit --incremental false` and targeted `bunx eslint` for the changed files. Tests include sold-out/zero/invalid stock, exact SKU, quantity sufficiency, price drift, cap enforcement, duplicates, invalid budgets and UI wiring.
 
 This change does not authorize storefront cutover, payment activation or edits to the public Coming Soon page. Browser E2E and staging acceptance are outstanding.
+
+## CI browser-cache import-order hardening (18 November)
+
+PR CI's Bun 1.4.4 `bun test` run failed two catalogue-cache tests although the same
+source passed all 329 tests on the earlier VPS Bun 1.3.14. A browser adapter
+imported before the test assigns `NEXT_PUBLIC_CACHE_TTL_MS` can permanently
+capture the default `0` TTL at module evaluation, bypassing expected caching.
+
+The adapter now reads the configured TTL at request time. The default remains
+**zero** (no cached reads for live-stock customers) and production's public
+Next.js env value remains fixed in the compiled bundle; no stock authority,
+order or checkout payment semantics change. A test exercises the same
+pre-imported adapter with caching disabled and enabled. The change also leaves
+mutation-driven cache invalidation intact. Re-run the complete CI suite with
+Bun 1.4.4; do not claim the failure solved until GitHub CI confirms it.
