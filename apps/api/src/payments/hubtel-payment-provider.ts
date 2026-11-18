@@ -333,8 +333,12 @@ export class HubtelPaymentProvider implements PaymentProviderAdapter {
     const data = record(root?.data ?? root?.Data) ?? root;
     if (!response.ok || !data) throw new Error("Hubtel payment status lookup failed.");
 
-    const merchantReference = text(data, "clientReference", "ClientReference", "client_reference", "reference", "Reference")
-      ?? input.merchantReference;
+    // Do not replace an omitted reference with the value we just requested:
+    // that would manufacture an apparent match for an unrelated paid record.
+    // All Hubtel payment modes require an independently echoed merchant ref.
+    const merchantReference = text(data, "clientReference", "ClientReference", "client_reference", "reference", "Reference");
+    if (!merchantReference || merchantReference !== input.merchantReference)
+      throw new Error("Hubtel payment status reference could not be verified.");
     const providerReference = text(data, "paylinkId", "PaylinkId", "paylink_id", "transactionId", "TransactionId", "transaction_id")
       ?? input.providerReference;
     const amountMinor = moneyMinor(data.amount ?? data.Amount);
