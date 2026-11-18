@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, RefreshCw, ShieldAlert } from "lucide-react";
-import { codExceptionInboxSchema, type CodExceptionInbox } from "@variety/contracts";
+import { codExceptionInboxSchema, type CodExceptionInbox } from "@/services/contracts";
 import { apiOps } from "@/services/client";
 import { isDemoStaffSessionActive } from "@/features/staff/staff-demo-session";
 import { formatMoney } from "@/lib/money";

@@ -16,6 +16,8 @@ describe("COD exception review is real-authority, privacy-safe and read-only", (
   });
   test("does not fabricate figures on error or claim delivery is a cash settlement", () => {
     expect(screen).toContain("codExceptionInboxSchema.safeParse(json.data)");
+    expect(screen).toContain('from "@/services/contracts"');
+    expect(screen).not.toContain('from "@variety/contracts"');
     expect(screen).toContain("Cash is not verified by delivery");
     expect(screen).toContain("Gross order face value · not confirmed collected");
     expect(screen).toContain("Collection not recorded");
