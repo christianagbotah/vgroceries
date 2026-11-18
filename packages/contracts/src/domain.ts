@@ -341,6 +341,8 @@ export interface PaymentAttempt {
   providerRef?: string;
   idempotencyKey: string;
   callbackCount: number;
+  /** A demo checkout may prepare an attempt before calling the provider. */
+  gatewayInitiated?: boolean;
   settlementState: "unsettled" | "settled" | "reconciled" | "exception";
   failureReason?: string;
   createdAt: string;
