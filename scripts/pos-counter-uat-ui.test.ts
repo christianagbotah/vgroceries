@@ -125,3 +125,16 @@ test("UAT checkout page cannot use demo role or render cash actions without expl
   expect(ui).toContain("no real customers or tender");
   expect(ui).toContain("Release reserved stock");
 });
+
+
+test("POS staging clearly warns about shared mutable UAT data before simulation", () => {
+  const ui = readFileSync("src/features/staff/verified-pos-uat.tsx", "utf8");
+  expect(ui).toContain("changes real records in the connected UAT database");
+  expect(ui).toContain("do not assume this is a");
+  expect(ui).not.toContain("separate UAT database");
+  expect(ui).toContain("uatInventoryAcknowledged");
+  expect(ui).toContain("!uatInventoryAcknowledged || handoverNote.trim().length < 10");
+  expect(ui).toContain("Confirm test-only sale?");
+  expect(ui).toContain("setUatInventoryAcknowledged(false)");
+  expect(ui).toContain("actual cash, MoMo, cards or physical goods handover");
+});
