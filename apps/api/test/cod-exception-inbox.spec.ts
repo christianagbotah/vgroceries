@@ -36,8 +36,10 @@ async function cod(ref: string, options: {amount?: number; paymentStatus?: strin
     reference: ref, customerUserId: "customer-a", customerName: "Private Test Customer",
     customerPhone: "+233241111111", fulfilment: "delivery", zoneId: "zone-required",
     paymentMethod: "cash_on_delivery", paymentStatus: options.paymentStatus ?? "unpaid",
-    fulfilmentStatus: options.delivered ? "delivered" : "dispatched",
-    deliveryStatus: options.deliveryStatus ?? (options.delivered ? "delivered" : "unassigned"),
+    // Delivery job creation is only authorised while the order is dispatched.
+    // Move to delivered only AFTER the job has been created with handover proof.
+    fulfilmentStatus: "dispatched",
+    deliveryStatus: options.deliveryStatus ?? "unassigned",
     subtotalMinor: options.amount ?? 1100, deliveryFeeMinor: 0,
     totalMinor: options.amount ?? 1100, verificationKeyVersion: 1,
     verificationCodeHash: "4".repeat(64), stockConsumedAt: new Date(),
@@ -55,6 +57,11 @@ async function cod(ref: string, options: {amount?: number; paymentStatus?: strin
     status: "delivered", custodyState: "customer", assignedBy: "admin-commerce",
     assignedAt: new Date(), deliveredAt: new Date(),
   } }) : null;
+  if (options.delivered) {
+    await db.order.update({ where: { id: order.id }, data: {
+      fulfilmentStatus: "delivered", deliveryStatus: "delivered",
+    } });
+  }
   return { order, job };
 }
 
