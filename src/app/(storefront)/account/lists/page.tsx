@@ -15,6 +15,7 @@ import { parseMoneyToMinor } from "@/lib/money";
 import { formatMoney } from "@/lib/money";
 import { Heart, Plus, Repeat2, Sparkles, Trash2, WandSparkles } from "lucide-react";
 import { readWishlist, writeWishlist, type WishItem } from "@/features/catalog/wishlist-store";
+import { planBudgetAdditions, savedCartAddition } from "@/features/catalog/saved-list-purchase";
 
 export default function AccountListsPage() {
   const { toast } = useToast();
@@ -34,6 +35,9 @@ export default function AccountListsPage() {
   const [budget, setBudget] = useState("100");
   const [basket, setBasket] = useState<{ items: { productId: string; variantId: string; label: string; priceMinor: number; available: string }[]; totalMinor: number; note: string } | null>(null);
   const [basketBusy, setBasketBusy] = useState(false);
+  const [basketAdding, setBasketAdding] = useState(false);
+  const [basketBudgetMinor, setBasketBudgetMinor] = useState<number | null>(null);
+  const [wishlistChecking, setWishlistChecking] = useState<string | null>(null);
   const [basketError, setBasketError] = useState<string | null>(null);
   const [listError, setListError] = useState<string | null>(null);
 
@@ -54,25 +58,47 @@ export default function AccountListsPage() {
   };
 
   useEffect(() => {
+    let active = true;
     if (!search.trim()) {
       setResults([]);
-      return;
+      setSearching(false);
+      return () => { active = false; };
     }
     const t = setTimeout(async () => {
+      if (!active) return;
       setSearching(true);
       try {
         const r = await apiOps.products({ query: search.trim(), perPage: 6 });
-        setResults(r.items);
+        if (active) setResults(r.items);
       } catch {
-        setResults([]);
+        if (active) setResults([]);
       } finally {
-        setSearching(false);
+        if (active) setSearching(false);
       }
     }, 300);
-    return () => clearTimeout(t);
+    return () => { active = false; clearTimeout(t); };
   }, [search]);
 
   const lastOrder = orders?.find((o) => ["delivered", "collected"].includes(o.fulfilmentStatus)) ?? orders?.[0];
+
+  const addSavedWish = async (wish: WishItem) => {
+    if (wishlistChecking) return;
+    setWishlistChecking(wish.variantId);
+    try {
+      const products = await apiOps.byVariants([wish.variantId]);
+      const line = savedCartAddition(products, wish.variantId);
+      if (!line) {
+        toast({ title: "Item unavailable", description: "This saved pack is no longer available. Nothing was added.", variant: "destructive" });
+        return;
+      }
+      addToCart(line);
+      toast({ title: "Added at current catalogue price", description: line.name });
+    } catch {
+      toast({ title: "Availability could not be checked", description: "Nothing was added. Please try again.", variant: "destructive" });
+    } finally {
+      setWishlistChecking(null);
+    }
+  };
 
   const repeatLastOrder = async () => {
     if (!lastOrder) return;
@@ -82,28 +108,20 @@ export default function AccountListsPage() {
       let added = 0;
       const skipped: string[] = [];
       for (const line of detail.lines) {
-        const product = products.find((p) => p.variants.some((v) => v.id === line.variantId));
-        const variant = product?.variants.find((v) => v.id === line.variantId && v.isAvailable);
-        if (variant && product) {
-          addToCart({
-            variantId: variant.id,
-            productId: product.id,
-            quantity: line.quantity,
-            name: `${product.name} — ${variant.name}`,
-            image: product.image,
-            priceMinor: variant.priceMinor,
-          });
+        const resolved = savedCartAddition(products, line.variantId, line.quantity);
+        if (resolved) {
+          addToCart(resolved);
           added += 1;
         } else {
           skipped.push(line.productName);
         }
       }
       toast({
-        title: `Added ${added} item${added === 1 ? "" : "s"} to your cart`,
-        description: skipped.length ? `Skipped (unavailable): ${skipped.join(", ")}` : undefined,
+        title: `Added ${added} item${added === 1 ? "" : "s"} at current catalogue prices`,
+        description: skipped.length ? `Skipped (unavailable or insufficient stock): ${skipped.join(", ")}` : undefined,
       });
     } catch {
-      toast({ title: "Could not build the repeat basket", variant: "destructive" });
+      toast({ title: "Could not verify your repeat basket", description: "Nothing was added. Please try again.", variant: "destructive" });
     }
   };
 
@@ -115,8 +133,12 @@ export default function AccountListsPage() {
     }
     setBasketError(null);
     setBasketBusy(true);
+    setBasket(null);
+    setBasketBudgetMinor(null);
     try {
-      setBasket(await apiOps.budgetBasket(minor));
+      const suggested = await apiOps.budgetBasket(minor);
+      setBasket(suggested);
+      setBasketBudgetMinor(minor);
     } catch (e) {
       setBasketError(e instanceof ApiError ? e.message : "Could not build a basket.");
     } finally {
@@ -125,25 +147,27 @@ export default function AccountListsPage() {
   };
 
   const addBasketToCart = async () => {
-    if (!basket) return;
-    const products = await apiOps.byVariants(basket.items.map((i) => i.variantId));
-    let added = 0;
-    for (const item of basket.items) {
-      const product = products.find((p) => p.variants.some((v) => v.id === item.variantId));
-      const variant = product?.variants.find((v) => v.id === item.variantId && v.isAvailable);
-      if (variant && product) {
-        addToCart({
-          variantId: variant.id,
-          productId: product.id,
-          quantity: "1",
-          name: `${product.name} — ${variant.name}`,
-          image: product.image,
-          priceMinor: variant.priceMinor,
-        });
-        added += 1;
+    if (!basket || basketBudgetMinor === null || basketAdding) return;
+    setBasketAdding(true);
+    setBasketError(null);
+    try {
+      const products = await apiOps.byVariants(basket.items.map((i) => i.variantId));
+      const plan = planBudgetAdditions(basket.items, products, basketBudgetMinor);
+      if (!plan.lines.length) {
+        setBasketError(`No suggested products could be added within your original ${formatMoney(basketBudgetMinor)} budget. Please generate a new basket.`);
+        return;
       }
+      for (const line of plan.lines) addToCart(line);
+      toast({
+        title: `Added ${plan.lines.length} item${plan.lines.length === 1 ? "" : "s"} · ${formatMoney(plan.totalMinor)} subtotal`,
+        description: plan.skipped.length ? `Skipped: ${plan.skipped.join("; ")}` : "Verified against current catalogue prices and availability.",
+      });
+      if (plan.skipped.length) setBasketError(`Some items were skipped: ${plan.skipped.join("; ")}`);
+    } catch {
+      setBasketError("We could not verify current availability and prices. Nothing was added. Please try again.");
+    } finally {
+      setBasketAdding(false);
     }
-    toast({ title: `Added ${added} basket item${added === 1 ? "" : "s"} to your cart` });
   };
 
   return (
@@ -179,6 +203,7 @@ export default function AccountListsPage() {
               <ul className="divide-y rounded-xl border bg-card">
                 {results.map((p) => {
                   const v = p.variants.find((x) => x.isAvailable) ?? p.variants[0];
+                  if (!v) return null;
                   const inList = wishlist.some((w) => w.variantId === v.id);
                   return (
                     <li key={p.id} className="flex items-center gap-3 p-3 text-sm">
@@ -216,7 +241,7 @@ export default function AccountListsPage() {
               description="Search above to save items for later — you will only ever see items that are available."
             />
           ) : (
-            <ul className="space-y-2">
+            <ul className="space-y-2" aria-label="Saved wishlist items; prices and stock are checked when adding">
               {wishlist.map((w) => (
                 <li key={w.variantId} className="flex items-center gap-3 rounded-xl border bg-card p-3 text-sm">
                   <Link href={`/products/${w.slug}`} className="relative size-12 shrink-0 overflow-hidden rounded bg-muted" aria-hidden>
@@ -225,16 +250,15 @@ export default function AccountListsPage() {
                   <Link href={`/products/${w.slug}`} className="min-w-0 flex-1 truncate font-medium hover:underline focus-visible:underline">
                     {w.name}
                   </Link>
-                  <span className="tabular-nums">{formatMoney(w.priceMinor)}</span>
+                  <span className="tabular-nums text-xs text-muted-foreground" title="Saved price only; rechecked before adding">Saved {formatMoney(w.priceMinor)}</span>
                   <Button
                     size="sm"
                     className="h-9"
-                    onClick={() => {
-                      addToCart({ variantId: w.variantId, productId: w.productId, quantity: "1", name: w.name, image: w.image, priceMinor: w.priceMinor });
-                      toast({ title: "Added to cart", description: w.name });
-                    }}
+                    disabled={wishlistChecking !== null}
+                    aria-label={`Check current stock and add ${w.name} to cart`}
+                    onClick={() => void addSavedWish(w)}
                   >
-                    Add
+                    {wishlistChecking === w.variantId ? "Checking…" : "Add"}
                   </Button>
                   <Button size="icon" variant="ghost" className="size-9" aria-label={`Remove ${w.name} from wishlist`} onClick={() => persistWish(wishlist.filter((x) => x.variantId !== w.variantId))}>
                     <Trash2 className="size-4" aria-hidden />
@@ -300,8 +324,8 @@ export default function AccountListsPage() {
                     ({basket.items.length} items, prioritising staples)
                   </span>
                 </p>
-                <Button variant="outline" className="h-11" onClick={addBasketToCart} disabled={!basket.items.length}>
-                  <Plus className="size-4" aria-hidden /> Add basket to cart
+                <Button variant="outline" className="h-11" onClick={addBasketToCart} disabled={!basket.items.length || basketAdding || basketBudgetMinor === null}>
+                  <Plus className="size-4" aria-hidden /> {basketAdding ? "Checking prices…" : "Add basket to cart"}
                 </Button>
               </div>
               <ul className="grid gap-2 sm:grid-cols-2">
@@ -312,7 +336,7 @@ export default function AccountListsPage() {
                   </li>
                 ))}
               </ul>
-              <p className="text-xs text-muted-foreground">{basket.note}</p>
+              <p className="text-xs text-muted-foreground">{basket.note} Prices and availability are checked again before adding. The budget covers item subtotal, not delivery or any applicable tax.</p>
             </div>
           ) : null}
         </TabsContent>
