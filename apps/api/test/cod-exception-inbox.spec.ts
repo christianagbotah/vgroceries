@@ -43,6 +43,13 @@ async function cod(ref: string, options: {amount?: number; paymentStatus?: strin
     verificationCodeHash: "4".repeat(64), stockConsumedAt: new Date(),
     ...(options.cancelled ? { cancelledAt: new Date() } : {}),
   } });
+  // The database requires authoritative fulfilment dispatch handover
+  // before any delivery job may exist. Never disable this provenance guard
+  // for test fixtures, even when testing only read-only COD reporting.
+  await db.fulfilmentRun.create({ data: {
+    orderId: order.id, locationId: "loc_accra", handoverKind: "dispatch",
+    handedOverBy: "admin-commerce", handedOverAt: new Date(),
+  } });
   const job = options.delivered ? await db.deliveryJob.create({ data: {
     orderId: order.id, assignmentKind: "manual_provider", providerKey: "test-courier",
     status: "delivered", custodyState: "customer", assignedBy: "admin-commerce",

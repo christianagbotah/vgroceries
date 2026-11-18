@@ -472,7 +472,8 @@ export function productionOpenApi(app: INestApplication): OpenAPIObject {
   });
   for (const name of [
     "FulfilmentQueueResponse", "FulfilmentDetailResponse", "FulfilmentActionResponse",
-    "DispatchQueueResponse", "DispatchJobDetailResponse", "DispatchRiderFleetResponse", "DispatchRiderDetailResponse", "DispatchActionResponse",
+    "DispatchQueueResponse",
+    "CodExceptionInbox", "DispatchJobDetailResponse", "DispatchRiderFleetResponse", "DispatchRiderDetailResponse", "DispatchActionResponse",
     "RiderAvailabilityResponse", "RiderSelfResponse", "RiderJobResponse", "RiderJobsResponse", "RiderActionResponse",
     "NotificationListResponse", "NotificationReadResponse", "NotificationReadAllResponse",
     "CheckoutPickupOptionsResponse",
