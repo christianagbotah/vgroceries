@@ -53,6 +53,16 @@ jobs:
         run: bash scripts/assert-safe-schema-drift.sh
       - name: API integration and security tests
         run: npm test --prefix apps/api
+      # The regression runs against only the disposable CI database. Recheck
+      # PrismaPg's UTC session setting under a non-UTC Node process timezone.
+      - name: Verify UTC deadline semantics under non-UTC Node timezone
+        working-directory: apps/api
+        env:
+          TZ: America/Toronto
+        run: |
+          node --test --test-concurrency=1 \
+            dist/test/prisma-utc-expiry.spec.js \
+            dist/test/prisma-utc-commerce-expiry.spec.js
       - name: Confirm production OpenAPI is deterministic and matches implementation
         working-directory: apps/api
         run: |
