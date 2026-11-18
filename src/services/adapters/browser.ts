@@ -47,7 +47,14 @@ interface CacheEntry {
   tags: CacheTag[];
 }
 
-const TTL_MS = Number(process.env.NEXT_PUBLIC_CACHE_TTL_MS ?? 0) || 0;
+// Resolve the TTL when a read runs, not when this module is first evaluated.
+// A preloaded browser adapter must not permanently capture a zero-TTL value
+// before public configuration is available. Production builds still inline
+// their NEXT_PUBLIC_* value, while mock/CI adapters remain deterministic.
+function configuredCacheTtlMs(): number {
+  const ttl = Number(process.env.NEXT_PUBLIC_CACHE_TTL_MS ?? 0);
+  return Number.isFinite(ttl) && ttl > 0 ? ttl : 0;
+}
 const cache = new Map<string, CacheEntry>();
 let cacheEpoch = 0;
 let readSequence = 0;
@@ -85,10 +92,11 @@ class CachingBrowserAdapter implements ServiceAdapter {
   async request<T = unknown>(req: ServiceRequest): Promise<T> {
     const isMutation = req.formData !== undefined || normalizedRequestBody(req) !== undefined ||
       (Object.hasOwn(restEndpoints, req.op) && restEndpoints[req.op].method === "POST");
-    if (!isMutation && TTL_MS > 0 && readTags(req.op).length > 0) {
+    const ttlMs = configuredCacheTtlMs();
+    if (!isMutation && ttlMs > 0 && readTags(req.op).length > 0) {
       const key = cacheKey(req);
       const hit = cache.get(key);
-      if (hit && Date.now() - hit.at < TTL_MS) return hit.value as T;
+      if (hit && Date.now() - hit.at < ttlMs) return hit.value as T;
       const epoch = cacheEpoch;
       const sequence = ++readSequence;
       latestReads.set(key, sequence);
