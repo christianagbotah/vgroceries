@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { stagingRequiredRole, stagingSessionHasRole } from "../src/lib/staging-page-access";
+import { riderHistoryResponseSchema, riderJobsResponseSchema } from "../src/services/contracts";
 
 const read = (file:string) => readFileSync(file,"utf8");
 const login = read("src/app/staff/rider/login/page.tsx");
@@ -46,7 +47,9 @@ describe("verified COD cash declaration rider screen is not the old mock rider s
     expect(client).toContain("/api/v1/rider/jobs?scope=history");
     expect(client).toContain('credentials: "include"');
     expect(client).toContain('cache: "no-store"');
-    expect(client).toContain("riderJobsResponseSchema.safeParse(envelope.data)");
+    expect(client).toContain("riderHistoryResponseSchema.safeParse(envelope.data)");
+    expect(riderHistoryResponseSchema.safeParse({ jobs: [] }).success).toBe(true);
+    expect(riderJobsResponseSchema.safeParse({ jobs: [] }).success).toBe(false);
     expect(client).toContain("codCashDeclarationRequestSchema.safeParse(request)");
     expect(client).toContain("codCashDeclarationViewSchema.safeParse(envelope.data)");
     expect(client).toContain('"Idempotency-Key": replayKey');

@@ -4,9 +4,9 @@
  * cash declaration uniqueness, and the disabled-by-default feature gate.
  */
 import {
-  riderJobsResponseSchema, codCashDeclarationRequestSchema,
+  riderHistoryResponseSchema, codCashDeclarationRequestSchema,
   codCashDeclarationViewSchema,
-  type ProductionRiderJobsResponse, type CodCashDeclarationRequest,
+  type ProductionRiderHistoryResponse, type CodCashDeclarationRequest,
   type CodCashDeclarationView,
 } from "@/services/contracts";
 import { ApiError } from "@/services/adapters/types";
@@ -60,7 +60,7 @@ async function safeJson(response: Response): Promise<unknown> {
 }
 
 /** Reads real session-scoped delivered jobs. No mock or browser rider ID. */
-export async function getVerifiedRiderCodHistory(signal?: AbortSignal): Promise<ProductionRiderJobsResponse> {
+export async function getVerifiedRiderCodHistory(signal?: AbortSignal): Promise<ProductionRiderHistoryResponse> {
   verifyRiderCodEnvironment();
   const response = await fetch("/api/v1/rider/jobs?scope=history", {
     method: "GET", credentials: "include", cache: "no-store",
@@ -71,7 +71,7 @@ export async function getVerifiedRiderCodHistory(signal?: AbortSignal): Promise<
   if (!envelope || typeof envelope !== "object" || !("ok" in envelope) ||
       envelope.ok !== true || !("data" in envelope))
     throw new ApiError("BAD_RESPONSE", "The rider history response could not be verified.");
-  const parsed = riderJobsResponseSchema.safeParse(envelope.data);
+  const parsed = riderHistoryResponseSchema.safeParse(envelope.data);
   if (!parsed.success) throw new ApiError("BAD_RESPONSE", "The real rider history did not match its contract.");
   return parsed.data;
 }
