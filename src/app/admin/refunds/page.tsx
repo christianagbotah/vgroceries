@@ -50,8 +50,18 @@ export default function AdminRefundsPage() {
     } finally {
       // Refresh even after an uncertain/failed response. The ledger, rather
       // than a client toast, remains the source of refund-state evidence.
-      await reload();
-      setBusy(null);
+      try {
+        await reload();
+      } catch {
+        toast({
+          title: "Refund ledger refresh failed",
+          description: "The command outcome remains unverified. Reload the ledger and check provider history before any retry.",
+          variant: "destructive",
+        });
+      } finally {
+        // A failed ledger refresh must never leave the action controls locked.
+        setBusy(null);
+      }
     }
   };
 
