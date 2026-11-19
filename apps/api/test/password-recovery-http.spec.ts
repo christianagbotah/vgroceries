@@ -192,7 +192,7 @@ test("default OFF feature never accepts issue or consume requests", async () => 
 
 test("OpenAPI publishes only two public password recovery actions", () => {
   const doc = productionOpenApi(app);
-  assert.equal(Object.keys(doc.paths).length,160);
+  assert.equal(Object.keys(doc.paths).length,161);
   for (const path of ["/api/v1/auth/password-reset/request","/api/v1/auth/password-reset/complete"]) {
     const route=doc.paths[path];
     assert.ok(route?.post);
