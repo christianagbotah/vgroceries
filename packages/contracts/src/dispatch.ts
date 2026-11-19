@@ -374,12 +374,36 @@ export const codExceptionRowSchema = z.object({
     amountMinor: z.number().int().min(1).max(100_000_000),
     declaredAt: isoTimestampSchema,
   }).strict().optional(),
+  // These are immutable HUMAN observations, never cash received by Variety.
+  supervisorCountReview: z.object({
+    status: z.enum(["first_count_recorded_unverified", "dual_count_agreed_unverified", "count_disagreement_requires_review"]),
+    observations: z.array(z.object({
+      sequence: z.union([z.literal(1), z.literal(2)]),
+      amountMinor: z.number().int().min(0).max(100_000_000),
+      recordedAt: isoTimestampSchema,
+    }).strict()).min(1).max(2),
+    cashAccepted: z.literal(false),
+  }).strict().optional(),
   remittanceEvidence: z.literal("not_recorded_in_variety"),
 }).strict().superRefine((row, ctx) => {
   const declared = row.collectionEvidence === "rider_declared_unverified";
   if (declared !== Boolean(row.riderDeclaration)) {
     ctx.addIssue({ code: "custom", path: ["riderDeclaration"],
       message: "Recorded rider declaration details must agree with the declaration evidence state." });
+  }
+  const review = row.supervisorCountReview;
+  if (review) {
+    const obs = review.observations;
+    const amountsMatch = obs.length === 2 && Boolean(row.riderDeclaration) &&
+      obs[0]?.amountMinor === obs[1]?.amountMinor &&
+      obs[0]?.amountMinor === row.riderDeclaration?.amountMinor;
+    const status = obs.length === 1 ? "first_count_recorded_unverified"
+      : amountsMatch ? "dual_count_agreed_unverified" : "count_disagreement_requires_review";
+    if (!declared || !row.riderDeclaration || obs.length === 0 ||
+        obs.some((entry, i) => entry.sequence !== i + 1) || review.status !== status) {
+      ctx.addIssue({ code: "custom", path: ["supervisorCountReview"],
+        message: "Count observation sequence and status must match the immutable rider statement." });
+    }
   }
 });
 

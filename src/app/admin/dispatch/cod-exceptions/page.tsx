@@ -183,7 +183,24 @@ export default function CodExceptionsPage() {
                             {item.riderDeclaration.amountMinor !== item.orderFaceValueMinor && (
                               <p className="font-semibold text-destructive">Amount differs from order. Investigate.</p>
                             )}
-                            <p>Supervisor has not verified cash.</p>
+                            {item.supervisorCountReview ? (
+                              <div className="mt-2 space-y-1 rounded-lg border border-border/70 p-2 text-xs">
+                                <p className="font-semibold text-foreground">
+                                  {item.supervisorCountReview.status === "first_count_recorded_unverified"
+                                    ? "One independent count recorded · awaiting second count"
+                                    : item.supervisorCountReview.status === "dual_count_agreed_unverified"
+                                      ? "Two independent counts agree · cash still unaccepted"
+                                      : "Independent counts disagree · investigate before handover"}
+                                </p>
+                                {item.supervisorCountReview.observations.map(count => (
+                                  <p key={count.sequence} className="tabular-nums">
+                                    Count {count.sequence}: {formatMoney(count.amountMinor)} ·{" "}
+                                    <time dateTime={count.recordedAt}>{new Date(count.recordedAt).toLocaleString("en-GH", { dateStyle: "medium", timeStyle: "short" })}</time>
+                                  </p>
+                                ))}
+                                <p>Physical counts do not verify receipt by Variety Groceries.</p>
+                              </div>
+                            ) : <p>No independent supervisor count recorded.</p>}
                           </div>
                         ) : "Collection not recorded"}
                         <span className="mt-1 block">Remittance not recorded</span>

@@ -2,7 +2,7 @@ import { after, before, beforeEach, test } from "node:test";
 import assert from "node:assert/strict";
 import type { INestApplication } from "@nestjs/common";
 import {
-  codSupervisorCountRequestSchema, codSupervisorCountViewSchema,
+  codSupervisorCountRequestSchema, codSupervisorCountViewSchema, codExceptionInboxSchema,
 } from "@variety/contracts";
 import { createApplication } from "../src/bootstrap";
 import { readConfig } from "../src/config";
@@ -87,6 +87,17 @@ async function secondAdmin() {
   return db.user.create({data:{email:"cod-independent-admin@example.test",
     name:"Independent Second Reviewer",passwordHash:main.passwordHash,role:"admin"}});
 }
+async function reviewInboxRow(bearer:string,orderId:string) {
+  const res=await fetch(base+"/api/v1/admin/dispatch/cod-exceptions?phase=delivered&evidence=rider_declared_unverified",{
+    headers:{authorization:`Bearer ${bearer}`},
+  });
+  assert.equal(res.status,200);
+  const data=(await res.json()).data;
+  assert.equal(codExceptionInboxSchema.safeParse(data).success,true);
+  const row=data.items.find((item:{orderId:string})=>item.orderId===orderId);
+  assert.ok(row,"the verified rider COD order must be in the exception queue");
+  return {row,data};
+}
 
 test("D2 supervisor review remains disabled by default and rejects unsafe configuration",async()=>{
   assert.equal(readConfig({DATABASE_URL:"postgresql://user:pass@localhost/test",
@@ -133,6 +144,12 @@ test("two DIFFERENT admins may independently count; replay never duplicates, agr
   assert.equal(a.body.data.cashAccepted,false);
   assert.equal(a.body.data.paymentStatusChanged,false);
   assert.equal(a.body.data.remitted,false);
+  const firstReview=(await reviewInboxRow(first,order.id)).row;
+  assert.equal(firstReview.supervisorCountReview.status,"first_count_recorded_unverified");
+  assert.deepEqual(firstReview.supervisorCountReview.observations,[{
+    sequence:1,amountMinor:2100,recordedAt:a.body.data.recordedAt,
+  }]);
+  assert.equal(firstReview.supervisorCountReview.cashAccepted,false);
   assert.equal((await post(id,first,"review-first-same01",{...countBody,amountMinor:2099})).status,409);
   assert.equal((await post(id,first,"review-repeat-actor01")).status,409);
   const c=await post(id,second,"review-second-actor01");
@@ -140,6 +157,20 @@ test("two DIFFERENT admins may independently count; replay never duplicates, agr
   assert.equal(c.body.data.sequence,2);
   assert.equal(c.body.data.status,"dual_count_agreed_unverified");
   assert.equal(c.body.data.cashAccepted,false);
+  const {row:review,data:reviewData}=await reviewInboxRow(first,order.id);
+  assert.equal(review.supervisorCountReview.status,"dual_count_agreed_unverified");
+  assert.deepEqual(review.supervisorCountReview.observations,[
+    {sequence:1,amountMinor:2100,recordedAt:a.body.data.recordedAt},
+    {sequence:2,amountMinor:2100,recordedAt:c.body.data.recordedAt},
+  ]);
+  assert.equal(review.remittanceEvidence,"not_recorded_in_variety");
+  assert.equal(reviewData.totalOrderFaceValueMinor,2100);
+  const leaked=JSON.stringify(reviewData);
+  for(const field of ["reviewerUserId","independentCountConfirmed","physicalCashPresentConfirmed",countBody.note,"Sensitive Buyer","+233241112233"])
+    assert.equal(leaked.includes(field),false,`private supervisor record leaked: ${field}`);
+  assert.equal(codExceptionInboxSchema.safeParse({...reviewData,items:[{...review,supervisorCountReview:{...review.supervisorCountReview,status:"count_disagreement_requires_review"}}]}).success,false);
+  assert.equal(codExceptionInboxSchema.safeParse({...reviewData,items:[{...review,supervisorCountReview:{...review.supervisorCountReview,cashAccepted:true}}]}).success,false);
+  assert.equal(codExceptionInboxSchema.safeParse({...reviewData,items:[{...review,supervisorCountReview:{...review.supervisorCountReview,observations:[{sequence:2,amountMinor:2100,recordedAt:c.body.data.recordedAt}]}}]}).success,false);
   assert.equal((await post(id,second,"review-third-count01")).status,409);
   assert.equal((await db.codSupervisorCount.count({where:{declarationId:id}})),2);
   assert.equal((await db.auditEvent.count({where:{action:"cod.supervisor_cash_count_attested"}})),2);
@@ -168,6 +199,10 @@ test("disagreement is explicit, untrusted direct SQL and duplicate same-reviewer
   assert.equal(mismatch.status,200,JSON.stringify(mismatch.body));
   assert.equal(mismatch.body.data.status,"count_disagreement_requires_review");
   assert.equal(mismatch.body.data.cashAccepted,false);
+  const mismatchInbox=(await reviewInboxRow(first,order.id)).row;
+  assert.equal(mismatchInbox.supervisorCountReview.status,"count_disagreement_requires_review");
+  assert.deepEqual(mismatchInbox.supervisorCountReview.observations.map((x:{amountMinor:number})=>x.amountMinor),[2100,1999]);
+  assert.equal(mismatchInbox.supervisorCountReview.cashAccepted,false);
   assert.equal((await db.order.findUniqueOrThrow({where:{id:order.id}})).paymentStatus,"unpaid");
   await assert.rejects(db.codSupervisorCount.create({data:{
     declarationId:declaration.id,reviewerUserId:rider.id,sequence:2,
