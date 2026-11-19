@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
 import { useCart } from "@/features/checkout/cart-store";
+import { clearCheckoutAttemptKey, getOrCreateCheckoutAttemptKey } from "@/features/checkout/checkout-attempt";
 import { apiOps, ApiError } from "@/services/client";
 import { formatMoney, parseMoneyToMinor } from "@/lib/money";
 import { isValidGhanaPhone, isValidGhanaPostGps } from "@/lib/format";
@@ -74,6 +75,7 @@ export default function CheckoutPage() {
     return ()=>{active=false;};
   },[paymentAvailabilityRefresh]);
   const [placing, setPlacing] = useState(false);
+  const placingRef = useRef(false);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [orderError, setOrderError] = useState<string | null>(null);
   const [conflicts, setConflicts] = useState<{ productName: string; variantName: string; requested: string; available: string }[]>([]);
@@ -217,10 +219,16 @@ export default function CheckoutPage() {
       document.querySelector<HTMLElement>("[data-error='true']")?.scrollIntoView({ behavior: "smooth", block: "center" });
       return;
     }
+    if (placingRef.current) return; // Block a second tap before React rerenders.
+    placingRef.current = true;
     setPlacing(true);
     setOrderError(null);
     setConflicts([]);
     try {
+      // Retained across network retries and same-tab reloads. The backend
+      // replays this exact order or rejects changed details; never silently
+      // allocate new stock because an HTTP response was lost.
+      const idempotencyKey = getOrCreateCheckoutAttemptKey(window.sessionStorage, () => window.crypto.randomUUID());
       const result = await apiOps.complete({
         lines: lines.map((l) => ({ variantId: l.variantId, quantity: l.quantity })),
         customerName: customerName.trim(),
@@ -247,13 +255,18 @@ export default function CheckoutPage() {
                 ghanaPostGps: ghanaPostGps.trim().toUpperCase() || undefined,
               }
             : undefined,
-        idempotencyKey: `co_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+        idempotencyKey,
       });
+      // The authoritative API returned the order. Only now may this tab
+      // forget the completion key and start a fresh checkout intent.
+      try { clearCheckoutAttemptKey(window.sessionStorage); } catch { /* Already completed; navigation remains authoritative. */ }
       clearCart();
       router.push(`/checkout/status/${result.orderId}`);
     } catch (e) {
       if (e instanceof ApiError) {
-        setOrderError(e.message);
+        setOrderError(e.code === "IDEMPOTENCY_CONFLICT"
+          ? "This checkout may already have been placed using different details. To avoid a duplicate order, check your order history or contact customer support before trying a new checkout."
+          : e.message);
         if (e.code === "PICKUP_FEE_CHANGED" && zoneId) {
           // Refresh the centre price, but require a second explicit customer
           // submit. Never silently accept a changed charge.
@@ -281,9 +294,12 @@ export default function CheckoutPage() {
           })));
         }
       } else {
-        setOrderError("The order could not be placed. Please try again.");
+        // A lost HTTP response is not proof that the server did not create
+        // an order. Reuse the tab-scoped key for any retry.
+        setOrderError("We could not confirm whether the order was placed. Retry in this tab with the same details or contact support before starting a new order.");
       }
     } finally {
+      placingRef.current = false;
       setPlacing(false);
     }
   };
