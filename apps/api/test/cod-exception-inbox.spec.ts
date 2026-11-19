@@ -1,7 +1,7 @@
 import { after, before, beforeEach, test } from "node:test";
 import assert from "node:assert/strict";
 import type { INestApplication } from "@nestjs/common";
-import { codExceptionQuerySchema } from "@variety/contracts";
+import { codExceptionInboxSchema, codExceptionQuerySchema } from "@variety/contracts";
 import { createApplication } from "../src/bootstrap";
 import { readConfig } from "../src/config";
 import { Database } from "../src/database/database";
@@ -165,7 +165,18 @@ test("COD evidence filters independently combine delivery phase, immutable rider
   assert.equal(declaredOnly.body.data.totalOrderFaceValueMinor, 2200);
   assert.equal(declaredOnly.body.data.items[0].orderId, declared.order.id);
   assert.equal(declaredOnly.body.data.items[0].collectionEvidence, "rider_declared_unverified");
+  const declaration = await db.codCashDeclaration.findUniqueOrThrow({ where: { deliveryJobId: job.id } });
+  assert.deepEqual(declaredOnly.body.data.items[0].riderDeclaration, {
+    amountMinor: 2200, declaredAt: declaration.createdAt.toISOString(),
+  });
   assert.equal(declaredOnly.body.data.items[0].remittanceEvidence, "not_recorded_in_variety");
+  const responseText = JSON.stringify(declaredOnly.body.data);
+  for (const forbidden of ["I counted and hold", "cashCountConfirmed", "riderPossessionConfirmed", "declaredByUserId", "requestId"])
+    assert.equal(responseText.includes(forbidden), false, `private rider statement leaked: ${forbidden}`);
+  assert.equal(codExceptionInboxSchema.safeParse(declaredOnly.body.data).success, true);
+  assert.equal(codExceptionInboxSchema.safeParse({ ...declaredOnly.body.data,
+    items: [{ ...declaredOnly.body.data.items[0], riderDeclaration: undefined }],
+  }).success, false, "a claimed rider declaration must carry immutable count and time evidence");
 
   // Includes orders with no delivery job: absence of job is absence of declaration.
   const unrecorded = await get("/admin/dispatch/cod-exceptions?evidence=not_recorded_in_variety", admin);
@@ -173,6 +184,10 @@ test("COD evidence filters independently combine delivery phase, immutable rider
   assert.equal(unrecorded.body.data.total, 1);
   assert.equal(unrecorded.body.data.totalOrderFaceValueMinor, 1100);
   assert.equal(unrecorded.body.data.items[0].orderId, withoutJob.order.id);
+  assert.equal(unrecorded.body.data.items[0].riderDeclaration, undefined);
+  assert.equal(codExceptionInboxSchema.safeParse({ ...unrecorded.body.data,
+    items: [{ ...unrecorded.body.data.items[0], riderDeclaration: { amountMinor: 1100, declaredAt: new Date().toISOString() } }],
+  }).success, false, "an unrecorded collection cannot invent rider declaration evidence");
 
   // Both filters must be ANDed; duplicate NOT keys silently lose a predicate.
   const inTransitUnrecorded = await get("/admin/dispatch/cod-exceptions?phase=in_transit&evidence=not_recorded_in_variety", admin);

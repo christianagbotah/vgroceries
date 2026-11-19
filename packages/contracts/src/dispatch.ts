@@ -343,8 +343,19 @@ export const codExceptionRowSchema = z.object({
     "payment_state_requires_review",
   ]),
   collectionEvidence: z.enum(["not_recorded_in_variety", "rider_declared_unverified"]),
+  // Immutable rider statement only; never supervisor verification or a receipt.
+  riderDeclaration: z.object({
+    amountMinor: z.number().int().min(1).max(100_000_000),
+    declaredAt: isoTimestampSchema,
+  }).strict().optional(),
   remittanceEvidence: z.literal("not_recorded_in_variety"),
-}).strict();
+}).strict().superRefine((row, ctx) => {
+  const declared = row.collectionEvidence === "rider_declared_unverified";
+  if (declared !== Boolean(row.riderDeclaration)) {
+    ctx.addIssue({ code: "custom", path: ["riderDeclaration"],
+      message: "Recorded rider declaration details must agree with the declaration evidence state." });
+  }
+});
 
 export const codExceptionInboxSchema = z.object({
   page: z.number().int().min(1),
