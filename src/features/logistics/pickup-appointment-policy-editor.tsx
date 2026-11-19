@@ -127,6 +127,7 @@ export function PickupAppointmentPolicyEditor({nodeId,nodeName}:{nodeId:string;n
         <p className="text-xs text-muted-foreground">
           Only whole 30- or 60-minute appointments fit within the centre&apos;s hours.
           Overnight hours are not supported. Existing bookings remain recorded if you later disable this policy.
+          Changing weekdays, opening hours, appointment duration or capacity will be refused if any confirmed future or in-progress visit would no longer fit. Arrange customer-approved rescheduling first; no order is automatically cancelled or refunded.
         </p>
         <PickupCentreClosureCalendar nodeId={nodeId} />
         <DialogFooter className="gap-2 sm:gap-0">

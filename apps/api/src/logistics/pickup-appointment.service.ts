@@ -15,6 +15,7 @@ import { Database } from "../database/database";
 import { ApiProblem } from "../http/errors";
 import type { CheckoutPrincipal } from "../commerce-identity/checkout-principal.service";
 import { logisticsCommandHash } from "./logistics.values";
+import { incompatiblePickupBookingCount } from "./pickup-appointment.policy-protection";
 
 type Tx=Prisma.TransactionClient;
 type Policy={
@@ -113,6 +114,20 @@ export class PickupAppointmentService {
       }
       const node=await tx.logisticsNode.findUnique({where:{id:nodeId},select:{kind:true}});
       if(!node||node.kind!=="pickup_point")this.failed("Appointment schedules are only available for configured pickup centres.");
+      // Bookings hold a FOR SHARE lock on the same policy before reserving
+      // their slots. Take FOR UPDATE here and inspect future bookings AFTER
+      // obtaining the lock: whichever transaction wins must leave a policy
+      // compatible with all already-committed customer appointments.
+      await tx.$queryRaw`SELECT "nodeId" FROM "PickupAppointmentPolicy" WHERE "nodeId"=${nodeId} FOR UPDATE`;
+      const existingBookings=await tx.pickupAppointment.findMany({
+        where:{nodeId,status:"booked",endsAt:{gt:new Date()}},
+        select:{startsAt:true,endsAt:true},
+        orderBy:{startsAt:"asc"},
+      });
+      const incompatible=incompatiblePickupBookingCount(input,existingBookings);
+      if(incompatible>0)
+        throw new ApiProblem(409,"PICKUP_POLICY_CONFLICTS_WITH_BOOKINGS",
+          `Cannot change opening days, hours, slot duration or capacity: ${incompatible} existing future appointment(s) would no longer fit. Arrange customer-approved rescheduling first.`);
       const row=await tx.pickupAppointmentPolicy.upsert({where:{nodeId},
         create:{nodeId,...input,updatedBy:actorId},
         update:{...input,updatedBy:actorId}});

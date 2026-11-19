@@ -210,6 +210,72 @@ async function anotherCustomerAtCentre(x:Awaited<ReturnType<typeof fixture>>,tag
  }});
  return id;
 }
+test("schedule policy cannot silently displace a booked customer or change payment and stock",async()=>{
+ const x=await ready("POLICY-KEEP");
+ const slot=(await appointment.options(x.order.id,owner)).slots[0]!;
+ const weekday=new Date(slot.startsAt).getUTCDay()||7;
+ const first=await appointment.change(x.order.id,owner,"policy-keep-book",
+   {kind:"book",startsAt:slot.startsAt},"req-policy-keep-book");
+ const before=(await db.stockLot.findUniqueOrThrow({where:{id:"lot-rice"}})).quantity.toString();
+ const original=await appointment.policy(x.terminal.id);
+ const edit={...policy(),serviceDays:policy().serviceDays.filter(day=>day!==weekday)};
+ const refusal=(e:any)=>e?.getStatus?.()===409 &&
+   e?.getResponse?.()?.code==="PICKUP_POLICY_CONFLICTS_WITH_BOOKINGS";
+ await assert.rejects(()=>appointment.savePolicy(x.terminal.id,"admin-commerce","policy-keep-conflict",
+   edit,"req-policy-keep-conflict"),refusal);
+ assert.deepEqual(await appointment.policy(x.terminal.id),original);
+ assert.equal(await db.auditEvent.count({where:{entityId:x.terminal.id,action:"pickup.appointment.policy_saved"}}),1);
+ assert.equal((await db.pickupAppointment.findUniqueOrThrow({where:{orderId:x.order.id}})).startsAt.toISOString(),slot.startsAt);
+ assert.equal((await db.stockLot.findUniqueOrThrow({where:{id:"lot-rice"}})).quantity.toString(),before);
+ assert.equal(await db.paymentAttempt.count({where:{orderId:x.order.id}}),0);
+ // A temporary switch-off does not delete, shorten or silently cancel the visit.
+ const disabled=await appointment.savePolicy(x.terminal.id,"admin-commerce","policy-keep-disable",
+   policy(false),"req-policy-keep-disable");
+ assert.equal(disabled.active,false);
+ assert.deepEqual((await appointment.options(x.order.id,owner)).appointment?.startsAt,first.appointment.startsAt);
+ await appointment.change(x.order.id,owner,"policy-keep-cancel",
+   {kind:"cancel"},"req-policy-keep-cancel");
+ const corrected=await appointment.savePolicy(x.terminal.id,"admin-commerce","policy-keep-corrected",
+   edit,"req-policy-keep-corrected");
+ assert.deepEqual(corrected.serviceDays,edit.serviceDays);
+});
+
+test("policy capacity cannot shrink below committed appointments on the same time slot",async()=>{
+ const x=await ready("POLICY-CAP");
+ await appointment.savePolicy(x.terminal.id,"admin-commerce","policy-cap-two",
+   {...policy(),capacity:2},"req-policy-cap-two");
+ const secondId=await anotherCustomerAtCentre(x,"POLICY-CAP");
+ const slot=(await appointment.options(x.order.id,owner)).slots[0]!;
+ await appointment.change(x.order.id,owner,"cap-policy-first",
+   {kind:"book",startsAt:slot.startsAt},"req-cap-policy-first");
+ await appointment.change(secondId,other,"cap-policy-second",
+   {kind:"book",startsAt:slot.startsAt},"req-cap-policy-second");
+ await assert.rejects(()=>appointment.savePolicy(x.terminal.id,"admin-commerce","cap-policy-shrink",
+   policy(),"req-cap-policy-shrink"),(e:any)=>e?.getResponse?.()?.code==="PICKUP_POLICY_CONFLICTS_WITH_BOOKINGS");
+ assert.equal((await appointment.policy(x.terminal.id))?.capacity,2);
+ await appointment.change(secondId,other,"cap-policy-cancel",
+   {kind:"cancel"},"req-cap-policy-cancel");
+ assert.equal((await appointment.savePolicy(x.terminal.id,"admin-commerce","cap-policy-shrink-after",
+   policy(),"req-cap-policy-shrink-after")).capacity,1);
+});
+
+test("booking and conflicting schedule change serialize without an invalid customer booking",async()=>{
+ const x=await ready("POLICY-RACE");
+ const slot=(await appointment.options(x.order.id,owner)).slots[0]!;
+ const day=new Date(slot.startsAt).getUTCDay()||7;
+ const edit={...policy(),serviceDays:policy().serviceDays.filter(d=>d!==day)};
+ const results=await Promise.allSettled([
+   appointment.change(x.order.id,owner,"policy-race-book",
+     {kind:"book",startsAt:slot.startsAt},"req-policy-race-book"),
+   appointment.savePolicy(x.terminal.id,"admin-commerce","policy-race-change",
+     edit,"req-policy-race-change"),
+ ]);
+ assert.equal(results.filter(r=>r.status==="fulfilled").length,1,JSON.stringify(results));
+ const saved=await appointment.policy(x.terminal.id);
+ const booked=await db.pickupAppointment.findUnique({where:{orderId:x.order.id}});
+ assert.ok(!(booked?.status==="booked"&&!saved?.serviceDays.includes(day)));
+});
+
 test("concurrent customers cannot oversell the final place at a collection centre",async()=>{
  const x=await ready("CAPACITY");
  const secondId=await anotherCustomerAtCentre(x,"CAPACITY");
