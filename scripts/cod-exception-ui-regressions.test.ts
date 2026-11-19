@@ -22,6 +22,10 @@ describe("COD exception review is real-authority, privacy-safe and read-only", (
     expect(screen).toContain("Gross order face value · not confirmed collected");
     expect(screen).toContain("Collection not recorded");
     expect(screen).toContain("Remittance not recorded");
+    expect(screen).toContain("Independent counts disagree · investigate before handover");
+    expect(screen).toContain("Two independent counts agree · cash still unaccepted");
+    expect(screen).toContain("Physical counts do not verify receipt by Variety Groceries.");
+    expect(screen).toContain("No independent supervisor count recorded.");
     expect(screen).not.toContain("Mark paid");
     expect(screen).not.toContain("Mark remitted");
   });

@@ -143,7 +143,11 @@ export class DispatchQueryService {
           deliveryStatus: true, totalMinor: true,
           deliveryJob: { select: {
             id: true, riderProfileId: true, status: true, deliveredAt: true,
-            codCashDeclaration: {select:{amountMinor:true,createdAt:true}},
+            codCashDeclaration: { select: {
+              amountMinor: true, createdAt: true,
+              supervisorCounts: { orderBy: {sequence:"asc"},
+                select: {sequence:true,amountMinor:true,createdAt:true} },
+            } },
           } },
         },
       }),
@@ -173,6 +177,23 @@ export class DispatchQueryService {
             amountMinor: job.codCashDeclaration.amountMinor,
             declaredAt: job.codCashDeclaration.createdAt.toISOString(),
           } : undefined,
+          supervisorCountReview: (() => {
+            const declaration = job?.codCashDeclaration;
+            const counts = declaration?.supervisorCounts ?? [];
+            if (!declaration || !counts.length) return undefined;
+            const agreed = counts.length === 2 && counts.every(c => c.amountMinor === declaration.amountMinor);
+            return {
+              status: (counts.length === 1 ? "first_count_recorded_unverified"
+                : agreed ? "dual_count_agreed_unverified"
+                : "count_disagreement_requires_review") as
+                  "first_count_recorded_unverified" | "dual_count_agreed_unverified" | "count_disagreement_requires_review",
+              observations: counts.map(c => ({
+                sequence: c.sequence, amountMinor: c.amountMinor,
+                recordedAt: c.createdAt.toISOString(),
+              })),
+              cashAccepted: false as const,
+            };
+          })(),
           remittanceEvidence: "not_recorded_in_variety" as const,
         };
       }),
