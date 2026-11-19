@@ -1,5 +1,5 @@
 import { Inject, Injectable } from "@nestjs/common";
-import { createHash, randomUUID } from "node:crypto";
+import { createHash, randomBytes, randomUUID } from "node:crypto";
 import type { Prisma } from "@prisma/client";
 import {
   electronicPaymentMethodSchema,
@@ -40,7 +40,10 @@ function requestHash(orderId: string, input: PaymentInitiationRequest) {
 }
 
 function merchantReference() {
-  return `VG-PAY-${randomUUID().replaceAll("-", "").toUpperCase()}`;
+  // 24 random hex digits = 96 bits of entropy. The full 31-character
+  // reference fits Hubtel hosted (32) and Direct Request Money (36) limits.
+  // Keep existing issued references unchanged for later reconciliation.
+  return `VG-PAY-${randomBytes(12).toString("hex").toUpperCase()}`;
 }
 
 @Injectable()

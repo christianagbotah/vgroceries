@@ -79,6 +79,26 @@ describe("Hubtel Direct transaction status demands provider-echoed identity",()=
       expect(observed.state).toBe("succeeded");
     }
   });
+  test("overlong merchant reference fails before any new Hubtel request",async()=>{
+    const calls=[];
+    const fetcher=async()=>{calls.push(1);throw Error("No provider request allowed");};
+    for(const invalid of [
+      "VG-PAY-"+"A".repeat(32),
+      "VG-PAY-"+"F".repeat(26),
+      "VG-PAY-HELLO-WORLD",
+      "",
+    ]) {
+      const result=await new HubtelPaymentProvider(cfg,fetcher).initiate({
+        attemptId:"attempt-1",orderReference:"VG-ORDER-1001",
+        merchantReference:invalid,method:"mobile_money",
+        amountMinor:100,currency:"GHS",payerPhone:"+233241111111",
+        signal:new AbortController().signal,
+      });
+      expect(result.kind).toBe("rejected");
+      expect(result.failureCode).toBe("HUBTEL_REFERENCE_TOO_LONG_OR_INVALID");
+    }
+    expect(calls).toHaveLength(0);
+  });
   test("a verified pending merchant lookup may have no prior provider reference",async()=>{
     const mock=providerResponse(200,{status:"Pending",clientReference:merchantReference,amount:123.45});
     const observed=await new HubtelPaymentProvider(cfg,mock.fetcher).lookup({

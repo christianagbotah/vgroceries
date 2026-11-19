@@ -47,6 +47,24 @@ test("Hubtel payment config is optional, complete and provider-bound", () => {
   assert.equal(cfg.hubtelPayment?.clientId, "client");
 });
 
+test("Hubtel rejects invalid or overlong merchant references before contacting gateway", async () => {
+  const http = fakeFetch();
+  const adapter = new HubtelPaymentProvider(providerConfig(), http.fetcher);
+  for (const ref of [
+    "VG-PAY-" + "A".repeat(32),
+    "VG-PAY-" + "F".repeat(26),
+    "VG-PAY-UNSAFE<>",
+    "VG-PAY-ABC123-OTHER",
+    "",
+  ]) {
+    const result = await adapter.initiate({...input(),merchantReference:ref});
+    assert.equal(result.kind, "rejected");
+    if (result.kind === "rejected")
+      assert.equal(result.failureCode, "HUBTEL_REFERENCE_TOO_LONG_OR_INVALID");
+  }
+  assert.equal(http.calls.length, 0);
+});
+
 test("Hubtel Request Money uses Basic auth and returns its hosted paylink", async () => {
   const http = fakeFetch({ status: 201, body: { message: "success", code: "0000", data: { paylinkId: "paylink-001", clientReference: "VG-PAY-ABC123", paylinkUrl: "https://pay.hubtel.com/paylink-001", expiresAt: 1234567890 } } });
   const adapter = new HubtelPaymentProvider(providerConfig(), http.fetcher);
