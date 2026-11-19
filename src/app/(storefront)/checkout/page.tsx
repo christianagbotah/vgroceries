@@ -228,7 +228,15 @@ export default function CheckoutPage() {
       // Retained across network retries and same-tab reloads. The backend
       // replays this exact order or rejects changed details; never silently
       // allocate new stock because an HTTP response was lost.
-      const idempotencyKey = getOrCreateCheckoutAttemptKey(window.sessionStorage, () => window.crypto.randomUUID());
+      let idempotencyKey: string;
+      try {
+        idempotencyKey = getOrCreateCheckoutAttemptKey(window.sessionStorage, () => window.crypto.randomUUID());
+      } catch {
+        // No checkout request was sent by this click. A previous attempt
+        // might still have committed, so never replace a corrupt/unstored key.
+        setOrderError("Unable to safely verify this checkout's retry identity. No new order request was sent. If you tried placing this order earlier, check your order history or contact support before trying again.");
+        return;
+      }
       const result = await apiOps.complete({
         lines: lines.map((l) => ({ variantId: l.variantId, quantity: l.quantity })),
         customerName: customerName.trim(),

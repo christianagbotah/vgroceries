@@ -22,13 +22,21 @@ export function getOrCreateCheckoutAttemptKey(
   newUuid: () => string,
 ): string {
   const saved = store.getItem(CHECKOUT_ATTEMPT_KEY);
-  if (saved && validKey.test(saved)) return saved;
+  if (saved !== null) {
+    // Never mint a new key over corrupted state: the original attempt may
+    // have committed. A replacement key could create a second order.
+    if (!validKey.test(saved)) throw new Error("The previous checkout identity is invalid. Please contact support before retrying.");
+    return saved;
+  }
   const uuid = newUuid();
   if (!validUuid.test(uuid)) throw new Error("Secure checkout identity is unavailable.");
   const key = `co_${uuid.replaceAll("-", "")}`;
-  // Fail closed if tab storage is blocked. Reusing a fresh key on an
-  // ambiguous network retry could otherwise create a duplicate order.
+  // Browser storage can be blocked or fail to persist without throwing.
+  // Check the stored value before any checkout mutation can start.
   store.setItem(CHECKOUT_ATTEMPT_KEY, key);
+  if (store.getItem(CHECKOUT_ATTEMPT_KEY) !== key) {
+    throw new Error("Secure checkout identity could not be retained. Please enable browser storage before placing an order.");
+  }
   return key;
 }
 

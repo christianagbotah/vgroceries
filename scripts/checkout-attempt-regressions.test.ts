@@ -41,11 +41,13 @@ describe("checkout completion retry safety", () => {
     expect(next).not.toBe(first);
   });
 
-  test("invalid stored marker is replaced with a securely generated one", () => {
+  test("corrupted stored marker cannot be replaced with a fresh key", () => {
     const { store, items } = makeStore();
     items.set(CHECKOUT_ATTEMPT_KEY, "not-a-valid-checkout-key");
-    expect(getOrCreateCheckoutAttemptKey(store, () => firstUuid)).toStartWith("co_");
-    expect(items.get(CHECKOUT_ATTEMPT_KEY)).toBe("co_60ad32124f174f5294a4a064fd32e9fb");
+    let generated = false;
+    expect(() => getOrCreateCheckoutAttemptKey(store, () => { generated = true; return firstUuid; })).toThrow("previous checkout identity is invalid");
+    expect(generated).toBe(false);
+    expect(items.get(CHECKOUT_ATTEMPT_KEY)).toBe("not-a-valid-checkout-key");
   });
 
   test("insecure key generation or blocked tab storage cannot silently submit an order", () => {
@@ -59,9 +61,25 @@ describe("checkout completion retry safety", () => {
     expect(() => getOrCreateCheckoutAttemptKey(blocked, () => firstUuid)).toThrow("Access denied");
   });
 
+  test("a storage implementation that silently drops the key fails closed", () => {
+    const forgotten: CheckoutAttemptStore = {
+      getItem: () => null,
+      setItem: () => {},
+      removeItem: () => {},
+    };
+    expect(() => getOrCreateCheckoutAttemptKey(forgotten, () => firstUuid)).toThrow("could not be retained");
+    const stale: CheckoutAttemptStore = {
+      getItem: () => "co_00000000000000000000000000000000",
+      setItem: () => {},
+      removeItem: () => {},
+    };
+    expect(getOrCreateCheckoutAttemptKey(stale, () => firstUuid)).toBe("co_00000000000000000000000000000000");
+  });
+
   test("checkout only releases the key on known success, not a failed or unknown response", () => {
     const source = readFileSync("src/app/(storefront)/checkout/page.tsx", "utf8");
     expect(source).toContain("getOrCreateCheckoutAttemptKey(window.sessionStorage");
+    expect(source).toContain("No new order request was sent");
     expect(source).toContain("clearCheckoutAttemptKey(window.sessionStorage)");
     expect(source.indexOf("clearCheckoutAttemptKey(window.sessionStorage)")).toBeGreaterThan(source.indexOf("const result = await apiOps.complete"));
     expect(source).toContain("if (placingRef.current) return;");

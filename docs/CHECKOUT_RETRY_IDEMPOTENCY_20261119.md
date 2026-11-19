@@ -8,7 +8,8 @@ The customer checkout page generated a fresh checkout-completion idempotency key
 - Duplicate taps are blocked synchronously while a checkout request is in flight.
 - Confirmed successful completion removes the saved key. **Explicit, server-confirmed pre-commit rejections** (`OUT_OF_STOCK`, `PICKUP_FEE_CHANGED`, `RULE_VIOLATION`, `VALIDATION_FAILED`) also clear it, allowing customers to correct the basket, pickup fee or input and submit a fresh attempt. These codes are emitted before the backend checkout transaction commits, or from a rolled-back transaction. Other API errors and unknown network outcomes retain the key; in particular an `IDEMPOTENCY_CONFLICT` must not silently create another order.
 - The backend already scopes the idempotency record to principal + operation + key and hashes the checkout request. Repeating identical data replays the original order. Reusing a key with different details returns `IDEMPOTENCY_CONFLICT` instead of silently creating a new sale.
-- If secure key generation or session storage fails, the client does not submit checkout.
+- If secure key generation, session-storage access, or **storage read-back verification** fails, the client does not submit checkout and shows a customer-safe recovery message.
+- An invalid/corrupted saved key is **never silently replaced**. It may represent an already-committed order; a new key could duplicate the order.
 - Changed-details conflicts direct the customer to support/order history rather than silently generating a fresh order key.
 
 ## Boundaries and verification
