@@ -6,6 +6,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { apiOps } from "@/services/client";
 import { cn } from "@/lib/utils";
+import { filterAdminNav } from "@/components/layout/admin-nav-filter";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -13,7 +14,7 @@ import { useStaff, DEMO_ROLE_OPTIONS } from "@/features/staff/role-context";
 import { clearDemoStaffSession, isDemoStaffSessionActive } from "@/features/staff/staff-demo-session";
 import { ROLE_LABELS } from "@/types/domain";
 import type { Permission } from "@/lib/perms";
-import { LayoutDashboard, Menu, ShoppingCart, Store, Boxes, Package, ClipboardList, Truck, Users, RotateCcw, CreditCard, UserRound, BarChart3, Sparkles, ShieldCheck, ScrollText, Settings2, FlaskConical, LogOut, Warehouse, ClipboardCheck, TriangleAlert, ReceiptText, Landmark, Network, FileText, Home, ExternalLink, PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import { LayoutDashboard, Menu, ShoppingCart, Store, Boxes, Package, ClipboardList, Truck, Users, RotateCcw, CreditCard, UserRound, BarChart3, Sparkles, ShieldCheck, ScrollText, Settings2, FlaskConical, LogOut, Warehouse, ClipboardCheck, TriangleAlert, ReceiptText, Landmark, Network, FileText, Home, ExternalLink, PanelLeftClose, PanelLeftOpen, Search, X } from "lucide-react";
 
 interface NavItem {
   href: string;
@@ -112,6 +113,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
   const { role, setRole, can } = useStaff();
   const [open, setOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [menuQuery, setMenuQuery] = useState("");
   const [loggingOut, setLoggingOut] = useState(false);
   const [demoSessionActive, setDemoSessionActive] = useState(false);
 
@@ -133,6 +135,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
 
   const toggleSidebar = () => {
     const next = !sidebarCollapsed;
+    if (next) setMenuQuery("");
     setSidebarCollapsed(next);
     try {
       window.localStorage.setItem("vg-admin-sidebar-collapsed", String(next));
@@ -156,13 +159,15 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
   // The most specific matching nav item wins, so nested routes (e.g.
   // /admin/inventory/receiving) highlight exactly one item — the parent
   // "Stock overview" never lights up alongside its children.
-  const navItems = GROUPS.flatMap((g) => g.items);
+  const authorizedGroups = filterAdminNav(GROUPS, can, "");
+  const visibleGroups = menuQuery.trim() ? filterAdminNav(GROUPS, can, menuQuery) : authorizedGroups;
+  const navItems = authorizedGroups.flatMap((g) => g.items);
   const activeItem = navItems
     .filter((i) => (i.href === "/admin" ? pathname === "/admin" : pathname === i.href || pathname.startsWith(i.href + "/")))
     .sort((a, b) => b.href.length - a.href.length)[0];
   const isActive = (href: string) => activeItem?.href === href;
 
-  const sidebar = (compact = false) => (
+  const sidebar = (compact = false, scope: "desktop" | "mobile" = "desktop") => (
     <div className="flex h-full flex-col">
       <div className={cn("flex items-center gap-2 border-b border-sidebar-border px-3 py-3", compact && "justify-center px-1")}>
         <Image src="/brand/variety-mark.svg" alt="Variety Groceries" width={36} height={38} className="h-9 w-9 shrink-0 object-contain" />
@@ -174,10 +179,45 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
         )}
       </div>
 
-      <nav className={cn("scroll-soft min-h-0 flex-1 overflow-y-auto p-2", compact && "px-1")} aria-label="Admin navigation">
-        {GROUPS.map((g) => {
-          const items = g.items.filter((i) => can(i.permission));
-          if (!items.length) return null;
+      {!compact && (
+        <div className="shrink-0 border-b border-sidebar-border px-2 py-2">
+          <label htmlFor={`admin-menu-search-${scope}`} className="sr-only">Search accessible admin pages</label>
+          <div className="flex h-10 items-center gap-2 rounded-lg border border-sidebar-border bg-sidebar-accent/40 px-2.5 focus-within:ring-2 focus-within:ring-sidebar-ring">
+            <Search className="size-4 shrink-0 text-sidebar-foreground/70" aria-hidden />
+            <input
+              id={`admin-menu-search-${scope}`}
+              type="search"
+              autoComplete="off"
+              aria-controls={`admin-menu-nav-${scope}`}
+              placeholder="Find a page…"
+              className="min-w-0 flex-1 bg-transparent text-sm text-sidebar-foreground outline-none placeholder:text-sidebar-foreground/60 focus-visible:outline-none"
+              value={menuQuery}
+              onChange={(event) => setMenuQuery(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Escape") setMenuQuery("");
+              }}
+            />
+            {menuQuery ? (
+              <button
+                type="button"
+                onClick={() => setMenuQuery("")}
+                aria-label="Clear menu search"
+                className="flex size-7 shrink-0 items-center justify-center rounded-md text-sidebar-foreground hover:bg-sidebar-accent"
+              >
+                <X className="size-4" aria-hidden />
+              </button>
+            ) : null}
+          </div>
+        </div>
+      )}
+
+      <nav
+        id={`admin-menu-nav-${scope}`}
+        className={cn("scroll-soft min-h-0 flex-1 overflow-y-auto p-2", compact && "px-1")}
+        aria-label="Admin navigation"
+      >
+        {(compact ? authorizedGroups : visibleGroups).map((g) => {
+          const items = g.items;
           return (
             <div key={g.title} className={cn("mb-3", compact && "border-t border-sidebar-border pt-2 first:border-t-0")}>
               <p className={cn("px-3 pb-1 pt-2 text-[11px] font-semibold uppercase tracking-wider text-sidebar-foreground/60", compact && "sr-only")}>
@@ -188,7 +228,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
                   <li key={item.href}>
                     <Link
                       href={item.href}
-                      onClick={() => setOpen(false)}
+                      onClick={() => { setOpen(false); setMenuQuery(""); }}
                       aria-current={isActive(item.href) ? "page" : undefined}
                       aria-label={compact ? item.label : undefined}
                       title={compact ? item.label : undefined}
@@ -207,6 +247,11 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
             </div>
           );
         })}
+        {!compact && visibleGroups.length === 0 && (
+          <p className="rounded-lg px-3 py-4 text-sm text-sidebar-foreground/80" role="status">
+            No accessible pages match your search.
+          </p>
+        )}
         {!compact && (
           <p className="px-3 py-2 text-[11px] text-sidebar-foreground/50">
             Menus are role-filtered UX only — the backend must enforce access.
@@ -227,7 +272,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
         aria-label="Admin sidebar"
       >
         <div className="flex h-full flex-col">
-          <div className="min-h-0 flex-1">{sidebar(sidebarCollapsed)}</div>
+          <div className="min-h-0 flex-1">{sidebar(sidebarCollapsed, "desktop")}</div>
           <div className={cn("shrink-0 border-t border-sidebar-border p-2", sidebarCollapsed ? "flex justify-center" : "flex justify-end")}>
             <Button
               type="button"
@@ -263,7 +308,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
             </SheetTrigger>
             <SheetContent side="left" className="w-64 max-w-[85vw] border-0 bg-sidebar p-0 text-sidebar-foreground">
               <SheetTitle className="sr-only">Admin navigation</SheetTitle>
-              {sidebar(false)}
+              {sidebar(false, "mobile")}
             </SheetContent>
           </Sheet>
 
