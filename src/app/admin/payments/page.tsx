@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { apiOps } from "@/services/client";
 import { useApiData } from "@/features/staff/admin-data";
+import { settlementEvidence } from "@/features/staff/payment-evidence";
 import { LoadingState, ErrorState, EmptyState } from "@/components/shared/states";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { Input } from "@/components/ui/input";
@@ -77,6 +78,7 @@ export default function AdminPaymentsPage() {
             ))}
           </SelectContent>
         </Select>
+        <Button type="button" variant={settlement === "exception" ? "default" : "outline"} className="h-11" onClick={() => { setSettlement("exception"); setPage(1); }}>Review exceptions</Button>
         <Select value={settlement} onValueChange={(value) => { setSettlement(value); setPage(1); }} aria-label="Filter by settlement">
           <SelectTrigger className="h-11 w-full sm:w-44"><SelectValue /></SelectTrigger>
           <SelectContent>
@@ -108,9 +110,11 @@ export default function AdminPaymentsPage() {
                 <p className="mt-0.5 text-xs capitalize text-muted-foreground">{p.channel ? `${p.channel} · ` : ""}{p.provider ? `${p.provider} · ` : ""}{p.method.replace(/_/g, " ")} · {p.callbackCount} callback{p.callbackCount === 1 ? "" : "s"}</p>
                 {p.settledChannel ? <p className="mt-0.5 text-xs capitalize text-muted-foreground">Settled via {p.settledChannel.replace(/_/g, " ")}</p> : null}
                 <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                  <StatusBadge kind="generic" status={p.status} label={p.status} />
-                  <StatusBadge kind="generic" status={p.settlementState === "exception" ? "failed" : p.settlementState === "reconciled" ? "approved" : p.settlementState === "settled" ? "sent" : "pending"} label={p.settlementState.replace(/_/g, " ")} />
+                  <StatusBadge kind="payment" status={p.status} />
+                  <StatusBadge kind="payment" status={settlementEvidence(p.settlementState).badgeStatus} label={settlementEvidence(p.settlementState).label} />
                 </div>
+                {p.initiationState === "uncertain" ? <p className="mt-1 text-xs font-semibold text-[color:var(--warning-foreground)]">Initiation uncertain — verify with provider</p> : null}
+                {p.settlementState === "exception" ? <p className="mt-1 text-xs text-muted-foreground">{settlementEvidence(p.settlementState).explanation}</p> : null}
                 {p.failureReason ? <p className="mt-1 text-xs text-destructive">{p.failureReason}</p> : null}
               </li>
             ))}
@@ -141,12 +145,14 @@ export default function AdminPaymentsPage() {
                     <td className="p-3 text-muted-foreground"><span>{p.method.replace(/_/g, " ")}</span>{p.settledChannel ? <span className="block text-xs capitalize">Settled via {p.settledChannel.replace(/_/g, " ")}</span> : null}</td>
                     <td className="p-3 text-right font-medium tabular-nums">{p.amountLabel}</td>
                     <td className="p-3">
-                      <StatusBadge kind="generic" status={p.status} label={p.status} />
+                      <StatusBadge kind="payment" status={p.status} />
+                      {p.initiationState === "uncertain" ? <p className="mt-1 text-xs font-semibold text-[color:var(--warning-foreground)]">Initiation uncertain — verify with provider</p> : null}
                       {p.failureReason ? <p className="mt-0.5 text-xs text-destructive">{p.failureReason}</p> : null}
                     </td>
                     <td className="p-3 tabular-nums text-muted-foreground">{p.callbackCount}</td>
                     <td className="p-3">
-                      <StatusBadge kind="generic" status={p.settlementState === "exception" ? "failed" : p.settlementState === "reconciled" ? "approved" : p.settlementState === "settled" ? "sent" : "pending"} label={p.settlementState.replace(/_/g, " ")} />
+                      <StatusBadge kind="payment" status={settlementEvidence(p.settlementState).badgeStatus} label={settlementEvidence(p.settlementState).label} />
+                      {p.settlementState === "exception" ? <p className="mt-1 max-w-72 text-xs text-muted-foreground">{settlementEvidence(p.settlementState).explanation}</p> : null}
                     </td>
                     <td className="hidden p-3 font-mono text-xs text-muted-foreground lg:table-cell">{p.providerRef ?? "—"}</td>
                     <td className="hidden p-3 text-muted-foreground xl:table-cell">{p.createdAtLabel} UTC</td>
@@ -167,7 +173,7 @@ export default function AdminPaymentsPage() {
         </div>
       </div>
       <p className="rounded-xl border border-dashed p-3 text-sm text-muted-foreground">
-        Provider status, payment attempt success and reconciliation state do not independently prove a bank deposit or cashier receipt. Investigate exceptions using the provider’s verified records; never re-charge a customer while payment verification is unresolved.
+        An exception or uncertain initiation is not a payment failure. Provider observations and reconciliation do not independently prove a bank deposit or cashier receipt. Investigate with independently verified provider records; never re-charge a customer while payment verification is unresolved.
       </p>
     </div>
   );

@@ -109,6 +109,8 @@ export interface PaymentRow {
   status: string;
   providerRef?: string;
   settlementState: string;
+  /** Authoritative initiation state; never by itself a paid/failed result. */
+  initiationState?: string;
   callbackCount: number;
   failureReason?: string;
   note?: string;

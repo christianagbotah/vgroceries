@@ -12,6 +12,7 @@ interface ProductionPaymentLedgerRow {
   amountMinor: number;
   status: string;
   settlementState: string;
+  initiationState?: string;
   callbackCount: number;
   providerReference?: string;
   failureReason?: string;
@@ -77,6 +78,7 @@ export function normalizePaymentLedgerResponse(value: unknown): PaymentRow[] {
     amountLabel: formatMoney(row.amountMinor),
     status: row.status,
     settlementState: row.settlementState,
+    ...(row.initiationState ? { initiationState: row.initiationState } : {}),
     callbackCount: row.callbackCount,
     ...(row.providerReference ? { providerRef: row.providerReference } : {}),
     ...(row.failureReason ? { failureReason: row.failureReason } : {}),
