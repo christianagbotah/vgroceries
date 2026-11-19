@@ -115,6 +115,49 @@ test("Hubtel Direct 403 cannot provide Paid evidence, exact echoed merchant refe
   assert.equal(confirmed.amountMinor,12345);
 });
 
+test("Hubtel Direct lookup refuses to invent a provider-issued reference already attached to the attempt", async () => {
+  const request = {
+    merchantReference: "VG-PAY-ABC123",
+    providerReference: "paylink-001",
+    signal: new AbortController().signal,
+  };
+  for (const data of [
+    { status: "Paid", amount: 123.45, clientReference: request.merchantReference },
+    { status: "Paid", amount: 123.45, clientReference: request.merchantReference, paylinkId: "" },
+    { status: "Paid", amount: 123.45, clientReference: request.merchantReference, paylinkId: "   " },
+    { status: "Paid", amount: 123.45, clientReference: request.merchantReference, paylinkId: "paylink-unrelated" },
+    { status: "Pending", amount: 123.45, clientReference: request.merchantReference },
+  ]) {
+    const http = fakeFetch({body:{data}});
+    await assert.rejects(
+      new HubtelPaymentProvider(providerConfig(),http.fetcher).lookup(request),
+      /provider reference could not be verified/,
+    );
+    assert.equal(http.calls.length,1);
+  }
+  const valid = fakeFetch({body:{data:{
+    status:"Paid",amount:123.45,clientReference:request.merchantReference,
+    paylinkId:request.providerReference,
+  }}});
+  const observed = await new HubtelPaymentProvider(providerConfig(),valid.fetcher).lookup(request);
+  assert.equal(observed.providerReference,request.providerReference);
+  assert.equal(observed.merchantReference,request.merchantReference);
+  assert.equal(observed.state,"succeeded");
+  assert.equal(observed.amountMinor,12345);
+});
+
+test("Hubtel Direct can use a verified merchant reference when the original attempt has no provider ID", async () => {
+  const http = fakeFetch({body:{data:{
+    status:"Pending",amount:123.45,clientReference:"VG-PAY-ABC123",
+  }}});
+  const observation = await new HubtelPaymentProvider(providerConfig(),http.fetcher).lookup({
+    merchantReference:"VG-PAY-ABC123",signal:new AbortController().signal,
+  });
+  assert.equal(observation.merchantReference,"VG-PAY-ABC123");
+  assert.equal(observation.providerReference,undefined);
+  assert.equal(observation.state,"pending");
+});
+
 test("configured Hubtel bundle auto-registers the collection adapter in NestJS", async () => {
   const config = readConfig({
     DATABASE_URL: "postgresql://u:p@localhost:5432/db",

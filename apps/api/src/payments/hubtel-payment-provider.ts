@@ -205,8 +205,13 @@ export class HubtelPaymentProvider implements PaymentProviderAdapter {
     const merchantReference = text(data, "clientReference", "ClientReference", "client_reference", "reference", "Reference");
     if (!merchantReference || merchantReference !== input.merchantReference)
       throw new Error("Hubtel payment status reference could not be verified.");
-    const providerReference = text(data, "paylinkId", "PaylinkId", "paylink_id", "transactionId", "TransactionId", "transaction_id")
-      ?? input.providerReference;
+    // When initiation already recorded a provider-issued reference, this
+    // status response must echo the SAME identifier independently. Never
+    // manufacture an apparent match from the lookup input, even if the
+    // merchant reference and the Paid label happen to match.
+    const providerReference = text(data, "paylinkId", "PaylinkId", "paylink_id", "transactionId", "TransactionId", "transaction_id");
+    if (input.providerReference && providerReference !== input.providerReference)
+      throw new Error("Hubtel payment status provider reference could not be verified.");
     const amountMinor = moneyMinor(data.amount ?? data.Amount);
     const providerTimestamp = timestamp(data);
 
