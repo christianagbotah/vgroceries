@@ -35,16 +35,22 @@ provider integrations or operations are already production-ready.
 - [x] Staff collection code/ID proof and immutable receipt, paid/refund checks.
 - [x] Customer appointment scheduling with centre hours, lead time, capacity
   locks, rescheduling, cancellation and physical handover completion.
-- [ ] Per-centre holidays and one-off closure management, protected from
-  silently displacing existing bookings. **First new implementation slice.**
-- [ ] Staff missed-appointment and late-arrival recording, customer-rebooking
-  workflow, exception reason codes and retention; no automatic order refunds.
+- [x] Per-centre holidays and one-off closure management implemented in source;
+  protected from silently displacing booked visits. **Release still default OFF.**
+- [x] Source-only admin observations for missed pickup windows and late arrival,
+  with reason codes, immutable audit and no order/refund/stock mutation.
+- [ ] Customer-rebooking assistance after missed windows, long-term evidence
+  retention policy and actual centre acceptance; no automatic order refunds.
 - [x] Customer-owned in-app booking/cancellation confirmations with deduplicated
   outbox projection; no external provider is claimed.
-- [ ] Order-owned pickup readiness/appointment reminders in the in-app inbox;
-  suppress duplicates; no pretend external SMS provider.
+- [x] Order-owned appointment reminders in the in-app inbox are implemented
+  in source behind explicit OFF release flags; no pretend SMS provider.
 - [ ] Real centre/zone staffing configuration, operating hours, test parcels,
   payment-provider proof and accessibility/phone-only acceptance.
+- [x] Administrator appointment-policy edits must preserve committed future bookings:
+  validate weekdays, hours, slot duration and capacity under a policy row lock;
+  conflicting edits return HTTP 409 (source-only; see
+  `docs/PICKUP_POLICY_BOOKING_COMPATIBILITY_20261119.md`).
 - [ ] Gradual on-site enablement, UAT signoff, rollback and evidence capture.
 
 ### 2. Physical Returns Authority [P0: cash and stock integrity]
