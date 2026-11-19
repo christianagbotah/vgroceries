@@ -45,4 +45,23 @@ describe("Hubtel Direct transaction status demands provider-echoed identity",()=
     expect(observed.amountMinor).toBe(12345);
     expect(observed.currency).toBe("GHS");
   });
+  test("an existing provider reference cannot be silently copied from the request",async()=>{
+    for(const paylinkId of [undefined,"","   ","other-paylink"]) {
+      const data={status:"Paid",amount:123.45,clientReference:merchantReference};
+      if(paylinkId!==undefined)data.paylinkId=paylinkId;
+      const mock=providerResponse(200,data);
+      await expect(new HubtelPaymentProvider(cfg,mock.fetcher).lookup(lookupInput))
+        .rejects.toThrow("provider reference could not be verified");
+      expect(mock.calls).toEqual([{method:"GET"}]);
+    }
+  });
+  test("a verified pending merchant lookup may have no prior provider reference",async()=>{
+    const mock=providerResponse(200,{status:"Pending",clientReference:merchantReference,amount:123.45});
+    const observed=await new HubtelPaymentProvider(cfg,mock.fetcher).lookup({
+      merchantReference,signal:new AbortController().signal,
+    });
+    expect(observed.merchantReference).toBe(merchantReference);
+    expect(observed.providerReference).toBeUndefined();
+    expect(observed.state).toBe("pending");
+  });
 });
