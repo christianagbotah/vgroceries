@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
 import { useCart } from "@/features/checkout/cart-store";
-import { clearCheckoutAttemptAfterDefiniteRejection, clearCheckoutAttemptKey, getOrCreateCheckoutAttemptKey } from "@/features/checkout/checkout-attempt";
+import { CHECKOUT_ATTEMPT_KEY, clearCheckoutAttemptAfterDefiniteRejection, clearCheckoutAttemptKey, getOrCreateCheckoutAttemptKey } from "@/features/checkout/checkout-attempt";
 import { apiOps, ApiError } from "@/services/client";
 import { formatMoney, parseMoneyToMinor } from "@/lib/money";
 import { isValidGhanaPhone, isValidGhanaPostGps } from "@/lib/format";
@@ -229,7 +229,9 @@ export default function CheckoutPage() {
       // replays this exact order or rejects changed details; never silently
       // allocate new stock because an HTTP response was lost.
       let idempotencyKey: string;
+      let hasPreviousAttempt: boolean;
       try {
+        hasPreviousAttempt = window.sessionStorage.getItem(CHECKOUT_ATTEMPT_KEY) !== null;
         idempotencyKey = getOrCreateCheckoutAttemptKey(window.sessionStorage, () => window.crypto.randomUUID());
       } catch {
         // No checkout request was sent by this click. A previous attempt
@@ -264,7 +266,7 @@ export default function CheckoutPage() {
               }
             : undefined,
         idempotencyKey,
-      });
+      }, { allowGuestBootstrapRetry: !hasPreviousAttempt });
       // The authoritative API returned the order. Only now may this tab
       // forget the completion key and start a fresh checkout intent.
       try { clearCheckoutAttemptKey(window.sessionStorage); } catch { /* Already completed; navigation remains authoritative. */ }

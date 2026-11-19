@@ -80,6 +80,8 @@ describe("checkout completion retry safety", () => {
     const source = readFileSync("src/app/(storefront)/checkout/page.tsx", "utf8");
     expect(source).toContain("getOrCreateCheckoutAttemptKey(window.sessionStorage");
     expect(source).toContain("No new order request was sent");
+    expect(source).toContain("hasPreviousAttempt = window.sessionStorage.getItem(CHECKOUT_ATTEMPT_KEY) !== null");
+    expect(source).toContain("allowGuestBootstrapRetry: !hasPreviousAttempt");
     expect(source).toContain("clearCheckoutAttemptKey(window.sessionStorage)");
     expect(source.indexOf("clearCheckoutAttemptKey(window.sessionStorage)")).toBeGreaterThan(source.indexOf("const result = await apiOps.complete"));
     expect(source).toContain("if (placingRef.current) return;");

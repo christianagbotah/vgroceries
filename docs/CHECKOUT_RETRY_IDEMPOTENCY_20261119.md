@@ -10,6 +10,7 @@ The customer checkout page generated a fresh checkout-completion idempotency key
 - The backend already scopes the idempotency record to principal + operation + key and hashes the checkout request. Repeating identical data replays the original order. Reusing a key with different details returns `IDEMPOTENCY_CONFLICT` instead of silently creating a new sale.
 - If secure key generation, session-storage access, or **storage read-back verification** fails, the client does not submit checkout and shows a customer-safe recovery message.
 - An invalid/corrupted saved key is **never silently replaced**. It may represent an already-committed order; a new key could duplicate the order.
+- When a saved key already existed before the current click, a newly issued **guest session/CSRF capability must not trigger an automatic second POST**. Server checkout records are scoped by guest actor; losing the original guest cookie after an uncertain response would otherwise bypass replay protection. New checkout attempts may still bootstrap one fresh guest session normally. A returning ambiguous attempt with changed guest identity instead shows a support/reconciliation message.
 - Changed-details conflicts direct the customer to support/order history rather than silently generating a fresh order key.
 
 ## Boundaries and verification
