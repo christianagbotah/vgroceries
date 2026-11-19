@@ -158,6 +158,54 @@ test("Hubtel Direct can use a verified merchant reference when the original atte
   assert.equal(observation.state,"pending");
 });
 
+test("Hubtel payment lookup rejects explicit foreign or conflicting currencies without fabricating GHS evidence", async () => {
+  const lookup = {
+    merchantReference: "VG-PAY-ABC123",
+    providerReference: "paylink-001",
+    signal: new AbortController().signal,
+  };
+  const baseData = {
+    status: "Paid", amount: 123.45,
+    clientReference: lookup.merchantReference, paylinkId: lookup.providerReference,
+  };
+  for (const currencyData of [
+    {currencyCode:"USD"}, {CurrencyCode:"EUR"}, {currency:"USD"},
+    {Currency:"GBP"}, {currencyCode:"   "}, {currencyCode:123},
+    {currencyCode:"GHS", currency:"USD"},
+    {currencyCode:null, Currency:"CAD"},
+  ]) {
+    const http = fakeFetch({body:{data:{...baseData,...currencyData}}});
+    await assert.rejects(
+      new HubtelPaymentProvider(providerConfig(),http.fetcher).lookup(lookup),
+      /currency could not be verified/,
+    );
+    assert.equal(http.calls.length,1);
+  }
+});
+
+test("Hubtel Ghana status accepts explicitly GHS or documented null currencyCode only with all other checks", async () => {
+  const lookup = {
+    merchantReference: "VG-PAY-ABC123",
+    providerReference: "paylink-001",
+    signal: new AbortController().signal,
+  };
+  for (const currencyData of [
+    {currencyCode:null}, {currencyCode:"GHS"}, {Currency:"ghs"}, {currencyCode:"  GHS  "},
+  ]) {
+    const http = fakeFetch({body:{data:{
+      status:"Paid",amount:123.45,
+      clientReference:lookup.merchantReference,
+      paylinkId:lookup.providerReference,...currencyData,
+    }}});
+    const result = await new HubtelPaymentProvider(providerConfig(),http.fetcher).lookup(lookup);
+    assert.equal(result.currency,"GHS");
+    assert.equal(result.amountMinor,12345);
+    assert.equal(result.state,"succeeded");
+    assert.equal(result.merchantReference,lookup.merchantReference);
+    assert.equal(result.providerReference,lookup.providerReference);
+  }
+});
+
 test("configured Hubtel bundle auto-registers the collection adapter in NestJS", async () => {
   const config = readConfig({
     DATABASE_URL: "postgresql://u:p@localhost:5432/db",

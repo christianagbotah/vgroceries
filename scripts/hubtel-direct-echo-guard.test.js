@@ -55,6 +55,30 @@ describe("Hubtel Direct transaction status demands provider-echoed identity",()=
       expect(mock.calls).toEqual([{method:"GET"}]);
     }
   });
+  test("explicit foreign or contradictory currency cannot masquerade as a GHS payment",async()=>{
+    for(const fields of [
+      {currencyCode:"USD"}, {CurrencyCode:"EUR"}, {currency:"GBP"},
+      {currencyCode:"GHS",currency:"USD"}, {currencyCode:123},
+    ]) {
+      const mock=providerResponse(200,{
+        status:"Paid",amount:123.45,
+        clientReference:merchantReference,paylinkId:"paylink-001",...fields,
+      });
+      await expect(new HubtelPaymentProvider(cfg,mock.fetcher).lookup(lookupInput))
+        .rejects.toThrow("status currency could not be verified");
+    }
+  });
+  test("null currencyCode remains compatible with the GHS-only collection account",async()=>{
+    for(const currencyCode of [null,"GHS"," ghs "]) {
+      const mock=providerResponse(200,{
+        status:"Paid",amount:123.45,currencyCode,
+        clientReference:merchantReference,paylinkId:"paylink-001",
+      });
+      const observed=await new HubtelPaymentProvider(cfg,mock.fetcher).lookup(lookupInput);
+      expect(observed.currency).toBe("GHS");
+      expect(observed.state).toBe("succeeded");
+    }
+  });
   test("a verified pending merchant lookup may have no prior provider reference",async()=>{
     const mock=providerResponse(200,{status:"Pending",clientReference:merchantReference,amount:123.45});
     const observed=await new HubtelPaymentProvider(cfg,mock.fetcher).lookup({
