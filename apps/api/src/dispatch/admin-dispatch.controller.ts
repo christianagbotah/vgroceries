@@ -11,6 +11,8 @@ import {
   dispatchReturnedRequestSchema,
   dispatchUnassignRequestSchema,
   replayKeySchema,
+  codSupervisorCountRequestSchema,
+  type CodSupervisorCountRequest,
   type DispatchListQuery,
   type CodExceptionQuery,
   type DispatchProviderTransitionRequest,
@@ -26,6 +28,7 @@ import { AccessGuard } from "../identity/access.guard";
 import type { AuthRequest } from "../identity/identity.service";
 import { DispatchCommandService } from "./dispatch-command.service";
 import { DispatchQueryService } from "./dispatch-query.service";
+import { CodSupervisorCountService } from "./cod-supervisor-count.service";
 import type { DispatchCommandContext } from "./dispatch.values";
 
 type Issue={path:PropertyKey[];message:string};
@@ -34,7 +37,8 @@ type Parser<T>={safeParse(input:unknown):{success:true;data:T}|{success:false;er
 @Controller("admin/dispatch")
 @UseGuards(AccessGuard)
 export class AdminDispatchController {
-  constructor(private readonly commands:DispatchCommandService,private readonly queries:DispatchQueryService){}
+  constructor(private readonly commands:DispatchCommandService,private readonly queries:DispatchQueryService,
+    private readonly codCounts:CodSupervisorCountService){}
   private admin(req:AuthRequest){if(req.actor.role!=="admin")throw new ApiProblem(403,"FORBIDDEN","Administrator access required.");}
   private parse<T>(schema:Parser<T>,input:unknown,message:string):T{const parsed=schema.safeParse(input);if(!parsed.success)throw new ApiProblem(400,"VALIDATION_FAILED",message,parsed.error.issues.map(i=>({path:i.path.map(String).join("."),message:i.message})));return parsed.data;}
   private context(req:AuthRequest):DispatchCommandContext{return{actorId:req.actor.id,requestId:req.requestId,idempotencyKey:this.parse(replayKeySchema,req.get("idempotency-key"),"A valid Idempotency-Key header is required.")};}
@@ -43,6 +47,13 @@ export class AdminDispatchController {
     this.admin(req);
     const input=this.parse<CodExceptionQuery>(codExceptionQuerySchema,query,"COD exception filters are invalid.");
     return{ok:true,data:await this.queries.listCodExceptions(input)};
+  }
+  @Post("cod-declarations/:declarationId/supervisor-counts") @HttpCode(200)
+  async recordSupervisorCount(@Req()req:AuthRequest,@Param("declarationId")declarationId:string,@Body()body:unknown){
+    this.admin(req);
+    const input=this.parse<CodSupervisorCountRequest>(codSupervisorCountRequestSchema,body,"COD physical count input is invalid.");
+    const key=this.parse(replayKeySchema,req.get("idempotency-key"),"A valid Idempotency-Key header is required.");
+    return {ok:true,data:await this.codCounts.observe(req.actor.id,declarationId,key,req.requestId,input)};
   }
   @Get("jobs/:jobId") async detail(@Req()req:AuthRequest,@Param("jobId")jobId:string){this.admin(req);return{ok:true,data:await this.queries.dispatchDetail(jobId)};}
   @Post("orders/:orderId/assign") @HttpCode(200) async assign(@Req()req:AuthRequest,@Param("orderId")orderId:string,@Body()body:unknown){this.admin(req);const input=this.parse<ProductionDispatchAssignRequest>(dispatchAssignRequestSchema,body,"Dispatch assignment body is invalid.");return{ok:true,data:await this.commands.assign(orderId,input,this.context(req))};}

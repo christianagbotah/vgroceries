@@ -9,12 +9,13 @@ import { DispatchPolicyService } from "./dispatch-policy.service";
 import { DispatchQueryService } from "./dispatch-query.service";
 import { ManualProviderService } from "./manual-provider.service";
 import { CodCashDeclarationService } from "./cod-cash-declaration.service";
+import { CodSupervisorCountService } from "./cod-supervisor-count.service";
 import { RiderCommandService } from "./rider-command.service";
 
 @Module({
   imports:[LogisticsModule],
   controllers:[AdminDispatchController,AdminRidersController,RiderController],
-  providers:[CodCashDeclarationService,DispatchPolicyService,DispatchEventService,ManualProviderService,DispatchCommandService,DispatchQueryService,RiderCommandService],
+  providers:[CodCashDeclarationService,CodSupervisorCountService,DispatchPolicyService,DispatchEventService,ManualProviderService,DispatchCommandService,DispatchQueryService,RiderCommandService],
   exports:[DispatchPolicyService,DispatchCommandService,DispatchQueryService,RiderCommandService],
 })
 export class DispatchModule {}

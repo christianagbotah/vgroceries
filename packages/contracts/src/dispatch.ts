@@ -320,6 +320,32 @@ export const codCashDeclarationViewSchema = z.object({
 }).strict();
 export type CodCashDeclarationView = z.infer<typeof codCashDeclarationViewSchema>;
 
+/** An independent human count observation, NOT cash acceptance or payment. */
+export const codSupervisorCountRequestSchema = z.object({
+  amountMinor: z.number().int().min(0).max(100_000_000),
+  physicalCashPresentConfirmed: z.literal(true),
+  independentCountConfirmed: z.literal(true),
+  note: z.string().trim().min(10).max(400),
+}).strict();
+export type CodSupervisorCountRequest = z.infer<typeof codSupervisorCountRequestSchema>;
+
+export const codSupervisorCountViewSchema = z.object({
+  id: z.string().min(1),
+  declarationId: z.string().min(1),
+  sequence: z.union([z.literal(1), z.literal(2)]),
+  amountMinor: z.number().int().min(0).max(100_000_000),
+  recordedAt: isoTimestampSchema,
+  status: z.enum([
+    "first_count_recorded_unverified",
+    "dual_count_agreed_unverified",
+    "count_disagreement_requires_review",
+  ]),
+  cashAccepted: z.literal(false),
+  paymentStatusChanged: z.literal(false),
+  remitted: z.literal(false),
+}).strict();
+export type CodSupervisorCountView = z.infer<typeof codSupervisorCountViewSchema>;
+
 export const codExceptionQuerySchema = z.object({
   page: z.coerce.number().int().min(1).max(1_000_000).default(1),
   perPage: z.coerce.number().int().min(1).max(100).default(25),

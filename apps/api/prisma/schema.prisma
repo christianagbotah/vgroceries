@@ -34,6 +34,7 @@ model User {
   notifications Notification[]
   riderProfile RiderProfile?
   codDeclarations CodCashDeclaration[] @relation("CodDeclarationActor")
+  codSupervisorCounts CodSupervisorCount[] @relation("CodSupervisorCountActor")
   pickupAttendanceRecords PickupAttendanceRecord[]
   posCustomerSales PosCashSale[] @relation("PosSaleRegisteredCustomer")
   // Existing UAT database relationships; no database change.
@@ -1093,7 +1094,28 @@ model CodCashDeclaration {
   note String
   requestId String
   createdAt DateTime @default(now()) @db.Timestamptz(3)
+  supervisorCounts CodSupervisorCount[]
   @@index([riderProfileId, createdAt])
+}
+
+/// Two independent admin count attestations; not cash acceptance, rider debt,
+/// payment settlement, remittance, or a posted finance journal.
+model CodSupervisorCount {
+  id String @id @default(uuid())
+  declarationId String
+  declaration CodCashDeclaration @relation(fields: [declarationId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  reviewerUserId String
+  reviewer User @relation("CodSupervisorCountActor", fields: [reviewerUserId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  sequence Int
+  amountMinor Int
+  physicalCashPresentConfirmed Boolean
+  independentCountConfirmed Boolean
+  note String
+  requestId String
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  @@unique([declarationId, sequence])
+  @@unique([declarationId, reviewerUserId])
+  @@index([reviewerUserId, createdAt])
 }
 
 model DeliveryEvent {

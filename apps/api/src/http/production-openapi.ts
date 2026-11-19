@@ -18,6 +18,8 @@ import {
   codExceptionInboxSchema,
   codCashDeclarationRequestSchema,
   codCashDeclarationViewSchema,
+  codSupervisorCountRequestSchema,
+  codSupervisorCountViewSchema,
   dispatchReassignRequestSchema,
   dispatchRescheduleRequestSchema,
   dispatchReturnRequestSchema,
@@ -324,6 +326,8 @@ export function productionOpenApi(app: INestApplication): OpenAPIObject {
     CodExceptionInbox: json(codExceptionInboxSchema),
     CodCashDeclarationRequest: json(codCashDeclarationRequestSchema),
     CodCashDeclarationView: json(codCashDeclarationViewSchema),
+    CodSupervisorCountRequest: json(codSupervisorCountRequestSchema),
+    CodSupervisorCountView: json(codSupervisorCountViewSchema),
     DispatchJobDetailResponse: json(dispatchJobDetailResponseSchema),
     DispatchRiderFleetResponse: json(dispatchRiderFleetResponseSchema),
     DispatchRiderDetailResponse: json(dispatchRiderDetailResponseSchema),
@@ -477,7 +481,7 @@ export function productionOpenApi(app: INestApplication): OpenAPIObject {
   for (const name of [
     "FulfilmentQueueResponse", "FulfilmentDetailResponse", "FulfilmentActionResponse",
     "DispatchQueueResponse",
-    "CodExceptionInbox", "CodCashDeclarationView", "DispatchJobDetailResponse", "DispatchRiderFleetResponse", "DispatchRiderDetailResponse", "DispatchActionResponse",
+    "CodExceptionInbox", "CodCashDeclarationView", "CodSupervisorCountView", "DispatchJobDetailResponse", "DispatchRiderFleetResponse", "DispatchRiderDetailResponse", "DispatchActionResponse",
     "RiderAvailabilityResponse", "RiderSelfResponse", "RiderJobResponse", "RiderJobsResponse", "RiderActionResponse",
     "NotificationListResponse", "NotificationReadResponse", "NotificationReadAllResponse",
     "CheckoutPickupOptionsResponse",
@@ -1124,6 +1128,12 @@ export function productionOpenApi(app: INestApplication): OpenAPIObject {
         { name: "phase", in: "query", schema: { type: "string", enum: ["all", "delivered", "in_transit"], default: "all" } },
         { name: "evidence", in: "query", schema: { type: "string", enum: ["all", "rider_declared_unverified", "not_recorded_in_variety"], default: "all" } },
       ]),
+  };
+  doc.paths["/api/v1/admin/dispatch/cod-declarations/{declarationId}/supervisor-counts"] = {
+    post: authorityMutation(
+      "Default-disabled administrator-only independent physical cash count attestation. Two DISTINCT administrators may each record one immutable witnessed count. Even matching counts are not accepted cash, payment, rider debt, refund, settlement or remittance.",
+      "CodSupervisorCountRequest", "CodSupervisorCountViewEnvelope", [{ name: "declarationId", in: "path", required: true, schema: { type: "string", minLength: 1 } }],
+    ),
   };
   doc.paths["/api/v1/admin/dispatch/jobs/{jobId}"] = { get: readOperation("Administrator-only delivery job detail with custody, proof metadata, timeline, blockers and server-derived actions.", "DispatchJobDetailResponseEnvelope", [jobId]) };
   doc.paths["/api/v1/admin/dispatch/orders/{orderId}/assign"] = { post: authorityMutation("Administrator-only assignment after fulfilment handover. This operation does not change inventory or payment state.", "DispatchAssignRequest", "DispatchActionResponseEnvelope", [orderId]) };

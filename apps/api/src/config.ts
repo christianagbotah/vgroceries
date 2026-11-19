@@ -94,6 +94,7 @@ export interface ApiConfig {
   commerce: CommerceConfig | null;
   shipmentExecutionEnabled: boolean;
   codCashDeclarationsEnabled: boolean;
+  codSupervisorCountEnabled: boolean;
   customerPickupEnabled: boolean;
   pickupAttendanceEnabled: boolean;
   pickupInAppRemindersEnabled: boolean;
@@ -157,6 +158,12 @@ export function readConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
   if(rawCodCashDeclarations !== undefined && !["true", "false"].includes(rawCodCashDeclarations))
     throw new Error("COD_CASH_DECLARATIONS_ENABLED must be true or false");
   const codCashDeclarationsEnabled = rawCodCashDeclarations === "true";
+  const rawCodSupervisorCount = env.COD_SUPERVISOR_COUNT_ENABLED;
+  if (rawCodSupervisorCount !== undefined && !["true", "false"].includes(rawCodSupervisorCount))
+    throw new Error("COD_SUPERVISOR_COUNT_ENABLED must be true or false");
+  const codSupervisorCountEnabled = rawCodSupervisorCount === "true";
+  if (codSupervisorCountEnabled && !codCashDeclarationsEnabled)
+    throw new Error("COD_SUPERVISOR_COUNT_ENABLED requires COD_CASH_DECLARATIONS_ENABLED");
 
   const rawCustomerPickupEnabled = env.LOGISTICS_CUSTOMER_PICKUP_ENABLED;
   if (rawCustomerPickupEnabled !== undefined && !["true", "false"].includes(rawCustomerPickupEnabled))
@@ -712,6 +719,7 @@ export function readConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
     commerce,
     shipmentExecutionEnabled,
     codCashDeclarationsEnabled,
+    codSupervisorCountEnabled,
     customerPickupEnabled,
     pickupAttendanceEnabled,
     pickupInAppRemindersEnabled,
