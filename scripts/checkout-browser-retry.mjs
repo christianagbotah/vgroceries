@@ -70,10 +70,15 @@ try {
     throw error;
   }
   if (await guest.isVisible()) await guest.click();
-  await collectionRadio.click({ force: true });
+  // Use the actual accessible touch targets, never forced radio clicks that
+  // can hit the fixed mobile nav while a control is covered or moving.
+  await page.locator('label[for="ful-collection"]').click();
+  assert.equal(new URL(page.url()).pathname, "/checkout", "Fulfilment choice must not leave checkout");
   await page.locator("#co-name").fill("Browser QA Customer");
   await page.locator("#co-phone").fill("+233241111111");
-  await page.locator("#pay-cash_counter").click({ force: true });
+  await page.locator('label[for="pay-cash_counter"]').click();
+  await page.waitForFunction(() => document.querySelector('#pay-cash_counter')?.getAttribute('aria-checked') === 'true');
+  assert.equal(new URL(page.url()).pathname, "/checkout", "Cash choice must not leave checkout");
 
   const seen = [];
   page.on("pageerror", error => console.error("CHECKOUT_BROWSER_JS_ERROR", error.message.slice(0, 350)));
