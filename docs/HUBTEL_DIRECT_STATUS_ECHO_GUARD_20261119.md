@@ -12,6 +12,7 @@ This is a narrow independent backport of the same logic discussed in the stacked
 - Fake HTTP 200 Paid/amount with absent/empty/whitespace/other-client reference: all must throw without an observation.
 - Fake HTTP 403 with Paid body: throws, not authoritative.
 - Fake HTTP 200 with genuinely echoed exact clientReference: normalized amount/state preserved.
+- Standalone mock Bun test is `scripts/hubtel-direct-echo-guard.test.js`; the JavaScript extension keeps this adapter-only test outside the frontend's explicit `**/*.ts` source list while Bun runs the real backend adapter. It performs no provider I/O.
 - Real NestJS API test runner has additional corresponding tests; full fresh PostgreSQL and CI checks remain required.
 
 ## Live boundary

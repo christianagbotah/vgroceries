@@ -1,4 +1,3 @@
-/// <reference types="bun-types" />
 import { describe, expect, test } from "bun:test";
 import { HubtelPaymentProvider } from "../apps/api/src/payments/hubtel-payment-provider";
 
@@ -11,9 +10,9 @@ const cfg = {
 };
 const merchantReference="VG-PAY-ABC123";
 const lookupInput={merchantReference,providerReference:"paylink-001",signal:new AbortController().signal};
-function providerResponse(status:number,data:Record<string,unknown>) {
-  const calls:{method?:string}[]=[];
-  const fetcher=async (_url:string|URL|Request,init?:RequestInit)=>{
+function providerResponse(status,data) {
+  const calls=[];
+  const fetcher=async (_url,init)=>{
     calls.push({method:init?.method});
     return new Response(JSON.stringify({responseCode:"0000",data}),{
       status,headers:{"content-type":"application/json"},
@@ -24,7 +23,7 @@ function providerResponse(status:number,data:Record<string,unknown>) {
 describe("Hubtel Direct transaction status demands provider-echoed identity",()=>{
   test("a Paid claim with omitted, blank, wrong or mismatched reference cannot settle an attempt",async()=>{
     for(const val of [undefined,"","   ","VG-OTHER-CUSTOMER"]) {
-      const data:Record<string,unknown>={status:"Paid",amount:123.45,paylinkId:"paylink-001"};
+      const data={status:"Paid",amount:123.45,paylinkId:"paylink-001"};
       if(val!==undefined)data.clientReference=val;
       const mock=providerResponse(200,data);
       await expect(new HubtelPaymentProvider(cfg,mock.fetcher).lookup(lookupInput))
