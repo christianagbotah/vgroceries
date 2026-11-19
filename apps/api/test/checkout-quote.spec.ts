@@ -46,6 +46,18 @@ test("quote rejects invalid zone variants duplicate lines and fractional count u
   await db.variant.update({where:{id:"var-rice"},data:{active:false}}); assert.equal((await post({lines:[{variantId:"var-rice",quantity:"1"}]})).r.status,404);
 });
 
+test("public payment availability is read-only and does not expose merchant data or mutate orders", async()=>{
+  const before=await Promise.all([db.order.count(),db.paymentAttempt.count(),db.reservation.count()]);
+  const response=await fetch(base+"/api/v1/checkout/payment-availability");
+  assert.equal(response.status,200);
+  assert.equal(response.headers.get("cache-control"),"no-store");
+  assert.equal(response.headers.get("set-cookie"),null);
+  const body=await response.json();
+  assert.deepEqual(body,{ok:true,data:{electronicAvailable:false,mode:"production"}});
+  assert.ok(!JSON.stringify(body).match(/hubtel|credential|secret|account|provider/i));
+  assert.deepEqual(await Promise.all([db.order.count(),db.paymentAttempt.count(),db.reservation.count()]),before);
+});
+
 test("public quote bootstraps guest cookies but creates no order reservation or booking", async()=>{
   const x=await post({lines:[{variantId:"var-rice",quantity:"1"}]}); assert.equal(x.r.status,200); assert.match(x.r.headers.get("set-cookie")??"",/vg_guest=/); assert.equal(await db.order.count(),0); assert.equal(await db.deliverySlotBooking.count(),0);
 });

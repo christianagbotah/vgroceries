@@ -50,6 +50,8 @@ export const operationMeta: Record<string, OperationMeta> = {
   "content.page": { tags: CONF },
 
   /* checkout (public) */
+  // Gateway readiness must always be fetched anew, even when browser TTL caching is enabled.
+  "checkout.payment-availability": {},
   "checkout.quote": { tags: [...CAT, ...CONF] },
   "checkout.complete": { invalidates: [...CAT, ...STOCK, ...ORD] },
   "payments.initiate": { invalidates: [...ORD, ...PAY] },
