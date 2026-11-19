@@ -31,7 +31,7 @@ async function get(path: string, credential?: string) {
   });
   return { status: response.status, body: await response.json() };
 }
-async function cod(ref: string, options: {amount?: number; paymentStatus?: string; deliveryStatus?: string; delivered?: boolean; cancelled?: boolean} = {}) {
+async function cod(ref: string, options: {amount?: number; paymentStatus?: string; deliveryStatus?: string; delivered?: boolean; cancelled?: boolean; handover?: boolean} = {}) {
   const order = await db.order.create({ data: {
     reference: ref, customerUserId: "customer-a", customerName: "Private Test Customer",
     customerPhone: "+233241111111", fulfilment: "delivery", zoneId: "zone-required",
@@ -45,10 +45,10 @@ async function cod(ref: string, options: {amount?: number; paymentStatus?: strin
     verificationCodeHash: "4".repeat(64), stockConsumedAt: new Date(),
     ...(options.cancelled ? { cancelledAt: new Date() } : {}),
   } });
-  // The database requires authoritative fulfilment dispatch handover
-  // before any delivery job may exist. Never disable this provenance guard
-  // for test fixtures, even when testing only read-only COD reporting.
-  await db.fulfilmentRun.create({ data: {
+  // A real delivery job requires authoritative dispatch handover. The only
+  // handover:false fixture deliberately tests an orphaned stock timestamp:
+  // it has no delivery job and must never appear in custody reporting.
+  if (options.handover !== false) await db.fulfilmentRun.create({ data: {
     orderId: order.id, locationId: "loc_accra", handoverKind: "dispatch",
     handedOverBy: "admin-commerce", handedOverAt: new Date(),
   } });
@@ -84,6 +84,9 @@ test("COD exception inbox requires real administrator, never exposes customer PI
   const delivered = await cod("VG-COD-EXCEPTION-DELIVERED", {delivered: true,amount: 2200});
   const pending = await cod("VG-COD-EXCEPTION-PENDING", {amount: 1100});
   await cod("VG-COD-EXCEPTION-CANCELLED", {cancelled: true});
+  // An incomplete handover cannot create a rider cash liability or appear in
+  // COD custody reports merely because a stock-consumed timestamp was set.
+  await cod("VG-COD-EXCEPTION-NO-HANDOVER", {amount: 9900, handover: false});
   const disputed = await cod("VG-COD-EXCEPTION-PAID-STATUS", {delivered: true,paymentStatus: "succeeded",amount: 400});
 
   assert.equal((await get("/admin/dispatch/cod-exceptions")).status, 401);
@@ -99,6 +102,7 @@ test("COD exception inbox requires real administrator, never exposes customer PI
   const data = result.body.data;
   assert.equal(data.total, 3);
   assert.equal(data.totalOrderFaceValueMinor, 3700);
+  assert.equal(data.items.some((item: { orderReference: string }) => item.orderReference === "VG-COD-EXCEPTION-NO-HANDOVER"), false);
   assert.equal(data.evidenceStatus, "verified_collection_and_remittance_not_yet_implemented");
   assert.equal(data.items.length, 3);
   const deliveredRow = data.items.find((i: {orderId:string}) => i.orderId === delivered.order.id);

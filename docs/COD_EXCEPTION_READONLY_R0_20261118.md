@@ -10,10 +10,13 @@ separate recording of delivery, COD cash collection and rider remittance.
 
 - Requires a genuine authenticated **administrator**. Cashiers, riders, guests,
   unassigned staff and unauthenticated callers cannot read it.
-- Filters only non-cancelled COD delivery orders with committed handover/stock
-  consumption, with bounded pages (1–100) and optional `delivered`, `in_transit`
-  or `all`. A repeatable-read PostgreSQL transaction produces page, count and
-  gross order-face-value aggregate from one consistent snapshot.
+- Filters only non-cancelled COD delivery orders with both an actual committed
+  dispatch handover record and stock consumption, with bounded pages (1–100)
+  and optional `delivered`, `in_transit` or `all`. Delivered requires the order's
+  delivery state, job state and recorded delivery timestamp to agree; a status
+  label or stock-consumed timestamp alone is not sufficient. A repeatable-read
+  PostgreSQL transaction produces page, count and gross order-face-value
+  aggregate from one consistent snapshot.
 - Includes no customer name, contact, address, proof image, private API keys,
   refund method, rider phone or access tokens.
 - Distinguishes `delivery_incomplete`, `delivered_collection_unverified`, and
