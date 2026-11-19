@@ -19,6 +19,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 
 const friendly=(e:unknown)=>e instanceof ApiError?e.message:"The request could not be verified. No receipt has been assumed.";
+const PAGE_SIZE=20;
 type DraftLine={selected:boolean;quantity:string;condition:"sealed"|"opened"|"damaged"|"unknown"};
 type InspectionLine={disposition:"quarantine"|"destroy";note:string};
 const defaultLine=():DraftLine=>({selected:false,quantity:"1",condition:"unknown"});
@@ -53,8 +54,13 @@ function PhysicalReturnsWorkspace(){
   const [evidence,setEvidence]=useState("");
   const [physicallyPresent,setPhysicallyPresent]=useState(false);
   const [list,setList]=useState<PhysicalReturnList|null>(null);
+  const [listPage,setListPage]=useState(1);
+  const [filterDraft,setFilterDraft]=useState(params.get("orderId")??"");
+  const [receiptOrderFilter,setReceiptOrderFilter]=useState(params.get("orderId")??"");
+  const listRequestVersion=useRef(0);
   const [busy,setBusy]=useState(false);
   const [listLoading,setListLoading]=useState(true);
+  const [listError,setListError]=useState<string|null>(null);
   const [error,setError]=useState<string|null>(null);
   const [notice,setNotice]=useState<string|null>(null);
   const [target,setTarget]=useState<PhysicalReturnView|null>(null);
@@ -75,19 +81,49 @@ function PhysicalReturnsWorkspace(){
   const custodyReplay=useReplayIntent();
   const resaleReplay=useReplayIntent();
   const enabled=list?.enabled===true;
-  const canMutate=isAdmin&&enabled;
+  const canMutate=isAdmin&&enabled&&!listLoading&&!listError;
   const canReceiveForClaim=!customerClaimId.trim()||list?.claimLinkEnabled===true;
   const canRecordCustody=canMutate&&list?.custodyEnabled===true;
   const canReviewResale=canMutate&&list?.resaleEnabled===true;
 
   const refresh=useCallback(async()=>{
+    const version=++listRequestVersion.current;
+    setListLoading(true);setListError(null);
     try {
-      const response=await apiOps.physicalReturns({perPage:50});
-      setList(response);setError(null);
-    }catch(e){setError(friendly(e));}
-    finally{setListLoading(false);}
-  },[]);
-  useEffect(()=>{void refresh();},[refresh]);
+      const response=await apiOps.physicalReturns({page:listPage,perPage:PAGE_SIZE,
+        ...(receiptOrderFilter?{orderId:receiptOrderFilter}:{})});
+      if(version!==listRequestVersion.current)return;
+      setList(response);setListError(null);
+    }catch(e){
+      if(version!==listRequestVersion.current)return;
+      setList(null);setListError(friendly(e));
+    }finally{
+      if(version===listRequestVersion.current)setListLoading(false);
+    }
+  },[listPage,receiptOrderFilter]);
+  useEffect(()=>{
+    if(!isAdmin){setList(null);setListLoading(false);return;}
+    void refresh();
+    return()=>{listRequestVersion.current++;};
+  },[isAdmin,refresh]);
+  const pageCount=Math.max(1,Math.ceil((list?.total??0)/PAGE_SIZE));
+  function goToListPage(next:number){
+    if(busy||listLoading||next<1||next>pageCount||next===listPage)return;
+    listRequestVersion.current++;
+    setTarget(null);setCustodyItem(null);setResaleItem(null);
+    setNotice(null);setError(null);setListError(null);
+    setList(null);setListLoading(true);setListPage(next);
+  }
+  function applyReceiptFilter(value:string){
+    if(busy||listLoading)return;
+    const exact=value.trim();
+    if(exact===receiptOrderFilter){void refresh();return;}
+    listRequestVersion.current++;
+    setTarget(null);setCustodyItem(null);setResaleItem(null);
+    setNotice(null);setError(null);setListError(null);
+    setList(null);setListLoading(true);
+    setReceiptOrderFilter(exact);setListPage(1);
+  }
 
   const lookupOrder=useCallback(async(id:string)=>{
     if(!id.trim())return;
@@ -101,8 +137,8 @@ function PhysicalReturnsWorkspace(){
   },[]);
   useEffect(()=>{
     const id=params.get("orderId");
-    if(id)void lookupOrder(id);
-  },[params,lookupOrder]);
+    if(isAdmin&&id)void lookupOrder(id);
+  },[isAdmin,params,lookupOrder]);
 
   async function receive(){
     if(!order||busy||!canMutate||!physicallyPresent||!canReceiveForClaim)return;
@@ -125,7 +161,12 @@ function PhysicalReturnsWorkspace(){
       setCustomerClaimId("");
       setOrder(null);setLines({});
       setNotice(`Physical receipt ${receipt.reference} recorded. All goods remain off-sale pending inspection; no refund or stock addition was made.`);
-      await refresh();
+      // Show the newly verified receipt on the newest unfiltered ledger page.
+      if(listPage!==1||receiptOrderFilter){
+        listRequestVersion.current++;
+        setList(null);setListLoading(true);setFilterDraft("");
+        setReceiptOrderFilter("");setListPage(1);
+      }else await refresh();
     }catch(e){setError(friendly(e));}
     finally{setBusy(false);}
   }
@@ -224,6 +265,9 @@ function PhysicalReturnsWorkspace(){
       finally{setBusy(false);}
     }
   }
+  if(!isAdmin)return <div className="rounded-lg border p-4 text-sm" role="alert">
+    Administrator permission is required to view physical receipt and inspection records.
+  </div>;
   return <div className="min-w-0 space-y-5 pb-12">
     <Link href="/admin/return-claims" className="inline-flex min-h-10 items-center rounded-md border px-3 py-2 text-sm font-medium text-primary hover:bg-muted">
       Verified customer return requests
@@ -241,12 +285,12 @@ function PhysicalReturnsWorkspace(){
           This workflow never creates refunds, increases saleable stock, or settles cash on delivery.
         </p>
       </div>
-      <Button variant="outline" onClick={()=>void refresh()} disabled={busy||listLoading}>
+      <Button variant="outline" onClick={()=>void refresh()} disabled={busy||listLoading||!isAdmin}>
         <RefreshCw className="size-4" aria-hidden/> Refresh
       </Button>
     </header>
     {listLoading?<p role="status" className="rounded-lg border p-4 text-sm">Checking physical returns authority…</p>:null}
-    {!enabled?<div className="rounded-xl border border-amber-500/40 p-4 text-sm" role="status">
+    {!listLoading&&list&&!enabled?<div className="rounded-xl border border-amber-500/40 p-4 text-sm" role="status">
       <p className="flex items-center gap-2 font-semibold"><AlertTriangle className="size-4" aria-hidden/>
         Physical returns intake is not activated</p>
       <p className="mt-2 text-muted-foreground">
@@ -261,6 +305,13 @@ function PhysicalReturnsWorkspace(){
     {enabled&&!list?.custodyEnabled?<p className="rounded-lg border p-3 text-sm text-muted-foreground" role="status">
       Quarantine stock custody is not activated. Inspected goods cannot be added to inventory until this separate server authority is approved.
     </p>:null}
+    {listError?<div className="flex flex-wrap items-center gap-2 rounded-lg border border-destructive/30 p-3 text-sm text-destructive" role="alert">
+      <p className="min-w-0 flex-1">{listError} This page cannot be verified; previous page data is not shown as current.</p>
+      <Button type="button" variant="outline" size="sm" disabled={busy||listLoading}
+        onClick={()=>void refresh()}>Retry this page</Button>
+      {listPage>1?<Button type="button" variant="outline" size="sm" disabled={busy||listLoading}
+        onClick={()=>{setList(null);setListLoading(true);setListPage(1);}}>First page</Button>:null}
+    </div>:null}
     {error?<p className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive" role="alert">{error}</p>:null}
     {notice?<p className="rounded-lg border bg-muted/40 p-3 text-sm" role="status">{notice}</p>:null}
 
@@ -343,9 +394,32 @@ function PhysicalReturnsWorkspace(){
 
     <section className="min-w-0 space-y-3" aria-labelledby="physical-receipt-list">
       <h2 id="physical-receipt-list" className="font-semibold">Recorded physical receipts</h2>
-      {!list?.items.length?<p className="rounded-lg border p-4 text-sm text-muted-foreground">
-        No verified physical receipts have been recorded in this environment.
-      </p>:list.items.map(r=><article key={r.id} className="min-w-0 space-y-2 rounded-xl border bg-card p-4">
+      <div className="flex flex-wrap items-end gap-2 rounded-lg border bg-card p-3">
+        <div className="min-w-[13rem] flex-1">
+          <Label htmlFor="physical-receipt-filter">Exact order ID in receipt history</Label>
+          <Input id="physical-receipt-filter" className="mt-1" maxLength={128}
+            placeholder="Paste the original order ID" value={filterDraft}
+            disabled={busy||listLoading} onChange={e=>setFilterDraft(e.target.value)}/>
+        </div>
+        <Button type="button" variant="outline" disabled={busy||listLoading||filterDraft.trim().length>128}
+          onClick={()=>applyReceiptFilter(filterDraft)}>Find receipts</Button>
+        {receiptOrderFilter?<Button type="button" variant="outline" disabled={busy||listLoading}
+          onClick={()=>{setFilterDraft("");applyReceiptFilter("");}}>Clear filter</Button>:null}
+        <p className="w-full text-xs text-muted-foreground">
+          Exact order ID only. This filters the staff receipt history, not the physical-intake form or financial records.
+        </p>
+      </div>
+      {!listLoading&&!listError&&list?<div className="flex flex-wrap items-center justify-between gap-2 text-sm text-muted-foreground" role="status">
+        <p>{list.total.toLocaleString()} {receiptOrderFilter?"receipts matching this order":"receipts across all orders"} · Page {list.page} of {pageCount}
+          {list.items.length?<> · Showing {(list.page-1)*PAGE_SIZE+1}–{(list.page-1)*PAGE_SIZE+list.items.length}</>:null}
+        </p>
+        <p>Physical receipts are staff evidence only; no refund is inferred.</p>
+      </div>:null}
+      {listLoading?<p className="rounded-lg border p-4 text-sm text-muted-foreground" role="status">Loading verified physical receipts…</p>:null}
+      {!listLoading&&!listError&&list&&list.items.length===0?<p className="rounded-lg border p-4 text-sm text-muted-foreground">
+        {list.total===0?(receiptOrderFilter?"No verified physical receipts match this exact order ID.":"No verified physical receipts have been recorded in this environment."):"No physical receipts on this page. Use Previous page."}
+      </p>:null}
+      {!listLoading&&!listError&&list?.items.map(r=><article key={r.id} className="min-w-0 space-y-2 rounded-xl border bg-card p-4">
         <div className="flex flex-wrap items-start justify-between gap-2">
           <div><p className="font-semibold">{r.reference}</p>
             <p className="text-sm text-muted-foreground">Order {r.orderReference} · {r.locationId} · {r.status}</p>
@@ -397,6 +471,16 @@ function PhysicalReturnsWorkspace(){
         </div>
         {r.inspectionSummary?<p className="text-xs text-muted-foreground">Inspection: {r.inspectionSummary}</p>:null}
       </article>)}
+      {!listLoading&&!listError&&list?<nav className="flex flex-wrap items-center justify-between gap-2 rounded-lg border bg-card p-3"
+        aria-label="Physical receipt pagination">
+        <p className="text-sm text-muted-foreground">Page {list.page} of {pageCount} · {list.total.toLocaleString()} {receiptOrderFilter?"matching receipts":"total receipts"}</p>
+        <div className="flex flex-wrap gap-2">
+          <Button type="button" size="sm" variant="outline" disabled={busy||listLoading||listPage<=1}
+            onClick={()=>goToListPage(listPage-1)}>Previous page</Button>
+          <Button type="button" size="sm" variant="outline" disabled={busy||listLoading||listPage>=pageCount}
+            onClick={()=>goToListPage(listPage+1)}>Next page</Button>
+        </div>
+      </nav>:null}
     </section>
     {resaleItem?<section className="space-y-3 rounded-xl border bg-card p-4 sm:p-5"
       aria-label="Independent returned-goods resale review">
