@@ -39,6 +39,11 @@ function CustomerReturnsWorkspace(){
   const requestReplay=useReplay();
   const cancelReplay=useReplay();
   const [claims,setClaims]=useState<CustomerReturnClaimsList|null>(null);
+  const [historyPage,setHistoryPage]=useState(1);
+  const [historyLoading,setHistoryLoading]=useState(true);
+  const [historyError,setHistoryError]=useState<string|null>(null);
+  const historyVersion=useRef(0);
+  const PAGE_SIZE=20;
   const [orders,setOrders]=useState<AccountOrderRow[]>([]);
   const [selectedOrder,setSelectedOrder]=useState("");
   const [eligibility,setEligibility]=useState<CustomerReturnClaimEligibility|null>(null);
@@ -51,17 +56,31 @@ function CustomerReturnsWorkspace(){
   const [error,setError]=useState<string|null>(null);
   const [notice,setNotice]=useState<string|null>(null);
   const refresh=useCallback(async()=>{
-    const [r,o]=await Promise.all([
-      apiOps.customerReturnClaims({perPage:50}),apiOps.accountOrders(),
-    ]);
-    setClaims(r);setOrders(o);
-  },[]);
+    const version=++historyVersion.current;
+    setHistoryLoading(true);setHistoryError(null);
+    try{
+      const [r,o]=await Promise.all([
+        apiOps.customerReturnClaims({page:historyPage,perPage:PAGE_SIZE}),
+        apiOps.accountOrders(),
+      ]);
+      if(version!==historyVersion.current)return false;
+      setClaims(r);setOrders(o);return true;
+    }catch(err){
+      if(version===historyVersion.current)setHistoryError(errorMessage(err));
+      return false;
+    }finally{
+      if(version===historyVersion.current){setHistoryLoading(false);setLoading(false);}
+    }
+  },[historyPage]);
   useEffect(()=>{
-    let active=true;
-    void refresh().catch(err=>{if(active)setError(errorMessage(err));})
-      .finally(()=>{if(active)setLoading(false);});
-    return()=>{active=false;};
+    void refresh();
+    return()=>{historyVersion.current++;};
   },[refresh]);
+  const pageCount=Math.max(1,Math.ceil((claims?.total??0)/PAGE_SIZE));
+  function goToHistoryPage(next:number){
+    if(busy||historyLoading||next<1||next>pageCount||next===historyPage)return;
+    setError(null);setHistoryError(null);setHistoryLoading(true);setHistoryPage(next);
+  }
   useEffect(()=>{
     if(!orders.length||selectedOrder)return;
     const requested=params.get("orderId")??"";
@@ -94,7 +113,8 @@ function CustomerReturnsWorkspace(){
       requestReplay.clear();
       setReason("");setEvidence("");setSelectedOrder("");setEligibility(null);
       setNotice(`Request ${created.reference} received for staff review. This is not a refund approval or evidence that goods were physically returned.`);
-      await refresh();
+      if(historyPage!==1){setHistoryLoading(true);setHistoryPage(1);}
+      else await refresh();
     }catch(err){setError(errorMessage(err));}
     finally{setBusy(false);}
   }
@@ -183,7 +203,7 @@ function CustomerReturnsWorkspace(){
       <Button type="button" disabled={busy||!eligibility||!eligibleOrders.length}
         onClick={()=>void submit()}>{busy?"Submitting…":"Submit verified request"}</Button>
     </section>:null}
-    {claims?<section aria-label="Your verified return requests" className="space-y-3">
+    {(claims||historyLoading||historyError)?<section aria-label="Your verified return requests" className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="font-semibold">Your return history</h2>
         <Button type="button" size="sm" variant="outline" disabled={busy}
@@ -191,9 +211,19 @@ function CustomerReturnsWorkspace(){
             void refresh().catch(e=>setError(errorMessage(e))).finally(()=>setBusy(false));
           }}>Refresh receipt progress</Button>
       </div>
-      {claims.items.length===0?<p className="rounded-lg border p-4 text-sm text-muted-foreground">
-        No verified return requests have been recorded on your account.
-      </p>:claims.items.map(claim=><article key={claim.id} className="rounded-xl border bg-card p-4">
+      {historyLoading?<p role="status" className="rounded-lg border p-4 text-sm text-muted-foreground">
+        Loading your return request history page…
+      </p>:null}
+      {historyError?<div role="alert" className="flex flex-wrap items-center gap-2 rounded-lg border border-destructive/30 p-3 text-sm text-destructive">
+        <p className="min-w-0 flex-1">{historyError} No earlier page is being presented as the current history.</p>
+        <Button size="sm" variant="outline" disabled={busy} onClick={()=>void refresh()}>Retry this page</Button>
+        {historyPage>1?<Button size="sm" variant="outline" disabled={busy}
+          onClick={()=>{setHistoryLoading(true);setHistoryPage(1);}}>First page</Button>:null}
+      </div>:null}
+      {!historyLoading&&!historyError&&claims?.items.length===0?<p className="rounded-lg border p-4 text-sm text-muted-foreground">
+        {claims?.total===0?"No verified return requests have been recorded on your account.":"No requests on this page. Use Previous page."}
+      </p>:null}
+      {!historyLoading&&!historyError&&claims?.items.map(claim=><article key={claim.id} className="rounded-xl border bg-card p-4">
         <div className="flex flex-wrap justify-between gap-2">
           <div><p className="font-semibold">{claim.reference}</p>
             <p className="text-xs text-muted-foreground">
@@ -224,6 +254,19 @@ function CustomerReturnsWorkspace(){
           className="mt-3" size="sm" disabled={busy}
           onClick={()=>void cancel(claim.id)}>Cancel pending request</Button>:null}
       </article>)}
+      {!historyLoading&&!historyError&&claims?<nav className="flex flex-wrap items-center justify-between gap-2 rounded-lg border p-3"
+        aria-label="Your return request history pagination">
+        <p className="text-sm text-muted-foreground">
+          {claims.total.toLocaleString()} total requests · Page {claims.page} of {pageCount}
+          {claims.items.length?<> · Showing {(claims.page-1)*PAGE_SIZE+1}–{(claims.page-1)*PAGE_SIZE+claims.items.length}</>:null}
+        </p>
+        <div className="flex flex-wrap gap-2">
+          <Button size="sm" variant="outline" disabled={busy||historyPage<=1}
+            onClick={()=>goToHistoryPage(historyPage-1)}>Previous page</Button>
+          <Button size="sm" variant="outline" disabled={busy||historyPage>=pageCount}
+            onClick={()=>goToHistoryPage(historyPage+1)}>Next page</Button>
+        </div>
+      </nav>:null}
     </section>:null}
   </div>;
 }
