@@ -25,6 +25,18 @@ describe("COD exception review is real-authority, privacy-safe and read-only", (
     expect(screen).not.toContain("Mark paid");
     expect(screen).not.toContain("Mark remitted");
   });
+  test("admin evidence filters separate rider statements from unrecorded cash without marking either settled", () => {
+    expect(screen).toContain('type Evidence = "all" | "rider_declared_unverified" | "not_recorded_in_variety"');
+    expect(screen).toContain('const [evidence, setEvidence]');
+    expect(screen).toContain('URLSearchParams({ page: String(page), perPage: String(PER_PAGE), phase, evidence })');
+    expect(screen).toContain('role="group" aria-label="COD cash declaration evidence"');
+    expect(screen).toContain('setEvidence(option.key); setPage(1);');
+    expect(screen).toContain('aria-pressed={evidence === option.key}');
+    expect(screen).toContain('Rider declared · unverified');
+    expect(screen).toContain('No declaration recorded');
+    expect(screen).toContain('Gross order face value · not confirmed collected');
+  });
+
   test("pagination, cancellation, loading and failed authorization are explicit", () => {
     expect(screen).toContain("controller.abort()");
     expect(screen).toContain("aria-pressed={phase === option.key}");

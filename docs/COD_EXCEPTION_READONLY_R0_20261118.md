@@ -54,3 +54,7 @@ the strict shared Zod contract and suppresses all figures on an unavailable or
 malformed response. Page navigation and error-retry do not alter any order,
 inventory, remittance or payment record. The admin sidebar links to the page;
 no button is provided to mark cash paid or remitted.
+
+## Read-only evidence filters (19 November)
+
+The COD exception inbox can now filter by independent **delivery phase** and **cash declaration evidence**. Choices: all, `rider_declared_unverified` (only actual immutable rider self-declarations), and `not_recorded_in_variety` (including deliveries with no assigned job). Combined filters are conjoined in a single repeatable-read database query; both the count, gross face-value aggregate and paginated order rows obey the same predicates. No category constitutes cash accepted by the business, remittance, rider liability, a payment capture or permission to post a journal entry. The administrator UI labels rider attestations as unverified and never offers a settlement control.
