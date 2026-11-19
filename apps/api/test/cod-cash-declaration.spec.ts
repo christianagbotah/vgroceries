@@ -19,7 +19,7 @@ const config = (enabled = true) => readConfig({
   COD_CASH_DECLARATIONS_ENABLED: enabled ? "true" : "false",
 });
 const evidence = { amountMinor: 2100, cashCountConfirmed: true, riderPossessionConfirmed: true,
-  note: "I counted the exact physical cash and am holding it for handover." };
+  note: "I counted the exact physical cash and am holding it for handover." } as const;
 
 async function token(email: string) {
   const response = await fetch(base+"/api/v1/auth/sessions",{method:"POST",headers:{
