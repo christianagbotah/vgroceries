@@ -80,6 +80,41 @@ test("Hubtel collection rejects missing payer phone and provider-limit overflow 
 });
 
 
+test("Hubtel Direct status refuses Paid without independently echoed matching merchant identity", async () => {
+  const expected = { merchantReference: "VG-PAY-ABC123", providerReference: "paylink-001", signal: new AbortController().signal };
+  for (const data of [
+    { status: "Paid", amount: 123.45, paylinkId: "paylink-001" },
+    { status: "Paid", amount: 123.45, paylinkId: "paylink-001", clientReference: "" },
+    { status: "Paid", amount: 123.45, paylinkId: "paylink-001", clientReference: "   " },
+    { status: "Paid", amount: 123.45, paylinkId: "paylink-001", clientReference: "VG-ANOTHER-ORDER" },
+    { status: "Pending", amount: 123.45, paylinkId: "paylink-001" },
+  ]) {
+    const http = fakeFetch({body:{responseCode:"0000",data}});
+    const provider = new HubtelPaymentProvider(providerConfig(),http.fetcher);
+    await assert.rejects(provider.lookup(expected),/reference could not be verified/);
+    assert.equal(http.calls.length,1);
+    assert.equal(http.calls[0].init?.method,"GET");
+  }
+});
+
+test("Hubtel Direct 403 cannot provide Paid evidence, exact echoed merchant reference is required", async () => {
+  const wanted = { merchantReference:"VG-PAY-ABC123",signal:new AbortController().signal };
+  const denied = fakeFetch({status:403,body:{data:{
+    status:"Paid",amount:123.45,clientReference:"VG-PAY-ABC123",
+  }}});
+  await assert.rejects(
+    new HubtelPaymentProvider(providerConfig(),denied.fetcher).lookup(wanted),
+    /lookup failed/,
+  );
+  const valid = fakeFetch({body:{data:{
+    status:"Paid",amount:123.45,clientReference:"VG-PAY-ABC123",
+  }}});
+  const confirmed = await new HubtelPaymentProvider(providerConfig(),valid.fetcher).lookup(wanted);
+  assert.equal(confirmed.merchantReference,"VG-PAY-ABC123");
+  assert.equal(confirmed.state,"succeeded");
+  assert.equal(confirmed.amountMinor,12345);
+});
+
 test("configured Hubtel bundle auto-registers the collection adapter in NestJS", async () => {
   const config = readConfig({
     DATABASE_URL: "postgresql://u:p@localhost:5432/db",
