@@ -15,7 +15,7 @@
 
 import { clearBrowserCsrfToken, resolveClientAdapter, setBrowserCsrfToken } from "./adapters/browser";
 import { withFreshGuestCheckoutRetry } from "./checkout-guest-csrf";
-import { normalizePaymentLedgerResponse } from "./payment-ledger";
+import { normalizePaymentLedgerResponse, normalizePaymentLedgerPage, type PaymentLedgerFilters } from "./payment-ledger";
 import type { QueryValue, ServiceRequest } from "./adapters/types";
 import type {
   AccountCancelResponse,
@@ -550,6 +550,8 @@ export const apiOps = {
   refundAction: (refundId: string, action: "approve" | "execute" | "retry", actor?: string) =>
     api<LegacyRefundActionResponse>("admin.refund.action", { body: { refundId, action, actor } }),
   payments: async () => normalizePaymentLedgerResponse(await api<unknown>("admin.payments")),
+  paymentLedger: async (filters: PaymentLedgerFilters = {}) => normalizePaymentLedgerPage(
+    await api<unknown>("admin.payments", { query: filters as Record<string, QueryValue> }), filters),
   customers: () => api<import("./contracts").CustomerRow[]>("admin.customers"),
   customer: (customerId: string) => api<import("./contracts").CustomerDetailResponse>("admin.customer", { query: { customerId } }),
 

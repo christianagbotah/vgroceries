@@ -7,43 +7,53 @@ import { useApiData } from "@/features/staff/admin-data";
 import { LoadingState, ErrorState, EmptyState } from "@/components/shared/states";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { CreditCard, Search } from "lucide-react";
 
-type PaymentRow = Awaited<ReturnType<typeof apiOps.payments>>[number];
+type PaymentRow = Awaited<ReturnType<typeof apiOps.paymentLedger>>["items"][number];
+const PER_PAGE = 25;
 
 export default function AdminPaymentsPage() {
   const [status, setStatus] = useState("all");
   const [settlement, setSettlement] = useState("all");
-  const [q, setQ] = useState("");
-  const { data, loading, error, reload } = useApiData(() => apiOps.payments(), []);
+  const [referenceDraft, setReferenceDraft] = useState("");
+  const [orderReference, setOrderReference] = useState("");
+  const [page, setPage] = useState(1);
+  const { data, loading, error, reload } = useApiData(() => apiOps.paymentLedger({
+    page, perPage: PER_PAGE,
+    status: status === "all" ? undefined : status,
+    settlementState: settlement === "all" ? undefined : settlement,
+    orderReference: orderReference || undefined,
+  }), [page, status, settlement, orderReference]);
+
+  const runSearch = () => {
+    setPage(1);
+    setOrderReference(referenceDraft.trim());
+  };
 
   if (loading) return <LoadingState rows={5} label="Loading payments" />;
   if (error) return <ErrorState message={error} onRetry={reload} />;
 
-  const all = data ?? [];
-  const rows = all.filter((p: PaymentRow) =>
-    (status === "all" || p.status === status) &&
-    (settlement === "all" || p.settlementState === settlement) &&
-    (!q || `${p.orderReference} ${p.providerRef ?? ""}`.toLowerCase().includes(q.toLowerCase()))
-  );
+  const rows = data?.items ?? [];
+  const pageCount = Math.max(1, Math.ceil((data?.total ?? 0) / PER_PAGE));
 
   return (
     <div className="space-y-4">
       <div>
         <h1 className="font-serif text-2xl font-bold">Payments</h1>
         <p className="text-sm text-muted-foreground">
-          Attempts, settlement state and reconciliation exceptions. Callbacks are counted — a
-          duplicate callback never double-marks an order.
+          Server-owned payment attempts, provider observations and reconciliation status. Filters
+          apply to the full ledger; status breakdowns below count only the visible page.
         </p>
       </div>
 
       <div className="grid gap-3 sm:grid-cols-4">
         {[
-          { label: "Attempts", value: all.length },
-          { label: "Settled / reconciled", value: all.filter((p: PaymentRow) => ["settled", "reconciled"].includes(p.settlementState)).length },
-          { label: "Unsettled", value: all.filter((p: PaymentRow) => p.settlementState === "unsettled").length },
-          { label: "Exceptions", value: all.filter((p: PaymentRow) => p.settlementState === "exception").length },
+          { label: "Matching attempts (all pages)", value: data?.total ?? 0 },
+          { label: "Reconciled (this page)", value: rows.filter((p: PaymentRow) => p.settlementState === "reconciled").length },
+          { label: "Unsettled (this page)", value: rows.filter((p: PaymentRow) => p.settlementState === "unsettled").length },
+          { label: "Exceptions (this page)", value: rows.filter((p: PaymentRow) => p.settlementState === "exception").length },
         ].map((c) => (
           <div key={c.label} className="rounded-xl border bg-card p-4">
             <p className="text-xs text-muted-foreground">{c.label}</p>
@@ -55,9 +65,10 @@ export default function AdminPaymentsPage() {
       <div className="flex flex-wrap items-center gap-2">
         <div className="relative min-w-0 flex-1 sm:min-w-56">
           <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
-          <Input type="search" className="h-11 pl-9" placeholder="Order reference or provider ref…" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Search payments" />
+          <Input type="search" className="h-11 pl-9" placeholder="Exact order reference…" value={referenceDraft} onChange={(e) => setReferenceDraft(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") runSearch(); }} aria-label="Exact order reference" />
         </div>
-        <Select value={status} onValueChange={setStatus} aria-label="Filter by status">
+        <Button type="button" variant="outline" className="h-11" onClick={runSearch}>Search ledger</Button>
+        <Select value={status} onValueChange={(value) => { setStatus(value); setPage(1); }} aria-label="Filter by status">
           <SelectTrigger className="h-11 w-full sm:w-40"><SelectValue /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Any status</SelectItem>
@@ -66,7 +77,7 @@ export default function AdminPaymentsPage() {
             ))}
           </SelectContent>
         </Select>
-        <Select value={settlement} onValueChange={setSettlement} aria-label="Filter by settlement">
+        <Select value={settlement} onValueChange={(value) => { setSettlement(value); setPage(1); }} aria-label="Filter by settlement">
           <SelectTrigger className="h-11 w-full sm:w-44"><SelectValue /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Any settlement</SelectItem>
@@ -75,6 +86,11 @@ export default function AdminPaymentsPage() {
             ))}
           </SelectContent>
         </Select>
+      </div>
+
+      <div className="flex flex-wrap items-center justify-between gap-2 text-sm text-muted-foreground" role="status">
+        <p>{data?.total.toLocaleString() ?? "0"} matching attempts · page {page} of {pageCount}</p>
+        <p>{data?.isDemo ? "Demo ledger" : "Production ledger"} · {rows.length} shown</p>
       </div>
 
       {!rows.length ? (
@@ -143,10 +159,15 @@ export default function AdminPaymentsPage() {
         </>
       )}
 
+      <div className="flex flex-wrap items-center justify-between gap-3" aria-label="Payment ledger pagination">
+        <p className="text-sm text-muted-foreground">Showing {rows.length} of {data?.total.toLocaleString() ?? "0"} matching attempts. Filters use the full ledger, not just the visible page.</p>
+        <div className="flex gap-2">
+          <Button type="button" variant="outline" disabled={page <= 1} onClick={() => setPage((n) => Math.max(1, n - 1))}>Previous page</Button>
+          <Button type="button" variant="outline" disabled={page >= pageCount} onClick={() => setPage((n) => Math.min(pageCount, n + 1))}>Next page</Button>
+        </div>
+      </div>
       <p className="rounded-xl border border-dashed p-3 text-sm text-muted-foreground">
-        Reconciliation duties for the backend: verify provider outcomes through their supported
-        mechanisms, keep idempotency keys, and resolve pending attempts with the provider rather
-        than re-charging customers. Settlement states here derive from the demo fixtures.
+        Provider status, payment attempt success and reconciliation state do not independently prove a bank deposit or cashier receipt. Investigate exceptions using the provider’s verified records; never re-charge a customer while payment verification is unresolved.
       </p>
     </div>
   );

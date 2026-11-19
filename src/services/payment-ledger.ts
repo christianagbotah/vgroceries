@@ -25,6 +25,23 @@ interface ProductionPaymentLedgerResponse {
   items: ProductionPaymentLedgerRow[];
 }
 
+export interface PaymentLedgerFilters {
+  page?: number;
+  perPage?: number;
+  status?: string;
+  settlementState?: string;
+  orderReference?: string;
+}
+
+export interface PaymentLedgerPage {
+  items: PaymentRow[];
+  page: number;
+  perPage: number;
+  total: number;
+  /** Demo uses a local fixture array; production numbers are server-reported. */
+  isDemo: boolean;
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
@@ -46,6 +63,7 @@ function productionLedger(value: unknown): value is ProductionPaymentLedgerRespo
   );
 }
 
+/** Existing array contract retained for other screens and older demos. */
 export function normalizePaymentLedgerResponse(value: unknown): PaymentRow[] {
   if (Array.isArray(value)) return value as PaymentRow[];
   if (!productionLedger(value)) throw new Error("Payments service returned an invalid ledger response.");
@@ -64,4 +82,33 @@ export function normalizePaymentLedgerResponse(value: unknown): PaymentRow[] {
     ...(row.failureReason ? { failureReason: row.failureReason } : {}),
     createdAtLabel: formatDateTime(row.createdAt),
   }));
+}
+
+/**
+ * Preserve real server pagination. Never label the first 25 attempts as the
+ * complete ledger. Demo fixtures remain searchable/paginatable in memory.
+ */
+export function normalizePaymentLedgerPage(value: unknown, filters: PaymentLedgerFilters = {}): PaymentLedgerPage {
+  const page = filters.page ?? 1;
+  const perPage = filters.perPage ?? 25;
+  if (!Number.isInteger(page) || page < 1 || !Number.isInteger(perPage) || perPage < 1 || perPage > 100)
+    throw new Error("Invalid payment ledger page request.");
+  if (Array.isArray(value)) {
+    const all = (value as PaymentRow[]).filter((row) =>
+      (!filters.status || row.status === filters.status) &&
+      (!filters.settlementState || row.settlementState === filters.settlementState) &&
+      (!filters.orderReference ||
+        row.orderReference?.toLowerCase() === filters.orderReference.toLowerCase()),
+    );
+    return {items: all.slice((page - 1) * perPage, page * perPage), page, perPage, total: all.length, isDemo: true};
+  }
+  if (!productionLedger(value) ||
+      !Number.isSafeInteger(value.page) || value.page < 1 ||
+      !Number.isSafeInteger(value.perPage) || value.perPage < 1 || value.perPage > 100 ||
+      !Number.isSafeInteger(value.total) || value.total < 0 ||
+      value.page !== page || value.perPage !== perPage || value.items.length > perPage) {
+    throw new Error("Payments service returned invalid pagination metadata.");
+  }
+  return {items: normalizePaymentLedgerResponse(value), page: value.page,
+    perPage: value.perPage, total: value.total, isDemo: false};
 }
