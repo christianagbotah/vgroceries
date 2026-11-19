@@ -341,6 +341,8 @@ export interface PaymentAttempt {
   providerRef?: string;
   idempotencyKey: string;
   callbackCount: number;
+  /** False only while a demo order's provisional attempt has not reached a gateway. */
+  gatewayInitiated?: boolean;
   settlementState: "unsettled" | "settled" | "reconciled" | "exception";
   failureReason?: string;
   createdAt: string;

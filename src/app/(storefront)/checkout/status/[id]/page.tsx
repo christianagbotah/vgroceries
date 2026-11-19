@@ -13,6 +13,7 @@ import { PickupAppointmentManager } from "@/components/orders/pickup-appointment
 import { Button } from "@/components/ui/button";
 import { PAYMENT_METHOD_LABELS } from "@/types/domain";
 import { formatMoney } from "@/lib/money";
+import { electronicPaymentPhase, shouldPollPaymentStatus } from "@/features/checkout/electronic-payment-state";
 import { formatDateTime } from "@/lib/format";
 import { CheckCircle2, Clock, Loader2, PartyPopper, PhoneCall, ShieldQuestion, TriangleAlert, XCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -31,6 +32,8 @@ export default function CheckoutStatusPage() {
   const [error, setError] = useState<string | null>(null);
   const [initiating, setInitiating] = useState(false);
   const [paymentMessage, setPaymentMessage] = useState<string | null>(null);
+  // Polling should never erase a payment-initiation error before the customer reads it.
+  const [initiationError, setInitiationError] = useState<string | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const load = useCallback(async () => {
@@ -54,16 +57,17 @@ export default function CheckoutStatusPage() {
   }, [load]);
 
   useEffect(() => {
-    // stop polling once the payment outcome is final
-    if (order && ["succeeded", "failed", "requires_review", "refunded", "partially_refunded", "unpaid"].includes(order.paymentStatus)) {
+    // Staff-review and unpaid electronic orders can receive later evidence.
+    if (order && !shouldPollPaymentStatus(order)) {
       if (pollRef.current) clearInterval(pollRef.current);
     }
   }, [order]);
 
   const startPayment = async () => {
-    if (!order) return;
+    if (!order || initiating || electronicPaymentPhase(order) !== "start") return;
     setInitiating(true);
     setPaymentMessage(null);
+    setInitiationError(null);
     setError(null);
     try {
       const keyName = `vg_payment_attempt_key_${id}`;
@@ -104,7 +108,7 @@ export default function CheckoutStatusPage() {
       }
       await load();
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : "The secure payment request could not be started.");
+      setInitiationError(e instanceof ApiError ? e.message : "The secure payment request could not be started.");
     } finally {
       setInitiating(false);
     }
@@ -130,7 +134,9 @@ export default function CheckoutStatusPage() {
 
   const electronic = order.paymentMethod === "electronic" || ["mobile_money", "card_hosted", "bank_transfer"].includes(order.paymentMethod);
   const paid = ["succeeded", "partially_refunded", "refunded"].includes(order.paymentStatus);
-  const needsAction = electronic && (order.paymentStatus === "pending" || order.paymentStatus === "unpaid") && order.fulfilmentStatus !== "cancelled";
+  const paymentPhase = electronicPaymentPhase(order);
+  const needsAction = electronic && paymentPhase === "start";
+  const awaitingVerification = electronic && paymentPhase === "verifying";
 
   return (
     <div className="mx-auto max-w-2xl px-4 pb-10 pt-8">
@@ -146,9 +152,9 @@ export default function CheckoutStatusPage() {
         ) : order.paymentStatus === "requires_review" ? (
           <StatusHead
             icon={<ShieldQuestion className="size-8 text-primary" aria-hidden />}
-            title="Payment received — order under review"
+            title="Payment needs manual verification"
             tone="info"
-            copy="Your payment arrived after the stock reservation expired. Our team is re-checking availability and will contact you shortly: we will either fulfil the order or refund you in full."
+            copy="The payment provider's result is not yet confirmed for this order. Please do not pay again. Our team must verify the transaction before we can confirm the order or any refund."
           />
         ) : paid ? (
           <StatusHead
@@ -160,9 +166,16 @@ export default function CheckoutStatusPage() {
         ) : order.paymentStatus === "failed" ? (
           <StatusHead
             icon={<XCircle className="size-8 text-destructive" aria-hidden />}
-            title="Payment did not go through"
+            title="Payment reported unsuccessful"
             tone="danger"
-            copy="The provider declined this payment, so the order was cancelled and its stock hold released. You can place the order again — nothing was charged twice."
+            copy="Our system recorded an unsuccessful payment. If money was deducted or you approved a Mobile Money prompt, contact support with your order reference before attempting another payment."
+          />
+        ) : awaitingVerification ? (
+          <StatusHead
+            icon={<Clock className="size-8 animate-pulse text-primary" aria-hidden />}
+            title="Waiting for payment verification"
+            tone="warning"
+            copy="A payment request has already been started. Do not approve another prompt or start a second payment while the provider's result is being checked."
           />
         ) : needsAction ? (
           <StatusHead
@@ -215,6 +228,22 @@ export default function CheckoutStatusPage() {
           </p>
         </div>
       ) : null}
+
+      {awaitingVerification ? (
+        <div className="mt-4 rounded-2xl border border-primary/20 bg-primary/5 p-4 sm:p-5">
+          <h2 className="font-semibold">Payment verification in progress</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Do not start another payment or approve a second prompt for this order. A pending transaction is not proof of payment, and a provider access error is not proof of failure.
+          </p>
+          {paymentMessage ? <p role="status" className="mt-3 text-sm">{paymentMessage}</p> : null}
+          <div className="mt-3 flex flex-wrap gap-2">
+            <Button type="button" variant="outline" onClick={() => void load()}>Refresh payment status</Button>
+            <Button asChild variant="outline"><Link href="/support">Contact support</Link></Button>
+          </div>
+        </div>
+      ) : null}
+
+      {initiationError ? <p role="alert" className="mt-4 rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">{initiationError}</p> : null}
 
       {/* order summary */}
       <div className="mt-4 space-y-3 rounded-2xl border bg-card p-4 sm:p-5">
