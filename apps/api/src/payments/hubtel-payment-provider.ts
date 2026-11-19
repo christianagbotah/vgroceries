@@ -212,6 +212,15 @@ export class HubtelPaymentProvider implements PaymentProviderAdapter {
     const providerReference = text(data, "paylinkId", "PaylinkId", "paylink_id", "transactionId", "TransactionId", "transaction_id");
     if (input.providerReference && providerReference !== input.providerReference)
       throw new Error("Hubtel payment status provider reference could not be verified.");
+    // Hubtel Ghana collections may return currencyCode:null. That absence is
+    // acceptable for this GHS-only merchant account, but an EXPLICIT foreign
+    // or contradictory currency must never be re-labelled GHS by the adapter.
+    for (const field of ["currencyCode", "CurrencyCode", "currency", "Currency"] as const) {
+      const stated = data[field];
+      if (stated !== undefined && stated !== null &&
+          (typeof stated !== "string" || stated.trim().toUpperCase() !== "GHS"))
+        throw new Error("Hubtel payment status currency could not be verified.");
+    }
     const amountMinor = moneyMinor(data.amount ?? data.Amount);
     const providerTimestamp = timestamp(data);
 
