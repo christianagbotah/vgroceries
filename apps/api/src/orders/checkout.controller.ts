@@ -1,4 +1,5 @@
-import { Body, Controller, HttpCode, Post, Req, Res } from "@nestjs/common";
+import { Body, Controller, Get, Header, HttpCode, Post, Req, Res } from "@nestjs/common";
+import { PaymentPolicyService } from "../payments/payment-policy.service";
 import { ApiTags } from "@nestjs/swagger";
 import type { Response } from "express";
 import { checkoutQuoteRequestSchema, checkoutCompleteRestRequestSchema, replayKeySchema, type CompleteOrderRequest } from "@variety/contracts";
@@ -11,7 +12,19 @@ import { CheckoutCommandService } from "./checkout-command.service";
 @ApiTags("checkout")
 @Controller("checkout")
 export class CheckoutController {
-  constructor(private readonly quoteService: CheckoutQuoteService, private readonly command: CheckoutCommandService, private readonly principals: CheckoutPrincipalService, private readonly guests: GuestCheckoutService) {}
+  constructor(private readonly quoteService: CheckoutQuoteService, private readonly command: CheckoutCommandService, private readonly principals: CheckoutPrincipalService, private readonly guests: GuestCheckoutService, private readonly payments: PaymentPolicyService) {}
+  /** Public read-only display hint; the actual checkout remains server-authorized. */
+  @Get("payment-availability") @Header("Cache-Control","no-store")
+  paymentAvailability() {
+    try {
+      this.payments.assertReadyIfConfigured();
+      this.payments.resolveElectronicMethod();
+      return {ok:true,data:{electronicAvailable:true,mode:"production"}};
+    } catch {
+      // Never expose credentials, merchant data or internal provider errors.
+      return {ok:true,data:{electronicAvailable:false,mode:"production"}};
+    }
+  }
   @Post("quote") @HttpCode(200)
   async quote(@Body() body: unknown,@Req() req: ApiRequest,@Res({passthrough:true}) res: Response) {
     const parsed=checkoutQuoteRequestSchema.safeParse(body);
