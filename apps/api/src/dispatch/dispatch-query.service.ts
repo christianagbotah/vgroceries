@@ -123,6 +123,7 @@ export class DispatchQueryService {
           deliveryStatus: true, totalMinor: true,
           deliveryJob: { select: {
             id: true, riderProfileId: true, status: true, deliveredAt: true,
+            codCashDeclaration: {select:{id:true}},
           } },
         },
       }),
@@ -130,7 +131,7 @@ export class DispatchQueryService {
     return codExceptionInboxSchema.parse({
       page: query.page, perPage: query.perPage, total,
       totalOrderFaceValueMinor: value._sum.totalMinor ?? 0,
-      evidenceStatus: "collection_and_remittance_not_yet_implemented",
+      evidenceStatus: "verified_collection_and_remittance_not_yet_implemented",
       items: orders.map(order => {
         const job = order.deliveryJob;
         const delivered = job?.status === "delivered" &&
@@ -145,7 +146,9 @@ export class DispatchQueryService {
           exception: paymentConflict ? "payment_state_requires_review" as const
             : delivered ? "delivered_collection_unverified" as const
             : "delivery_incomplete" as const,
-          collectionEvidence: "not_recorded_in_variety" as const,
+          collectionEvidence: job?.codCashDeclaration
+            ? "rider_declared_unverified" as const
+            : "not_recorded_in_variety" as const,
           remittanceEvidence: "not_recorded_in_variety" as const,
         };
       }),

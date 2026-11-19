@@ -93,6 +93,7 @@ export interface ApiConfig {
   host: string;
   commerce: CommerceConfig | null;
   shipmentExecutionEnabled: boolean;
+  codCashDeclarationsEnabled: boolean;
   customerPickupEnabled: boolean;
   pickupAttendanceEnabled: boolean;
   pickupInAppRemindersEnabled: boolean;
@@ -152,6 +153,11 @@ export function readConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
     rawShipmentExecutionEnabled !== "false"
   ) throw new Error("LOGISTICS_SHIPMENT_EXECUTION_ENABLED must be true or false");
   const shipmentExecutionEnabled = rawShipmentExecutionEnabled === "true";
+  const rawCodCashDeclarations = env.COD_CASH_DECLARATIONS_ENABLED;
+  if(rawCodCashDeclarations !== undefined && !["true", "false"].includes(rawCodCashDeclarations))
+    throw new Error("COD_CASH_DECLARATIONS_ENABLED must be true or false");
+  const codCashDeclarationsEnabled = rawCodCashDeclarations === "true";
+
   const rawCustomerPickupEnabled = env.LOGISTICS_CUSTOMER_PICKUP_ENABLED;
   if (rawCustomerPickupEnabled !== undefined && !["true", "false"].includes(rawCustomerPickupEnabled))
     throw new Error("LOGISTICS_CUSTOMER_PICKUP_ENABLED must be true or false");
@@ -705,6 +711,7 @@ export function readConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
     host: env.API_HOST ?? "127.0.0.1",
     commerce,
     shipmentExecutionEnabled,
+    codCashDeclarationsEnabled,
     customerPickupEnabled,
     pickupAttendanceEnabled,
     pickupInAppRemindersEnabled,

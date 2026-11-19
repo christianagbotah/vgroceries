@@ -298,6 +298,28 @@ export const dispatchListQuerySchema = z.object({
  * Until a separate COD collection/remittance ledger is implemented, payment,
  * delivery proof, and rider assignment cannot constitute collection evidence.
  */
+/** One immutable rider cash *declaration*. Supervisor verification is separate. */
+export const codCashDeclarationRequestSchema = z.object({
+  amountMinor: z.number().int().min(1).max(100_000_000),
+  cashCountConfirmed: z.literal(true),
+  riderPossessionConfirmed: z.literal(true),
+  note: z.string().trim().min(10).max(400),
+}).strict();
+export type CodCashDeclarationRequest = z.infer<typeof codCashDeclarationRequestSchema>;
+
+export const codCashDeclarationViewSchema = z.object({
+  id: z.string().min(1),
+  deliveryJobId: z.string().min(1),
+  orderId: z.string().min(1),
+  amountMinor: z.number().int().min(1).max(100_000_000),
+  declaredAt: isoTimestampSchema,
+  status: z.literal("rider_declared_unverified"),
+  supervisorVerified: z.literal(false),
+  remitted: z.literal(false),
+  paymentStatusChanged: z.literal(false),
+}).strict();
+export type CodCashDeclarationView = z.infer<typeof codCashDeclarationViewSchema>;
+
 export const codExceptionQuerySchema = z.object({
   page: z.coerce.number().int().min(1).max(1_000_000).default(1),
   perPage: z.coerce.number().int().min(1).max(100).default(25),
@@ -319,7 +341,7 @@ export const codExceptionRowSchema = z.object({
     "delivered_collection_unverified",
     "payment_state_requires_review",
   ]),
-  collectionEvidence: z.literal("not_recorded_in_variety"),
+  collectionEvidence: z.enum(["not_recorded_in_variety", "rider_declared_unverified"]),
   remittanceEvidence: z.literal("not_recorded_in_variety"),
 }).strict();
 
@@ -328,7 +350,7 @@ export const codExceptionInboxSchema = z.object({
   perPage: z.number().int().min(1).max(100),
   total: z.number().int().nonnegative(),
   totalOrderFaceValueMinor: z.number().int().nonnegative(),
-  evidenceStatus: z.literal("collection_and_remittance_not_yet_implemented"),
+  evidenceStatus: z.literal("verified_collection_and_remittance_not_yet_implemented"),
   items: z.array(codExceptionRowSchema),
 }).strict();
 export type CodExceptionInbox = z.infer<typeof codExceptionInboxSchema>;

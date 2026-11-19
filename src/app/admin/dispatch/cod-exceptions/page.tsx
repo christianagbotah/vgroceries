@@ -157,7 +157,12 @@ export default function CodExceptionsPage() {
                         <span className="font-medium">{statusLabel[item.exception] ?? "Requires review"}</span>
                         <span className="mt-1 block text-xs text-muted-foreground">Payment status: {item.paymentStatus}</span>
                       </td>
-                      <td className="px-4 py-4 text-muted-foreground">Collection not recorded<br />Remittance not recorded</td>
+                      <td className="px-4 py-4 text-muted-foreground">
+                        {item.collectionEvidence === "rider_declared_unverified"
+                          ? "Rider declared cash · supervisor unverified"
+                          : "Collection not recorded"}
+                        <span className="block">Remittance not recorded</span>
+                      </td>
                       <td className="px-4 py-4 text-right font-medium tabular-nums">{formatMoney(item.orderFaceValueMinor)}</td>
                     </tr>
                   ))}

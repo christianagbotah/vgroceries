@@ -99,7 +99,7 @@ test("COD exception inbox requires real administrator, never exposes customer PI
   const data = result.body.data;
   assert.equal(data.total, 3);
   assert.equal(data.totalOrderFaceValueMinor, 3700);
-  assert.equal(data.evidenceStatus, "collection_and_remittance_not_yet_implemented");
+  assert.equal(data.evidenceStatus, "verified_collection_and_remittance_not_yet_implemented");
   assert.equal(data.items.length, 3);
   const deliveredRow = data.items.find((i: {orderId:string}) => i.orderId === delivered.order.id);
   assert.equal(deliveredRow.exception, "delivered_collection_unverified");
