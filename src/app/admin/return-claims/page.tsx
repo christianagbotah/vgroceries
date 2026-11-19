@@ -81,7 +81,14 @@ export default function AdminCustomerReturnClaimsPage(){
       </div>
       <p className="text-sm">{claim.reason}</p>
       <ul className="space-y-1 text-sm text-muted-foreground">
-        {claim.lines.map(line=><li key={line.orderLineId}>{line.quantity} {line.unit} of {line.productName}: {line.reason}</li>)}
+        {claim.lines.map(line=><li key={line.orderLineId}>
+          <p>{line.quantity} {line.unit} of {line.productName}: {line.reason}</p>
+          {line.receivedQuantity!==undefined?<p className="text-xs">
+            Staff-recorded intake: {line.receivedQuantity}/{line.quantity} {line.unit}
+            {line.inspectedQuantity!==undefined?<> · Inspected: {line.inspectedQuantity} {line.unit}</>:null}
+            {" "}· No refund implied
+          </p>:null}
+        </li>)}
       </ul>
       {claim.reviewNote?<p className="rounded-md bg-muted p-2 text-sm">Decision: {claim.reviewNote}</p>:null}
       {isAdmin&&list.enabled&&claim.status==="requested"?

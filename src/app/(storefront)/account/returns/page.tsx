@@ -184,7 +184,13 @@ function CustomerReturnsWorkspace(){
         onClick={()=>void submit()}>{busy?"Submitting…":"Submit verified request"}</Button>
     </section>:null}
     {claims?<section aria-label="Your verified return requests" className="space-y-3">
-      <h2 className="font-semibold">Your return history</h2>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h2 className="font-semibold">Your return history</h2>
+        <Button type="button" size="sm" variant="outline" disabled={busy}
+          onClick={() => {setBusy(true);setError(null);
+            void refresh().catch(e=>setError(errorMessage(e))).finally(()=>setBusy(false));
+          }}>Refresh receipt progress</Button>
+      </div>
       {claims.items.length===0?<p className="rounded-lg border p-4 text-sm text-muted-foreground">
         No verified return requests have been recorded on your account.
       </p>:claims.items.map(claim=><article key={claim.id} className="rounded-xl border bg-card p-4">
@@ -199,12 +205,21 @@ function CustomerReturnsWorkspace(){
         <p className="mt-2 text-sm">{claim.reason}</p>
         <ul className="mt-2 space-y-1 text-sm text-muted-foreground">
           {claim.lines.map(line=><li key={line.orderLineId}>
-            {line.quantity} {line.unit} · {line.productName} — {line.reason}
+            <p>{line.quantity} {line.unit} · {line.productName} — {line.reason}</p>
+            {line.receivedQuantity!==undefined?<p className="mt-1 text-xs text-muted-foreground">
+              Staff-recorded physical receipt: {line.receivedQuantity} of {line.quantity} {line.unit}
+              {line.inspectedQuantity!==undefined?<> · Inspected: {line.inspectedQuantity} {line.unit}</>:null}
+            </p>:null}
           </li>)}
         </ul>
         {claim.reviewNote?<p className="mt-2 rounded-md bg-muted p-2 text-sm">
           Staff response: {claim.reviewNote}
         </p>:null}
+        {claim.status==="accepted"&&claim.lines.some(line=>line.receivedQuantity!==undefined)?
+          <p className="mt-2 text-xs text-muted-foreground">
+            Physical intake and inspection totals are staff records only. They do not confirm
+            a refund, payment transfer, replacement, or return to saleable inventory.
+          </p>:null}
         {claim.status==="requested"&&claims.enabled?<Button type="button" variant="outline"
           className="mt-3" size="sm" disabled={busy}
           onClick={()=>void cancel(claim.id)}>Cancel pending request</Button>:null}

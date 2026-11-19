@@ -51,6 +51,17 @@ describe("R3a authenticated customer return claims",()=>{
     expect(customerReturnClaimViewSchema.safeParse(item).success).toBe(true);
     expect(customerReturnClaimViewSchema.safeParse({...item,customerPhone:"+233241234567"}).success).toBe(false);
     expect(customerReturnClaimViewSchema.safeParse({...item,refundId:"forged"}).success).toBe(false);
+    const withReceipt={...item,lines:item.lines.map(line=>({
+      ...line,receivedQuantity:"0.75",inspectedQuantity:"0.5",
+    }))};
+    expect(customerReturnClaimViewSchema.safeParse(withReceipt).success).toBe(true);
+    expect(customerReturnClaimViewSchema.safeParse({...item,lines:item.lines.map(line=>({
+      ...line,receivedQuantity:"0",inspectedQuantity:"0",
+    }))}).success).toBe(true);
+    for(const invalid of ["-1","1.0001","=HYPERLINK(1)","abc"])
+      expect(customerReturnClaimViewSchema.safeParse({...item,lines:item.lines.map(line=>({
+        ...line,receivedQuantity:invalid,
+      }))}).success).toBe(false);
   });
   test("typed operations use six production paths and invalidate returns/order data",()=>{
     expect(restEndpoints["account.return-claim.create"].path).toBe("/account/return-claims");
@@ -79,6 +90,10 @@ describe("R3a authenticated customer return claims",()=>{
     expect(customer).toContain("Verified return requests are not open yet");
     expect(customer).not.toContain("formatMoney");
     expect(customer).not.toContain("apiOps.createReturn(");
+    expect(customer).toContain("Staff-recorded physical receipt");
+    expect(customer).toContain("Refresh receipt progress");
+    expect(customer).toContain("They do not confirm");
+    expect(admin).toContain("Staff-recorded intake");
     expect(admin).toContain("adminReturnClaimDecision");
     expect(admin).toContain("no money is");
   });

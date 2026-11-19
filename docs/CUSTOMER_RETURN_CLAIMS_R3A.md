@@ -85,9 +85,13 @@ account inbox. Recipients are resolved from the stored claim and order, never
 the event payload. This is in-app only; SMS, email, physical receipt and
 financial settlement are not implied.
 
-**Next (R3b/R3c):** Link accepted claims to actual staff-verified physical
-receipts and reconcile accepted quantity against that receipt; add approved
-private evidence storage; then implement
+**R3b implemented in source:** Accepted claims link to staff-recorded physical
+receipts, bounded per original order line, under a separate default-OFF flag.
+The new additive read-only view reports physical quantities received and
+inspected to the verified customer and authorized administrators; it does not
+authorize a refund. See `docs/CUSTOMER_CLAIM_RECEIPT_PROGRESS_20261119.md`.
+
+**Next (R3c):** Add approved private evidence storage, then implement
 verified-capture and per-line financial amount calculation with refunds
 generated exclusively through the Refund Authority. Preserve the
 payment/stock/customer ownership separation throughout. Policy on
