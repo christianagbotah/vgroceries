@@ -7,7 +7,7 @@ The customer account Returns page requested a maximum of 50 return claim records
 ## Safe correction
 - Use 20 records per request with server-owned total, explicit page count/range and Previous/Next controls. New customer requests return the history view to page 1.
 - Preserve the existing account order eligibility, user-entered claim draft and in-progress customer-owned return-request decisions while switching the history page. The page does not generate refunds or physical receipts.
-- A monotonically increasing request version prevents an older response or slow failed request from overwriting a newer history page. While changing pages, hide stale cards. On a failed page load, show an error and explicit retry/back to first page instead of claiming the user has no return history.
+- A monotonically increasing request version prevents an older response or slow failed request from overwriting a newer history page. While changing pages, hide stale cards. On a failed page load, including the very first request with no previously loaded history, show an error and explicit retry/back to first page instead of an empty section or falsely claiming the user has no return history.
 - The return-progress rows introduced in merged PR #167 remain visible with staff-recorded received/inspected totals and explicit no refund/cash/stock inference. Browser does not invent unavailable counts or status.
 - No server endpoint, database migration, account permission, paid-state writer, refund, product restocking, provider adapter or live feature activation is involved.
 

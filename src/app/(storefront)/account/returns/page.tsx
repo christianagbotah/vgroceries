@@ -203,7 +203,7 @@ function CustomerReturnsWorkspace(){
       <Button type="button" disabled={busy||!eligibility||!eligibleOrders.length}
         onClick={()=>void submit()}>{busy?"Submitting…":"Submit verified request"}</Button>
     </section>:null}
-    {claims?<section aria-label="Your verified return requests" className="space-y-3">
+    {(claims||historyLoading||historyError)?<section aria-label="Your verified return requests" className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="font-semibold">Your return history</h2>
         <Button type="button" size="sm" variant="outline" disabled={busy}
@@ -220,10 +220,10 @@ function CustomerReturnsWorkspace(){
         {historyPage>1?<Button size="sm" variant="outline" disabled={busy}
           onClick={()=>{setHistoryLoading(true);setHistoryPage(1);}}>First page</Button>:null}
       </div>:null}
-      {!historyLoading&&!historyError&&claims.items.length===0?<p className="rounded-lg border p-4 text-sm text-muted-foreground">
-        {claims.total===0?"No verified return requests have been recorded on your account.":"No requests on this page. Use Previous page."}
+      {!historyLoading&&!historyError&&claims?.items.length===0?<p className="rounded-lg border p-4 text-sm text-muted-foreground">
+        {claims?.total===0?"No verified return requests have been recorded on your account.":"No requests on this page. Use Previous page."}
       </p>:null}
-      {!historyLoading&&!historyError&&claims.items.map(claim=><article key={claim.id} className="rounded-xl border bg-card p-4">
+      {!historyLoading&&!historyError&&claims?.items.map(claim=><article key={claim.id} className="rounded-xl border bg-card p-4">
         <div className="flex flex-wrap justify-between gap-2">
           <div><p className="font-semibold">{claim.reference}</p>
             <p className="text-xs text-muted-foreground">
@@ -254,7 +254,7 @@ function CustomerReturnsWorkspace(){
           className="mt-3" size="sm" disabled={busy}
           onClick={()=>void cancel(claim.id)}>Cancel pending request</Button>:null}
       </article>)}
-      {!historyLoading&&!historyError?<nav className="flex flex-wrap items-center justify-between gap-2 rounded-lg border p-3"
+      {!historyLoading&&!historyError&&claims?<nav className="flex flex-wrap items-center justify-between gap-2 rounded-lg border p-3"
         aria-label="Your return request history pagination">
         <p className="text-sm text-muted-foreground">
           {claims.total.toLocaleString()} total requests · Page {claims.page} of {pageCount}

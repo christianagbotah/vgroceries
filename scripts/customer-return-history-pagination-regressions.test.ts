@@ -28,7 +28,8 @@ describe("customer return history honors every server-held request",()=>{
    expect(code).toContain("Next page");
    expect(code).toContain("goToHistoryPage(historyPage+1)");
    expect(code).toContain("goToHistoryPage(historyPage-1)");
-   expect(code).toContain("!historyLoading&&!historyError&&claims.items.map");
+   expect(code).toContain("!historyLoading&&!historyError&&claims?.items.map");
+   expect(code).toContain("(claims||historyLoading||historyError)?<section");
  });
  test("failed or stale reads cannot display outdated page or invent no return cases",()=>{
    expect(code).toContain("const version=++historyVersion.current");
@@ -38,7 +39,7 @@ describe("customer return history honors every server-held request",()=>{
    expect(code).toContain("No earlier page is being presented as the current history");
    expect(code).toContain("Retry this page");
    expect(code).toContain("First page");
-   expect(code).toContain('claims.total===0?"No verified return requests');
+   expect(code).toContain('claims?.total===0?"No verified return requests');
  });
  test("creating a new claim returns to first page and retaining clear refund semantics",()=>{
    expect(code).toContain("if(historyPage!==1){setHistoryLoading(true);setHistoryPage(1);}");
