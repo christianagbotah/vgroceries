@@ -57,6 +57,7 @@ export const config = {
   matcher: [
     "/staff/cashier/:path*",
     "/staff/pos/:path*",
+    "/staff/rider/cod/:path*",
     "/admin/team/verified/:path*",
   ],
 };

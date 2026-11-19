@@ -65,8 +65,7 @@ export default function RiderHomePage() {
         <div role="status" className="flex items-center gap-2 rounded-xl border border-warning/40 bg-warning/10 p-3 text-sm">
           <Banknote className="size-4" aria-hidden />
           <p>
-            <strong>{data.remittance.totalLabel}</strong> collected cash awaiting remittance. Hand it
-            to the dispatcher or cash office.
+            <strong>{data.remittance.totalLabel}</strong> is a demo-only illustration of outstanding cash, not verified collection, rider debt, or remittance. No real payment is recorded here.
           </p>
         </div>
       ) : null}
@@ -120,7 +119,7 @@ export default function RiderHomePage() {
         </Link>
       </Button>
       <p className="text-center text-xs text-muted-foreground">
-        {formatMoney(0) && "Cash you collect is recorded separately from delivery — remit it at the store."}
+        {formatMoney(0) && "Demo rider data is illustrative. Real physical cash requires a separate authorised rider declaration and supervisor reconciliation."}
       </p>
     </div>
   );

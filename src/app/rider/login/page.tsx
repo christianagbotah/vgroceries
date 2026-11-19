@@ -7,6 +7,8 @@ import { useRiderSession } from "@/components/layout/rider-shell";
 import { Button } from "@/components/ui/button";
 import { ErrorState, LoadingState } from "@/components/shared/states";
 import { Bike, MapPin } from "lucide-react";
+import Link from "next/link";
+import { verifiedRiderCodEnabled } from "@/features/rider/verified-cod-client";
 
 export default function RiderLoginPage() {
   const router = useRouter();
@@ -71,6 +73,11 @@ export default function RiderLoginPage() {
         </div>
       )}
 
+      {verifiedRiderCodEnabled ? (
+        <Button asChild variant="outline" className="mt-5 h-12 w-full">
+          <Link href="/staff/rider/login">Sign in with a real rider account for COD cash declarations</Link>
+        </Button>
+      ) : null}
       <p className="mt-6 text-center text-xs text-muted-foreground">
         Riders see only their own assigned customers. Location sharing is optional and
         permission-based.

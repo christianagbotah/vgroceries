@@ -28,7 +28,6 @@ export default function RiderJobPage() {
   const [proofOpen, setProofOpen] = useState(false);
   const [proofMethod, setProofMethod] = useState<"pin" | "signature" | "photo_note">("pin");
   const [proofDetail, setProofDetail] = useState("");
-  const [cashCollected, setCashCollected] = useState(true);
 
   const [failOpen, setFailOpen] = useState(false);
   const [failReason, setFailReason] = useState("");
@@ -115,7 +114,7 @@ export default function RiderJobPage() {
         {job.cashToCollectLabel ? (
           <p className="mt-2 flex items-center gap-1.5 rounded-lg border border-warning/40 bg-warning/10 p-2.5 text-sm font-semibold">
             <Banknote className="size-4" aria-hidden /> Collect {job.cashToCollectLabel}
-            {job.cashCollectedAt ? " — collected ✓" : " on delivery"}
+            {" · demo estimate only"}
           </p>
         ) : null}
       </div>
@@ -205,8 +204,8 @@ export default function RiderJobPage() {
         {step === "delivered" ? (
           <div className="rounded-xl border border-success/40 bg-success/10 p-4 text-sm">
             <p className="font-semibold text-success">Delivered {job.proof ? `· proof: ${job.proof.method}` : ""}</p>
-            {job.cashToCollectLabel && !job.cashCollectedAt ? (
-              <p className="mt-1 text-muted-foreground">Cash not yet marked as collected — ask the dispatcher to record it.</p>
+            {job.cashToCollectLabel ? (
+              <p className="mt-1 text-muted-foreground">Demo delivery proof is separate from cash custody. No real payment or remittance is verified here.</p>
             ) : null}
           </div>
         ) : null}
@@ -271,19 +270,16 @@ export default function RiderJobPage() {
               </Label>
               <Input id="proof-detail" className="h-11" value={proofDetail} onChange={(e) => setProofDetail(e.target.value)} placeholder={proofMethod === "pin" ? "4-digit PIN" : "e.g. signed on device"} inputMode={proofMethod === "pin" ? "numeric" : "text"} />
             </div>
-            {job.cashToCollectLabel && !job.cashCollectedAt ? (
-              <label className="flex items-center gap-2.5 rounded-lg border p-3 text-sm">
-                <input type="checkbox" className="size-5 accent-[color:var(--primary)]" checked={cashCollected} onChange={(e) => setCashCollected(e.target.checked)} />
-                Cash of {job.cashToCollectLabel} collected
-              </label>
-            ) : null}
+            {job.cashToCollectLabel ? <p className="rounded-lg border p-3 text-xs text-muted-foreground">
+              Demo delivery completion does not certify cash collection. Physical cash must be declared separately in an authorised rider session.
+            </p> : null}
           </div>
           <DialogFooter>
             <Button
               className="h-12"
               disabled={busy || !proofDetail.trim()}
               onClick={async () => {
-                await act("deliver", { proofMethod, proofDetail: proofDetail.trim(), cashCollected }, "Delivered with proof");
+                await act("deliver", { proofMethod, proofDetail: proofDetail.trim() }, "Demo delivery completed with proof only");
                 setProofOpen(false);
                 setProofDetail("");
               }}

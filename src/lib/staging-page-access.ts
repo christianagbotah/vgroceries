@@ -2,12 +2,15 @@
  * Only operational HTML routes require the extra staging gate.
  * Customer storefront and staff account activation remain page-accessible.
  */
-export type StagingRouteRole = "cashier" | "admin";
+export type StagingRouteRole = "cashier" | "admin" | "rider";
 
 export function stagingRequiredRole(pathname: string): StagingRouteRole | null {
   if (pathname === "/staff/cashier" || pathname.startsWith("/staff/cashier/") ||
       pathname === "/staff/pos" || pathname.startsWith("/staff/pos/")) {
     return "cashier";
+  }
+  if (pathname === "/staff/rider/cod" || pathname.startsWith("/staff/rider/cod/")) {
+    return "rider";
   }
   if (pathname === "/admin/team/verified" ||
       pathname.startsWith("/admin/team/verified/")) {
