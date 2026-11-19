@@ -72,8 +72,13 @@ provider integrations or operations are already production-ready.
   customer cancellation and administrator terminal accept/reject.
   This records no physical stock receipt or refund. The dedicated flag stays OFF.
   See `docs/CUSTOMER_RETURN_CLAIMS_R3A.md`.
-- [ ] Bind accepted customer requests to physical R1/R2a receipt inspection
-  and reconcile return quantities without double-counting.
+- [x] Accepted customer claims can already be linked to staff-verified physical
+  receipts under an independent default-OFF flag with original-line and
+  quantity-balance enforcement. Source now also reports read-only, customer-owned
+  received/inspected quantities without implying a refund; see
+  `docs/CUSTOMER_CLAIM_RECEIPT_PROGRESS_20261119.md`.
+- [ ] Complete the remaining business-authorized inspection, custody and refund
+  decisions following claim-linked physical receipt; no automatic refunds.
 - [ ] Durable physical-return authorization with order-line quantity balance,
   traceable receipt and lot/condition evidence.
 - [ ] Inspection/disposition: quarantined/damaged/unsellable/restockable, with

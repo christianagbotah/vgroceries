@@ -21,9 +21,16 @@ export const customerReturnClaimDecisionSchema=z.object({
   reviewNote:z.string().trim().min(20).max(1000),
 }).strict();
 export type CustomerReturnClaimDecision=z.infer<typeof customerReturnClaimDecisionSchema>;
+const receivedQty=z.string().regex(/^(?:0|[1-9]\d*)(?:\.\d{1,3})?$/)
+  .refine(x=>Number.isFinite(Number(x))&&Number(x)>=0,
+    "Physical receipt quantities must be nonnegative");
 export const customerReturnClaimLineSchema=z.object({
   orderLineId:id,productName:z.string(),variantName:z.string(),unit:z.string(),
   quantity:qty,reason:z.string(),
+  /** Staff-recorded physical intake; never proof of refund or resale. */
+  receivedQuantity:receivedQty.optional(),
+  /** Subset of the received quantity with finalized staff inspection. */
+  inspectedQuantity:receivedQty.optional(),
 }).strict();
 export const customerReturnClaimViewSchema=z.object({
   id:id,reference:z.string(),orderId:id,orderReference:z.string(),

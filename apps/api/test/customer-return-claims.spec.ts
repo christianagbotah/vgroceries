@@ -210,6 +210,9 @@ test("R3b accepted request links multiple actual receipts without doubling claim
   await service.decide("admin-commerce",claim.id,"link-accept","link-accept-req",{
     decision:"accept",reviewNote:"Accepted for separate verification of actual returned goods.",
   });
+  const initially=await service.detail("customer-a",claim.id);
+  assert.equal(initially.lines[0]?.receivedQuantity,"0");
+  assert.equal(initially.lines[0]?.inspectedQuantity,"0");
   const receive=(suffix:string,qty:string,claimId:string|null=claim.id)=>physical.receive(
     "admin-commerce","physical-link-"+suffix,"physical-link-req-"+suffix,{
       orderId,reason:"Customer physically brought back the recorded product",
@@ -220,9 +223,37 @@ test("R3b accepted request links multiple actual receipts without doubling claim
   const first=await receive("part-one","1");
   assert.equal(first.customerClaimId,claim.id);
   assert.equal(first.lines[0]?.quantity,"1");
+  const afterFirst=await service.detail("customer-a",claim.id);
+  assert.equal(afterFirst.lines[0]?.receivedQuantity,"1");
+  assert.equal(afterFirst.lines[0]?.inspectedQuantity,"0");
   assert.equal((await service.eligibility("customer-a",orderId)).lines[0]?.availableQuantity,"0.5");
   const second=await receive("part-two","0.5");
   assert.equal(second.customerClaimId,claim.id);
+  const afterSecond=await service.detail("customer-a",claim.id);
+  assert.equal(afterSecond.lines[0]?.receivedQuantity,"1.5");
+  assert.equal(afterSecond.lines[0]?.inspectedQuantity,"0");
+  const inspected=await physical.inspect("admin-commerce",first.id,
+    "physical-link-inspect-first","physical-link-inspect-first-req",{
+      summary:"Staff inspected only the first received part of the actual returned goods",
+      lines:[{itemId:first.lines[0]!.id,disposition:"quarantine",
+        note:"Goods held in quarantine pending a distinct custody operation"}],
+    });
+  assert.equal(inspected.status,"inspected");
+  const progressed=await service.detail("customer-a",claim.id);
+  assert.equal(progressed.lines[0]?.receivedQuantity,"1.5");
+  assert.equal(progressed.lines[0]?.inspectedQuantity,"1");
+  assert.ok(!JSON.stringify(progressed).includes("Staff inspected only"));
+  const customerToken=await token("customer-a@example.test");
+  const strangerToken=await token("customer-b@example.test");
+  const customerView=await http("GET","/account/return-claims/"+claim.id,customerToken);
+  assert.equal(customerView.status,200);
+  assert.equal(customerView.data.data.lines[0].inspectedQuantity,"1");
+  assert.equal(customerView.data.data.lines[0].receivedQuantity,"1.5");
+  assert.ok(!JSON.stringify(customerView.data).includes("Goods held in quarantine"));
+  const customerList=await http("GET","/account/return-claims?perPage=20",customerToken);
+  assert.equal(customerList.status,200);
+  assert.equal(customerList.data.data.items.find((x:any)=>x.id===claim.id)?.lines[0]?.receivedQuantity,"1.5");
+  assert.equal((await http("GET","/account/return-claims/"+claim.id,strangerToken)).status,404);
   await assert.rejects(()=>receive("over-approved","0.001"),
     (e:any)=>e?.getStatus?.()===409);
   await assert.rejects(()=>physical.receive("admin-commerce","wrong-claimed-line","wrong-line-req",{
@@ -234,6 +265,9 @@ test("R3b accepted request links multiple actual receipts without doubling claim
     data:{customerClaimId:null}}));
   const third=await receive("independent-remaining","0.5",null);
   assert.equal(third.customerClaimId,null);
+  const independent=await service.detail("customer-a",claim.id);
+  assert.equal(independent.lines[0]?.receivedQuantity,"1.5");
+  assert.equal(independent.lines[0]?.inspectedQuantity,"1");
   await assert.rejects(()=>receive("independent-over","0.001",null));
   assert.equal(await db.refund.count(),0);
   assert.equal(await db.stockReceipt.count(),0);

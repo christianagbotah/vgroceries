@@ -30,8 +30,22 @@ export class CustomerReturnClaimsService {
       include:{order:{select:{reference:true}},lines:{
         orderBy:{orderLineId:"asc"},
         include:{orderLine:{select:{productName:true,variantName:true,unit:true}}},
-      }}});
+      },physicalReceipts:{select:{status:true,items:{
+        select:{orderLineId:true,quantity:true},
+      }}}}});
     if(!r)throw new ApiProblem(404,"NOT_FOUND","Return request not found.");
+    // Only staff-recorded, claim-linked physical receipts count. These are
+    // separate from customer requests, payment, refunds and resale authority.
+    // No inspection notes, staff identities or stock-lot IDs leave this view.
+    const received=new Map<string,Prisma.Decimal>();
+    const inspected=new Map<string,Prisma.Decimal>();
+    for(const receipt of r.physicalReceipts){
+      for(const item of receipt.items){
+        received.set(item.orderLineId,(received.get(item.orderLineId)??dec("0")).plus(item.quantity));
+        if(receipt.status==="inspected")
+          inspected.set(item.orderLineId,(inspected.get(item.orderLineId)??dec("0")).plus(item.quantity));
+      }
+    }
     return customerReturnClaimViewSchema.parse({
       id:r.id,reference:r.reference,orderId:r.orderId,orderReference:r.order.reference,
       status:r.status,reason:r.reason,evidenceNote:r.evidenceNote,
@@ -41,6 +55,8 @@ export class CustomerReturnClaimsService {
         orderLineId:line.orderLineId,productName:line.orderLine.productName,
         variantName:line.orderLine.variantName,unit:line.orderLine.unit,
         quantity:line.quantity.toString(),reason:line.reason,
+        receivedQuantity:(received.get(line.orderLineId)??dec("0")).toString(),
+        inspectedQuantity:(inspected.get(line.orderLineId)??dec("0")).toString(),
       })),
     });
   }
