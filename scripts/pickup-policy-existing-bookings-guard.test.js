@@ -1,10 +1,8 @@
-/// <reference types="bun-types" />
 import {describe,expect,test} from "bun:test";
 import {readFileSync} from "node:fs";
 import {incompatiblePickupBookingCount} from "../apps/api/src/logistics/pickup-appointment.policy-protection";
-import type {PickupAppointmentPolicyInput} from "../packages/contracts/src/pickup-appointments";
 
-const policy = (updates:Partial<PickupAppointmentPolicyInput> = {}):PickupAppointmentPolicyInput=>({
+const policy = (updates = {})=>({
  active:true,serviceDays:[1,2,3,4,5,6,7],
  opensAt:"08:00",closesAt:"20:00",
  slotMinutes:30,capacity:2,minLeadMinutes:30,maxDaysAhead:7,...updates,
