@@ -103,7 +103,12 @@ export class DispatchQueryService {
    * from one consistent database snapshot without modifying any rows.
    */
   async listCodExceptions(query: CodExceptionQuery): Promise<CodExceptionInbox> {
-    const deliveredOnly = { deliveryJob: { is: { status: "delivered" } } } as Prisma.OrderWhereInput;
+    // The phase selector must match the same authoritative delivery facts
+    // used for each exception row. A job status alone is not proof of delivery.
+    const deliveredOnly = {
+      deliveryStatus: "delivered",
+      deliveryJob: { is: { status: "delivered", deliveredAt: { not: null } } },
+    } as Prisma.OrderWhereInput;
     // A rider's declaration is a self-attestation, NEVER received cash.
     // NOT declared also includes orders without any delivery job yet.
     const hasRiderDeclaration = {
@@ -117,6 +122,9 @@ export class DispatchQueryService {
     const where: Prisma.OrderWhereInput = {
       fulfilment: "delivery", paymentMethod: "cash_on_delivery",
       cancelledAt: null, stockConsumedAt: { not: null },
+      // A stock timestamp without a committed dispatch handover is not
+      // sufficient evidence to place an order in the COD custody report.
+      fulfilmentRun: { is: { handoverKind: "dispatch", handedOverAt: { not: null } } },
       fulfilmentStatus: { in: ["dispatched", "delivered"] },
       // AND, not duplicate NOT keys: a combined delivery + no-declaration
       // filter must preserve BOTH predicates, including unassigned jobs.
