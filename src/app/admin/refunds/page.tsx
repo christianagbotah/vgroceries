@@ -19,15 +19,38 @@ export default function AdminRefundsPage() {
   const { data, loading, error, reload } = useApiData(() => apiOps.refunds(), []);
   const [busy, setBusy] = useState<string | null>(null);
 
-  const act = async (id: string, action: "approve" | "execute" | "retry", note: string) => {
+  const act = async (id: string, action: "approve" | "execute" | "retry") => {
+    if (busy !== null || !can("refunds.approve")) return;
     setBusy(id + action);
     try {
-      await apiOps.refundAction(id, action, user.id);
-      await reload();
-      toast({ title: note });
+      // The legacy command returns only {done:boolean}, never a verified provider
+      // payment state. Do not translate HTTP success into "money transferred".
+      const result = await apiOps.refundAction(id, action, user.id);
+      if (result.done !== true) {
+        toast({
+          title: "Refund action not confirmed",
+          description: "The server has not confirmed the command. Check the refund and provider transfer history before attempting it again.",
+          variant: "destructive",
+        });
+        return;
+      }
+      toast({
+        title: action === "approve" ? "Refund approval recorded" : "Refund command received",
+        description: action === "approve"
+          ? "Approval is not proof of a payout. Check the refund state before execution."
+          : "Submission is not confirmation of a provider transfer. Check independently reconciled status before any retry.",
+      });
     } catch (e) {
-      toast({ title: "Action failed", description: e instanceof ApiError ? e.message : undefined, variant: "destructive" });
+      toast({
+        title: "Refund outcome requires verification",
+        description: (e instanceof ApiError ? e.message + " " : "") +
+          "Do not retry until the provider transfer state has been checked.",
+        variant: "destructive",
+      });
     } finally {
+      // Refresh even after an uncertain/failed response. The ledger, rather
+      // than a client toast, remains the source of refund-state evidence.
+      await reload();
       setBusy(null);
     }
   };
@@ -98,17 +121,17 @@ export default function AdminRefundsPage() {
                     <td className="p-3 text-right">
                       <span className="inline-flex flex-wrap justify-end gap-1.5">
                         {r.status === "awaiting_approval" && can("refunds.approve") ? (
-                          <Button size="sm" className="h-9" disabled={busy !== null} onClick={() => act(r.id, "approve", "Refund approved — ready to execute")}>
+                          <Button size="sm" className="h-9" disabled={busy !== null} onClick={() => act(r.id, "approve")}>
                             <Check className="size-3.5" aria-hidden /> Approve
                           </Button>
                         ) : null}
                         {r.status === "processing" && can("refunds.approve") ? (
-                          <Button size="sm" className="h-9" disabled={busy !== null} onClick={() => act(r.id, "execute", "Refund executed via provider")}>
+                          <Button size="sm" className="h-9" disabled={busy !== null} onClick={() => act(r.id, "execute")}>
                             <Play className="size-3.5" aria-hidden /> Execute
                           </Button>
                         ) : null}
                         {r.status === "failed" && can("refunds.approve") ? (
-                          <Button size="sm" variant="outline" className="h-9" disabled={busy !== null} onClick={() => act(r.id, "retry", "Retrying the refund")}>
+                          <Button size="sm" variant="outline" className="h-9" disabled={busy !== null} onClick={() => act(r.id, "retry")}>
                             <RotateCcw className="size-3.5" aria-hidden /> Retry
                           </Button>
                         ) : null}
@@ -126,9 +149,9 @@ export default function AdminRefundsPage() {
       )}
 
       <p className="rounded-xl border border-dashed p-3 text-sm text-muted-foreground">
-        Demo behaviour: the first provider execution attempt fails with a retryable timeout so the
-        retry path can be exercised. A payment-provider refund is distinct from any unrelated payout;
-        manual refund recording stays clearly identified and permission-controlled.
+        Refund approval, execution request and HTTP success do not prove that funds reached a customer.
+        Confirm the independently reconciled provider transfer state before marking a refund paid or
+        retrying an uncertain attempt. Manual recording is not a provider transfer.
       </p>
     </div>
   );
