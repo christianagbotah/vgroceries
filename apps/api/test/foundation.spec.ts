@@ -1047,6 +1047,7 @@ test("foundation OpenAPI describes only implemented routes with cookie/native se
     "/api/v1/rider/jobs",
     "/api/v1/rider/jobs/{jobId}",
     "/api/v1/rider/jobs/{jobId}/accept",
+    "/api/v1/rider/jobs/{jobId}/cod-cash-declaration",
     "/api/v1/rider/jobs/{jobId}/deliver",
     "/api/v1/rider/jobs/{jobId}/fail",
     "/api/v1/rider/jobs/{jobId}/notes",

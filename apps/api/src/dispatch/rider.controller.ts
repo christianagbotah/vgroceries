@@ -2,6 +2,8 @@ import { Body, Controller, Get, HttpCode, Param, Post, Put, Query, Req, UseGuard
 import { ApiExcludeController } from "@nestjs/swagger";
 import {
   replayKeySchema,
+  codCashDeclarationRequestSchema,
+  type CodCashDeclarationRequest,
   riderAcceptRequestSchema,
   riderAvailabilityRequestSchema,
   riderDeliverRequestSchema,
@@ -24,13 +26,14 @@ import { AccessGuard } from "../identity/access.guard";
 import type { AuthRequest } from "../identity/identity.service";
 import { RiderCommandService, type RiderCommandContext } from "./rider-command.service";
 import { DispatchQueryService } from "./dispatch-query.service";
+import { CodCashDeclarationService } from "./cod-cash-declaration.service";
 
 type Issue={path:PropertyKey[];message:string}; type Parser<T>={safeParse(input:unknown):{success:true;data:T}|{success:false;error:{issues:Issue[]}}};
 @ApiExcludeController()
 @Controller("rider")
 @UseGuards(AccessGuard)
 export class RiderController {
-  constructor(private readonly commands:RiderCommandService,private readonly queries:DispatchQueryService){}
+  constructor(private readonly commands:RiderCommandService,private readonly queries:DispatchQueryService,private readonly cod:CodCashDeclarationService){}
   private rider(req:AuthRequest){if(req.actor.role!=="rider")throw new ApiProblem(403,"FORBIDDEN","Rider access required.");}
   private parse<T>(schema:Parser<T>,input:unknown,message:string):T{const parsed=schema.safeParse(input);if(!parsed.success)throw new ApiProblem(400,"VALIDATION_FAILED",message,parsed.error.issues.map(i=>({path:i.path.map(String).join("."),message:i.message})));return parsed.data;}
   private context(req:AuthRequest):RiderCommandContext{return{requestId:req.requestId,idempotencyKey:this.parse(replayKeySchema,req.get("idempotency-key"),"A valid Idempotency-Key header is required.")};}
@@ -42,6 +45,13 @@ export class RiderController {
   @Post("jobs/:jobId/pickup") @HttpCode(200) async pickup(@Req()req:AuthRequest,@Param("jobId")jobId:string,@Body()body:unknown){this.rider(req);const input=this.parse<RiderPickupRequest>(riderPickupRequestSchema,body,"Rider pickup body is invalid.");return{ok:true,data:await this.commands.pickup(req.actor.id,jobId,input,this.context(req))};}
   @Post("jobs/:jobId/out-for-delivery") @HttpCode(200) async out(@Req()req:AuthRequest,@Param("jobId")jobId:string,@Body()body:unknown){this.rider(req);const input=this.parse<RiderOutRequest>(riderOutRequestSchema,body,"Rider out-for-delivery body is invalid.");return{ok:true,data:await this.commands.outForDelivery(req.actor.id,jobId,input,this.context(req))};}
   @Post("jobs/:jobId/deliver") @HttpCode(200) async deliver(@Req()req:AuthRequest,@Param("jobId")jobId:string,@Body()body:unknown){this.rider(req);const input=this.parse<RiderDeliverRequest>(riderDeliverRequestSchema,body,"Rider delivery body is invalid.");return{ok:true,data:await this.commands.deliver(req.actor.id,jobId,input,this.context(req))};}
+  @Post("jobs/:jobId/cod-cash-declaration") @HttpCode(200)
+  async declareCod(@Req() req:AuthRequest,@Param("jobId") jobId:string,@Body() body:unknown){
+    this.rider(req);
+    const input=this.parse<CodCashDeclarationRequest>(codCashDeclarationRequestSchema,body,"Cash declaration input is invalid.");
+    const key=this.parse(replayKeySchema,req.get("idempotency-key"),"A valid Idempotency-Key header is required.");
+    return {ok:true,data:await this.cod.declare(req.actor.id,jobId,key,req.requestId,input)};
+  }
   @Post("jobs/:jobId/fail") @HttpCode(200) async fail(@Req()req:AuthRequest,@Param("jobId")jobId:string,@Body()body:unknown){this.rider(req);const input=this.parse<RiderFailRequest>(riderFailRequestSchema,body,"Rider failure body is invalid.");return{ok:true,data:await this.commands.fail(req.actor.id,jobId,input,this.context(req))};}
   @Post("jobs/:jobId/notes") @HttpCode(200) async note(@Req()req:AuthRequest,@Param("jobId")jobId:string,@Body()body:unknown){this.rider(req);const input=this.parse<RiderNoteRequest>(riderNoteRequestSchema,body,"Rider note body is invalid.");return{ok:true,data:await this.commands.note(req.actor.id,jobId,input,this.context(req))};}
 }

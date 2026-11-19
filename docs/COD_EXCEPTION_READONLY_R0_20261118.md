@@ -20,10 +20,12 @@ separate recording of delivery, COD cash collection and rider remittance.
   `payment_state_requires_review`. A delivery proof does **not** count as cash;
   neither payment status `succeeded` nor a delivered job proves a cash collection
   event occurred.
-- Every item unambiguously says `collectionEvidence=not_recorded_in_variety`
-  and `remittanceEvidence=not_recorded_in_variety`, because the dedicated
-  collection/remittance ledger has **not yet been built**. Values are **gross
-  order face values**, never rider debt or a settled cash balance.
+- In D1, the report distinguishes `collectionEvidence=rider_declared_unverified`
+  from `not_recorded_in_variety`. A rider self-declaration is **not** a verified
+  collection or an accepted deposit. Every item still reports
+  `remittanceEvidence=not_recorded_in_variety`; verification and the
+  separate remittance authority have **not yet been built**. Values are
+  **gross order face values**, never rider debt or a settled cash balance.
 - No database migration, mutation, payment status change, stock or rider-job
   update, customer notification or feature flag activation.
 

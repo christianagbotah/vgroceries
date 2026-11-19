@@ -33,6 +33,7 @@ model User {
   customerReturnClaims CustomerReturnClaim[]
   notifications Notification[]
   riderProfile RiderProfile?
+  codDeclarations CodCashDeclaration[] @relation("CodDeclarationActor")
   pickupAttendanceRecords PickupAttendanceRecord[]
   posCustomerSales PosCashSale[] @relation("PosSaleRegisteredCustomer")
   // Existing UAT database relationships; no database change.
@@ -511,6 +512,7 @@ model Order {
   refunds Refund[]
   fulfilmentRun FulfilmentRun?
   deliveryJob DeliveryJob?
+  codCashDeclaration CodCashDeclaration?
   deliveryEvents DeliveryEvent[]
   shipments Shipment[]
   collectionReceipts ShipmentCollectionReceipt[]
@@ -1036,6 +1038,7 @@ model RiderProfile {
   createdAt DateTime @default(now()) @db.Timestamptz(3)
   updatedAt DateTime @updatedAt @default(now()) @db.Timestamptz(3)
   jobs DeliveryJob[]
+  codCashDeclarations CodCashDeclaration[]
   @@index([availabilityState, updatedAt])
 }
 
@@ -1067,8 +1070,30 @@ model DeliveryJob {
   updatedAt DateTime @updatedAt @default(now()) @db.Timestamptz(3)
   events DeliveryEvent[]
   proof DeliveryProof?
+  codCashDeclaration CodCashDeclaration?
   @@index([status, updatedAt])
   @@index([riderProfileId, status, updatedAt])
+}
+
+/// Rider self-attestation of physical-cash possession only, not bank/merchant
+/// settlement, posted revenue, verified rider liability or remittance.
+model CodCashDeclaration {
+  id String @id @default(uuid())
+  deliveryJobId String @unique
+  deliveryJob DeliveryJob @relation(fields: [deliveryJobId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  orderId String @unique
+  order Order @relation(fields: [orderId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  riderProfileId String
+  riderProfile RiderProfile @relation(fields: [riderProfileId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  declaredByUserId String
+  declaredBy User @relation("CodDeclarationActor", fields: [declaredByUserId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  amountMinor Int
+  cashCountConfirmed Boolean
+  riderPossessionConfirmed Boolean
+  note String
+  requestId String
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  @@index([riderProfileId, createdAt])
 }
 
 model DeliveryEvent {

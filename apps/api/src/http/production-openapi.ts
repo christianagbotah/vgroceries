@@ -16,6 +16,8 @@ import {
   dispatchProviderTransitionRequestSchema,
   dispatchQueueResponseSchema,
   codExceptionInboxSchema,
+  codCashDeclarationRequestSchema,
+  codCashDeclarationViewSchema,
   dispatchReassignRequestSchema,
   dispatchRescheduleRequestSchema,
   dispatchReturnRequestSchema,
@@ -320,6 +322,8 @@ export function productionOpenApi(app: INestApplication): OpenAPIObject {
     DispatchProviderTransitionRequest: providerTransitionOpenApiSchema(),
     DispatchQueueResponse: json(dispatchQueueResponseSchema),
     CodExceptionInbox: json(codExceptionInboxSchema),
+    CodCashDeclarationRequest: json(codCashDeclarationRequestSchema),
+    CodCashDeclarationView: json(codCashDeclarationViewSchema),
     DispatchJobDetailResponse: json(dispatchJobDetailResponseSchema),
     DispatchRiderFleetResponse: json(dispatchRiderFleetResponseSchema),
     DispatchRiderDetailResponse: json(dispatchRiderDetailResponseSchema),
@@ -473,7 +477,7 @@ export function productionOpenApi(app: INestApplication): OpenAPIObject {
   for (const name of [
     "FulfilmentQueueResponse", "FulfilmentDetailResponse", "FulfilmentActionResponse",
     "DispatchQueueResponse",
-    "CodExceptionInbox", "DispatchJobDetailResponse", "DispatchRiderFleetResponse", "DispatchRiderDetailResponse", "DispatchActionResponse",
+    "CodExceptionInbox", "CodCashDeclarationView", "DispatchJobDetailResponse", "DispatchRiderFleetResponse", "DispatchRiderDetailResponse", "DispatchActionResponse",
     "RiderAvailabilityResponse", "RiderSelfResponse", "RiderJobResponse", "RiderJobsResponse", "RiderActionResponse",
     "NotificationListResponse", "NotificationReadResponse", "NotificationReadAllResponse",
     "CheckoutPickupOptionsResponse",
@@ -1143,6 +1147,12 @@ export function productionOpenApi(app: INestApplication): OpenAPIObject {
   doc.paths["/api/v1/rider/jobs/{jobId}/pickup"] = { post: authorityMutation("Rider-only physical pickup acknowledgement. Stock was already consumed at fulfilment handover and is not deducted here.", "RiderPickupRequest", "RiderActionResponseEnvelope", [jobId]) };
   doc.paths["/api/v1/rider/jobs/{jobId}/out-for-delivery"] = { post: authorityMutation("Rider-only transition to out for delivery for the authenticated rider's job.", "RiderOutRequest", "RiderActionResponseEnvelope", [jobId]) };
   doc.paths["/api/v1/rider/jobs/{jobId}/deliver"] = { post: authorityMutation("Rider-only delivery completion with server-allowed proof. COD payment state is not settled by this delivery action.", "RiderDeliverRequest", "RiderActionResponseEnvelope", [jobId]) };
+  doc.paths["/api/v1/rider/jobs/{jobId}/cod-cash-declaration"] = {
+    post: authorityMutation(
+      "Feature-gated rider-only immutable self-declaration of exact physical COD cash counted and held after completed verified delivery. NOT verified payment capture, rider liability, supervisor reconciliation, remittance, refund, or order payment-state change.",
+      "CodCashDeclarationRequest", "CodCashDeclarationViewEnvelope", [jobId],
+    ),
+  };
   doc.paths["/api/v1/rider/jobs/{jobId}/fail"] = { post: authorityMutation("Rider-only delivery failure with a bounded reason. Failure neither restores stock nor changes payment truth.", "RiderFailRequest", "RiderActionResponseEnvelope", [jobId]) };
   doc.paths["/api/v1/rider/jobs/{jobId}/notes"] = { post: authorityMutation("Rider-only idempotent operational note for the authenticated rider's job.", "RiderNoteRequest", "RiderActionResponseEnvelope", [jobId]) };
 
