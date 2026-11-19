@@ -30,6 +30,9 @@ const jobInclude = {
   riderProfile: { include: { user: true } },
   events: { orderBy: [{ createdAt: "asc" as const }, { id: "asc" as const }] },
   proof: true,
+  // One immutable self-declaration per completed COD delivery. No private
+  // cash note, declaration actor, bank details or supervisor authority here.
+  codCashDeclaration: { select: { amountMinor: true, createdAt: true } },
   order: {
     include: {
       zone: true,
@@ -257,6 +260,11 @@ export class DispatchQueryService {
       customerName: job.order.customerName, customerPhone: job.order.customerPhone, address, instructions: job.order.note ?? undefined,
       items: job.order.lines.map((line) => ({ productName: line.productName, variantName: line.variantName, unit: line.unit, quantity: line.quantity.toString() })),
       paymentMethod: job.order.paymentMethod, paymentStatus: job.order.paymentStatus, codDueMinor: this.codDue(job.order),
+      codCashDeclaration: job.codCashDeclaration ? {
+        status: "rider_declared_unverified" as const,
+        amountMinor: job.codCashDeclaration.amountMinor,
+        declaredAt: job.codCashDeclaration.createdAt.toISOString(),
+      } : undefined,
       proof: this.proof(job.proof), failureReason: job.failureReasonCode ?? undefined, rescheduledFor: job.rescheduledFor?.toISOString(),
       allowedProofMethods: this.policy.allowedProofMethods(), allowedActions: decision.allowedActions, blockers: decision.blockers,
       events: job.events.map((event) => this.event(event)),

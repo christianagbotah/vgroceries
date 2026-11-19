@@ -186,6 +186,13 @@ export const riderJobResponseSchema = z.object({
   paymentMethod: z.string().min(1),
   paymentStatus: z.string().min(1),
   codDueMinor: z.number().int().nonnegative().optional(),
+  // D1: immutable rider cash statement. This is NOT supervisor-verified cash,
+  // remittance, payment success or a rider debt / till posting.
+  codCashDeclaration: z.object({
+    status: z.literal("rider_declared_unverified"),
+    amountMinor: z.number().int().min(1).max(100_000_000),
+    declaredAt: isoTimestampSchema,
+  }).strict().optional(),
   proof: dispatchProofSchema.optional(),
   failureReason: dispatchFailureReasonSchema.optional(),
   rescheduledFor: isoTimestampSchema.optional(),

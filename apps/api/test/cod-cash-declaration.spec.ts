@@ -94,6 +94,14 @@ test("only the owning rider can declare exact physical COD cash after proven del
   const admin=await token("admin-commerce@example.test");
   const rider=await token(delivered.rider.u.email!);
   const stranger=await token(other.u.email!);
+  // Before any physical-cash declaration, no unverified cash record exists.
+  const initialHistory=await fetch(base+"/api/v1/rider/jobs?scope=history",{
+    headers:{authorization:`Bearer ${rider}`},
+  });
+  assert.equal(initialHistory.status,200);
+  const initialJob=(await initialHistory.json()).data.jobs.find((row:{jobId:string})=>row.jobId===delivered.job.id);
+  assert.ok(initialJob);
+  assert.equal(initialJob.codCashDeclaration,undefined);
   assert.equal((await post(delivered.job.id,undefined,"cod-no-auth-key-01")).status,401);
   assert.equal((await post(delivered.job.id,admin,"cod-admin-key-001")).status,403);
   assert.equal((await post(delivered.job.id,stranger,"cod-foreign-key01")).status,404);
@@ -128,6 +136,22 @@ test("only the owning rider can declare exact physical COD cash after proven del
   assert.equal(report.items.find((x:{orderId:string})=>x.orderId===order.id).collectionEvidence,"rider_declared_unverified");
   assert.equal(report.items.find((x:{orderId:string})=>x.orderId===order.id).remittanceEvidence,"not_recorded_in_variety");
   assert.equal(JSON.stringify(report).includes("Sensitive Customer"),false);
+  // The same REAL rider sees the persisted unverified declaration after
+  // signing in again; no note, actor ID or remittance status is exposed.
+  const history=await fetch(base+"/api/v1/rider/jobs?scope=history",{
+    headers:{authorization:`Bearer ${rider}`},
+  });
+  assert.equal(history.status,200);
+  const historyBody=(await history.json()).data;
+  const historyJob=historyBody.jobs.find((row:{jobId:string})=>row.jobId===delivered.job.id);
+  assert.ok(historyJob);
+  assert.equal(historyJob.codCashDeclaration.status,"rider_declared_unverified");
+  assert.equal(historyJob.codCashDeclaration.amountMinor,2100);
+  assert.match(historyJob.codCashDeclaration.declaredAt,/^\d{4}-\d{2}-\d{2}T/);
+  assert.equal(JSON.stringify(historyJob.codCashDeclaration).includes(evidence.note),false);
+  assert.equal(JSON.stringify(historyJob.codCashDeclaration).includes(delivered.rider.u.id),false);
+  assert.equal(historyJob.paymentStatus,"unpaid");
+  assert.equal(historyJob.codDueMinor,2100);
 });
 
 test("COD declaration blocked for incomplete or electronically-paid deliveries and cannot be tampered through SQL",async()=>{

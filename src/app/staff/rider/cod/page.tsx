@@ -18,10 +18,11 @@ import {
 } from "@/features/rider/verified-cod-client";
 
 type KeyState={jobId:string;amountMinor:number;note:string;key:string};
-const eligible=(job:ProductionRiderJobResponse)=>
+const codDelivered=(job:ProductionRiderJobResponse)=>
   job.deliveryStatus==="delivered" && Boolean(job.proof) && job.paymentMethod==="cash_on_delivery" &&
   job.paymentStatus==="unpaid" && Number.isSafeInteger(job.codDueMinor) &&
   (job.codDueMinor??0)>0;
+const eligible=(job:ProductionRiderJobResponse)=> codDelivered(job) && !job.codCashDeclaration;
 
 /** Enabled-only real rider workspace. No legacy riderId, demo or mock adapter. */
 export default function VerifiedRiderCodPage(){
@@ -54,7 +55,7 @@ export default function VerifiedRiderCodPage(){
           router.replace("/staff/rider/login");return;
         }
         const result=await getVerifiedRiderCodHistory(controller.signal);
-        if(active){setRiderName(session.actor.name);setJobs(result.jobs.filter(eligible));}
+        if(active){setRiderName(session.actor.name);setJobs(result.jobs.filter(codDelivered));}
       }catch(cause){
         if(active && !controller.signal.aborted)
           setError(cause instanceof Error ? cause.message : "Could not verify the rider cash records.");
@@ -127,20 +128,22 @@ export default function VerifiedRiderCodPage(){
           <p>Reference: {saved.id} · {formatMoney(saved.amountMinor)} held by rider. Not remitted or marked paid.</p></div>
       </section>}
       {!loading && riderName && <div className="flex items-center justify-between gap-2">
-        <p className="text-sm text-muted-foreground">{jobs.length} completed COD job{jobs.length===1?"":"s"} eligible for review</p>
+        <p className="text-sm text-muted-foreground">{jobs.length} completed COD job{jobs.length===1?"":"s"} · recorded rider statements are shown but cannot be submitted twice</p>
         <Button type="button" variant="outline" size="sm" className="min-h-11 gap-2" onClick={()=>setRevision(n=>n+1)} disabled={busy}>
           <RefreshCcw className="size-4" aria-hidden /> Refresh
         </Button>
       </div>}
-      {!loading && riderName && jobs.length===0 && <p className="rounded-xl border p-6 text-sm text-muted-foreground">No eligible completed COD deliveries were returned by the real rider API.</p>}
+      {!loading && riderName && jobs.length===0 && <p className="rounded-xl border p-6 text-sm text-muted-foreground">No completed unpaid COD deliveries were returned by the real rider API.</p>}
       {!loading && riderName && jobs.length>0 && <div className="space-y-3">
         {jobs.map(job=><div key={job.jobId} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-card p-4">
           <div><p className="font-semibold">{job.orderReference}</p>
             <p className="mt-1 text-sm text-muted-foreground">Exact server-owned COD total: <strong>{formatMoney(job.codDueMinor!)}</strong></p>
-            <p className="mt-1 text-xs text-muted-foreground">Completed delivery · still unverified for cash reconciliation</p>
+            {job.codCashDeclaration ? <p className="mt-1 text-xs font-medium text-amber-700 dark:text-amber-300">
+              Rider cash declared on {new Date(job.codCashDeclaration.declaredAt).toLocaleString("en-GH")} · supervisor unverified · not remitted
+            </p> : <p className="mt-1 text-xs text-muted-foreground">Completed delivery · cash declaration not yet recorded</p>}
           </div>
-          <Button type="button" variant="outline" className="min-h-11 gap-2" disabled={busy || completed.includes(job.jobId)} onClick={()=>choose(job)}>
-            <Banknote className="size-4" aria-hidden />{completed.includes(job.jobId)?"Declared in this session":"Declare held cash"}
+          <Button type="button" variant="outline" className="min-h-11 gap-2" disabled={busy || Boolean(job.codCashDeclaration) || completed.includes(job.jobId)} onClick={()=>choose(job)}>
+            <Banknote className="size-4" aria-hidden />{job.codCashDeclaration?"Already declared · unverified":completed.includes(job.jobId)?"Declared in this session":"Declare held cash"}
           </Button>
         </div>)}
       </div>}
