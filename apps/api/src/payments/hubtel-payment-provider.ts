@@ -81,15 +81,16 @@ export class HubtelPaymentProvider implements PaymentProviderAdapter {
 
   capabilities(): PaymentProviderCapabilities {
     return {
-      // Request Money is enabled first for Ghana mobile-money checkout. Card
-      // activation remains closed until its exact merchant flow/refund parity is verified.
-      methods: ["mobile_money"],
+      // Hosted checkout presents rails on Hubtel; Direct Request Money is a
+      // separate, mutually-exclusive operation, not a fallback payment prompt.
+      methods: this.config.onlineCheckout ? ["hosted_checkout"] : ["mobile_money"],
       trustMode: "lookup_required",
       safeInitiationRetry: false,
     };
   }
 
   async initiate(input: PaymentProviderInitiationInput): Promise<PaymentProviderInitiationResult> {
+    if (input.method === "hosted_checkout") return this.initiateHosted(input);
     if (input.method !== "mobile_money") {
       return {
         kind: "rejected",
@@ -97,6 +98,10 @@ export class HubtelPaymentProvider implements PaymentProviderAdapter {
         customerSafeMessage: "This Hubtel payment method is not enabled yet.",
       };
     }
+    if (!this.config.requestMoneyUrl || !this.config.statusUrl) return {
+      kind: "rejected", failureCode: "HUBTEL_DIRECT_NOT_CONFIGURED",
+      customerSafeMessage: "Direct Request Money is not configured.",
+    };
     if (!/^VG-PAY-[0-9A-F]{1,25}$/.test(input.merchantReference) || input.merchantReference.length > 32) {
       return {
         kind: "rejected",
@@ -168,6 +173,68 @@ export class HubtelPaymentProvider implements PaymentProviderAdapter {
     };
   }
 
+  private async initiateHosted(input: PaymentProviderInitiationInput): Promise<PaymentProviderInitiationResult> {
+    const hosted = this.config.onlineCheckout;
+    if (!hosted) return {
+      kind: "rejected", failureCode: "HUBTEL_HOSTED_NOT_CONFIGURED",
+      customerSafeMessage: "Hubtel secure checkout is not configured.",
+    };
+    if (!Number.isSafeInteger(input.amountMinor) || input.amountMinor <= 0 ||
+        input.currency !== "GHS" ||
+        !/^VG-PAY-[0-9A-F]{1,25}$/.test(input.merchantReference) ||
+        input.merchantReference.length > 32) return {
+      kind: "rejected", failureCode: "HUBTEL_HOSTED_INVALID_AMOUNT_OR_REFERENCE",
+      customerSafeMessage: "The checkout amount or reference is invalid.",
+    };
+    const description = `Grocery order ${input.orderReference.replace(/[^A-Za-z0-9 -]/g, " ").slice(0, 56)}`.trim();
+    const response = await this.fetcher(hosted.initiateUrl, {
+      method: "POST",
+      headers: {
+        authorization: basicAuth(this.config),
+        accept: "application/json",
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        totalAmount: Number((input.amountMinor / 100).toFixed(2)),
+        description,
+        merchantAccountNumber: hosted.merchantAccountNumber,
+        clientReference: input.merchantReference,
+        callbackUrl: this.config.callbackUrl,
+        returnUrl: this.config.returnUrl,
+        cancellationUrl: this.config.cancellationUrl,
+        ...(input.payerName ? { payeeName: input.payerName } : {}),
+        ...(input.payerPhone ? { payeeMobileNumber: input.payerPhone.replace(/^\+/, "") } : {}),
+        ...(input.payerEmail ? { payeeEmail: input.payerEmail } : {}),
+      }),
+      signal: input.signal,
+      redirect: "error",
+    });
+    let root: JsonRecord | null = null;
+    try { root = record(await response.json()); } catch { /* non-authoritative response */ }
+    const data = record(root?.data ?? root?.Data);
+    // HTTP 200 is insufficient. Unrecognized response, timeout or 0005
+    // leaves the attempt uncertain and must never authorize another charge.
+    if (!response.ok || text(root, "responseCode", "ResponseCode") !== "0000" ||
+        text(root, "status", "Status")?.toLowerCase() !== "success" || !data)
+      throw new Error("Hubtel Online Checkout initiation could not be confirmed.");
+    const reference = text(data, "clientReference", "ClientReference");
+    const checkoutId = text(data, "checkoutId", "CheckoutId");
+    const checkoutUrl = text(data, "checkoutUrl", "CheckoutUrl");
+    if (reference !== input.merchantReference || !checkoutId || !checkoutUrl)
+      throw new Error("Hubtel Online Checkout response identity is incomplete or mismatched.");
+    let uri: URL;
+    try { uri = new URL(checkoutUrl); }
+    catch { throw new Error("Hubtel Online Checkout returned an invalid payment URL."); }
+    const sandbox = new URL(hosted.initiateUrl).hostname === "code.hubtel.com";
+    const allowed = sandbox ? new Set(["code.hubtel.com", "pay.hubtel.com"]) : new Set(["pay.hubtel.com"]);
+    if (uri.protocol !== "https:" || !allowed.has(uri.hostname) ||
+        uri.username || uri.password || uri.port || uri.hash)
+      throw new Error("Hubtel Online Checkout returned an untrusted payment URL.");
+    // checkoutId is an initiation-session ID, NOT the later transactionId.
+    // Keep the merchantReference as the durable server-owned correlation.
+    return { kind: "accepted", action: { kind: "redirect", url: uri.toString() } };
+  }
+
   async verifyEvent(input: PaymentProviderEventInput): Promise<PaymentProviderEventVerification> {
     let root: JsonRecord | null = null;
     try { root = record(JSON.parse(input.rawBody.toString("utf8"))); } catch { /* invalid JSON */ }
@@ -188,6 +255,16 @@ export class HubtelPaymentProvider implements PaymentProviderAdapter {
   }
 
   async lookup(input: PaymentProviderLookupInput): Promise<PaymentProviderObservation> {
+    if (this.config.onlineCheckout) {
+      const hosted = this.config.onlineCheckout;
+      const url = endpoint(hosted.statusUrl, {
+        merchantAccountNumber: hosted.merchantAccountNumber,
+        reference: input.merchantReference,
+        clientReference: input.merchantReference,
+      });
+      return this.lookupCollectionStatus(url, input);
+    }
+    if (!this.config.statusUrl) throw new Error("Hubtel Direct status is not configured.");
     const url = endpoint(this.config.statusUrl, {
       reference: input.merchantReference,
       clientReference: input.merchantReference,
@@ -237,6 +314,62 @@ export class HubtelPaymentProvider implements PaymentProviderAdapter {
       ...(providerReference ? { providerReference } : {}),
       state: state(data.status ?? data.Status),
       ...(amountMinor !== undefined ? { amountMinor, currency: "GHS" as const } : {}),
+      ...(providerTimestamp ? { providerTimestamp } : {}),
+    };
+  }
+
+  private async lookupCollectionStatus(
+    url: string, input: PaymentProviderLookupInput,
+  ): Promise<PaymentProviderObservation> {
+    const response = await this.fetcher(url, {
+      method: "GET",
+      headers: { authorization: basicAuth(this.config), accept: "application/json" },
+      signal: input.signal,
+      redirect: "error",
+    });
+    let root: JsonRecord | null = null;
+    try { root = record(await response.json()); } catch { /* non-authoritative status */ }
+    const data = record(root?.data ?? root?.Data);
+    if (!response.ok || text(root, "responseCode", "ResponseCode") !== "0000" || !data)
+      throw new Error("Hubtel collection status could not be verified.");
+
+    const merchantReference = text(data, "clientReference", "ClientReference", "client_reference");
+    if (!merchantReference || merchantReference !== input.merchantReference)
+      throw new Error("Hubtel collection status merchant reference could not be verified.");
+    // A Ghana collection may omit currencyCode or explicitly return null,
+    // but an explicit foreign/contradictory code is non-authoritative.
+    for (const field of ["currencyCode", "CurrencyCode", "currency", "Currency"] as const) {
+      const code = data[field];
+      if (code !== undefined && code !== null &&
+          (typeof code !== "string" || code.trim().toUpperCase() !== "GHS"))
+        throw new Error("Hubtel collection status currency could not be verified.");
+    }
+    const amountMinor = moneyMinor(data.amount ?? data.Amount);
+    const observedState = state(data.status ?? data.Status);
+    const transactionId = text(data, "transactionId", "TransactionId");
+    // Checkout session ID is intentionally NOT recorded as providerRef.
+    // Once a status supplies a transaction ID, future queries must echo it.
+    if (input.providerReference && transactionId !== input.providerReference)
+      throw new Error("Hubtel collection status transaction reference could not be verified.");
+    // Any terminal result, including a claimed Failed/Expired outcome, might
+    // otherwise make an uncertain attempt retryable. Do not accept a terminal
+    // classification without independently echoed money and transaction ID.
+    if (["succeeded", "failed", "expired"].includes(observedState) &&
+        (amountMinor === undefined || !transactionId))
+      throw new Error("Hubtel terminal status lacks independently verified money and transaction identity.");
+    const channelRaw = text(data, "paymentMethod", "PaymentMethod");
+    const settledChannel = channelRaw?.toLowerCase().replace(/[^a-z0-9_]/g, "_").slice(0, 48);
+    const providerTimestamp = timestamp(data);
+    return {
+      providerId: this.id,
+      merchantReference,
+      ...(transactionId ? {
+        providerReference: transactionId,
+        providerEventId: `hubtel-txn:${transactionId}`,
+      } : {}),
+      state: observedState,
+      ...(amountMinor !== undefined ? { amountMinor, currency: "GHS" as const } : {}),
+      ...(settledChannel ? { settledChannel } : {}),
       ...(providerTimestamp ? { providerTimestamp } : {}),
     };
   }
