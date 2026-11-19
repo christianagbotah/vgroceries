@@ -9,7 +9,9 @@ on:
 
 jobs:
   verify:
-    runs-on: ubuntu-latest
+    # Pin the runner: Playwright 1.56 supports Ubuntu 24.04, while the
+    # floating ubuntu-latest image has moved to unsupported Ubuntu 26.04.
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
 
