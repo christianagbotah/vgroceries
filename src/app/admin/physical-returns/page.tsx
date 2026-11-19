@@ -417,7 +417,7 @@ function PhysicalReturnsWorkspace(){
       </div>:null}
       {listLoading?<p className="rounded-lg border p-4 text-sm text-muted-foreground" role="status">Loading verified physical receipts…</p>:null}
       {!listLoading&&!listError&&list&&list.items.length===0?<p className="rounded-lg border p-4 text-sm text-muted-foreground">
-        {list.total===0?"No verified physical receipts have been recorded in this environment.":"No physical receipts on this page. Use Previous page."}
+        {list.total===0?(receiptOrderFilter?"No verified physical receipts match this exact order ID.":"No verified physical receipts have been recorded in this environment."):"No physical receipts on this page. Use Previous page."}
       </p>:null}
       {!listLoading&&!listError&&list?.items.map(r=><article key={r.id} className="min-w-0 space-y-2 rounded-xl border bg-card p-4">
         <div className="flex flex-wrap items-start justify-between gap-2">

@@ -39,7 +39,7 @@ describe("Physical receipt staff ledger pagination",()=>{
   test("network errors never report a false globally empty ledger",()=>{
     expect(source).toContain("setList(null);setListError(friendly(e))");
     expect(source).toContain("This page cannot be verified; previous page data is not shown as current.");
-    expect(source).toContain('list.total===0?"No verified physical receipts');
+    expect(source).toContain('receiptOrderFilter?"No verified physical receipts match this exact order ID."');
     expect(source).toContain("No physical receipts on this page. Use Previous page.");
     expect(source).toContain("Retry this page");
   });
