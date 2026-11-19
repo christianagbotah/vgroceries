@@ -220,6 +220,8 @@ export interface PaymentAttemptView {
   callbackCount: number;
   providerRef?: string;
   settlementState: string;
+  /** Demo-only prepared attempt; absent on real API records, which fail closed. */
+  gatewayInitiated?: boolean;
   failureReason?: string;
   note?: string;
   createdAt: string;

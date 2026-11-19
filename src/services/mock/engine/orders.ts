@@ -404,6 +404,7 @@ export function createOnlineOrder(store: VgStore, input: CheckoutInput): { order
       amountMinor: order.totalMinor,
       status: "initiated",
       idempotencyKey: input.idempotencyKey,
+      gatewayInitiated: false,
       callbackCount: 0,
       settlementState: "unsettled",
       createdAt: nowIso(),
