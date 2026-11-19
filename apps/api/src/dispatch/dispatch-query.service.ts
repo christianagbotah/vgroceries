@@ -143,7 +143,7 @@ export class DispatchQueryService {
           deliveryStatus: true, totalMinor: true,
           deliveryJob: { select: {
             id: true, riderProfileId: true, status: true, deliveredAt: true,
-            codCashDeclaration: {select:{id:true}},
+            codCashDeclaration: {select:{amountMinor:true,createdAt:true}},
           } },
         },
       }),
@@ -169,6 +169,10 @@ export class DispatchQueryService {
           collectionEvidence: job?.codCashDeclaration
             ? "rider_declared_unverified" as const
             : "not_recorded_in_variety" as const,
+          riderDeclaration: job?.codCashDeclaration ? {
+            amountMinor: job.codCashDeclaration.amountMinor,
+            declaredAt: job.codCashDeclaration.createdAt.toISOString(),
+          } : undefined,
           remittanceEvidence: "not_recorded_in_variety" as const,
         };
       }),

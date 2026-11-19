@@ -174,10 +174,19 @@ export default function CodExceptionsPage() {
                         <span className="mt-1 block text-xs text-muted-foreground">Payment status: {item.paymentStatus}</span>
                       </td>
                       <td className="px-4 py-4 text-muted-foreground">
-                        {item.collectionEvidence === "rider_declared_unverified"
-                          ? "Rider declared cash · supervisor unverified"
-                          : "Collection not recorded"}
-                        <span className="block">Remittance not recorded</span>
+                        {item.collectionEvidence === "rider_declared_unverified" && item.riderDeclaration ? (
+                          <div className="space-y-1">
+                            <p className="font-medium text-foreground">Rider self-declared {formatMoney(item.riderDeclaration.amountMinor)}</p>
+                            <time className="block text-xs" dateTime={item.riderDeclaration.declaredAt}>
+                              {new Date(item.riderDeclaration.declaredAt).toLocaleString("en-GH", { dateStyle: "medium", timeStyle: "short" })}
+                            </time>
+                            {item.riderDeclaration.amountMinor !== item.orderFaceValueMinor && (
+                              <p className="font-semibold text-destructive">Amount differs from order. Investigate.</p>
+                            )}
+                            <p>Supervisor has not verified cash.</p>
+                          </div>
+                        ) : "Collection not recorded"}
+                        <span className="mt-1 block">Remittance not recorded</span>
                       </td>
                       <td className="px-4 py-4 text-right font-medium tabular-nums">{formatMoney(item.orderFaceValueMinor)}</td>
                     </tr>
