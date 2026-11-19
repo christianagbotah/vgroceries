@@ -117,6 +117,8 @@ test("customer initiation derives money/provider authority server-side and repla
   assert.equal(order.paymentMethod, "electronic");
   assert.equal(row.method, "mobile_money");
   assert.equal(row.currency, "GHS");
+  assert.match(row.merchantReference, /^VG-PAY-[0-9A-F]{24}$/);
+  assert.equal(row.merchantReference.length, 31);
   assert.equal(row.amountMinor, order.totalMinor);
   assert.equal(fake.initiateCalls.length, 1);
   assert.equal(fake.initiateCalls[0].amountMinor, order.totalMinor);

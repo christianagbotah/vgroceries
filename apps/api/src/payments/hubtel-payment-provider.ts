@@ -97,6 +97,13 @@ export class HubtelPaymentProvider implements PaymentProviderAdapter {
         customerSafeMessage: "This Hubtel payment method is not enabled yet.",
       };
     }
+    if (!/^VG-PAY-[0-9A-F]{1,25}$/.test(input.merchantReference) || input.merchantReference.length > 32) {
+      return {
+        kind: "rejected",
+        failureCode: "HUBTEL_REFERENCE_TOO_LONG_OR_INVALID",
+        customerSafeMessage: "This payment reference is not supported by the provider.",
+      };
+    }
     if (!input.payerPhone) {
       return {
         kind: "rejected",
