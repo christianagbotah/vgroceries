@@ -13,10 +13,12 @@ import {Label} from "@/components/ui/label";
 import {Textarea} from "@/components/ui/textarea";
 
 const friendly=(x:unknown)=>x instanceof ApiError?x.message:"Could not verify this request.";
+const PAGE_SIZE=20;
 export default function AdminCustomerReturnClaimsPage(){
   const {can}=useStaff();
   const isAdmin=can("returns.decide");
   const [list,setList]=useState<CustomerReturnClaimsList|null>(null);
+  const [page,setPage]=useState(1);
   const [loading,setLoading]=useState(true);
   const [error,setError]=useState<string|null>(null);
   const [notice,setNotice]=useState<string|null>(null);
@@ -25,12 +27,26 @@ export default function AdminCustomerReturnClaimsPage(){
   const [note,setNote]=useState("");
   const [busy,setBusy]=useState(false);
   const intent=useRef<{hash:string;key:string}|null>(null);
+  const requestVersion=useRef(0);
   const refresh=useCallback(async()=>{
-    try{setList(await apiOps.adminReturnClaims({perPage:50}));setError(null);}
-    catch(e){setError(friendly(e));}
-    finally{setLoading(false);}
-  },[]);
-  useEffect(()=>{if(isAdmin)void refresh();else setLoading(false);},[isAdmin,refresh]);
+    const version=++requestVersion.current;
+    try{
+      const result=await apiOps.adminReturnClaims({page,perPage:PAGE_SIZE});
+      if(version===requestVersion.current){setList(result);setError(null);}
+    }catch(e){if(version===requestVersion.current)setError(friendly(e));}
+    finally{if(version===requestVersion.current)setLoading(false);}
+  },[page]);
+  useEffect(()=>{
+    if(!isAdmin){setLoading(false);return;}
+    setLoading(true);void refresh();
+    return()=>{requestVersion.current++;};
+  },[isAdmin,refresh]);
+  const pageCount=Math.max(1,Math.ceil((list?.total??0)/PAGE_SIZE));
+  function goToPage(next:number){
+    if(busy||loading||next<1||next>pageCount||next===page)return;
+    setSelected(null);setNotice(null);setError(null);
+    setLoading(true);setPage(next);
+  }
   function start(row:CustomerReturnClaimView){
     setSelected(row);setDecision("reject");setNote("");setNotice(null);setError(null);
   }
@@ -60,6 +76,7 @@ export default function AdminCustomerReturnClaimsPage(){
       Review authenticated customer claims against completed orders and original
       stock quantities. Acceptance is authorization to investigate and receive goods,
       not a refund or proof that any goods were returned.
+      Results are paginated across all server-held return requests.
     </p>
     <Link href="/admin/physical-returns" className="inline-flex min-h-10 items-center text-sm text-primary underline">
       Go to separate physical receipt and inspection
@@ -68,11 +85,21 @@ export default function AdminCustomerReturnClaimsPage(){
     {loading?<p role="status">Loading verified claims…</p>:null}
     {error?<p className="rounded-md border border-destructive/40 p-3 text-sm text-destructive" role="alert">{error}</p>:null}
     {notice?<p className="rounded-md border p-3 text-sm" role="status">{notice}</p>:null}
-    {list&&!list.enabled?<p className="rounded-lg border p-4 text-sm text-muted-foreground" role="status">
+    {isAdmin&&list&&!list.enabled?<p className="rounded-lg border p-4 text-sm text-muted-foreground" role="status">
       Authenticated return claims are not activated. No pending claim can be approved here.
     </p>:null}
-    {list?.items.length===0?<p className="rounded-lg border p-4 text-sm text-muted-foreground">No verified return claims are recorded.</p>:null}
-    {list?.items.map(claim=><article key={claim.id} className="space-y-2 rounded-xl border bg-card p-4">
+    {isAdmin&&list&&!loading?<div className="flex flex-wrap items-center justify-between gap-2" role="status">
+      <p className="text-sm text-muted-foreground">
+        {list.total.toLocaleString()} requests across all pages · Page {list.page} of {pageCount}
+        {list.items.length?<> · Showing {(list.page-1)*PAGE_SIZE+1}–{(list.page-1)*PAGE_SIZE+list.items.length}</>:null}
+      </p>
+      <Button type="button" variant="outline" size="sm" disabled={busy}
+        onClick={()=>{setLoading(true);void refresh();}}>Refresh requests</Button>
+    </div>:null}
+    {isAdmin&&list&&!loading&&list.items.length===0?<p className="rounded-lg border p-4 text-sm text-muted-foreground">
+      {list.total===0?"No verified return claims are recorded.":"No return requests on this page. Use Previous page."}
+    </p>:null}
+    {isAdmin&&!loading&&list?.items.map(claim=><article key={claim.id} className="space-y-2 rounded-xl border bg-card p-4">
       <div className="flex flex-wrap justify-between gap-2">
         <div><h2 className="font-semibold">{claim.reference}</h2>
           <p className="text-xs text-muted-foreground">{claim.orderReference} · {new Date(claim.createdAt).toLocaleString("en-GH")}</p>
@@ -100,7 +127,17 @@ export default function AdminCustomerReturnClaimsPage(){
           Record physical receipt for this request
         </Link>:null}
     </article>)}
-    {selected&&list?.enabled?<section className="space-y-3 rounded-xl border bg-card p-4"
+    {isAdmin&&list&&!loading?<nav className="flex flex-wrap items-center justify-between gap-2 rounded-xl border bg-card p-3"
+      aria-label="Return request pagination">
+      <p className="text-sm text-muted-foreground">Page {list.page} of {pageCount} · {list.total.toLocaleString()} total requests</p>
+      <div className="flex flex-wrap gap-2">
+        <Button type="button" variant="outline" disabled={busy||loading||page<=1}
+          onClick={()=>goToPage(page-1)}>Previous page</Button>
+        <Button type="button" variant="outline" disabled={busy||loading||page>=pageCount}
+          onClick={()=>goToPage(page+1)}>Next page</Button>
+      </div>
+    </nav>:null}
+    {isAdmin&&selected&&list?.enabled?<section className="space-y-3 rounded-xl border bg-card p-4"
       aria-label="Review customer return claim">
       <h2 className="font-semibold">Decide {selected.reference}</h2>
       <div><Label htmlFor="claim-decision">Decision</Label>
