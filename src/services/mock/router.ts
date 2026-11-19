@@ -426,6 +426,10 @@ export async function handleApi(req: ApiRequest): Promise<ApiResult> {
       }
 
       /* ---------------- Checkout ---------------- */
+      case "checkout.payment-availability": {
+        // Development fixture only; no real checkout charge is implied.
+        return ok({electronicAvailable:true,mode:"demo"});
+      }
       case "checkout.quote": {
         sweepExpiredReservations(store);
         const lines = (body.lines ?? []) as { variantId: string; quantity: string }[];
