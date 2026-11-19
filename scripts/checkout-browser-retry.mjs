@@ -40,13 +40,31 @@ try {
 
   const shop = await page.goto(shopUrl, { waitUntil: "domcontentloaded", timeout: 60_000 });
   assert.equal(shop?.status(), 200, "Shop must return HTTP 200");
+  // Wait for the client component to hydrate before pressing Quick Add.
+  await page.waitForLoadState("networkidle", { timeout: 15_000 }).catch(() => {});
   await page.getByRole("button", { name: /^Add .+ to cart$/ }).first().click();
+  await page.waitForFunction(() => {
+    try {
+      const persisted = JSON.parse(localStorage.getItem("vg-cart-v1") || "null");
+      return Array.isArray(persisted?.state?.lines) && persisted.state.lines.length > 0;
+    } catch { return false; }
+  }, undefined, { timeout: 12_000 }).catch(() => { throw new Error("Quick Add did not persist a cart item; refusing an empty-cart checkout test."); });
   const checkout = await page.goto(checkoutUrl, { waitUntil: "domcontentloaded", timeout: 60_000 });
   assert.equal(checkout?.status(), 200, "Checkout must return HTTP 200");
   const guest = page.getByRole("button", { name: "Continue as guest" });
   const collectionRadio = page.locator("#ful-collection");
   // Checkout initially renders a loading state while loading zones/account.
-  await guest.or(collectionRadio).first().waitFor({ state: "visible", timeout: 45_000 });
+  try {
+    await guest.or(collectionRadio).first().waitFor({ state: "visible", timeout: 45_000 });
+  } catch (error) {
+    const headings = await page.locator("h1,h2").allTextContents();
+    const persistedLineCount = await page.evaluate(() => {
+      try { return JSON.parse(localStorage.getItem("vg-cart-v1") || "null")?.state?.lines?.length ?? 0; }
+      catch { return -1; }
+    });
+    console.error("CHECKOUT_UI_DIAGNOSTIC", { pageUrl: page.url(), headings, persistedLineCount });
+    throw error;
+  }
   if (await guest.isVisible()) await guest.click();
   await collectionRadio.click({ force: true });
   await page.locator("#co-name").fill("Browser QA Customer");
