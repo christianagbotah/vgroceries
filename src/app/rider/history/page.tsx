@@ -38,7 +38,7 @@ export default function RiderHistoryPage() {
       <div className="rounded-xl border bg-card p-4">
         <h1 className="text-lg font-bold">Completed jobs</h1>
         <p className="text-sm text-muted-foreground">
-          Delivery history and cash collection status. Remitted cash is reconciled at the store.
+          Demonstration delivery history. Cash flags here are mock examples, not confirmed money collection or remittance.
         </p>
       </div>
 
@@ -60,7 +60,7 @@ export default function RiderHistoryPage() {
               <div className="mt-2 space-y-0.5 text-sm text-muted-foreground">
                 {r.cashToCollectMinor ? (
                   <p className={r.remitted ? "text-success" : "text-[color:var(--warning-foreground)]"}>
-                    Cash: {r.remitted ? "collected and remitted" : r.cashCollected ? "collected — remit at the store" : "not collected"}
+                    Cash (demo only): {r.remitted ? "mock marked as remitted" : r.cashCollected ? "mock marked as collected" : "not verified"}
                   </p>
                 ) : (
                   <p>No cash on this job</p>
