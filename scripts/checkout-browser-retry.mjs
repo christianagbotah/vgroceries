@@ -33,9 +33,13 @@ try {
   page.on("request", req => {
     // Loaded product imagery and fonts may use external hosts; never permit
     // checkout completion to escape our isolated local HTTP service.
-    if (req.isNavigationRequest() && !req.url().startsWith(root.origin)) {
-      unauthorizedExternalCalls.push(req.url());
+    if (req.isNavigationRequest()) {
+      console.log("CHECKOUT_NAVIGATION_REQUEST", req.method(), new URL(req.url()).pathname);
+      if (!req.url().startsWith(root.origin)) unauthorizedExternalCalls.push(req.url());
     }
+  });
+  page.on("framenavigated", frame => {
+    if (frame === page.mainFrame()) console.log("CHECKOUT_MAIN_FRAME_URL", new URL(frame.url()).pathname);
   });
 
   const shop = await page.goto(shopUrl, { waitUntil: "domcontentloaded", timeout: 60_000 });
@@ -93,6 +97,7 @@ try {
     });
   });
   const place = page.getByRole("button", { name: /^Place order/ });
+  console.log("CHECKOUT_SUBMIT_BUTTON_ANCESTOR_FORM", await place.evaluate(button => Boolean(button.closest("form"))));
   async function submitAndWaitForRequest(count) {
     await place.click();
     for (let i = 0; i < 100 && seen.length < count; i++) await page.waitForTimeout(100);
