@@ -217,6 +217,29 @@ test("Hubtel lookup fails closed for changed transaction reference, invalid curr
   );
 });
 
+test("Hosted Failed or Expired without independent amount and transaction ID cannot enable another payment", async () => {
+  for (const status of ["Failed", "Expired"] as const) {
+    for (const change of [{transactionId:""}, {amount:null}, {amount:123.456}]) {
+      const provider = new HubtelPaymentProvider(hostedConfig(), mockFetch({
+        json: statusReply({status,...change}),
+      }).fetcher);
+      await assert.rejects(
+        provider.lookup({merchantReference:reference,signal:new AbortController().signal}),
+        /terminal status lacks independently verified money and transaction identity/,
+      );
+    }
+    const verified = new HubtelPaymentProvider(hostedConfig(), mockFetch({
+      json: statusReply({status}),
+    }).fetcher);
+    const result = await verified.lookup({
+      merchantReference:reference,signal:new AbortController().signal,
+    });
+    assert.equal(result.state,status === "Failed" ? "failed" : "expired");
+    assert.equal(result.providerReference,"hubtel-txn-001");
+    assert.equal(result.amountMinor,12345);
+  }
+});
+
 test("Hubtel Online Checkout callback is evidence requiring an authoritative lookup", async () => {
   const provider = new HubtelPaymentProvider(hostedConfig(), mockFetch().fetcher);
   const rawBody = Buffer.from(JSON.stringify({

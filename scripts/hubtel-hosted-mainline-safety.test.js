@@ -115,6 +115,16 @@ describe("Hubtel hosted checkout mainline safety, no real provider requests",()=
       signal:new AbortController().signal,
     })).rejects.toThrow("transaction reference could not be verified");
   });
+  test("incomplete Failed or Expired results do not make uncertain payments retryable",async()=>{
+    for(const status of ["Failed","Expired"]){
+      for(const data of [{transactionId:""}, {amount:null}]){
+        const http=mock(200,paid({status,...data}));
+        await expect(new HubtelPaymentProvider(cfg,http.fetcher).lookup({
+          merchantReference:reference,signal:new AbortController().signal,
+        })).rejects.toThrow("terminal status lacks independently verified money and transaction identity");
+      }
+    }
+  });
   test("callback remains lookup-required, not an authoritative paid receipt",async()=>{
     const provider=new HubtelPaymentProvider(cfg,async()=>{throw Error("No HTTP expected")});
     const result=await provider.verifyEvent({

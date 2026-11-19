@@ -351,8 +351,12 @@ export class HubtelPaymentProvider implements PaymentProviderAdapter {
     // Once a status supplies a transaction ID, future queries must echo it.
     if (input.providerReference && transactionId !== input.providerReference)
       throw new Error("Hubtel collection status transaction reference could not be verified.");
-    if (observedState === "succeeded" && (amountMinor === undefined || !transactionId))
-      throw new Error("Hubtel paid status lacks independently verified money and transaction identity.");
+    // Any terminal result, including a claimed Failed/Expired outcome, might
+    // otherwise make an uncertain attempt retryable. Do not accept a terminal
+    // classification without independently echoed money and transaction ID.
+    if (["succeeded", "failed", "expired"].includes(observedState) &&
+        (amountMinor === undefined || !transactionId))
+      throw new Error("Hubtel terminal status lacks independently verified money and transaction identity.");
     const channelRaw = text(data, "paymentMethod", "PaymentMethod");
     const settledChannel = channelRaw?.toLowerCase().replace(/[^a-z0-9_]/g, "_").slice(0, 48);
     const providerTimestamp = timestamp(data);
