@@ -15,6 +15,7 @@ import {
   dispatchJobDetailResponseSchema,
   dispatchProviderTransitionRequestSchema,
   dispatchQueueResponseSchema,
+  codExceptionInboxSchema,
   dispatchReassignRequestSchema,
   dispatchRescheduleRequestSchema,
   dispatchReturnRequestSchema,
@@ -318,6 +319,7 @@ export function productionOpenApi(app: INestApplication): OpenAPIObject {
     DispatchReturnedRequest: json(dispatchReturnedRequestSchema),
     DispatchProviderTransitionRequest: providerTransitionOpenApiSchema(),
     DispatchQueueResponse: json(dispatchQueueResponseSchema),
+    CodExceptionInbox: json(codExceptionInboxSchema),
     DispatchJobDetailResponse: json(dispatchJobDetailResponseSchema),
     DispatchRiderFleetResponse: json(dispatchRiderFleetResponseSchema),
     DispatchRiderDetailResponse: json(dispatchRiderDetailResponseSchema),
@@ -470,7 +472,8 @@ export function productionOpenApi(app: INestApplication): OpenAPIObject {
   });
   for (const name of [
     "FulfilmentQueueResponse", "FulfilmentDetailResponse", "FulfilmentActionResponse",
-    "DispatchQueueResponse", "DispatchJobDetailResponse", "DispatchRiderFleetResponse", "DispatchRiderDetailResponse", "DispatchActionResponse",
+    "DispatchQueueResponse",
+    "CodExceptionInbox", "DispatchJobDetailResponse", "DispatchRiderFleetResponse", "DispatchRiderDetailResponse", "DispatchActionResponse",
     "RiderAvailabilityResponse", "RiderSelfResponse", "RiderJobResponse", "RiderJobsResponse", "RiderActionResponse",
     "NotificationListResponse", "NotificationReadResponse", "NotificationReadAllResponse",
     "CheckoutPickupOptionsResponse",
@@ -1108,6 +1111,15 @@ export function productionOpenApi(app: INestApplication): OpenAPIObject {
     { name: "perPage", in: "query", schema: { type: "integer", minimum: 1, maximum: 100, default: 25 } },
     { name: "status", in: "query", schema: { type: "string", enum: ["unassigned", "assigned", "accepted", "picked_up", "out_for_delivery", "delivered", "failed", "rescheduled", "return_to_store"] } },
   ]) };
+  doc.paths["/api/v1/admin/dispatch/cod-exceptions"] = {
+    get: readOperation(
+      "Administrator-only, read-only COD exception queue. Gross order face values are not verified collected cash, rider liabilities or remittances. Delivery proof and payment status do not settle COD; no external payment action or stock mutation occurs.",
+      "CodExceptionInboxEnvelope", [
+        { name: "page", in: "query", schema: { type: "integer", minimum: 1, maximum: 1000000, default: 1 } },
+        { name: "perPage", in: "query", schema: { type: "integer", minimum: 1, maximum: 100, default: 25 } },
+        { name: "phase", in: "query", schema: { type: "string", enum: ["all", "delivered", "in_transit"], default: "all" } },
+      ]),
+  };
   doc.paths["/api/v1/admin/dispatch/jobs/{jobId}"] = { get: readOperation("Administrator-only delivery job detail with custody, proof metadata, timeline, blockers and server-derived actions.", "DispatchJobDetailResponseEnvelope", [jobId]) };
   doc.paths["/api/v1/admin/dispatch/orders/{orderId}/assign"] = { post: authorityMutation("Administrator-only assignment after fulfilment handover. This operation does not change inventory or payment state.", "DispatchAssignRequest", "DispatchActionResponseEnvelope", [orderId]) };
   doc.paths["/api/v1/admin/dispatch/jobs/{jobId}/unassign"] = { post: authorityMutation("Administrator-only custody-safe pre-pickup unassignment.", "DispatchUnassignRequest", "DispatchActionResponseEnvelope", [jobId]) };

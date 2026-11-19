@@ -58,9 +58,9 @@ function refundOpenApiSurface(): string {
   return JSON.stringify({ paths, schemas }).toLowerCase();
 }
 
-test("production OpenAPI exposes the Refunds Authority plus the Hubtel callback on a 157-path surface", () => {
+test("production OpenAPI exposes the Refunds Authority plus the Hubtel callback on a 158-path surface", () => {
   for (const path of refundPaths) assert.ok(document.paths[path], `missing ${path}`);
-  assert.equal(Object.keys(document.paths).length, 157);
+  assert.equal(Object.keys(document.paths).length, 158);
   for (const absent of [
     "/api/v1/refunds/manual",
     "/api/v1/refunds/cash",

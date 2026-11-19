@@ -958,6 +958,7 @@ test("foundation OpenAPI describes only implemented routes with cookie/native se
   const d = await r.json();
   assert.deepEqual(Object.keys(d.paths).sort(), [
     "/api/v1/admin/dispatch",
+    "/api/v1/admin/dispatch/cod-exceptions",
     "/api/v1/admin/dispatch/jobs/{jobId}",
     "/api/v1/admin/dispatch/jobs/{jobId}/provider-transition",
     "/api/v1/admin/dispatch/jobs/{jobId}/reassign",

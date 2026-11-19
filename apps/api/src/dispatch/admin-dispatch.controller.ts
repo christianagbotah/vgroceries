@@ -3,6 +3,7 @@ import { ApiExcludeController } from "@nestjs/swagger";
 import {
   dispatchAssignRequestSchema,
   dispatchListQuerySchema,
+  codExceptionQuerySchema,
   dispatchProviderTransitionRequestSchema,
   dispatchReassignRequestSchema,
   dispatchRescheduleRequestSchema,
@@ -11,6 +12,7 @@ import {
   dispatchUnassignRequestSchema,
   replayKeySchema,
   type DispatchListQuery,
+  type CodExceptionQuery,
   type DispatchProviderTransitionRequest,
   type ProductionDispatchAssignRequest,
   type ProductionDispatchReassignRequest,
@@ -37,6 +39,11 @@ export class AdminDispatchController {
   private parse<T>(schema:Parser<T>,input:unknown,message:string):T{const parsed=schema.safeParse(input);if(!parsed.success)throw new ApiProblem(400,"VALIDATION_FAILED",message,parsed.error.issues.map(i=>({path:i.path.map(String).join("."),message:i.message})));return parsed.data;}
   private context(req:AuthRequest):DispatchCommandContext{return{actorId:req.actor.id,requestId:req.requestId,idempotencyKey:this.parse(replayKeySchema,req.get("idempotency-key"),"A valid Idempotency-Key header is required.")};}
   @Get() async list(@Req()req:AuthRequest,@Query()query:unknown){this.admin(req);const input=this.parse<DispatchListQuery>(dispatchListQuerySchema,query,"Dispatch query is invalid.");return{ok:true,data:await this.queries.listDispatch(input)};}
+  @Get("cod-exceptions") async codExceptions(@Req()req:AuthRequest,@Query()query:unknown){
+    this.admin(req);
+    const input=this.parse<CodExceptionQuery>(codExceptionQuerySchema,query,"COD exception filters are invalid.");
+    return{ok:true,data:await this.queries.listCodExceptions(input)};
+  }
   @Get("jobs/:jobId") async detail(@Req()req:AuthRequest,@Param("jobId")jobId:string){this.admin(req);return{ok:true,data:await this.queries.dispatchDetail(jobId)};}
   @Post("orders/:orderId/assign") @HttpCode(200) async assign(@Req()req:AuthRequest,@Param("orderId")orderId:string,@Body()body:unknown){this.admin(req);const input=this.parse<ProductionDispatchAssignRequest>(dispatchAssignRequestSchema,body,"Dispatch assignment body is invalid.");return{ok:true,data:await this.commands.assign(orderId,input,this.context(req))};}
   @Post("jobs/:jobId/unassign") @HttpCode(200) async unassign(@Req()req:AuthRequest,@Param("jobId")jobId:string,@Body()body:unknown){this.admin(req);const input=this.parse<ProductionDispatchUnassignRequest>(dispatchUnassignRequestSchema,body,"Dispatch unassignment body is invalid.");return{ok:true,data:await this.commands.unassign(jobId,input,this.context(req))};}

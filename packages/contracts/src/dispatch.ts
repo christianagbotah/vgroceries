@@ -293,6 +293,46 @@ export const dispatchListQuerySchema = z.object({
   status: deliveryStatusSchema.optional(),
 }).strict();
 
+/**
+ * A read-only risk queue, NOT an acknowledgment that a rider received cash.
+ * Until a separate COD collection/remittance ledger is implemented, payment,
+ * delivery proof, and rider assignment cannot constitute collection evidence.
+ */
+export const codExceptionQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).max(1_000_000).default(1),
+  perPage: z.coerce.number().int().min(1).max(100).default(25),
+  phase: z.enum(["all", "delivered", "in_transit"]).default("all"),
+}).strict();
+export type CodExceptionQuery = z.infer<typeof codExceptionQuerySchema>;
+
+export const codExceptionRowSchema = z.object({
+  orderId: z.string().min(1),
+  orderReference: z.string().min(1),
+  deliveryJobId: z.string().min(1).optional(),
+  riderProfileId: z.string().min(1).optional(),
+  paymentStatus: z.string().min(1),
+  deliveryStatus: z.string().min(1),
+  orderFaceValueMinor: z.number().int().nonnegative(),
+  deliveredAt: isoTimestampSchema.optional(),
+  exception: z.enum([
+    "delivery_incomplete",
+    "delivered_collection_unverified",
+    "payment_state_requires_review",
+  ]),
+  collectionEvidence: z.literal("not_recorded_in_variety"),
+  remittanceEvidence: z.literal("not_recorded_in_variety"),
+}).strict();
+
+export const codExceptionInboxSchema = z.object({
+  page: z.number().int().min(1),
+  perPage: z.number().int().min(1).max(100),
+  total: z.number().int().nonnegative(),
+  totalOrderFaceValueMinor: z.number().int().nonnegative(),
+  evidenceStatus: z.literal("collection_and_remittance_not_yet_implemented"),
+  items: z.array(codExceptionRowSchema),
+}).strict();
+export type CodExceptionInbox = z.infer<typeof codExceptionInboxSchema>;
+
 export const dispatchEventViewSchema = z.object({
   action: z.string().min(1),
   actorKind: z.enum(["staff", "rider", "system"]),
