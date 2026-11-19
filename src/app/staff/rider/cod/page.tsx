@@ -19,7 +19,7 @@ import {
 
 type KeyState={jobId:string;amountMinor:number;note:string;key:string};
 const eligible=(job:ProductionRiderJobResponse)=>
-  job.deliveryStatus==="delivered" && job.paymentMethod==="cash_on_delivery" &&
+  job.deliveryStatus==="delivered" && Boolean(job.proof) && job.paymentMethod==="cash_on_delivery" &&
   job.paymentStatus==="unpaid" && Number.isSafeInteger(job.codDueMinor) &&
   (job.codDueMinor??0)>0;
 

@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { verifyRiderCodEnvironment, verifiedRiderCodEnabled } from "@/features/rider/verified-cod-client";
+import { clearDemoStaffSession, isDemoStaffSessionActive } from "@/features/staff/staff-demo-session";
 
 /** Genuine rider account sign-in, never the localStorage rider selector. */
 export default function VerifiedRiderLogin() {
@@ -32,6 +33,9 @@ export default function VerifiedRiderLogin() {
     if(busy)return;
     setBusy(true);setError("");
     try{
+      // Choosing real sign-in exits the mock persona; the backend still
+      // independently authenticates the rider and never trusts demo identity.
+      if (isDemoStaffSessionActive()) clearDemoStaffSession();
       verifyRiderCodEnvironment();
       const session=await apiOps.staffLogin(email,password);
       if(session.actor.role!=="rider"){

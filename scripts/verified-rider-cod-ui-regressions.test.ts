@@ -35,6 +35,8 @@ describe("verified COD cash declaration rider screen is not the old mock rider s
     expect(client).toContain('new ApiError("FEATURE_DISABLED"');
     expect(client).toContain('new ApiError("BAD_CONFIG"');
     expect(client).toContain('uri.username || uri.password');
+    expect(login).toContain("clearDemoStaffSession()");
+    expect(login).toContain("isDemoStaffSessionActive()");
     expect(login).toContain("apiOps.staffLogin(email,password)");
     expect(login).toContain("apiOps.staffLogout()");
     expect(demoLogin).toContain('href="/staff/rider/login"');
@@ -55,6 +57,7 @@ describe("verified COD cash declaration rider screen is not the old mock rider s
     expect(panel).toContain("selected.codDueMinor!");
     expect(panel).toContain('job.paymentStatus==="unpaid"');
     expect(panel).toContain('job.paymentMethod==="cash_on_delivery"');
+    expect(panel).toContain("Boolean(job.proof)");
     expect(panel).toContain('window.crypto.randomUUID()');
     expect(panel).toContain('attempt.current.jobId===selected.jobId');
     expect(panel).toContain("I physically counted the complete cash amount");
