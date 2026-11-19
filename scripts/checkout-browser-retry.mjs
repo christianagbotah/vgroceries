@@ -72,6 +72,11 @@ try {
   await page.locator("#pay-cash_counter").click({ force: true });
 
   const seen = [];
+  page.on("pageerror", error => console.error("CHECKOUT_BROWSER_JS_ERROR", error.message.slice(0, 350)));
+  page.on("response", response => {
+    if (response.url().includes("/checkout/complete"))
+      console.log("CHECKOUT_INTERCEPTED_RESPONSE_STATUS", response.status());
+  });
   const replies = ["NETWORK", "NETWORK", "OUT_OF_STOCK", "OUT_OF_STOCK"];
   await page.route("**/api/mock/v1/checkout/complete", async route => {
     const request = route.request();
@@ -93,8 +98,20 @@ try {
     for (let i = 0; i < 100 && seen.length < count; i++) await page.waitForTimeout(100);
     assert.equal(seen.length, count, `Expected ${count} isolated checkout POSTs`);
   }
+  async function expectVisibleError(message) {
+    try {
+      await page.getByRole("alert").filter({ hasText: message }).waitFor({ timeout: 12_000 });
+    } catch (error) {
+      const actualAlerts = await page.locator('[role="alert"]').allTextContents();
+      const pageTail = (await page.locator("main").innerText().catch(() => "(no main element)" )).slice(-1100);
+      console.error("CHECKOUT_ERROR_FEEDBACK_DIAGNOSTIC", JSON.stringify({
+        currentUrl: page.url(), interceptedPosts: seen.length, actualAlerts, pageTail,
+      }));
+      throw error;
+    }
+  }
   await submitAndWaitForRequest(1);
-  await page.getByRole("alert").filter({ hasText: "Checkout outcome could not be confirmed." }).waitFor();
+  await expectVisibleError("Checkout outcome could not be confirmed.");
   assert.equal(seen.length, 1, "First submit must make one POST");
   const key1 = seen[0].key;
   assert.match(key1, /^co_[0-9a-f]{32}$/);
@@ -103,19 +120,19 @@ try {
 
   // Retrying with unchanged details cannot mint a different order identity.
   await submitAndWaitForRequest(2);
-  await page.getByRole("alert").filter({ hasText: "Checkout outcome could not be confirmed." }).waitFor();
+  await expectVisibleError("Checkout outcome could not be confirmed.");
   assert.equal(seen.length, 2, "Second click makes one additional POST");
   assert.equal(seen[1].key, key1, "Ambiguous HTTP outcome must keep same key");
   assert.deepEqual(seen[1].body, seen[0].body, "Body is identical on ambiguous retry");
 
   // Server-confirmed pre-commit shortage must permit a corrected new attempt.
   await submitAndWaitForRequest(3);
-  await page.getByRole("alert").filter({ hasText: "Product is no longer available." }).waitFor();
+  await expectVisibleError("Product is no longer available.");
   assert.equal(seen.length, 3);
   assert.equal(seen[2].key, key1);
   assert.equal(await page.evaluate(k => sessionStorage.getItem(k), attemptStorageKey), null, "Definite rejection releases key");
   await submitAndWaitForRequest(4);
-  await page.getByRole("alert").filter({ hasText: "Product is no longer available." }).waitFor();
+  await expectVisibleError("Product is no longer available.");
   assert.equal(seen.length, 4);
   assert.match(seen[3].key, /^co_[0-9a-f]{32}$/);
   assert.notEqual(seen[3].key, key1, "Corrected attempt must have a new replay identity");
