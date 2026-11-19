@@ -191,6 +191,9 @@ import type { CategoryRow, PublicOrder, SessionRow } from "./contracts";
 /* ------------------------------------------------------------------ */
 
 export const apiOps = {
+  /* checkout payment readiness: a display hint, never paid-state proof */
+  checkoutPaymentAvailability: () => api<{electronicAvailable:boolean;mode:"production"|"demo"}>("checkout.payment-availability"),
+
   /* catalogue */
   catalogCategories: () => api<CategoryRow[]>("catalog.categories"),
   products: (p: { query?: string; category?: string; sort?: string; page?: number; perPage?: number }) =>
