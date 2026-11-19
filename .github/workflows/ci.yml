@@ -58,3 +58,13 @@ jobs:
 
       - name: Route sweep
         run: bun scripts/route-sweep.mjs http://localhost:3000
+
+      - name: Install isolated Chromium browser test tools
+        run: |
+          npm install --prefix /tmp/vgroceries-playwright --no-save --no-audit --no-fund playwright-core@1.56.1
+          npx --yes playwright@1.56.1 install --with-deps chromium
+
+      - name: Checkout browser retry acceptance (intercepted demo requests only)
+        env:
+          PLAYWRIGHT_CORE_PATH: /tmp/vgroceries-playwright/node_modules/playwright-core
+        run: node scripts/checkout-browser-retry.mjs http://127.0.0.1:3000
