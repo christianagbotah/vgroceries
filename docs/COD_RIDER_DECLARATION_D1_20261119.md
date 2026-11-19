@@ -21,3 +21,7 @@ Response says **`rider_declared_unverified`** with `supervisorVerified=false`, `
 - D4: policy-approved financial postings, independent money settlement reconciliation, tax/accounting reports and controlled live feature activation.
 
 Keep `COD_CASH_DECLARATIONS_ENABLED=false` for all active environments until on-site cash handling policies and complete remittance authority are approved. Run full API and web CI plus destructive-free migration/diff checks on a disposable PostgreSQL database, protected backup/rollback rehearsal and real rider authentication UAT first. Do not push migrations to shared UAT blindly.
+
+## Administrator review organization (19 November)
+
+Read-only COD exceptions can be filtered by rider-declared versus no declaration recorded; both still require independent physical verification and reconciliation before any money movement is authorized.

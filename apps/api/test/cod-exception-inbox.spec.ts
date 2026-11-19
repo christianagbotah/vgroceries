@@ -73,9 +73,9 @@ beforeEach(async () => { await seedCommerceFixtures(db); });
 after(async () => app?.close());
 
 test("COD query contract bounds pagination, rejects extra selectors and accepts only explicit phases", () => {
-  assert.deepEqual(codExceptionQuerySchema.parse({}), { page: 1, perPage: 25, phase: "all" });
+  assert.deepEqual(codExceptionQuerySchema.parse({}), { page: 1, perPage: 25, phase: "all", evidence: "all" });
   assert.equal(codExceptionQuerySchema.parse({page: "2", perPage: "100",phase: "delivered"}).page, 2);
-  for (const bad of [{perPage: "101"}, {perPage: "0"}, {phase: "collected"}, {actorId: "admin"}, {page: "-1"}]) {
+  for (const bad of [{perPage: "101"}, {perPage: "0"}, {phase: "collected"}, {evidence: "cash_received"}, {actorId: "admin"}, {page: "-1"}]) {
     assert.equal(codExceptionQuerySchema.safeParse(bad).success, false);
   }
 });
@@ -123,6 +123,67 @@ test("COD exception inbox requires real administrator, never exposes customer PI
   assert.equal(inTransit.body.data.items[0].orderId, pending.order.id);
 });
 
+test("COD evidence filters independently combine delivery phase, immutable rider declaration, and no-assignment states", async () => {
+  const declared = await cod("VG-COD-FILTER-DECLARED", { amount: 2200 });
+  const withoutJob = await cod("VG-COD-FILTER-NO-ASSIGNMENT", { amount: 1100 });
+  const adminUser = await db.user.findUniqueOrThrow({ where: { id: "admin-commerce" } });
+  const rider = await db.user.create({ data: {
+    id: "rider-cod-filter", name: "Rider Test", email: "rider-cod-filter@example.test",
+    passwordHash: adminUser.passwordHash, role: "rider", active: true,
+  } });
+  const profile = await db.riderProfile.create({ data: {
+    userId: rider.id, phone: "+233241234579", kind: "in_house", vehicle: "motorcycle",
+    availabilityState: "available", lastAvailabilityChangedAt: new Date(),
+  } });
+  const job = await db.deliveryJob.create({ data: {
+    orderId: declared.order.id, assignmentKind: "rider", riderProfileId: profile.id,
+    status: "delivered", custodyState: "customer", assignedBy: "admin-commerce",
+    assignedAt: new Date(), deliveredAt: new Date(),
+  } });
+  await db.deliveryProof.create({ data: {
+    deliveryJobId: job.id, method: "signature", reference: "COD-FILTER-PROOF",
+    recordedByKind: "rider", recordedById: rider.id, recordedAt: new Date(),
+  } });
+  await db.order.update({ where: { id: declared.order.id }, data: {
+    fulfilmentStatus: "delivered", deliveryStatus: "delivered",
+  } });
+  await db.codCashDeclaration.create({ data: {
+    deliveryJobId: job.id, orderId: declared.order.id, riderProfileId: profile.id,
+    declaredByUserId: rider.id, amountMinor: 2200,
+    cashCountConfirmed: true, riderPossessionConfirmed: true,
+    note: "I counted and hold the physical cash at delivery.", requestId: "cod-filter-test",
+  } });
+
+  const admin = await token("admin-commerce@example.test");
+  const declaredOnly = await get("/admin/dispatch/cod-exceptions?evidence=rider_declared_unverified", admin);
+  assert.equal(declaredOnly.status, 200);
+  assert.equal(declaredOnly.body.data.total, 1);
+  assert.equal(declaredOnly.body.data.totalOrderFaceValueMinor, 2200);
+  assert.equal(declaredOnly.body.data.items[0].orderId, declared.order.id);
+  assert.equal(declaredOnly.body.data.items[0].collectionEvidence, "rider_declared_unverified");
+  assert.equal(declaredOnly.body.data.items[0].remittanceEvidence, "not_recorded_in_variety");
+
+  // Includes orders with no delivery job: absence of job is absence of declaration.
+  const unrecorded = await get("/admin/dispatch/cod-exceptions?evidence=not_recorded_in_variety", admin);
+  assert.equal(unrecorded.status, 200);
+  assert.equal(unrecorded.body.data.total, 1);
+  assert.equal(unrecorded.body.data.totalOrderFaceValueMinor, 1100);
+  assert.equal(unrecorded.body.data.items[0].orderId, withoutJob.order.id);
+
+  // Both filters must be ANDed; duplicate NOT keys silently lose a predicate.
+  const inTransitUnrecorded = await get("/admin/dispatch/cod-exceptions?phase=in_transit&evidence=not_recorded_in_variety", admin);
+  assert.equal(inTransitUnrecorded.status, 200);
+  assert.equal(inTransitUnrecorded.body.data.total, 1);
+  assert.equal(inTransitUnrecorded.body.data.items[0].orderId, withoutJob.order.id);
+  const inTransitDeclared = await get("/admin/dispatch/cod-exceptions?phase=in_transit&evidence=rider_declared_unverified", admin);
+  assert.equal(inTransitDeclared.status, 200);
+  assert.equal(inTransitDeclared.body.data.total, 0);
+  assert.equal(inTransitDeclared.body.data.totalOrderFaceValueMinor, 0);
+  assert.equal((await get("/admin/dispatch/cod-exceptions?evidence=forged", admin)).status, 400);
+  assert.equal((await db.codCashDeclaration.count()), 1);
+  assert.equal((await db.order.findUniqueOrThrow({ where: { id: declared.order.id } })).paymentStatus, "unpaid");
+});
+
 test("COD OpenAPI exposes a secured read-only exception inbox without cash settlement endpoints", async () => {
   const response = await fetch(base + "/api/v1/openapi.json");
   assert.equal(response.status, 200);
@@ -131,6 +192,7 @@ test("COD OpenAPI exposes a secured read-only exception inbox without cash settl
   assert.ok(op);
   assert.deepEqual(op.security, [{cookieAuth: []}, {bearerAuth: []}]);
   assert.equal(op.requestBody, undefined);
+  assert.ok(op.parameters.some((p: {name:string}) => p.name === "evidence"));
   assert.equal(op.responses["200"].content["application/json"].schema.$ref, "#/components/schemas/CodExceptionInboxEnvelope");
   assert.equal(doc.paths["/api/v1/cod/remittances"], undefined);
   assert.equal(doc.paths["/api/v1/cod/collections"], undefined);

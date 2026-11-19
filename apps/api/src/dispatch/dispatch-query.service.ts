@@ -104,14 +104,23 @@ export class DispatchQueryService {
    */
   async listCodExceptions(query: CodExceptionQuery): Promise<CodExceptionInbox> {
     const deliveredOnly = { deliveryJob: { is: { status: "delivered" } } } as Prisma.OrderWhereInput;
+    // A rider's declaration is a self-attestation, NEVER received cash.
+    // NOT declared also includes orders without any delivery job yet.
+    const hasRiderDeclaration = {
+      deliveryJob: { is: { codCashDeclaration: { isNot: null } } },
+    } as Prisma.OrderWhereInput;
+    const conditions: Prisma.OrderWhereInput[] = [];
+    if (query.phase === "delivered") conditions.push(deliveredOnly);
+    if (query.phase === "in_transit") conditions.push({ NOT: deliveredOnly });
+    if (query.evidence === "rider_declared_unverified") conditions.push(hasRiderDeclaration);
+    if (query.evidence === "not_recorded_in_variety") conditions.push({ NOT: hasRiderDeclaration });
     const where: Prisma.OrderWhereInput = {
       fulfilment: "delivery", paymentMethod: "cash_on_delivery",
       cancelledAt: null, stockConsumedAt: { not: null },
       fulfilmentStatus: { in: ["dispatched", "delivered"] },
-      ...(query.phase === "delivered" ? deliveredOnly : {}),
-      ...(query.phase === "in_transit" ? {
-        NOT: deliveredOnly,
-      } : {}),
+      // AND, not duplicate NOT keys: a combined delivery + no-declaration
+      // filter must preserve BOTH predicates, including unassigned jobs.
+      ...(conditions.length ? { AND: conditions } : {}),
     };
     const [total, value, orders] = await this.db.$transaction([
       this.db.order.count({ where }),

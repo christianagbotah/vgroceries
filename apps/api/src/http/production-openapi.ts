@@ -1122,6 +1122,7 @@ export function productionOpenApi(app: INestApplication): OpenAPIObject {
         { name: "page", in: "query", schema: { type: "integer", minimum: 1, maximum: 1000000, default: 1 } },
         { name: "perPage", in: "query", schema: { type: "integer", minimum: 1, maximum: 100, default: 25 } },
         { name: "phase", in: "query", schema: { type: "string", enum: ["all", "delivered", "in_transit"], default: "all" } },
+        { name: "evidence", in: "query", schema: { type: "string", enum: ["all", "rider_declared_unverified", "not_recorded_in_variety"], default: "all" } },
       ]),
   };
   doc.paths["/api/v1/admin/dispatch/jobs/{jobId}"] = { get: readOperation("Administrator-only delivery job detail with custody, proof metadata, timeline, blockers and server-derived actions.", "DispatchJobDetailResponseEnvelope", [jobId]) };

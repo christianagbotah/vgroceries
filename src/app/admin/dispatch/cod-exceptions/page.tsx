@@ -11,6 +11,12 @@ import { Button } from "@/components/ui/button";
 
 const PER_PAGE = 25;
 type Phase = "all" | "delivered" | "in_transit";
+type Evidence = "all" | "rider_declared_unverified" | "not_recorded_in_variety";
+const evidenceOptions: { key: Evidence; label: string }[] = [
+  { key: "all", label: "All cash declarations" },
+  { key: "rider_declared_unverified", label: "Rider declared · unverified" },
+  { key: "not_recorded_in_variety", label: "No declaration recorded" },
+];
 const phases: { key: Phase; label: string }[] = [
   { key: "all", label: "All COD exceptions" },
   { key: "delivered", label: "Delivered" },
@@ -30,6 +36,7 @@ function stageMessage(status: number): string {
 
 export default function CodExceptionsPage() {
   const [phase, setPhase] = useState<Phase>("all");
+  const [evidence, setEvidence] = useState<Evidence>("all");
   const [page, setPage] = useState(1);
   const [refresh, setRefresh] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -56,7 +63,7 @@ export default function CodExceptionsPage() {
         if (controller.signal.aborted) return;
         // Same-origin /api/v1 is the public gateway to the real NestJS API.
         // Never substitute the /api/mock/v1 prototype or load a stored ledger.
-        const query = new URLSearchParams({ page: String(page), perPage: String(PER_PAGE), phase });
+        const query = new URLSearchParams({ page: String(page), perPage: String(PER_PAGE), phase, evidence });
         const response = await fetch(`/api/v1/admin/dispatch/cod-exceptions?${query.toString()}`, {
           method: "GET", credentials: "include", cache: "no-store",
           headers: { Accept: "application/json" }, signal: controller.signal,
@@ -77,7 +84,7 @@ export default function CodExceptionsPage() {
       }
     })();
     return () => { active = false; controller.abort(); };
-  }, [phase, page, refresh]);
+  }, [phase, evidence, page, refresh]);
 
   return (
     <main className="mx-auto max-w-6xl space-y-5 pb-12">
@@ -109,6 +116,15 @@ export default function CodExceptionsPage() {
         {phases.map(option => (
           <Button key={option.key} type="button" size="sm" variant={phase === option.key ? "default" : "outline"}
             aria-pressed={phase === option.key} onClick={() => { setPhase(option.key); setPage(1); }} className="min-h-11">
+            {option.label}
+          </Button>
+        ))}
+      </div>
+
+      <div className="flex flex-wrap gap-2" role="group" aria-label="COD cash declaration evidence">
+        {evidenceOptions.map(option => (
+          <Button key={option.key} type="button" size="sm" variant={evidence === option.key ? "default" : "outline"}
+            aria-pressed={evidence === option.key} onClick={() => { setEvidence(option.key); setPage(1); }} className="min-h-11">
             {option.label}
           </Button>
         ))}
