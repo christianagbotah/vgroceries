@@ -107,7 +107,7 @@ export default function AdminPaymentsPage() {
             ))}
           </SelectContent>
         </Select>
-        <Button type="button" variant={settlement === "exception" ? "default" : "outline"} className="h-11" onClick={() => { setSettlement("exception"); setPage(1); }}>Review exceptions{globalExceptions === null ? "" : ` (${globalExceptions.toLocaleString()})`}</Button>
+        <Button type="button" variant={settlement === "exception" ? "default" : "outline"} className="h-11" onClick={() => { setStatus("all"); setReferenceDraft(""); setOrderReference(""); setSettlement("exception"); setPage(1); }}>Review exceptions{globalExceptions === null ? "" : ` (${globalExceptions.toLocaleString()})`}</Button>
         <Select value={settlement} onValueChange={(value) => { setSettlement(value); setPage(1); }} aria-label="Filter by settlement">
           <SelectTrigger className="h-11 w-full sm:w-44"><SelectValue /></SelectTrigger>
           <SelectContent>

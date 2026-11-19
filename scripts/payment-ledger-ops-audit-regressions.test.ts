@@ -20,6 +20,7 @@ describe("staff payment exception rollup and page-limited CSV",()=>{
    expect(page).toContain("globalExceptions = exceptionError || !exceptionSummary ? null : exceptionSummary.total");
    expect(page).toContain("Full exception count unavailable.");
    expect(page).toContain("Review exceptions");
+   expect(page).toContain('setStatus("all"); setReferenceDraft(""); setOrderReference(""); setSettlement("exception"); setPage(1)');
    expect(page).toContain("Refresh counts");
    expect(page).not.toContain("globalExceptions = rows.filter");
  });
