@@ -61,6 +61,10 @@ describe("verified COD cash declaration rider screen is not the old mock rider s
     expect(panel).toContain('job.paymentStatus==="unpaid"');
     expect(panel).toContain('job.paymentMethod==="cash_on_delivery"');
     expect(panel).toContain("Boolean(job.proof)");
+    expect(panel).toContain('job.codCashDeclaration?"Already declared · unverified"');
+    expect(panel).toContain('Boolean(job.codCashDeclaration)');
+    expect(panel).toContain('result.jobs.filter(codDelivered)');
+    expect(panel).toContain('!job.codCashDeclaration');
     expect(panel).toContain('window.crypto.randomUUID()');
     expect(panel).toContain('attempt.current.jobId===selected.jobId');
     expect(panel).toContain("I physically counted the complete cash amount");
@@ -76,6 +80,27 @@ describe("verified COD cash declaration rider screen is not the old mock rider s
     expect(panel).toContain("controller.abort()");
     expect(client).toContain("responseError(response.status)");
     expect(client).not.toContain("vg-rider-id-v1");
+  });
+
+  test("repeated rider visits read an immutable, minimal server cash declaration projection", () => {
+    const fixture = {
+      jobId: "job", orderId: "order", orderReference: "VG-COD-1", deliveryStatus: "delivered",
+      customerName: "Recipient", customerPhone: "+233240000000", items: [],
+      paymentMethod: "cash_on_delivery", paymentStatus: "unpaid", codDueMinor: 2100,
+      allowedProofMethods: [], allowedActions: [], blockers: [], events: [],
+      codCashDeclaration: { status: "rider_declared_unverified", amountMinor: 2100,
+        declaredAt: "2026-11-19T00:00:00.000Z" },
+    };
+    expect(riderHistoryResponseSchema.safeParse({ jobs: [fixture] }).success).toBe(true);
+    expect(riderHistoryResponseSchema.safeParse({ jobs: [{...fixture, codCashDeclaration: {
+      ...fixture.codCashDeclaration, note: "must not leak"
+    }}] }).success).toBe(false);
+    expect(riderHistoryResponseSchema.safeParse({ jobs: [{...fixture, codCashDeclaration: {
+      ...fixture.codCashDeclaration, status: "remitted"
+    }}] }).success).toBe(false);
+    expect(riderHistoryResponseSchema.safeParse({ jobs: [{...fixture, codCashDeclaration: {
+      ...fixture.codCashDeclaration, amountMinor: -10
+    }}] }).success).toBe(false);
   });
 
   test("demo delivery proof no longer declares cash collected or remitted", () => {

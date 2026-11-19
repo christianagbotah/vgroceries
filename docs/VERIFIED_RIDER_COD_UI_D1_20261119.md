@@ -15,3 +15,7 @@ No supervisor verified collection, bag acceptance, shortages/overages, till depo
 ## Release checks
 
 Run regression tests for staging role gates, no mock rider ID, server-value-only amounts, strict CSRF/replay handling, and demo false cash claims; clean Next/ESLint/TypeScript build; API security and PostgreSQL integration CI; on-host backup/restore and real rider session test before any staging flag activation. This source change does **not** authorize the complete COD accounting workflow or live rollout.
+
+## R2 repeat-visit acknowledgment
+
+`COD_RIDER_HISTORY_DECLARATION_STATUS_R2_20261119.md` adds a minimal persisted rider-declaration status to the real authenticated rider job history; subsequent visits show *already declared · supervisor unverified* and disable a second request, without reading or relying on browser localStorage for financial truth.
