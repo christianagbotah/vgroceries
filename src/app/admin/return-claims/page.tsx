@@ -45,7 +45,7 @@ export default function AdminCustomerReturnClaimsPage(){
   function goToPage(next:number){
     if(busy||loading||next<1||next>pageCount||next===page)return;
     setSelected(null);setNotice(null);setError(null);
-    setLoading(true);setPage(next);
+    setList(null);setLoading(true);setPage(next);
   }
   function start(row:CustomerReturnClaimView){
     setSelected(row);setDecision("reject");setNote("");setNotice(null);setError(null);
@@ -83,7 +83,13 @@ export default function AdminCustomerReturnClaimsPage(){
     </Link>
     {!isAdmin?<p className="rounded-md border p-3 text-sm" role="alert">Administrator approval is required.</p>:null}
     {loading?<p role="status">Loading verified claims…</p>:null}
-    {error?<p className="rounded-md border border-destructive/40 p-3 text-sm text-destructive" role="alert">{error}</p>:null}
+    {error?<div className="flex flex-wrap items-center gap-2 rounded-md border border-destructive/40 p-3 text-sm text-destructive" role="alert">
+      <p className="min-w-0 flex-1">{error} Refresh verified server records before retrying an uncertain review action.</p>
+      {isAdmin?<Button type="button" size="sm" variant="outline" disabled={busy||loading}
+        onClick={()=>{setLoading(true);void refresh();}}>Retry this page</Button>:null}
+      {isAdmin&&page>1?<Button type="button" size="sm" variant="outline" disabled={busy||loading}
+        onClick={()=>goToPage(1)}>First page</Button>:null}
+    </div>:null}
     {notice?<p className="rounded-md border p-3 text-sm" role="status">{notice}</p>:null}
     {isAdmin&&list&&!list.enabled?<p className="rounded-lg border p-4 text-sm text-muted-foreground" role="status">
       Authenticated return claims are not activated. No pending claim can be approved here.

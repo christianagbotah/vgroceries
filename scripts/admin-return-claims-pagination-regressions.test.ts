@@ -32,6 +32,10 @@ describe("staff return request list is actually paginated and access controlled"
    expect(code).toContain("if(version===requestVersion.current)");
    expect(code).toContain("return()=>{requestVersion.current++;}");
    expect(code).toContain("setSelected(null);setNotice(null);setError(null)");
+   expect(code).toContain("setList(null);setLoading(true);setPage(next)");
+   expect(code).toContain("Retry this page");
+   expect(code).toContain("goToPage(1)");
+   expect(code).toContain("Refresh verified server records before retrying an uncertain review action.");
    expect(code).toContain("if(busy||loading||next<1||next>pageCount||next===page)return");
  });
  test("non-admin actors cannot render protected data or make financial mutations",()=>{

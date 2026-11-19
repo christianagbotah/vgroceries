@@ -9,6 +9,7 @@ The staff administrator return-claims page previously requested only the first 5
 - Changing pages clears unfinished review drafts, status notices and stale request errors. A monotonic request version discards late responses from prior pages or role transitions, so a slow request cannot overwrite more recent records.
 - Review decisions remain server-owned, role-gated, reasoned, idempotent and irreversible. No browser refund, stock, physical intake or payment success authority is added. An admin-only read-only Refresh button reloads the current page.
 - The page does not render staff claim details or decision controls after the authenticated role loses administrator permissions.
+- Failed page fetches clear stale prior-page content rather than displaying it as the requested page. Staff see Retry this page and (when on a later page) First page controls; no success or decision action is inferred from a failed read.
 - Empty page is distinct from globally empty: the message distinguishes a server-reported total of zero from an exhausted page.
 
 ## Regression and release boundaries
