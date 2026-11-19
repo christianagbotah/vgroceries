@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 import {
   CHECKOUT_ATTEMPT_KEY,
   clearCheckoutAttemptKey,
+  clearCheckoutAttemptAfterDefiniteRejection,
   getOrCreateCheckoutAttemptKey,
   type CheckoutAttemptStore,
 } from "../src/features/checkout/checkout-attempt";
@@ -68,5 +69,32 @@ describe("checkout completion retry safety", () => {
     expect(source).toContain("placingRef.current = false;");
     expect(source).toContain('e.code === "IDEMPOTENCY_CONFLICT"');
     expect(source).not.toContain("co_${Date.now()}_");
+    expect(source).toContain("clearCheckoutAttemptAfterDefiniteRejection(window.sessionStorage, e.code)");
+  });
+
+  test("a confirmed pre-commit rejection allows a corrected checkout with a fresh key", () => {
+    for (const code of ["OUT_OF_STOCK", "PICKUP_FEE_CHANGED", "RULE_VIOLATION", "VALIDATION_FAILED"]) {
+      const { store } = makeStore();
+      const first = getOrCreateCheckoutAttemptKey(store, () => firstUuid);
+      expect(clearCheckoutAttemptAfterDefiniteRejection(store, code)).toBe(true);
+      expect(getOrCreateCheckoutAttemptKey(store, () => secondUuid)).not.toBe(first);
+    }
+  });
+
+  test("ambiguous failures, 5xx and key conflicts retain the same checkout identity", () => {
+    for (const code of ["IDEMPOTENCY_CONFLICT", "UNAVAILABLE", "UNAUTHORIZED", "FORBIDDEN", "PAYMENT_PENDING", "INTERNAL_ERROR", "NETWORK_ERROR"]) {
+      const { store } = makeStore();
+      const first = getOrCreateCheckoutAttemptKey(store, () => firstUuid);
+      expect(clearCheckoutAttemptAfterDefiniteRejection(store, code)).toBe(false);
+      expect(getOrCreateCheckoutAttemptKey(store, () => secondUuid)).toBe(first);
+    }
+  });
+
+  test("blocked storage does not claim a rejected attempt was reset", () => {
+    const { store } = makeStore();
+    getOrCreateCheckoutAttemptKey(store, () => firstUuid);
+    const blocked: CheckoutAttemptStore = { ...store, removeItem: () => { throw new Error("blocked"); } };
+    expect(() => clearCheckoutAttemptAfterDefiniteRejection(blocked, "PICKUP_FEE_CHANGED")).toThrow("blocked");
+    expect(getOrCreateCheckoutAttemptKey(store, () => secondUuid)).toBe("co_60ad32124f174f5294a4a064fd32e9fb");
   });
 });

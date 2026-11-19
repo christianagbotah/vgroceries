@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
 import { useCart } from "@/features/checkout/cart-store";
-import { clearCheckoutAttemptKey, getOrCreateCheckoutAttemptKey } from "@/features/checkout/checkout-attempt";
+import { clearCheckoutAttemptAfterDefiniteRejection, clearCheckoutAttemptKey, getOrCreateCheckoutAttemptKey } from "@/features/checkout/checkout-attempt";
 import { apiOps, ApiError } from "@/services/client";
 import { formatMoney, parseMoneyToMinor } from "@/lib/money";
 import { isValidGhanaPhone, isValidGhanaPostGps } from "@/lib/format";
@@ -264,6 +264,15 @@ export default function CheckoutPage() {
       router.push(`/checkout/status/${result.orderId}`);
     } catch (e) {
       if (e instanceof ApiError) {
+        // A confirmed pre-commit rejection did not create an order, so a
+        // corrected basket/fee must receive a fresh completion identity.
+        // Ambiguous failures and idempotency conflicts must retain the key.
+        try {
+          clearCheckoutAttemptAfterDefiniteRejection(window.sessionStorage, e.code);
+        } catch {
+          setOrderError("The server rejected this checkout, but we could not safely reset its retry identity. Please contact support before submitting changed details.");
+          return;
+        }
         setOrderError(e.code === "IDEMPOTENCY_CONFLICT"
           ? "This checkout may already have been placed using different details. To avoid a duplicate order, check your order history or contact customer support before trying a new checkout."
           : e.message);

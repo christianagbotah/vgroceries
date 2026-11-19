@@ -35,3 +35,27 @@ export function getOrCreateCheckoutAttemptKey(
 export function clearCheckoutAttemptKey(store: CheckoutAttemptStore): void {
   store.removeItem(CHECKOUT_ATTEMPT_KEY);
 }
+
+/**
+ * Only explicit, pre-commit checkout rejections permit a corrected request
+ * to start with a new key. The production checkout command returns these
+ * errors before committing its atomic order/reservation/idempotency record.
+ *
+ * Never release after an HTTP timeout, 5xx, authentication error or
+ * IDEMPOTENCY_CONFLICT: any of those may leave an existing order to reconcile.
+ */
+const definitePreCommitRejections = new Set([
+  "OUT_OF_STOCK",
+  "PICKUP_FEE_CHANGED",
+  "RULE_VIOLATION",
+  "VALIDATION_FAILED",
+]);
+
+export function clearCheckoutAttemptAfterDefiniteRejection(
+  store: CheckoutAttemptStore,
+  errorCode: string,
+): boolean {
+  if (!definitePreCommitRejections.has(errorCode)) return false;
+  clearCheckoutAttemptKey(store);
+  return true;
+}
