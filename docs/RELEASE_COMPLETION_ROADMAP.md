@@ -47,7 +47,7 @@ provider integrations or operations are already production-ready.
   in source behind explicit OFF release flags; no pretend SMS provider.
 - [ ] Real centre/zone staffing configuration, operating hours, test parcels,
   payment-provider proof and accessibility/phone-only acceptance.
-- [x] Administrator appointment-policy edits must preserve committed future bookings:
+- [x] Administrator appointment-policy edits must preserve committed future or ongoing bookings:
   validate weekdays, hours, slot duration and capacity under a policy row lock;
   conflicting edits return HTTP 409 (source-only; see
   `docs/PICKUP_POLICY_BOOKING_COMPATIBILITY_20261119.md`).

@@ -120,7 +120,7 @@ export class PickupAppointmentService {
       // compatible with all already-committed customer appointments.
       await tx.$queryRaw`SELECT "nodeId" FROM "PickupAppointmentPolicy" WHERE "nodeId"=${nodeId} FOR UPDATE`;
       const existingBookings=await tx.pickupAppointment.findMany({
-        where:{nodeId,status:"booked",startsAt:{gte:new Date()}},
+        where:{nodeId,status:"booked",endsAt:{gt:new Date()}},
         select:{startsAt:true,endsAt:true},
         orderBy:{startsAt:"asc"},
       });

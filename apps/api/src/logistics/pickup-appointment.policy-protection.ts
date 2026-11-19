@@ -11,7 +11,7 @@ function toMinute(clock: string) {
 
 /**
  * An edited centre schedule must continue to accommodate every existing
- * future booking, even when the new policy is temporarily disabled.
+ * future or currently in-progress booking, even if the new policy is disabled.
  *
  * lead time and booking horizon limit new bookings only; they do not
  * retroactively invalidate appointments already committed by customers.

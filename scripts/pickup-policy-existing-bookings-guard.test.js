@@ -41,6 +41,8 @@ describe("pickup schedule changes protect customer reservations",()=>{
    expect(source).toContain('FROM "PickupAppointmentPolicy" WHERE "nodeId"=${nodeId} FOR UPDATE');
    expect(source).toContain('WHERE "nodeId"=${policy.nodeId} FOR SHARE');
    expect(source).toContain("incompatiblePickupBookingCount(input,existingBookings)");
+   expect(source).toContain('where:{nodeId,status:"booked",endsAt:{gt:new Date()}}');
+   expect(source).not.toContain('where:{nodeId,status:"booked",startsAt:{gte:new Date()}}');
    expect(source).toContain("PICKUP_POLICY_CONFLICTS_WITH_BOOKINGS");
    expect(source).not.toContain("cancelAppointmentOnPolicyChange");
  });
