@@ -2,7 +2,8 @@ import {describe,expect,test} from "bun:test";
 import {existsSync,readdirSync,readFileSync} from "node:fs";
 import {join,relative,resolve} from "node:path";
 import {
-  MANUAL_SCREENS,MANUAL_PENDING_SCREENS,MANUAL_DOCUMENTED_SCREENS,screenLink,screensForRole,
+  MANUAL_SCREENS,MANUAL_PENDING_SCREENS,MANUAL_DOCUMENTED_SCREENS,
+  MANUAL_STAGING_SCREENS,MANUAL_SOURCE_ONLY_PATHS,screenLink,screensForRole,
 } from "../src/features/manual/catalogue";
 import {MANUAL_WORKFLOWS,workflowsForRole} from "../src/features/manual/workflows";
 import {createOfflineManualHtml,printManualAsPdf} from "../src/features/manual/export";
@@ -35,7 +36,7 @@ describe("Role-aware illustrated system manual",()=>{
       expect(screen.purpose.length).toBeGreaterThan(20);
       expect(screen.action.length).toBeGreaterThan(20);
       expect(screen.check.length).toBeGreaterThan(20);
-      expect(["gated","preview","implemented"]).toContain(screen.readiness);
+      expect(["gated","preview","implemented","absent"]).toContain(screen.readiness);
       expect(screenLink(screen.path)).toStartWith("/");
     }
   });
@@ -156,21 +157,25 @@ describe("Role-aware illustrated system manual",()=>{
     }
   });
 
-  test("79 current routes plus two blocked POS drafts produce an unapproved evidence checklist",()=>{
+  test("79 source routes, eight staging-only and two drafts produce four honest UAT statuses",()=>{
     const csv=createManualUatCsv(MANUAL_DOCUMENTED_SCREENS);
     expect(readFileSync(join(root,"docs/MANUAL_SCREENSHOT_UAT_TEMPLATE_20261120.csv"),"utf8")).toBe(csv.replaceAll("\r\n","\n"));
     const lines=csv.trimEnd().split("\r\n");
-    expect(lines).toHaveLength(82);
+    expect(lines).toHaveLength(90);
     expect(MANUAL_UAT_HEADER).toHaveLength(15);
     expect(lines[0]).toContain("Source release SHA");
     expect(lines[0]).toContain("Role and direct URL UAT");
     expect(lines[1]).toContain("vg-001-home-desktop.png");
     expect(lines[1]).toContain("vg-001-home-mobile.png");
     expect(lines[1]).not.toContain("PASS");
-    expect((csv.match(/NOT_TESTED/g)??[]).length).toBe(MANUAL_SCREENS.length*4);
-    expect((csv.match(/BLOCKED_PENDING_RELEASE/g)??[]).length).toBe(MANUAL_PENDING_SCREENS.length*4);
-    expect(lines[80]).toContain("BLOCKED_PENDING_RELEASE");
-    expect(lines[81]).toContain("BLOCKED_PENDING_RELEASE");
+    expect((csv.match(/NOT_TESTED/g)??[]).length).toBe(74*4);
+    expect((csv.match(/BLOCKED_NOT_IN_STAGING/g)??[]).length).toBe(5*4);
+    expect((csv.match(/BLOCKED_STAGING_PARITY/g)??[]).length).toBe(8*4);
+    expect((csv.match(/BLOCKED_PENDING_RELEASE/g)??[]).length).toBe(2*4);
+    expect(lines[80]).toContain("BLOCKED_STAGING_PARITY");
+    expect(lines[87]).toContain("BLOCKED_STAGING_PARITY");
+    expect(lines[88]).toContain("BLOCKED_PENDING_RELEASE");
+    expect(lines[89]).toContain("BLOCKED_PENDING_RELEASE");
     for(const screen of MANUAL_DOCUMENTED_SCREENS){
       expect(csv).toContain(screen.path);
       expect(csv).toContain(screen.title);
@@ -181,6 +186,38 @@ describe("Role-aware illustrated system manual",()=>{
     expect(tampered).not.toContain("\"=HYPERLINK");
     expect(()=>downloadManualUatCsv("customer",MANUAL_SCREENS)).toThrow(/Administrator/);
     expect(()=>downloadManualUatCsv("cashier",MANUAL_SCREENS)).toThrow(/Administrator/);
+  });
+
+  test("inspected staging manifest is reconciled as eight staged-only and five source-only routes",()=>{
+    expect(MANUAL_SCREENS).toHaveLength(79);
+    expect(MANUAL_STAGING_SCREENS).toHaveLength(8);
+    expect(MANUAL_SOURCE_ONLY_PATHS).toHaveLength(5);
+    expect(MANUAL_DOCUMENTED_SCREENS).toHaveLength(89);
+    expect(MANUAL_STAGING_SCREENS.map(x=>x.path).sort()).toEqual([
+      "/admin/inventory/lots",
+      "/admin/pos/till-operations",
+      "/admin/support",
+      "/staff/cashier",
+      "/staff/demo/[role]",
+      "/staff/pos",
+      "/support",
+      "/uat",
+    ].sort());
+    for(const page of MANUAL_STAGING_SCREENS){
+      expect(page.readiness).toBe("staging");
+      expect(page.releaseSource).toContain("107fc4f");
+      expect(MANUAL_SCREENS.some(s=>s.path===page.path)).toBe(false);
+      const sourcePage=join(root,"src/app",page.path==="/support"?"(storefront)/support":page.path.slice(1),"page.tsx");
+      expect(existsSync(sourcePage)).toBe(false);
+    }
+    for(const path of MANUAL_SOURCE_ONLY_PATHS){
+      const page=MANUAL_SCREENS.find(x=>x.path===path);
+      expect(page?.readiness).toBe("absent");
+      expect(page?.releaseSource).toContain("107fc4f");
+    }
+    const md=readFileSync(join(root,"docs/ROLE_BASED_SYSTEM_MANUAL_20261120.md"),"utf8");
+    expect((md.match(/^```mermaid$/gm)??[])).toHaveLength(101);
+    expect(md).toContain("82 deployed pages");
   });
 
   test("POS read-only draft guides remain outside the 79 canonical source routes",()=>{
@@ -198,8 +235,8 @@ describe("Role-aware illustrated system manual",()=>{
       expect(existsSync(join(root,"src/app",screen.path.slice(1),"page.tsx"))).toBe(false);
       expect(exported).toContain(screen.path);
     }
-    expect(exported).toContain("Not part of this deployed release");
-    expect(exported).toContain("Not navigable in this release");
+    expect(exported).toContain("Not yet an approved release route");
+    expect(exported).toContain("Manual link disabled pending reviewed release-pair parity");
     for(const role of ["customer","cashier","inventory_manager","rider"] as const){
       const edition=createOfflineManualHtml(role,screensForRole(role),workflowsForRole(role));
       for(const screen of MANUAL_PENDING_SCREENS)expect(edition).not.toContain(screen.path);

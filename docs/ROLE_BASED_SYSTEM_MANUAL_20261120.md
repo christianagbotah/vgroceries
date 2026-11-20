@@ -16,15 +16,15 @@
 
 | Verified role | Visible screen guides | Workflow diagrams | Notes |
 |---|---:|---:|---|
-| Administrator — all roles | 81 | 11 | All role views; preview as each role without changing backend permissions. |
-| Customer | 31 | 3 | Only role-specific and common guidance; actual API grants remain server-enforced. |
-| Inventory manager | 14 | 1 | Only role-specific and common guidance; actual API grants remain server-enforced. |
-| Cashier | 9 | 2 | Only role-specific and common guidance; actual API grants remain server-enforced. |
+| Administrator — all roles | 89 | 11 | All role views; preview as each role without changing backend permissions. |
+| Customer | 32 | 3 | Only role-specific and common guidance; actual API grants remain server-enforced. |
+| Inventory manager | 15 | 1 | Only role-specific and common guidance; actual API grants remain server-enforced. |
+| Cashier | 11 | 2 | Only role-specific and common guidance; actual API grants remain server-enforced. |
 | Rider | 13 | 1 | Only role-specific and common guidance; actual API grants remain server-enforced. |
 
 ## Authority and specialist role mapping
 
-**Authenticated API role set (current):** administrator, inventory manager, cashier, rider and customer. Administrators see the full guide, currently 79 main-derived source pages plus two separately marked draft POS pages from PR #175; those two are not deployed. Other authenticated roles see the screens applicable to their role plus shared guidance. A manual chapter never grants API access.
+**Authenticated API role set (current):** administrator, inventory manager, cashier, rider and customer. Administrators see all chapters, including 79 canonical source pages (five absent from the inspected live staging build), eight pages observed only in the deployed POS-integrated staging build, and two separately marked unmerged draft POS pages from PR #175. None of these observations establishes production feature permission. Other authenticated roles see their task-specific and shared guidance only.
 
 **Design/demo specialization (not a live role grant):** owner/admin, operations manager, inventory officer, cashier, picker/packer, dispatcher, finance/refund reviewer and rider exist as richer design-time/demo menu roles. Their distinct production server grants and branch scopes are separate UAT/implementation work. In particular, the staff demo selector is **not** a production impersonation or authorization mechanism.
 
@@ -325,7 +325,7 @@ flowchart LR
 
 ## Screen-by-screen reference
 
-**Scope:** 79 canonical main-derived application routes and 2 additional administrator-only draft POS routes from unmerged PR #175. The two draft routes are NOT DEPLOYED, are not present in this source checkout and must not be marked tested until the approved POS release is deployed.
+**Scope and verified route comparison (20 Nov 2026):** 82 deployed pages observed in the active POS-integrated staging portal build 107fc4f versus 79 canonical main-derived routes (5 absent from running staging). 8 additional page artifacts exist only in staging (NOT in canonical source), and 2 unmerged PR #175 draft POS routes (NOT deployed). None of the unmatched routes is certified for UAT or production until protected source/API release parity and authenticated role testing.
 
 ### 01. Storefront home
 
@@ -1177,7 +1177,7 @@ flowchart LR
 
 ### 54. COD exceptions
 
-**Route:** `/admin/dispatch/cod-exceptions` · **Audience:** admin · **Status:** UAT / controlled feature gate
+**Route:** `/admin/dispatch/cod-exceptions` · **Audience:** admin · **Status:** SOURCE-ONLY — absent from inspected staging portal
 
 - **Purpose:** Review unpaid-cash exceptions and independent counting evidence.
 - **Steps:** Locate the navigation and screen; Trace rider declaration, supervisor checks and discrepancy.
@@ -1385,7 +1385,7 @@ flowchart LR
 
 ### 67. Verified staff UAT
 
-**Route:** `/admin/team/verified` · **Audience:** admin · **Status:** UAT / controlled feature gate
+**Route:** `/admin/team/verified` · **Audience:** admin · **Status:** SOURCE-ONLY — absent from inspected staging portal
 
 - **Purpose:** Review real cashier invitations and secure role assignments.
 - **Steps:** Locate the navigation and screen; Check branch grants and invitation activation.
@@ -1481,7 +1481,7 @@ flowchart LR
 
 ### 73. My cashier workspace
 
-**Route:** `/staff/cashier/workspace` · **Audience:** cashier · **Status:** UAT / controlled feature gate
+**Route:** `/staff/cashier/workspace` · **Audience:** cashier · **Status:** SOURCE-ONLY — absent from inspected staging portal
 
 - **Purpose:** Inspect assigned branches, tills and own recent sales.
 - **Steps:** Locate the navigation and screen; Sign in with a real cashier account, then refresh records.
@@ -1497,7 +1497,7 @@ flowchart LR
 
 ### 74. Verified rider sign in
 
-**Route:** `/staff/rider/login` · **Audience:** rider · **Status:** UAT / controlled feature gate
+**Route:** `/staff/rider/login` · **Audience:** rider · **Status:** SOURCE-ONLY — absent from inspected staging portal
 
 - **Purpose:** Sign in to the server-verified rider area.
 - **Steps:** Locate the navigation and screen; Use an assigned rider account and confirm your branch.
@@ -1513,7 +1513,7 @@ flowchart LR
 
 ### 75. Rider COD declaration
 
-**Route:** `/staff/rider/cod` · **Audience:** rider · **Status:** UAT / controlled feature gate
+**Route:** `/staff/rider/cod` · **Audience:** rider · **Status:** SOURCE-ONLY — absent from inspected staging portal
 
 - **Purpose:** Declare physically collected COD money against eligible delivered jobs.
 - **Steps:** Locate the navigation and screen; Confirm counted cash and possession with an evidence note.
@@ -1591,7 +1591,135 @@ flowchart LR
   A --> C["④ Physical delivery and cash handover are independent evidence events"]
 ```
 
-### 80. POS cash-sale history — draft only
+### 80. Recorded stock lots — staging only
+
+**Route:** `/admin/inventory/lots` · **Audience:** inventory · **Status:** STAGING-ONLY — built artifact, parity review required
+
+- **Purpose:** Review physically recorded lot balances, expiry, quarantine and damaged statuses using filters and mobile/desktop layouts.
+- **Steps:** Locate the navigation and screen; In reviewed staging with correct inventory role, search by product, variant, lot number or location and filter available, expiring, expired, quarantined or damaged lots.
+- **Verify:** Physical lot quantities are not available-to-sell stock; subtract reservations and safety stock and exclude quarantined or expired lots. This page is read-only.
+- **Screen figure:** Searchable operational records (ledger). The visual below is illustrative, not a screenshot. During UAT, check actual controls against the corresponding authenticated screen.
+
+```mermaid
+flowchart LR
+  N["① Inventory"] --> V["② Recorded stock lots — staging only"]
+  V --> A["③ Select one record"]
+  A --> C["④ List visibility does not independently authorize mutations"]
+```
+
+### 81. Test till operations — staging only
+
+**Route:** `/admin/pos/till-operations` · **Audience:** admin · **Status:** STAGING-ONLY — built artifact, parity review required
+
+- **Purpose:** Private administrator test-till operations provided by the staged VerifiedTillOperations component.
+- **Steps:** Locate the navigation and screen; Only in a restored isolated test database with approved flags, verify assigned till, opening and movements, role restrictions, and review the resulting record.
+- **Verify:** This is a cash-drawer UAT page, not approval to operate or settle a live till; never introduce real cash or stock-changing tests without the financial gate.
+- **Screen figure:** Financial evidence and drawer view (cash). The visual below is illustrative, not a screenshot. During UAT, check actual controls against the corresponding authenticated screen.
+
+```mermaid
+flowchart LR
+  N["① Counter sales"] --> V["② Test till operations — staging only"]
+  V --> A["③ Separate approval state"]
+  A --> C["④ Do not equate recorded cash with verified electronic settlement"]
+```
+
+### 82. Customer support inbox — staging only
+
+**Route:** `/admin/support` · **Audience:** admin · **Status:** STAGING-ONLY — built artifact, parity review required
+
+- **Purpose:** Review real database-backed customer requests, current statuses and internal case histories.
+- **Steps:** Locate the navigation and screen; After administrator authentication, filter cases by status, select a case, review source details and use a sanitized test case to validate an approved status update.
+- **Verify:** Customer name, phone, email and notes are private. Confirm ownership before disclosing order or payment information; a case update does not send an SMS or place a call.
+- **Screen figure:** Searchable operational records (ledger). The visual below is illustrative, not a screenshot. During UAT, check actual controls against the corresponding authenticated screen.
+
+```mermaid
+flowchart LR
+  N["① Customer service"] --> V["② Customer support inbox — staging only"]
+  V --> A["③ Select one record"]
+  A --> C["④ List visibility does not independently authorize mutations"]
+```
+
+### 83. Verified cashier reports — staging only
+
+**Route:** `/staff/cashier` · **Audience:** cashier · **Status:** STAGING-ONLY — built artifact, parity review required
+
+- **Purpose:** Read-only cashier workspace for assigned stock locations and authorized cashier reports.
+- **Steps:** Locate the navigation and screen; Sign in with an approved cashier test account, select an allowed location, and inspect only that cashier’s permitted stock and till evidence.
+- **Verify:** This workspace displays reports; it is not a payment-collection or settlement authorization. Validate direct-URL denial for unrelated users and branches.
+- **Screen figure:** Financial evidence and drawer view (cash). The visual below is illustrative, not a screenshot. During UAT, check actual controls against the corresponding authenticated screen.
+
+```mermaid
+flowchart LR
+  N["① Cashier workspace"] --> V["② Verified cashier reports — staging only"]
+  V --> A["③ Separate approval state"]
+  A --> C["④ Do not equate recorded cash with verified electronic settlement"]
+```
+
+### 84. Demo staff role activation — staging only
+
+**Route:** `/staff/demo/[role]` · **Audience:** admin · **Status:** STAGING-ONLY — built artifact, parity review required
+
+- **Purpose:** Private demonstration role previews using known role identifiers when UAT_DEMO_LOGIN is enabled.
+- **Steps:** Locate the navigation and screen; In isolated staging only, open the preview through the authorized demo navigation and confirm the resulting interface displays fictional role permissions.
+- **Verify:** A selected demo role cannot grant a real backend session, branch authority or financial approval; disabled flags must return a not-found page.
+- **Screen figure:** Validated entry or edit (form). The visual below is illustrative, not a screenshot. During UAT, check actual controls against the corresponding authenticated screen.
+
+```mermaid
+flowchart LR
+  N["① Administration"] --> V["② Demo staff role activation — staging only"]
+  V --> A["③ Validate input"]
+  A --> C["④ The backend independently enforces authorization and field validation"]
+```
+
+### 85. Authenticated staff POS UAT — staging only
+
+**Route:** `/staff/pos` · **Audience:** cashier · **Status:** STAGING-ONLY — built artifact, parity review required
+
+- **Purpose:** Gated real-role cashier counter checkout backed by the VerifiedPosUat component.
+- **Steps:** Locate the navigation and screen; In a restored isolated UAT database with approved test inventory and a test till, verify cashier role, quote, held stock, permitted cash flow and receipt evidence.
+- **Verify:** Do not collect real money, deplete actual stock or assume this feature is live; verify idempotency, cashier branch access and physical handover before any launch consideration.
+- **Screen figure:** Financial evidence and drawer view (cash). The visual below is illustrative, not a screenshot. During UAT, check actual controls against the corresponding authenticated screen.
+
+```mermaid
+flowchart LR
+  N["① Counter sales"] --> V["② Authenticated staff POS UAT — staging only"]
+  V --> A["③ Separate approval state"]
+  A --> C["④ Do not equate recorded cash with verified electronic settlement"]
+```
+
+### 86. Customer support request — staging only
+
+**Route:** `/support` · **Audience:** customer · **Status:** STAGING-ONLY — built artifact, parity review required
+
+- **Purpose:** Submit a request for human customer support with contact details, question category, optional order reference and consent.
+- **Steps:** Locate the navigation and screen; Enter a synthetic support test enquiry, select the preferred reply method, give consent, submit once and check the recorded reference.
+- **Verify:** A recorded support request is not a guaranteed callback, sent SMS, verified order reference, payment change or refund authorization. Never include passwords or payment secrets.
+- **Screen figure:** Guidance and assistance (guide). The visual below is illustrative, not a screenshot. During UAT, check actual controls against the corresponding authenticated screen.
+
+```mermaid
+flowchart LR
+  N["① Account & support"] --> V["② Customer support request — staging only"]
+  V --> A["③ Follow relevant action"]
+  A --> C["④ Published guidance must match current approved business rules"]
+```
+
+### 87. Private staging UAT centre — staging only
+
+**Route:** `/uat` · **Audience:** admin · **Status:** STAGING-ONLY — built artifact, parity review required
+
+- **Purpose:** A private role-by-role UAT navigation centre with test journeys for administrators, finance, operations, cashier, inventory, dispatch and customer.
+- **Steps:** Locate the navigation and screen; With UAT_DEMO_LOGIN and NEXT_PUBLIC_POS_COUNTER_UAT enabled in isolated staging, follow the correct journey to review permitted and denied actions and log results.
+- **Verify:** Demo previews and real authenticated cashier tests are different; neither approves live merchant payments, cash, refunds or stock movement.
+- **Screen figure:** Guidance and assistance (guide). The visual below is illustrative, not a screenshot. During UAT, check actual controls against the corresponding authenticated screen.
+
+```mermaid
+flowchart LR
+  N["① Administration"] --> V["② Private staging UAT centre — staging only"]
+  V --> A["③ Follow relevant action"]
+  A --> C["④ Published guidance must match current approved business rules"]
+```
+
+### 88. POS cash-sale history — draft only
 
 **Route:** `/admin/pos/verified-uat/history` · **Audience:** admin · **Status:** DRAFT PR #175 — NOT DEPLOYED, test blocked
 
@@ -1609,7 +1737,7 @@ flowchart LR
   A --> C["④ Do not equate recorded cash with verified electronic settlement"]
 ```
 
-### 81. POS till reconciliation — draft only
+### 89. POS till reconciliation — draft only
 
 **Route:** `/admin/pos/verified-uat/reconciliation` · **Audience:** admin · **Status:** DRAFT PR #175 — NOT DEPLOYED, test blocked
 
@@ -1629,9 +1757,11 @@ flowchart LR
 
 ## UAT and screenshot capture plan
 
-**Evidence checklist:** The administrator manual can generate a role-scoped download of `variety-groceries-screen-uat-evidence-template.csv`. The checked-in `docs/MANUAL_SCREENSHOT_UAT_TEMPLATE_20261120.csv` contains 79 canonical source rows initially NOT_TESTED and 2 POS draft rows blocked as BLOCKED_PENDING_RELEASE. Follow `docs/MANUAL_SCREENSHOT_UAT_RUNBOOK_20261120.md` to capture real redacted staging screenshots and verify each role. Do not treat conceptual diagrams as screenshot evidence.
+**Evidence checklist:** The administrator manual can generate `variety-groceries-screen-uat-evidence-template.csv`. The checked-in `docs/MANUAL_SCREENSHOT_UAT_TEMPLATE_20261120.csv` contains 89 chapters: 74 route matches initially NOT_TESTED, 5 canonical-source-only routes BLOCKED_NOT_IN_STAGING, 8 deployed-artifact-only routes BLOCKED_STAGING_PARITY and 2 PR #175 draft routes BLOCKED_PENDING_RELEASE. Follow `docs/MANUAL_SCREENSHOT_UAT_RUNBOOK_20261120.md` for redacted authenticated screenshots and review. Do not treat conceptual figures or build artifacts as acceptance evidence.
 
-**Screenshot coverage**: each of the 79 current-source screens must be captured on the same release SHA using approved sample/test identities. Two separately sourced draft POS screens must remain BLOCKED_PENDING_RELEASE until installed in a reviewed release pair. Before embedding a real screenshot, verify correct role, product logo, live enabled flags, mobile layout and no private customer information. Mask names, phone numbers, tokens, credentials, receipts, or banking references. Attach one desktop and (where materially different) one mobile screenshot per screen. Do not mistake the conceptual screen diagrams for captured screenshots.
+**Screenshot coverage**: 74 common route screens may enter UAT after approved release SHA verification; five canonical-only, eight staging-only and two unmerged draft POS pages remain explicitly blocked until reviewed release-pair parity resolves each mismatch. Use approved sample/test identities; before embedding real images, verify correct role, product logo, enabled flags, mobile layout and no private customer information. Mask names, phone numbers, tokens, credentials, receipts, or banking references. Attach one desktop and (where materially different) one mobile screenshot per screen. Do not mistake the conceptual screen diagrams for captured screenshots.
+
+**Repeatable source/deployment parity audit:** Before screenshots or release approval, use `bun scripts/audit-manual-staging-parity.ts /absolute/approved-portal-release/.next/server/app` against the immutable staging artifact. The audit only reads page filenames and fails on newly added, removed or renamed routes. A matching route snapshot is NOT sign-off for role access, actual behavior, payment or stock. See `docs/MANUAL_SCREENSHOT_UAT_RUNBOOK_20261120.md`.
 
 **Role/UAT script:** Verify administrator sees every manual section; inventory manager sees only inventory + shared; cashier sees only cashier + shared; rider sees only rider + shared; customer and guest see customer + shared. Test expired sessions, logout/login account change, direct URL access, no admin instruction leakage in visible views, keyboard search, navigation, offline HTML export, print PDF, mobile legibility and screen links.
 

@@ -30,14 +30,17 @@ export function createManualUatCsv(screens:readonly ManualScreen[]):string {
   const rows=[MANUAL_UAT_HEADER.map(csvCell).join(",")];
   screens.forEach((s,index)=>{
     const key=`vg-${String(index+1).padStart(3,"0")}-${screenSlug(s.path)}`;
-    const initialStatus=s.readiness==="pending"?"BLOCKED_PENDING_RELEASE":"NOT_TESTED";
+    const initialStatus=s.readiness==="pending"?"BLOCKED_PENDING_RELEASE":
+      s.readiness==="staging"?"BLOCKED_STAGING_PARITY":
+      s.readiness==="absent"?"BLOCKED_NOT_IN_STAGING":"NOT_TESTED";
     const values=[
       String(index+1),s.title,s.path,s.audience,
       MANUAL_READINESS_LABELS[s.readiness],
       `${key}-desktop.png`,initialStatus,
       `${key}-mobile.png`,initialStatus,
       initialStatus,initialStatus,"","","",
-      s.readiness==="pending"?`Draft-only ${s.releaseSource??"external source"}; do not test before reviewed POS deployment`:"",
+      ["pending","staging","absent"].includes(s.readiness)
+        ?`${s.releaseSource??"Unreviewed release source"}; hold testing until exact route parity and authorized staging review`:"",
     ];
     rows.push(values.map(csvCell).join(","));
   });

@@ -29,7 +29,8 @@ export function manualVisual(screen:ManualScreen):ManualVisual{
       elements:["Search / category","Product image and variant","Price and availability","Basket action"],
       emphasis:"Cart contents are not a reservation"};
   if(p.includes("payments")||p.includes("refund")||p.includes("cashier-session")||
-    p.startsWith("/admin/pos")||p.includes("/cashier/workspace"))
+    p.startsWith("/admin/pos")||p.startsWith("/staff/pos")||
+    p.startsWith("/staff/cashier"))
     return {kind:"cash",heading:"Financial evidence and drawer view",
       elements:["Actor / register","Cash or provider evidence","Separate approval state","Audit and reconciliation"],
       emphasis:"Do not equate recorded cash with verified electronic settlement"};
@@ -47,11 +48,11 @@ export function manualVisual(screen:ManualScreen):ManualVisual{
     p.includes("profile")||p.includes("settings")||p.includes("activate")||
     p.includes("/content")||p.includes("addresses")||p.includes("/team/verified")||
     p.includes("adjustments")||p.includes("receiving")||
-    p.includes("/products/[id]"))
+    p.includes("/products/[id]")||p.startsWith("/staff/demo/"))
     return {kind:"form",heading:"Validated entry or edit",
       elements:["Choose permitted record","Enter reviewed information","Validate input","Save and recheck"],
       emphasis:"The backend independently enforces authorization and field validation"};
-  if(p==="/help"||p==="/terms"||p==="/privacy"||p==="/returns-policy"||
+  if(p==="/help"||p==="/support"||p==="/uat"||p==="/terms"||p==="/privacy"||p==="/returns-policy"||
     p==="/delivery"||p==="/assistant"||p==="/admin/demo")
     return {kind:"guide",heading:"Guidance and assistance",
       elements:["Select topic","Read approved content","Follow relevant action","Confirm policy / support"],

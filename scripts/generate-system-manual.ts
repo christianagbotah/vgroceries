@@ -3,6 +3,7 @@ import {join} from "node:path";
 import {
   MANUAL_READINESS_LABELS,MANUAL_ROLE_LABELS,MANUAL_SCREENS,
   MANUAL_DOCUMENTED_SCREENS,MANUAL_PENDING_SCREENS,
+  MANUAL_STAGING_SCREENS,MANUAL_SOURCE_ONLY_PATHS,
   screensForRole,
 } from "../src/features/manual/catalogue";
 import {MANUAL_WORKFLOWS,workflowsForRole} from "../src/features/manual/workflows";
@@ -35,7 +36,7 @@ const sections=[
 "",
 "## Authority and specialist role mapping",
 "",
-"**Authenticated API role set (current):** administrator, inventory manager, cashier, rider and customer. Administrators see the full guide, currently 79 main-derived source pages plus two separately marked draft POS pages from PR #175; those two are not deployed. Other authenticated roles see the screens applicable to their role plus shared guidance. A manual chapter never grants API access.",
+"**Authenticated API role set (current):** administrator, inventory manager, cashier, rider and customer. Administrators see all chapters, including 79 canonical source pages (five absent from the inspected live staging build), eight pages observed only in the deployed POS-integrated staging build, and two separately marked unmerged draft POS pages from PR #175. None of these observations establishes production feature permission. Other authenticated roles see their task-specific and shared guidance only.",
 "",
 "**Design/demo specialization (not a live role grant):** owner/admin, operations manager, inventory officer, cashier, picker/packer, dispatcher, finance/refund reviewer and rider exist as richer design-time/demo menu roles. Their distinct production server grants and branch scopes are separate UAT/implementation work. In particular, the staff demo selector is **not** a production impersonation or authorization mechanism.",
 "",
@@ -72,7 +73,7 @@ const sections=[
 }),
 "## Screen-by-screen reference",
 "",
-`**Scope:** ${MANUAL_SCREENS.length} canonical main-derived application routes and ${MANUAL_PENDING_SCREENS.length} additional administrator-only draft POS routes from unmerged PR #175. The two draft routes are NOT DEPLOYED, are not present in this source checkout and must not be marked tested until the approved POS release is deployed.`,
+`**Scope and verified route comparison (20 Nov 2026):** 82 deployed pages observed in the active POS-integrated staging portal build 107fc4f versus ${MANUAL_SCREENS.length} canonical main-derived routes (${MANUAL_SOURCE_ONLY_PATHS.length} absent from running staging). ${MANUAL_STAGING_SCREENS.length} additional page artifacts exist only in staging (NOT in canonical source), and ${MANUAL_PENDING_SCREENS.length} unmerged PR #175 draft POS routes (NOT deployed). None of the unmatched routes is certified for UAT or production until protected source/API release parity and authenticated role testing.`,
 "",
 ...MANUAL_DOCUMENTED_SCREENS.flatMap((screen,i)=>{
   const diagram=manualVisual(screen);
@@ -93,9 +94,11 @@ const sections=[
 }),
 "## UAT and screenshot capture plan",
 "",
-"**Evidence checklist:** The administrator manual can generate a role-scoped download of `variety-groceries-screen-uat-evidence-template.csv`. The checked-in `docs/MANUAL_SCREENSHOT_UAT_TEMPLATE_20261120.csv` contains 79 canonical source rows initially NOT_TESTED and 2 POS draft rows blocked as BLOCKED_PENDING_RELEASE. Follow `docs/MANUAL_SCREENSHOT_UAT_RUNBOOK_20261120.md` to capture real redacted staging screenshots and verify each role. Do not treat conceptual diagrams as screenshot evidence.",
+"**Evidence checklist:** The administrator manual can generate `variety-groceries-screen-uat-evidence-template.csv`. The checked-in `docs/MANUAL_SCREENSHOT_UAT_TEMPLATE_20261120.csv` contains 89 chapters: 74 route matches initially NOT_TESTED, 5 canonical-source-only routes BLOCKED_NOT_IN_STAGING, 8 deployed-artifact-only routes BLOCKED_STAGING_PARITY and 2 PR #175 draft routes BLOCKED_PENDING_RELEASE. Follow `docs/MANUAL_SCREENSHOT_UAT_RUNBOOK_20261120.md` for redacted authenticated screenshots and review. Do not treat conceptual figures or build artifacts as acceptance evidence.",
 "",
-"**Screenshot coverage**: each of the 79 current-source screens must be captured on the same release SHA using approved sample/test identities. Two separately sourced draft POS screens must remain BLOCKED_PENDING_RELEASE until installed in a reviewed release pair. Before embedding a real screenshot, verify correct role, product logo, live enabled flags, mobile layout and no private customer information. Mask names, phone numbers, tokens, credentials, receipts, or banking references. Attach one desktop and (where materially different) one mobile screenshot per screen. Do not mistake the conceptual screen diagrams for captured screenshots.",
+"**Screenshot coverage**: 74 common route screens may enter UAT after approved release SHA verification; five canonical-only, eight staging-only and two unmerged draft POS pages remain explicitly blocked until reviewed release-pair parity resolves each mismatch. Use approved sample/test identities; before embedding real images, verify correct role, product logo, enabled flags, mobile layout and no private customer information. Mask names, phone numbers, tokens, credentials, receipts, or banking references. Attach one desktop and (where materially different) one mobile screenshot per screen. Do not mistake the conceptual screen diagrams for captured screenshots.",
+"",
+"**Repeatable source/deployment parity audit:** Before screenshots or release approval, use `bun scripts/audit-manual-staging-parity.ts /absolute/approved-portal-release/.next/server/app` against the immutable staging artifact. The audit only reads page filenames and fails on newly added, removed or renamed routes. A matching route snapshot is NOT sign-off for role access, actual behavior, payment or stock. See `docs/MANUAL_SCREENSHOT_UAT_RUNBOOK_20261120.md`.",
 "",
 "**Role/UAT script:** Verify administrator sees every manual section; inventory manager sees only inventory + shared; cashier sees only cashier + shared; rider sees only rider + shared; customer and guest see customer + shared. Test expired sessions, logout/login account change, direct URL access, no admin instruction leakage in visible views, keyboard search, navigation, offline HTML export, print PDF, mobile legibility and screen links.",
 "",
@@ -111,5 +114,5 @@ const csvPath=join(process.cwd(),"docs/MANUAL_SCREENSHOT_UAT_TEMPLATE_20261120.c
 // Normalize the tracked CSV to LF so git whitespace checks are clean;
 // the one-click browser download retains RFC-compatible CRLF rows.
 writeFileSync(csvPath,createManualUatCsv(MANUAL_DOCUMENTED_SCREENS).replaceAll("\r\n","\n"));
-console.log("Generated",path,"canonical screens",MANUAL_SCREENS.length,"pending POS",MANUAL_PENDING_SCREENS.length,"workflows",MANUAL_WORKFLOWS.length,"characters",output.length);
-console.log("Generated",csvPath,"rows",MANUAL_DOCUMENTED_SCREENS.length,"pending POS rows blocked");
+console.log("Generated",path,"canonical screens",MANUAL_SCREENS.length,"staging-only",MANUAL_STAGING_SCREENS.length,"pending POS",MANUAL_PENDING_SCREENS.length,"workflows",MANUAL_WORKFLOWS.length,"characters",output.length);
+console.log("Generated",csvPath,"chapters",MANUAL_DOCUMENTED_SCREENS.length,"unmatched routes blocked");

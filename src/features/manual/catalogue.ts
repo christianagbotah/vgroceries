@@ -4,7 +4,7 @@
  */
 export type ManualRole = "admin" | "inventory_manager" | "cashier" | "rider" | "customer";
 export type ManualAudience = "admin" | "inventory" | "cashier" | "rider" | "customer" | "shared";
-export type ManualReadiness = "preview" | "gated" | "implemented" | "pending";
+export type ManualReadiness = "preview" | "gated" | "implemented" | "pending" | "staging" | "absent";
 
 export interface ManualScreen {
   path: string;
@@ -107,9 +107,97 @@ const rows: readonly [string,string,ManualAudience,string,ManualReadiness,string
   ["/rider/history","Rider job history","rider","Rider demo","preview","Review previous example deliveries.","Open a completed or failed example job for context.","Demo history is not a cash or settlement ledger."],
 ];
 
+/** Compared on 20 Nov 2026 against built pages in the active POS portal
+ * release varietygroceries-portal-hubtel-safe-107fc4f-20261117.
+ * These paths exist in the reviewed source but NOT in that deployed build.
+ */
+export const MANUAL_SOURCE_ONLY_PATHS=[
+  "/admin/dispatch/cod-exceptions",
+  "/admin/team/verified",
+  "/staff/cashier/workspace",
+  "/staff/rider/cod",
+  "/staff/rider/login",
+] as const;
+const sourceOnlyPaths=new Set<string>(MANUAL_SOURCE_ONLY_PATHS);
 export const MANUAL_SCREENS: ManualScreen[] = rows.map(([path,title,audience,section,readiness,purpose,action,check])=>({
-  path,title,audience,section,readiness,purpose,action,check,
+  path,title,audience,section,
+  readiness:sourceOnlyPaths.has(path)?"absent":readiness,
+  purpose,action,check,
+  ...(sourceOnlyPaths.has(path)?{releaseSource:"Present in main-derived source, absent from inspected 17 Nov 2026 POS-integrated portal build 107fc4f"}:{}),
 }));
+
+/** Independently inspected eight built page artifacts from the running
+ * POS-integrated staging frontend on 20 Nov 2026, release 107fc4f. These
+ * routes are absent from canonical reviewed source and are not accepted as
+ * production authority merely because an artifact exists. Disable chapter
+ * navigation until release-pair parity and authenticated UAT are complete.
+ */
+export const MANUAL_STAGING_SCREENS:ManualScreen[]=[
+  {
+    path:"/admin/inventory/lots",title:"Recorded stock lots — staging only",
+    audience:"inventory",section:"Inventory",readiness:"staging",
+    releaseSource:"Inspected POS-integrated staging build 107fc4f; not in canonical source",
+    purpose:"Review physically recorded lot balances, expiry, quarantine and damaged statuses using filters and mobile/desktop layouts.",
+    action:"In reviewed staging with correct inventory role, search by product, variant, lot number or location and filter available, expiring, expired, quarantined or damaged lots.",
+    check:"Physical lot quantities are not available-to-sell stock; subtract reservations and safety stock and exclude quarantined or expired lots. This page is read-only.",
+  },
+  {
+    path:"/admin/pos/till-operations",title:"Test till operations — staging only",
+    audience:"admin",section:"Counter sales",readiness:"staging",
+    releaseSource:"Inspected POS-integrated staging build 107fc4f; not in canonical source",
+    purpose:"Private administrator test-till operations provided by the staged VerifiedTillOperations component.",
+    action:"Only in a restored isolated test database with approved flags, verify assigned till, opening and movements, role restrictions, and review the resulting record.",
+    check:"This is a cash-drawer UAT page, not approval to operate or settle a live till; never introduce real cash or stock-changing tests without the financial gate.",
+  },
+  {
+    path:"/admin/support",title:"Customer support inbox — staging only",
+    audience:"admin",section:"Customer service",readiness:"staging",
+    releaseSource:"Inspected POS-integrated staging build 107fc4f; not in canonical source",
+    purpose:"Review real database-backed customer requests, current statuses and internal case histories.",
+    action:"After administrator authentication, filter cases by status, select a case, review source details and use a sanitized test case to validate an approved status update.",
+    check:"Customer name, phone, email and notes are private. Confirm ownership before disclosing order or payment information; a case update does not send an SMS or place a call.",
+  },
+  {
+    path:"/staff/cashier",title:"Verified cashier reports — staging only",
+    audience:"cashier",section:"Cashier workspace",readiness:"staging",
+    releaseSource:"Inspected POS-integrated staging build 107fc4f; not in canonical source",
+    purpose:"Read-only cashier workspace for assigned stock locations and authorized cashier reports.",
+    action:"Sign in with an approved cashier test account, select an allowed location, and inspect only that cashier\u2019s permitted stock and till evidence.",
+    check:"This workspace displays reports; it is not a payment-collection or settlement authorization. Validate direct-URL denial for unrelated users and branches.",
+  },
+  {
+    path:"/staff/demo/[role]",title:"Demo staff role activation — staging only",
+    audience:"admin",section:"Administration",readiness:"staging",
+    releaseSource:"Inspected POS-integrated staging build 107fc4f; not in canonical source",
+    purpose:"Private demonstration role previews using known role identifiers when UAT_DEMO_LOGIN is enabled.",
+    action:"In isolated staging only, open the preview through the authorized demo navigation and confirm the resulting interface displays fictional role permissions.",
+    check:"A selected demo role cannot grant a real backend session, branch authority or financial approval; disabled flags must return a not-found page.",
+  },
+  {
+    path:"/staff/pos",title:"Authenticated staff POS UAT — staging only",
+    audience:"cashier",section:"Counter sales",readiness:"staging",
+    releaseSource:"Inspected POS-integrated staging build 107fc4f; not in canonical source",
+    purpose:"Gated real-role cashier counter checkout backed by the VerifiedPosUat component.",
+    action:"In a restored isolated UAT database with approved test inventory and a test till, verify cashier role, quote, held stock, permitted cash flow and receipt evidence.",
+    check:"Do not collect real money, deplete actual stock or assume this feature is live; verify idempotency, cashier branch access and physical handover before any launch consideration.",
+  },
+  {
+    path:"/support",title:"Customer support request — staging only",
+    audience:"customer",section:"Account & support",readiness:"staging",
+    releaseSource:"Inspected POS-integrated staging build 107fc4f; not in canonical source",
+    purpose:"Submit a request for human customer support with contact details, question category, optional order reference and consent.",
+    action:"Enter a synthetic support test enquiry, select the preferred reply method, give consent, submit once and check the recorded reference.",
+    check:"A recorded support request is not a guaranteed callback, sent SMS, verified order reference, payment change or refund authorization. Never include passwords or payment secrets.",
+  },
+  {
+    path:"/uat",title:"Private staging UAT centre — staging only",
+    audience:"admin",section:"Administration",readiness:"staging",
+    releaseSource:"Inspected POS-integrated staging build 107fc4f; not in canonical source",
+    purpose:"A private role-by-role UAT navigation centre with test journeys for administrators, finance, operations, cashier, inventory, dispatch and customer.",
+    action:"With UAT_DEMO_LOGIN and NEXT_PUBLIC_POS_COUNTER_UAT enabled in isolated staging, follow the correct journey to review permitted and denied actions and log results.",
+    check:"Demo previews and real authenticated cashier tests are different; neither approves live merchant payments, cash, refunds or stock movement.",
+  },
+];
 
 /** Source reviewed from separate, unmerged draft PR #175. DO NOT treat these
  * pages as part of the canonical 79 main-derived routes or deployed portal.
@@ -137,7 +225,7 @@ export const MANUAL_PENDING_SCREENS:ManualScreen[]=[
 /** All documented training chapters: current canonical source + separately
  * labeled draft-only POS pages. Does not change any Next.js application route.
  */
-export const MANUAL_DOCUMENTED_SCREENS:ManualScreen[]=[...MANUAL_SCREENS,...MANUAL_PENDING_SCREENS];
+export const MANUAL_DOCUMENTED_SCREENS:ManualScreen[]=[...MANUAL_SCREENS,...MANUAL_STAGING_SCREENS,...MANUAL_PENDING_SCREENS];
 
 export const MANUAL_ROLE_LABELS: Record<ManualRole,string> = {
   admin:"Administrator — all roles", inventory_manager:"Inventory manager",
@@ -148,6 +236,8 @@ export const MANUAL_READINESS_LABELS: Record<ManualReadiness,string> = {
   gated:"UAT / controlled feature gate",
   preview:"Prototype or preview — verify backend authority",
   pending:"DRAFT PR #175 — NOT DEPLOYED, test blocked",
+  staging:"STAGING-ONLY — built artifact, parity review required",
+  absent:"SOURCE-ONLY — absent from inspected staging portal",
 };
 
 /** Filtering is a display aid only: the real backend enforces action permissions. */
@@ -157,7 +247,7 @@ export function screensForRole(role:ManualRole): ManualScreen[] {
     ? ["inventory","shared"] : role==="customer"
       ? ["customer","shared"] : role==="cashier"
         ? ["cashier","shared"] : ["rider","shared"];
-  return MANUAL_SCREENS.filter(screen=>allowed.includes(screen.audience));
+  return MANUAL_DOCUMENTED_SCREENS.filter(screen=>allowed.includes(screen.audience));
 }
 export function screenLink(path:string){
   if(!path.includes("["))return path;

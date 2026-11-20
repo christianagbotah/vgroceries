@@ -1,6 +1,6 @@
-# Variety Groceries — 79 canonical + 2 draft POS screen UAT acceptance runbook
+# Variety Groceries — 79 canonical + 8 staging-only + 2 draft POS guide acceptance
 
-**Purpose:** Turn the 79-screen canonical guide plus two separately sourced POS draft chapters into an evidence-backed, screenshot-accurate edition *without claiming any financial operation is already approved*. This is a human-reviewed staging procedure, **not** a permission to deploy, seed live data or initiate money movement.
+**Purpose:** Turn the 79-screen canonical guide, eight additional pages observed in the running POS staging portal and two unmerged POS draft chapters into an evidence-backed, screenshot-accurate edition *without claiming any financial operation is already approved*. This is a human-reviewed staging procedure, **not** a permission to deploy, seed live data or initiate money movement.
 
 ## Source of truth and scope
 
@@ -8,15 +8,28 @@
 2. Use only the separately reviewed POS-integrated staging release (current upstreams **3052** portal / **3049** API). Do **not** replace it with older **3037 / 3027** scripts. Follow `docs/CANONICAL_POS_PORTAL_RELEASE_PARITY_GATE_20261116.md`.
 3. Open `/manual` **only when that release contains the manual**. A current 404 means the guide is not deployed, not that UAT has passed.
 4. Sign in with an approved *test* account of each **real backend role** (administrator, inventory manager, cashier, rider, customer). Do not treat demo selector roles as production grants.
-5. Under the verified **administrator** manual, click **Screenshot UAT checklist** to download an 81-row CSV: the 79 canonical pages start `NOT_TESTED`, and the two independently sourced draft POS pages start `BLOCKED_PENDING_RELEASE`. There is no fabricated reviewer, release SHA or screenshot.
+5. Under the verified **administrator** manual, download the 89-chapter checklist: 74 routes shared by source/staging start `NOT_TESTED`; five canonical-only pages start `BLOCKED_NOT_IN_STAGING`; eight staging-only pages start `BLOCKED_STAGING_PARITY`; and two unmerged PR #175 POS pages start `BLOCKED_PENDING_RELEASE`. Reviewer, release SHA and screenshot proof remain blank until independently verified.
 
 ## Source parity warning: manual screens versus POS staging
 
-The checklist covers **79 current canonical route screens** plus **two draft-only administrator guides** sourced directly from PR #175: read-only `/admin/pos/verified-uat/history` and `/admin/pos/verified-uat/reconciliation`. These two are **NOT present in this checkout or approved as deployed**; they remain `BLOCKED_PENDING_RELEASE` until protected POS staging parity and role-based UAT prove the routes exist and function safely. There may be additional routes in the independent POS staging worktree beyond this compared PR; before release, reconcile **every** staging-only route, service contract and feature flag against the selected immutable source SHA. Do **not** silently treat absent screens as approved or replace the current POS portal with a legacy deployment.
+Read-only comparison on **20 Nov 2026** used the running Next.js POS staging build at `/home/lightworld/releases/varietygroceries-portal-hubtel-safe-107fc4f-20261117/.next/server/app`. It found **82 deployed pages** versus **79 canonical-source pages**: **74 common**, **8 staging-only**, **5 canonical-only**. The eight staging-only artifacts are `/admin/inventory/lots`, `/admin/pos/till-operations`, `/admin/support`, `/staff/cashier`, `/staff/demo/[role]`, `/staff/pos`, `/support`, and `/uat`. The five canonical-only pages missing from that build are `/admin/dispatch/cod-exceptions`, `/admin/team/verified`, `/staff/cashier/workspace`, `/staff/rider/cod`, and `/staff/rider/login`. Separately, unmerged **PR #175** adds draft `/admin/pos/verified-uat/history` and `/admin/pos/verified-uat/reconciliation` pages, **not in that deployed staging build**. A built artifact establishes route presence, not feature flag enablement, permission, database parity or operational acceptance. Every unmatched route remains blocked until a reviewed immutable portal/API release pair resolves the mismatch. Do **not** replace the POS portal with the older 3037/3027 services or assume any blocked item was tested.
+
+## Repeatable, read-only staging route drift audit
+
+Before any UAT screenshot is accepted, run the source comparison against the exact reviewed immutable portal artifact directory. This tool reads local filenames only; it does **not** connect to public services, inspect secrets, alter database records, deploy or restart applications.
+
+```bash
+bun scripts/audit-manual-staging-parity.ts \
+  /home/lightworld/releases/varietygroceries-portal-hubtel-safe-107fc4f-20261117/.next/server/app
+```
+
+For the inspected 20 Nov 2026 release, the reviewed report gives **79 canonical**, **82 built staging**, **74 shared**, **8 staging-only**, **5 canonical-only**, and `matchesReviewedSnapshot: true`. This means the *route-difference list* matches the documented exceptions, **not** that any route or finance flow passed UAT.
+
+**Fail closed on drift:** a newly added, removed or renamed build route triggers a nonzero exit with explicit `undocumentedStaging`, `obsoleteStagingOverlays`, `unreviewedSourceOnly` or `obsoleteSourceOnlyOverlays` arrays. Compare the new release SHA, inspect actual page source and update the manual and CSV. Never silently mark a new route as tested or substitute the older 3037/3027 deployment.
 
 ## Per-screen evidence procedure
 
-For each **canonical route** row, follow the evidence procedure below. For the two draft POS rows, leave every assessment `BLOCKED_PENDING_RELEASE` until the approved reviewed release pair includes them; only then begin the same UAT procedure:
+For the 74 shared-route rows, use the evidence procedure below after verifying both deployed release SHAs. Keep five missing-source-build, eight staging-only and two unmerged draft routes **blocked** until a signed-off parity change explicitly resolves their status, then apply the same procedure:
 
 1. Identify the correct role and log in to the designated *isolated* UAT account. Verify the live `/auth/me` role and branch/location scope, not merely the menu label. Log the exact portal/API release SHAs.
 2. Navigate to the actual screen; for dynamic `/[id]` or `/[slug]` paths open the legitimate parent list, select a **sanitized UAT record** and follow its own link.
@@ -49,8 +62,8 @@ For each **canonical route** row, follow the evidence procedure below. For the t
 
 ## Evidence and sign-off rules
 
-The CSV deliberately begins with **79 canonical rows marked NOT_TESTED** and **two POS draft rows marked BLOCKED_PENDING_RELEASE** in every assessment column, with blank reviewer/timestamp/SHA columns. Do not transform `NOT_TESTED` or `BLOCKED_PENDING_RELEASE` to `PASS` without an approved deployed release, actual screenshots, authenticated tests and the reviewer’s approval. Do not claim a production launch is safe from a count of green page screenshots alone.
+The CSV initially has **74 NOT_TESTED shared routes**, **5 BLOCKED_NOT_IN_STAGING canonical-only routes**, **8 BLOCKED_STAGING_PARITY staging-only routes**, and **2 BLOCKED_PENDING_RELEASE unmerged POS drafts**. Reviewer, timestamp and release SHA fields are blank. Do not change a blocked or untested status to PASS without approved route/API parity, real screenshots, authenticated role tests and a named reviewer. Do not claim a production launch is safe from a count of green page screenshots alone.
 
 **Release gate:** only the designated owner/release operators may approve a merged, parity-verified portal/API release pair. Payment verification, Hubtel provider permissions, real refund reconciliation, stock invariants, COD authority, backups and rollout checks must independently pass before a limited financial pilot or public production launch.
 
-**Manual coverage:** Current-source catalogue contains 79 existing application screens, plus two explicitly `pending` PR #175 POS guides and separate manual entry routes. The regression test checks that each existing `src/app/**/page.tsx` screen has a canonical guide and that two pending routes are kept separate until integrated; if new routes are added or merged, reconcile the source, regenerate the manual, update the checklist and rerun the route-coverage test.
+**Manual coverage:** 79 main-derived source pages, 8 separately sourced staging-only page artifacts and 2 unmerged draft POS guides, plus separate manual entry routes. The regression suite checks all 79 local `src/app/**/page.tsx` pages and the ten additional route overlays independently. Staging artifact comparison is a dated observation, **not** a perpetual synchronization mechanism; repeat it and regenerate the guide/checklist whenever a staging or source release changes.
