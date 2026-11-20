@@ -101,6 +101,10 @@ export const operationMeta: Record<string, OperationMeta> = {
   "cashier.pos.customers": {},
   "pos.verified.tills": {},
   "pos.verified.quote": {},
+  // Private cash records: no account-crossing client cache or optimistic writes.
+  "pos.verified.cash-sales": {},
+  "pos.verified.cash-sales-page": {},
+  "pos.verified.reconciliation": {},
   "admin.pos.search": { tags: [...CAT, ...STOCK] },
   "admin.pos.complete": { invalidates: [...CAT, ...STOCK, ...ORD, ...PAY, ...SESS] },
   "admin.pos.hold": { invalidates: STOCK },

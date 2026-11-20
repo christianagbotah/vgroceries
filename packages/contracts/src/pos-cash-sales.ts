@@ -50,3 +50,17 @@ export type PosCashSaleView=z.infer<typeof posCashSaleViewSchema>;
 export const posCashSaleListSchema=z.object({
   enabled:z.boolean(),sales:z.array(posCashSaleViewSchema),
 }).strict();
+
+/** Server-authoritative keyset page; no total-count or settlement assertions. */
+export const posCashSaleHistoryPageSchema=z.object({
+  enabled:z.literal(true),
+  sales:z.array(posCashSaleViewSchema).max(50),
+  hasMore:z.boolean(),
+  nextCursor:z.string().min(1).max(256).regex(/^[A-Za-z0-9_-]+$/).nullable(),
+}).strict().superRefine((page,context)=>{
+  if(page.hasMore!==Boolean(page.nextCursor)||
+     (page.hasMore&&page.sales.length===0))
+    context.addIssue({code:"custom",path:["nextCursor"],
+      message:"History pagination state is inconsistent."});
+});
+export type PosCashSaleHistoryPage=z.infer<typeof posCashSaleHistoryPageSchema>;

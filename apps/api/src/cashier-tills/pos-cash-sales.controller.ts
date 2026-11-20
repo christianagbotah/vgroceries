@@ -1,10 +1,11 @@
-import {Body,Controller,Get,Header,HttpCode,Param,Post,Req,UseGuards} from "@nestjs/common";
+import {Body,Controller,Get,Header,HttpCode,Param,Post,Query,Req,UseGuards} from "@nestjs/common";
 import {ApiCookieAuth,ApiTags} from "@nestjs/swagger";
 import {posCashSaleCompleteSchema,replayKeySchema} from "@variety/contracts";
 import {AccessGuard} from "../identity/access.guard";
 import type {AuthRequest} from "../identity/identity.service";
 import {ApiProblem,type ApiRequest} from "../http/errors";
 import {PosCashSalesService} from "./pos-cash-sales.service";
+import {posCashHistoryQuerySchema} from "./pos-cash-history-cursor";
 
 const replay=(req:ApiRequest)=>{
   const p=replayKeySchema.safeParse(req.get("idempotency-key"));
@@ -25,8 +26,19 @@ export class PosCashSalesController {
     return req.actor.id;
   }
   @Get()
+  @Header("Cache-Control","private, no-store")
   async list(@Req() req:AuthRequest){
     this.admin(req);return {ok:true,data:await this.sales.list()};
+  }
+  // Explicit route before :saleId; read-only keyset paging, admin on every hit.
+  @Get("history")
+  @Header("Cache-Control","private, no-store")
+  async history(@Req() req:AuthRequest,@Query() raw:unknown){
+    this.admin(req);
+    const parsed=posCashHistoryQuerySchema.safeParse(raw);
+    if(!parsed.success)throw new ApiProblem(400,"VALIDATION_FAILED",
+      "Cash sale history accepts only a valid cursor and page limit.");
+    return {ok:true,data:await this.sales.listPage(parsed.data.cursor,parsed.data.limit??25)};
   }
   // Read-only, authenticated browser print view. No JavaScript or third-party assets.
   @Get(":saleId/print")
@@ -40,6 +52,7 @@ export class PosCashSalesController {
     return this.sales.printReceipt(id);
   }
   @Get(":saleId")
+  @Header("Cache-Control","private, no-store")
   async detail(@Req() req:AuthRequest,@Param("saleId") id:string){
     this.admin(req);return {ok:true,data:await this.sales.detail(id)};
   }

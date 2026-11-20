@@ -28,6 +28,7 @@ export class CashierTillsController {
     return req.actor.id;
   }
   @Get()
+  @Header("Cache-Control","private, no-store")
   async list(@Req() req:AuthRequest){
     this.admin(req);
     return {ok:true,data:await this.tills.list()};
@@ -43,11 +44,13 @@ export class CashierTillsController {
     return renderPosTillReconciliationCsv(await this.reconciliation.preview(id));
   }
   @Get(":sessionId/reconciliation")
+  @Header("Cache-Control","private, no-store")
   async reconciliationPreview(@Req() req:AuthRequest,@Param("sessionId") id:string){
     this.admin(req);
     return {ok:true,data:await this.reconciliation.preview(id)};
   }
   @Get(":sessionId")
+  @Header("Cache-Control","private, no-store")
   async detail(@Req() req:AuthRequest,@Param("sessionId") id:string){
     this.admin(req);
     return {ok:true,data:await this.tills.detail(id)};

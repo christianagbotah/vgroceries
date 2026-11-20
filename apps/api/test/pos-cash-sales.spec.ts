@@ -143,6 +143,23 @@ test("one counted cash sale atomically depletes reserved goods and updates till 
   const receipt=await api("GET",`/admin/pos/cash-sales/${sale.id}`,admin);
   assert.equal(receipt.status,200);
   assert.equal(receipt.payload.data.reference,sale.reference);
+  // Sale identity, customer name and cash-drawer evidence are private even
+  // when accessed by an authenticated administrator through a proxy/CDN.
+  for(const path of [
+    "/admin/pos/cash-sales",
+    "/admin/pos/cash-sales/history?limit=25",
+    `/admin/pos/cash-sales/${sale.id}`,
+    "/admin/pos/tills",
+    `/admin/pos/tills/${till.id}`,
+    `/admin/pos/tills/${till.id}/reconciliation`,
+  ]){
+    const privateResponse=await fetch(base+"/api/v1"+path,{
+      headers:{authorization:"Bearer "+admin},
+    });
+    assert.equal(privateResponse.status,200,path);
+    assert.match(privateResponse.headers.get("cache-control")??"",/private/i,path);
+    assert.match(privateResponse.headers.get("cache-control")??"",/no-store/i,path);
+  }
   const printResponse=await fetch(
     base+`/api/v1/admin/pos/cash-sales/${sale.id}/print`,{
       headers:{authorization:"Bearer "+admin},
@@ -158,6 +175,24 @@ test("one counted cash sale atomically depletes reserved goods and updates till 
   assert.match(html,/₵0\.77/);
   assert.match(html,/NOT A TAX INVOICE/);
   assert.equal((await api("GET","/admin/pos/cash-sales",admin)).status,200);
+  // Keyset history is admin-only, bounded, strictly queried and read-only.
+  const historyRoute="/admin/pos/cash-sales/history";
+  const beforeHistory=await db.stockDepletion.count();
+  const history=await api("GET",historyRoute+"?limit=1",admin);
+  assert.equal(history.status,200,JSON.stringify(history.payload));
+  assert.equal(history.payload.data.enabled,true);
+  assert.equal(history.payload.data.sales.length,1);
+  assert.equal(history.payload.data.sales[0].id,sale.id);
+  assert.equal(history.payload.data.hasMore,false);
+  assert.equal(history.payload.data.nextCursor,null);
+  assert.equal((await api("GET",historyRoute)).status,401);
+  const historyCustomer=await token("customer-a@example.test");
+  assert.equal((await api("GET",historyRoute,historyCustomer)).status,403);
+  assert.equal((await api("GET",historyRoute+"?limit=51",admin)).status,400);
+  assert.equal((await api("GET",historyRoute+"?limit=0",admin)).status,400);
+  assert.equal((await api("GET",historyRoute+"?unexpected=foo",admin)).status,400);
+  assert.equal((await api("GET",historyRoute+"?cursor=invalid!",admin)).status,400);
+  assert.equal(await db.stockDepletion.count(),beforeHistory);
   const movement=await tills.move("admin-commerce",till.id,
     "cash-sale-drop-001","drop",{
       kind:"drop",amountMinor:100,note:"Verified cash drop to the safe",

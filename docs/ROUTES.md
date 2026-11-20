@@ -39,7 +39,10 @@ are client components over the same mock API.
 | `/admin/orders` | Orders with channel/status/payment filters and search |
 | `/admin/orders/[id]` | Full order detail: customer, lines, allocations (FEFO), payment attempts, holds, history, notes; actions: confirm, pick, pack, ready/collect, dispatch, substitute (with permission + recalculation), cancel (guarded), review resolution |
 | `/admin/fulfilment` | First-class fulfilment workspace: awaiting-confirmation / ready-to-pick / picking / exceptions / packed-handover / collection queues, picker + progress + allocated-vs-ordered + shortage + substitution on lines, packing checklist, handover boundary notice, event trails, backend-driven `allowedActions` | Picking and packing never deduct stock; the single depletion event happens at handover/collection |
-| `/admin/pos` | Counter sales: barcode/search, tiles, cart, discounts (permission-gated), cash/MoMo/card, change, held drafts (with expiry), receipt print, transaction lookup, return entry |
+| `/admin/pos` | Counter sales: barcode/search, tiles, cart, discounts (permission-gated), cash/MoMo/card, change, held drafts (with expiry), receipt print, transaction lookup, return entry (demo boundary) |
+| `/admin/pos/verified-uat` | Explicitly gated, administrator-only **read-only** real-API POS price preview; no sale, payment, or reservation actions |
+| `/admin/pos/verified-uat/history` | Separately gated, administrator-only **read-only** paginated real-API POS cash-sale history (25 per page, server-side keyset cursor) with authenticated original receipt links; no cash collection or stock mutation |
+| `/admin/pos/verified-uat/reconciliation` | Separately gated administrator-only **read-only** server cash-drawer reconciliation for a selected till, including cash movements, cash sales, expected drawer cash, closing variance and authenticated CSV; excludes provider, tax and refund settlement |
 | `/admin/cashier-sessions` | Opening float, movements, expected vs counted, close & reconcile |
 | `/admin/products` | Products, variants, prices, availability, publication |
 | `/admin/products/[id]` | Product detail: variants + price change (audited), publication, lots, movements |
