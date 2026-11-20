@@ -205,11 +205,13 @@ export const apiOps = {
   quote: (lines: { variantId: string; quantity: string }[], zoneId?: string,
     pickup?: { destinationKind: "pickup_point"; finalPickupNodeId: string }) =>
     api<QuoteResponse>("checkout.quote", { body: { lines, zoneId, ...(pickup ?? {}) } }),
-  complete: (body: CompleteOrderRequest) =>
+  complete: (body: CompleteOrderRequest, options?: { allowGuestBootstrapRetry?: boolean }) =>
     withFreshGuestCheckoutRetry(() =>
       api<CompleteOrderResponse>("checkout.complete", {
         body: body as unknown as Record<string, unknown>,
       }),
+      undefined,
+      options?.allowGuestBootstrapRetry === true,
     ),
   paymentInitiate: (orderId: string, payerPhone: string | undefined, idempotencyKey: string) =>
     api<PaymentInitiationResult>("payments.initiate", {
