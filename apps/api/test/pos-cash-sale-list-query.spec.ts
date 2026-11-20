@@ -170,3 +170,19 @@ test("a disabled cash-sale authority blocks all paged reads",async()=>{
   await assert.rejects(()=>instance.listPage(),/not activated/i);
   assert.equal(activity().listCalls,0);
 });
+
+
+test("history cursor rejects noncanonical base64 and extra JSON fields before database access",async()=>{
+  const {instance,activity}=setup([sale(1)]);
+  const row=sale(2);
+  const canonical=encodePosCashHistoryCursor({createdAt:row.createdAt,id:row.id});
+  const invalid=[
+    canonical+"=", // padding is not permitted by the canonical base64url contract
+    canonical.toLowerCase(), // changing encoded bytes must not be silently accepted
+    Buffer.from(JSON.stringify({createdAt:row.createdAt.toISOString(),id:row.id,role:"admin"})).toString("base64url"),
+  ];
+  for(const cursor of invalid)
+    await assert.rejects(()=>instance.listPage(cursor),/Invalid cash sale history cursor/);
+  assert.equal(activity().listCalls,0);
+  assert.equal(activity().detailCalls,0);
+});
