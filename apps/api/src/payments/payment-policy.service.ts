@@ -56,6 +56,12 @@ export class PaymentPolicyService {
   assertElectronicMethodAvailable(
     method: ElectronicPaymentMethod,
   ): PaymentProviderAdapter {
+    // Hubtel Direct Receive sends an unsolicited wallet prompt unless a
+    // verified, immutable payer identity exists. Until an OTP-backed general
+    // flow is built, this official RMP adapter is owner-pilot-only.
+    if (this.config.hubtelPayment?.directReceive && !this.config.stagingMomoPilot)
+      throw new ApiProblem(503, "UNAVAILABLE",
+        "Direct Mobile Money collection requires an authenticated restricted pilot.");
     const payment = this.config.payments;
     if (!payment)
       throw new ApiProblem(503, "UNAVAILABLE", "Electronic payments are not configured.");

@@ -49,7 +49,10 @@ test("staging pilot is off unless all restricted owner payment settings are expr
   delete (off as Record<string,string>).STAGING_MOMO_PILOT_ENABLED;
   for(const k of Object.keys(off))
     if(k.startsWith("STAGING_MOMO_PILOT_"))delete (off as Record<string,string>)[k];
-  assert.equal(readConfig(off).stagingMomoPilot,undefined);
+  const unrestricted = readConfig(off);
+  assert.equal(unrestricted.stagingMomoPilot,undefined);
+  const lockedPolicy = new PaymentPolicyService(unrestricted, {} as never, {} as never, {} as never);
+  assert.throws(()=>lockedPolicy.assertElectronicMethodAvailable("mobile_money"),/restricted pilot/);
   assert.ok(readConfig(env()).stagingMomoPilot);
   for(const change of [
     {STAGING_MOMO_PILOT_CUSTOMER_ID:"INVALID"},
