@@ -528,7 +528,8 @@ export function productionOpenApi(app: INestApplication): OpenAPIObject {
           properties:{
             ok:{type:"boolean",enum:[true]},
             data:{type:"object",additionalProperties:false,required:["electronicAvailable","mode"],
-              properties:{electronicAvailable:{type:"boolean"},mode:{type:"string",enum:["production"]}}},
+              properties:{electronicAvailable:{type:"boolean"},mode:{type:"string",enum:["production"]},
+                method:{type:"string",enum:["hosted_checkout","mobile_money","card_hosted","bank_transfer"]}}},
           },
         } } } },
         "500": errorResponse,

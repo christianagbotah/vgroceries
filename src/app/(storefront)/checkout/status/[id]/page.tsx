@@ -32,6 +32,7 @@ export default function CheckoutStatusPage() {
   const [error, setError] = useState<string | null>(null);
   const [initiating, setInitiating] = useState(false);
   const [paymentMessage, setPaymentMessage] = useState<string | null>(null);
+  const [momoNetwork,setMomoNetwork] = useState<""|"mtn-gh"|"vodafone-gh"|"tigo-gh">("");
   // Polling should never erase a payment-initiation error before the customer reads it.
   const [initiationError, setInitiationError] = useState<string | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -65,6 +66,10 @@ export default function CheckoutStatusPage() {
 
   const startPayment = async () => {
     if (!order || initiating || electronicPaymentPhase(order) !== "start") return;
+    if (order.paymentMethod === "mobile_money" && !momoNetwork) {
+      setInitiationError("Choose your own Mobile Money network before requesting a payment prompt.");
+      return;
+    }
     setInitiating(true);
     setPaymentMessage(null);
     setInitiationError(null);
@@ -77,10 +82,13 @@ export default function CheckoutStatusPage() {
         window.sessionStorage.setItem(keyName, key);
       }
       window.sessionStorage.setItem("vg_payment_order_id", id);
+      const digits = order.customerPhone.replace(/\D/g, "");
       const payerPhone = order.paymentMethod === "mobile_money"
-        ? order.customerPhone.replace(/[\s-]/g, "")
+        ? digits.length===10 && digits.startsWith("0") ? "+233"+digits.slice(1)
+          : digits.length===12 && digits.startsWith("233") ? "+"+digits : undefined
         : undefined;
-      const result = await apiOps.paymentInitiate(id, payerPhone, key);
+      const result = await apiOps.paymentInitiate(id, payerPhone, key,
+        order.paymentMethod==="mobile_money" ? momoNetwork || undefined : undefined);
       if (result.action.kind === "redirect") {
         window.location.assign(result.action.url);
         return;
@@ -216,8 +224,22 @@ export default function CheckoutStatusPage() {
           <p className="mt-1 text-sm text-muted-foreground">
             {PAYMENT_METHOD_LABELS[order.paymentMethod]} to Variety Groceries. The provider handles the payment screen; Variety never collects card or wallet secrets in this page.
           </p>
+          {order.paymentMethod === "mobile_money" ? (
+            <div className="mt-3 max-w-xs">
+              <label htmlFor="momo-network" className="mb-1 block text-sm font-medium">Your Mobile Money network</label>
+              <select id="momo-network" value={momoNetwork}
+                onChange={event=>setMomoNetwork(event.target.value as typeof momoNetwork)}
+                className="h-11 w-full rounded-lg border bg-background px-3 text-sm">
+                <option value="">Select network</option>
+                <option value="mtn-gh">MTN Mobile Money</option>
+                <option value="vodafone-gh">Telecel Cash</option>
+                <option value="tigo-gh">AirtelTigo Money</option>
+              </select>
+              <p className="mt-1 text-xs text-muted-foreground">Only approve a prompt for your own verified phone number.</p>
+            </div>
+          ) : null}
           <div className="mt-3 flex flex-wrap gap-2">
-            <Button size="lg" className="h-12" onClick={startPayment} disabled={initiating}>
+            <Button size="lg" className="h-12" onClick={startPayment} disabled={initiating || (order.paymentMethod==="mobile_money"&&!momoNetwork)}>
               {initiating ? <Loader2 className="size-4 animate-spin" aria-hidden /> : <ShieldQuestion className="size-5" aria-hidden />}
               {initiating ? "Opening secure payment…" : "Continue to secure payment"}
             </Button>

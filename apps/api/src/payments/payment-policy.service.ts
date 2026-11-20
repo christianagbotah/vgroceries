@@ -7,6 +7,7 @@ import type { Prisma } from "@prisma/client";
 import { API_CONFIG, type ApiConfig } from "../config";
 import { ApiProblem } from "../http/errors";
 import type { PaymentProviderAdapter } from "./payment-provider";
+import type { CheckoutPrincipal } from "../commerce-identity/checkout-principal.service";
 import { PaymentProviderRegistry } from "./payment-provider.registry";
 import { RefundProviderRegistry } from "./refund-provider.registry";
 import { PaymentCaptureService } from "./payment-capture.service";
@@ -19,6 +20,30 @@ export class PaymentPolicyService {
     private readonly refundRegistry: RefundProviderRegistry,
     private readonly captures: PaymentCaptureService,
   ) {}
+
+  isStagingMomoPilot(): boolean { return Boolean(this.config.stagingMomoPilot); }
+
+  assertStagingPilotCustomer(principal: CheckoutPrincipal): void {
+    const pilot = this.config.stagingMomoPilot;
+    if (!pilot) return;
+    if (principal.kind !== "customer" || principal.userId !== pilot.customerId ||
+        Date.now() >= pilot.expiresAt.valueOf())
+      throw new ApiProblem(503, "UNAVAILABLE", "Electronic checkout is restricted to a temporary authenticated staging test.");
+  }
+
+  assertStagingPilotAmount(amountMinor: number): void {
+    const pilot = this.config.stagingMomoPilot;
+    if (!pilot) return;
+    if (!Number.isSafeInteger(amountMinor) || amountMinor < 100 || amountMinor > pilot.maxMinor)
+      throw new ApiProblem(422, "RULE_VIOLATION", "This amount is outside the temporary staging payment-test limit.");
+  }
+
+  assertStagingPilotPayer(phone: string, channel?: string): void {
+    const pilot = this.config.stagingMomoPilot;
+    if (!pilot) return;
+    if (phone !== pilot.phone || channel !== pilot.channel)
+      throw new ApiProblem(422, "RULE_VIOLATION", "Only the pre-authorized test number and mobile network can receive this staging prompt.");
+  }
 
   resolveElectronicMethod(): { method: ElectronicPaymentMethod; adapter: PaymentProviderAdapter } {
     const payment = this.config.payments;

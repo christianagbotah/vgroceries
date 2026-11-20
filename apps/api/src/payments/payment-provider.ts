@@ -20,6 +20,7 @@ export interface PaymentProviderInitiationInput {
   currency: "GHS";
   payerName?: string;
   payerPhone?: string;
+  payerChannel?: "mtn-gh" | "vodafone-gh" | "tigo-gh";
   payerEmail?: string;
   signal: AbortSignal;
 }

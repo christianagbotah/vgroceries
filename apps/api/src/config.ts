@@ -27,6 +27,13 @@ export interface HubtelOnlineCheckoutConfig {
   statusUrl: string;
 }
 
+/** Official Hubtel Direct Receive Money: MoMo prompt only, not a paylink. */
+export interface HubtelDirectReceiveConfig {
+  merchantAccountNumber: string;
+  receiveUrl: string;
+  statusUrl: string;
+}
+
 export interface HubtelPaymentConfig {
   clientId: string;
   clientSecret: string;
@@ -37,6 +44,16 @@ export interface HubtelPaymentConfig {
   returnUrl: string;
   cancellationUrl: string;
   onlineCheckout?: HubtelOnlineCheckoutConfig;
+  directReceive?: HubtelDirectReceiveConfig;
+}
+
+/** Explicit, temporary staging-only owner MoMo pilot, absent by default. */
+export interface StagingMomoPilotConfig {
+  customerId: string;
+  phone: string;
+  channel: "mtn-gh" | "vodafone-gh" | "tigo-gh";
+  maxMinor: number;
+  expiresAt: Date;
 }
 
 export interface HubtelRefundConfig {
@@ -124,6 +141,7 @@ export interface ApiConfig {
   payments: PaymentConfig | null;
   hubtelPayment: HubtelPaymentConfig | null;
   hubtelRefund: HubtelRefundConfig | null;
+  stagingMomoPilot?: StagingMomoPilotConfig;
   paystack: PaystackConfig | null;
   etranzact: EtranzactConfig | null;
   productMedia: ProductMediaConfig | null;
@@ -434,12 +452,17 @@ export function readConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
     "HUBTEL_CANCELLATION_URL",
   ] as const;
   const hubtelDirectNames = ["HUBTEL_REQUEST_MONEY_URL", "HUBTEL_STATUS_URL"] as const;
+  const hubtelDirectReceiveNames = [
+    "HUBTEL_DIRECT_COLLECTION_ACCOUNT",
+    "HUBTEL_DIRECT_RECEIVE_URL",
+    "HUBTEL_DIRECT_STATUS_URL",
+  ] as const;
   const hubtelHostedNames = [
     "HUBTEL_COLLECTION_ACCOUNT_NUMBER",
     "HUBTEL_ONLINE_CHECKOUT_URL",
     "HUBTEL_COLLECTION_STATUS_URL",
   ] as const;
-  const hubtelPaymentNames = [...hubtelCommonNames, ...hubtelDirectNames, ...hubtelHostedNames];
+  const hubtelPaymentNames = [...hubtelCommonNames, ...hubtelDirectNames, ...hubtelDirectReceiveNames, ...hubtelHostedNames];
   const hubtelPaymentSupplied = hubtelPaymentNames.filter(
     (name) => env[name] !== undefined && env[name] !== "",
   );
@@ -458,13 +481,22 @@ export function readConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
     const directEnabled = payments.enabledMethods.includes("mobile_money");
     const hostedEnabled = payments.enabledMethods.includes("hosted_checkout");
     const directSupplied = hubtelDirectNames.filter((name) => Boolean(env[name]));
+    const directReceiveSupplied = hubtelDirectReceiveNames.filter((name) => Boolean(env[name]));
     const hostedSupplied = hubtelHostedNames.filter((name) => Boolean(env[name]));
     if (directEnabled === hostedEnabled)
       throw new Error("Hubtel requires exactly one of hosted_checkout or mobile_money; mixed modes are not supported");
-    if ((directEnabled || directSupplied.length > 0) && directSupplied.length !== hubtelDirectNames.length)
-      throw new Error("Hubtel direct Request Money requires the complete Request Money and status URL bundle");
+    if (directSupplied.length && directReceiveSupplied.length)
+      throw new Error("Hubtel Direct Receive Money and legacy Request Money configurations cannot be combined");
+    if (directEnabled && directSupplied.length !== hubtelDirectNames.length &&
+        directReceiveSupplied.length !== hubtelDirectReceiveNames.length)
+      throw new Error("Hubtel mobile_money requires exactly one complete Direct Receive Money or legacy Request Money bundle");
     if (directSupplied.length && !directEnabled)
       throw new Error("Hubtel Direct Request Money URLs may only be configured with mobile_money");
+    if (directSupplied.length && directSupplied.length !== hubtelDirectNames.length)
+      throw new Error("Hubtel Direct Request Money URLs require a complete mobile_money configuration");
+    if (directReceiveSupplied.length &&
+        (!directEnabled || directReceiveSupplied.length !== hubtelDirectReceiveNames.length))
+      throw new Error("Hubtel Direct Receive Money URLs require a complete mobile_money configuration");
     if ((hostedEnabled || hostedSupplied.length > 0) && hostedSupplied.length !== hubtelHostedNames.length)
       throw new Error("Hubtel hosted checkout requires the complete merchant account and URLs bundle");
     if (hostedSupplied.length && !hostedEnabled)
@@ -490,13 +522,28 @@ export function readConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
 
     let requestMoneyUrl: string | undefined;
     let statusUrl: string | undefined;
-    if (directEnabled) {
+    if (directEnabled && directSupplied.length) {
       requestMoneyUrl = hubtelUrl("HUBTEL_REQUEST_MONEY_URL", env.HUBTEL_REQUEST_MONEY_URL!);
       if (!requestMoneyUrl.includes("{mobileNumber}"))
         throw new Error("HUBTEL_REQUEST_MONEY_URL must contain {mobileNumber}");
       statusUrl = hubtelUrl("HUBTEL_STATUS_URL", env.HUBTEL_STATUS_URL!);
       if (!["{reference}", "{clientReference}", "{providerReference}", "{paylinkId}"].some((token) => statusUrl!.includes(token)))
         throw new Error("HUBTEL_STATUS_URL must contain a supported reference template");
+    }
+
+    // Hubtel v1 Direct Receive Money uses a *different* pending-prompt
+    // contract from paylink-style Request Money; do not interchange them.
+    let directReceive: HubtelDirectReceiveConfig | undefined;
+    if (directEnabled && directReceiveSupplied.length) {
+      const merchantAccountNumber = env.HUBTEL_DIRECT_COLLECTION_ACCOUNT!;
+      if (!/^[0-9]{3,32}$/.test(merchantAccountNumber))
+        throw new Error("HUBTEL_DIRECT_COLLECTION_ACCOUNT must contain 3-32 digits");
+      const receiveUrl = hubtelUrl("HUBTEL_DIRECT_RECEIVE_URL", env.HUBTEL_DIRECT_RECEIVE_URL!);
+      const directStatusUrl = hubtelUrl("HUBTEL_DIRECT_STATUS_URL", env.HUBTEL_DIRECT_STATUS_URL!);
+      if (receiveUrl !== "https://rmp.hubtel.com/merchantaccount/merchants/{merchantAccountNumber}/receive/mobilemoney" ||
+          directStatusUrl !== "https://api-txnstatus.hubtel.com/transactions/{merchantAccountNumber}/status?clientReference={reference}")
+        throw new Error("Hubtel Direct Receive Money must use the official RMP and collection-status endpoint templates");
+      directReceive = { merchantAccountNumber, receiveUrl, statusUrl: directStatusUrl };
     }
 
     let onlineCheckout: HubtelOnlineCheckoutConfig | undefined;
@@ -537,6 +584,7 @@ export function readConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
       returnUrl: hubtelUrl("HUBTEL_RETURN_URL", env.HUBTEL_RETURN_URL!),
       cancellationUrl: hubtelUrl("HUBTEL_CANCELLATION_URL", env.HUBTEL_CANCELLATION_URL!),
       ...(onlineCheckout ? { onlineCheckout } : {}),
+      ...(directReceive ? { directReceive } : {}),
     };
   }
 
@@ -589,6 +637,60 @@ export function readConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
       callbackSecret,
     };
   }
+
+  const pilotFields = [
+    "STAGING_MOMO_PILOT_CUSTOMER_ID",
+    "STAGING_MOMO_PILOT_PHONE",
+    "STAGING_MOMO_PILOT_CHANNEL",
+    "STAGING_MOMO_PILOT_MAX_MINOR",
+    "STAGING_MOMO_PILOT_EXPIRES_AT",
+  ] as const;
+  const pilotMode = env.STAGING_MOMO_PILOT_ENABLED;
+  if (pilotMode !== undefined && !["true", "false"].includes(pilotMode))
+    throw new Error("STAGING_MOMO_PILOT_ENABLED must be true or false");
+  if (pilotMode !== "true" && pilotFields.some((key) => Boolean(env[key])))
+    throw new Error("Pilot private fields require explicit STAGING_MOMO_PILOT_ENABLED=true");
+  let stagingMomoPilot: StagingMomoPilotConfig | undefined;
+  if (pilotMode === "true") {
+    if (pilotFields.some((key) => !env[key]))
+      throw new Error("Staging MoMo pilot requires the complete private gate bundle");
+    if (env.NODE_ENV !== "production" ||
+        webOrigins.length !== 1 ||
+        webOrigins[0] !== "https://portal.varietygroceries.com")
+      throw new Error("Staging MoMo pilot must run on the isolated HTTPS staging portal");
+    if (payments?.providerId !== "hubtel" ||
+        payments.enabledMethods.length !== 1 ||
+        payments.enabledMethods[0] !== "mobile_money" ||
+        !hubtelPayment?.directReceive || !hubtelRefund ||
+        hubtelRefund.baseUrl !== "https://refund-api.hubtel.com" ||
+        hubtelRefund.collectionAccount !== hubtelPayment.directReceive.merchantAccountNumber ||
+        hubtelRefund.basicUsername !== hubtelPayment.clientId ||
+        hubtelRefund.basicPassword !== hubtelPayment.clientSecret)
+      throw new Error("Staging MoMo pilot requires same-provider Direct Receive and verified refund configurations");
+    const customerId = env.STAGING_MOMO_PILOT_CUSTOMER_ID!;
+    const phone = env.STAGING_MOMO_PILOT_PHONE!;
+    const channel = env.STAGING_MOMO_PILOT_CHANNEL!;
+    const maxMinor = Number(env.STAGING_MOMO_PILOT_MAX_MINOR);
+    const expiresRaw = env.STAGING_MOMO_PILOT_EXPIRES_AT!;
+    const expiresAt = new Date(expiresRaw);
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(customerId) ||
+        !/^\+233[0-9]{9}$/.test(phone) ||
+        !["mtn-gh", "vodafone-gh", "tigo-gh"].includes(channel) ||
+        !Number.isSafeInteger(maxMinor) || maxMinor < 100 || maxMinor > 1_000 ||
+        !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?Z$/.test(expiresRaw) ||
+        !Number.isFinite(expiresAt.valueOf()) ||
+        expiresAt.valueOf() <= Date.now() ||
+        expiresAt.valueOf() - Date.now() > 24 * 60 * 60 * 1000)
+      throw new Error("Staging MoMo pilot requires one customer UUID, one Ghana phone/network, <= ₵10 and <= 24h expiry");
+    stagingMomoPilot = { customerId, phone, channel: channel as StagingMomoPilotConfig["channel"], maxMinor, expiresAt };
+  }
+
+  // The staging portal is shared. Never allow a merchant configuration to
+  // open Direct Receive prompts to its guests or unrelated customers.
+  if (env.NODE_ENV === "production" &&
+      webOrigins.includes("https://portal.varietygroceries.com") &&
+      hubtelPayment?.directReceive && !stagingMomoPilot)
+    throw new Error("Staging Hubtel Direct Receive requires an active owner-only pilot gate");
 
   const paystackNames = [
     "PAYSTACK_SECRET_KEY",
@@ -810,6 +912,7 @@ export function readConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
     payments,
     hubtelPayment,
     hubtelRefund,
+    ...(stagingMomoPilot ? { stagingMomoPilot } : {}),
     paystack,
     etranzact,
     productMedia,

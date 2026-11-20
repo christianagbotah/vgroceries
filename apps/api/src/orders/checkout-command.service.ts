@@ -71,6 +71,7 @@ export class CheckoutCommandService {
           address={label:saved.label,recipientName:saved.recipientName,phone:saved.phone,locality:saved.locality,street:saved.street,landmark:saved.landmark??undefined,ghanaPostGps:saved.ghanaPostGps??undefined};
         }else address=input.guestAddress!;
       }
+      if (electronic.has(input.paymentMethod)) this.paymentPolicy.assertStagingPilotCustomer(principal);
       if(input.paymentMethod==="electronic") this.paymentPolicy.resolveElectronicMethod();
       else if(electronic.has(input.paymentMethod)) this.paymentPolicy.assertElectronicMethodAvailable(input.paymentMethod as ElectronicPaymentMethod);
       const lines=input.lines.map(line=>{const v=byId.get(line.variantId)!;return {id:randomUUID(),variantId:v.id,productId:v.productId,productName:v.product.name,variantName:v.name,unit:v.unit,quantity:new Prisma.Decimal(line.quantity).toString(),unitPriceMinor:v.priceMinor,lineTotalMinor:roundLineTotalMinor(v.priceMinor,line.quantity)};});
@@ -106,6 +107,8 @@ export class CheckoutCommandService {
         };
       }
       if(zone&&subtotalMinor<zone.minimumOrderMinor)throw new ApiProblem(422,"RULE_VIOLATION","Delivery minimum order has not been met.",{minimumOrderMinor:zone.minimumOrderMinor,subtotalMinor});
+      if (electronic.has(input.paymentMethod))
+        this.paymentPolicy.assertStagingPilotAmount(subtotalMinor + deliveryFeeMinor);
       const orderId=randomUUID(); const reference=`VG-${randomUUID().replaceAll("-","").slice(0,12).toUpperCase()}`; const keyVersion=commerce.verificationActiveKeyVersion; const code=this.verification.codeFor(orderId,keyVersion); const codeHash=this.verification.digestFor(orderId,code,keyVersion); const paymentRequired=electronic.has(input.paymentMethod); const expiryMinutes=paymentRequired?commerce.paymentHoldMinutes:commerce.offlineHoldMinutes; const expiresAt=new Date(Date.now()+expiryMinutes*60000);
       let customerEmail=input.customerEmail?.trim().toLowerCase();
       if(!customerEmail&&principal.kind==="customer"){const owner=await tx.user.findUnique({where:{id:principal.userId},select:{email:true}}); customerEmail=owner?.email?.trim().toLowerCase()??undefined;}

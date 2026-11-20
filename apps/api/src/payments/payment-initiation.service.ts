@@ -35,7 +35,7 @@ interface StageAResult {
 
 function requestHash(orderId: string, input: PaymentInitiationRequest) {
   return createHash("sha256")
-    .update(JSON.stringify({ orderId, payerPhone: input.payerPhone ?? null }))
+    .update(JSON.stringify({ orderId, payerPhone: input.payerPhone ?? null, payerChannel: input.payerChannel ?? null }))
     .digest("hex");
 }
 
@@ -99,6 +99,7 @@ export class PaymentInitiationService {
     input: PaymentInitiationRequest,
     key: string,
   ): Promise<StageAResult> {
+    this.policy.assertStagingPilotCustomer(principal);
     const hash = requestHash(orderId, input);
     return this.db.$transaction(async (tx) => {
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${JSON.stringify([principal.actorScope, OPERATION, key])},0))`;
@@ -118,6 +119,8 @@ export class PaymentInitiationService {
       if (!order || !this.owns(principal, order))
         throw new ApiProblem(404, "NOT_FOUND", "Order not found.");
       const { method, adapter } = this.orderMethod(order.paymentMethod);
+      this.policy.assertStagingPilotAmount(order.totalMinor);
+      this.policy.assertStagingPilotPayer(input.payerPhone ?? order.customerPhone, input.payerChannel);
       if (
         order.fulfilmentStatus === "cancelled" ||
         order.stockConsumedAt ||
@@ -131,6 +134,17 @@ export class PaymentInitiationService {
       if (attempts.some((attempt) => attempt.status === "succeeded"))
         throw new ApiProblem(409, "RULE_VIOLATION", "This order already has a successful payment attempt.");
 
+      if (this.config.stagingMomoPilot) {
+        // Global per-customer advisory lock prevents separate orders racing the
+        // single owner pilot. Idempotent replays returned before this gate.
+        await tx.$executeRaw\`SELECT pg_advisory_xact_lock(hashtextextended(\${"vg-staging-momo-pilot:"+this.config.stagingMomoPilot.customerId},0))\`;
+        const previous = await tx.paymentAttempt.count({ where: {
+          provider: "hubtel", method: "mobile_money",
+          order: { customerUserId: this.config.stagingMomoPilot.customerId },
+        } });
+        if (previous >= 1)
+          throw new ApiProblem(409, "RULE_VIOLATION", "The owner-only staging pilot already initiated a payment. Reconcile it before any further test.");
+      }
       const attemptId = randomUUID();
       const attempt = await tx.paymentAttempt.create({
         data: {
@@ -355,6 +369,7 @@ export class PaymentInitiationService {
     attempt: Awaited<ReturnType<PaymentInitiationService["snapshot"]>>,
     adapter: PaymentProviderAdapter,
     payerPhone?: string,
+    payerChannel?: "mtn-gh" | "vodafone-gh" | "tigo-gh",
   ): Promise<PaymentProviderAction> {
     try {
       const result = await adapter.initiate({
@@ -366,6 +381,7 @@ export class PaymentInitiationService {
         currency: "GHS",
         payerName: attempt.order.customerName,
         payerPhone: payerPhone ?? attempt.order.customerPhone,
+        payerChannel,
         payerEmail: attempt.order.customerEmail ?? undefined,
         signal: AbortSignal.timeout(this.paymentConfig().requestTimeoutMs),
       });
@@ -397,12 +413,12 @@ export class PaymentInitiationService {
 
     let action: PaymentProviderAction = { kind: "none" };
     if (stage.isNew) {
-      action = await this.callProvider(req, attempt, adapter, input.payerPhone);
+      action = await this.callProvider(req, attempt, adapter, input.payerPhone, input.payerChannel);
     } else if (attempt.status === "initiated" && ["created", "uncertain"].includes(attempt.initiationState)) {
       const recovery = await this.applyReplayLookup(req, attempt, adapter);
       if (recovery === "retry") {
         attempt = await this.snapshot(stage.attemptId);
-        action = await this.callProvider(req, attempt, adapter, input.payerPhone);
+        action = await this.callProvider(req, attempt, adapter, input.payerPhone, input.payerChannel);
       }
     }
     attempt = await this.snapshot(stage.attemptId);

@@ -192,7 +192,7 @@ import type { CategoryRow, PublicOrder, SessionRow } from "./contracts";
 
 export const apiOps = {
   /* checkout payment readiness: a display hint, never paid-state proof */
-  checkoutPaymentAvailability: () => api<{electronicAvailable:boolean;mode:"production"|"demo"}>("checkout.payment-availability"),
+  checkoutPaymentAvailability: () => api<{electronicAvailable:boolean;mode:"production"|"demo";method?:"mobile_money"|"hosted_checkout"|"card_hosted"|"bank_transfer"}>("checkout.payment-availability"),
 
   /* catalogue */
   catalogCategories: () => api<CategoryRow[]>("catalog.categories"),
@@ -211,10 +211,11 @@ export const apiOps = {
         body: body as unknown as Record<string, unknown>,
       }),
     ),
-  paymentInitiate: (orderId: string, payerPhone: string | undefined, idempotencyKey: string) =>
+  paymentInitiate: (orderId: string, payerPhone: string | undefined, idempotencyKey: string,
+    payerChannel?: "mtn-gh" | "vodafone-gh" | "tigo-gh") =>
     api<PaymentInitiationResult>("payments.initiate", {
       query: { orderId },
-      body: payerPhone ? { payerPhone } : {},
+      body: { ...(payerPhone ? { payerPhone } : {}), ...(payerChannel ? { payerChannel } : {}) },
       idempotencyKey,
     }),
   paymentOutcome: (orderId: string, outcome: "succeeded" | "failed" | "pending") =>
