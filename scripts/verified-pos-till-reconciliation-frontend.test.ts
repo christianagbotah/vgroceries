@@ -38,7 +38,7 @@ const report = {
 };
 const closed = {
   ...report,
-  status: "closed",
+  status: "closed" as const,
   closedAt: "2026-11-19T12:00:00.000Z",
   actualCountedCashMinor: 15100,
   closingExpectedCashMinor: 15000,
@@ -64,7 +64,7 @@ describe("Verified real-API POS till reconciliation, preview only", () => {
     expect(parseVerifiedTillChoices({ enabled: true, includesSales: false, sessions: [] })).toEqual([]);
     const till = {
       id, locationId: "main", tillCode: "TILL-01", openedByUserId: "admin",
-      status: "open", openingFloatMinor: 1000, openedAt: "2026-11-19T08:00:00.000Z",
+      status: "open" as const, openingFloatMinor: 1000, openedAt: "2026-11-19T08:00:00.000Z",
       closedAt: null, closedByUserId: null, closingCountedMinor: null,
       closingExpectedMinor: null, closingDifferenceMinor: null,
       closeNote: null, expectedDrawerOnlyMinor: 1000, includesSales: false,

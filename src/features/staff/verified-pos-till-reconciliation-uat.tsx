@@ -98,13 +98,13 @@ export function VerifiedPosTillReconciliationUat() {
     </Button>
   </main>;
 
-  const fields = report ? [
+  const fields: Array<[string, number]> = report ? [
     ["Opening float", report.openingFloatMinor],
     ["Manual cash in", report.manualCashInMinor],
     ["Manual cash out", -report.manualCashOutMinor],
     ["Cash drops", -report.manualCashDropsMinor],
     ["Recorded cash sales", report.cashSalesMinor],
-  ] as const : [];
+  ] : [];
 
   return <main className="mx-auto max-w-6xl space-y-5 pb-12">
     <header className="flex flex-wrap items-start justify-between gap-3">
