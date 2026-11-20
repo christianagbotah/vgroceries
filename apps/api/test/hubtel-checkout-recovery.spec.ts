@@ -51,7 +51,7 @@ test("Hubtel recovery always waits at least five minutes after checkout initiati
 test("default preview selects bounded, pending, unsettled hosted attempts without any provider request", async () => {
   const { service, calls, queries } = fakeService();
   const result = await service.run(false, clock);
-  assert.deepEqual(result, { enabled: true, dryRun: true, eligible: 2, attempted: 0, matched: 0, requiresReview: 0, errors: 0 });
+  assert.deepEqual(result, { enabled: true, dryRun: true, eligible: 2, attempted: 0, matched: 0, exceptions: 0, errors: 0 });
   assert.deepEqual(calls, []);
   assert.equal(queries.length, 1);
   const query = queries[0] as { where: Record<string, unknown>; take: number; orderBy: unknown[] };
@@ -69,7 +69,7 @@ test("execution only invokes independent reconciliation, not any new checkout or
   const { service, calls } = fakeService({ responses: ["matched", "exception"] });
   const report = await service.run(true, clock);
   assert.deepEqual(calls, ["attempt-a", "attempt-b"]);
-  assert.deepEqual(report, { enabled: true, dryRun: false, eligible: 2, attempted: 2, matched: 1, requiresReview: 1, errors: 0 });
+  assert.deepEqual(report, { enabled: true, dryRun: false, eligible: 2, attempted: 2, matched: 1, exceptions: 1, errors: 0 });
 });
 
 test("unknown provider errors are counted, never misreported as successful settlement", async () => {

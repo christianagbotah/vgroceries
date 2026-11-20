@@ -27,7 +27,7 @@ export interface HubtelRecoveryReport {
   eligible: number;
   attempted: number;
   matched: number;
-  requiresReview: number;
+  exceptions: number;
   errors: number;
 }
 
@@ -42,7 +42,7 @@ export class HubtelPaymentRecoveryService {
   async run(execute = false, now = new Date()): Promise<HubtelRecoveryReport> {
     const report: HubtelRecoveryReport = {
       enabled: false, dryRun: !execute, eligible: 0,
-      attempted: 0, matched: 0, requiresReview: 0, errors: 0,
+      attempted: 0, matched: 0, exceptions: 0, errors: 0,
     };
     // A Hubtel Direct Request Money or differently configured provider must
     // NEVER be swept by this hosted-checkout-specific recovery job.
@@ -78,7 +78,7 @@ export class HubtelPaymentRecoveryService {
           id, "worker", "system:hubtel-recovery", randomUUID(),
         );
         if (result.result === "matched") report.matched += 1;
-        else report.requiresReview += 1;
+        else report.exceptions += 1;
       } catch {
         // Do not emit attempted references, provider payloads or credentials.
         // Leave the durable row for staff investigation/retry.
