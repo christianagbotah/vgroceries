@@ -13,6 +13,7 @@ This source-only change backports **the read-only endpoint and customer checkout
 - Customer checkout starts in a checking state. If electronic checkout is unavailable or the network fails, electronic ordering is disabled **before** creating an order or payment attempt. A customer can choose only a permitted cash-at-counter/delivery option when genuinely available; otherwise the UI stays blocked with a useful message and a manual retry.
 - The demo mock returns `mode:"demo"` to prevent mistaking a simulated route for actual merchant availability. Even if the public endpoint says ready, the backend independently checks payment/refund readiness during order/payment creation.
 - API route contract, typed browser operation, OpenAPI metadata and a focused regression suite are included.
+- The legacy branch's checked-in `docs/openapi-foundation.json` is already behind its own generated routes: a local source-only generation yielded 164 paths versus 149 in the existing snapshot, including 14 unrelated routes plus this new one. The generated file was **not** committed because unrelated API documentation parity requires a separate review; that drift remains a release gate.
 
 ## Deployment status and gates
 
