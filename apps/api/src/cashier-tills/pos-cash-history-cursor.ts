@@ -21,6 +21,10 @@ export function decodePosCashHistoryCursor(cursor:string|undefined){
     if(bytes.toString("base64url")!==cursor)
       throw new Error("Non-canonical encoding");
     const parsed=cursorSchema.parse(JSON.parse(bytes.toString("utf8")));
+    // Reject duplicate keys, whitespace variants and alternate field ordering.
+    // Only cursors emitted by this service are valid continuation tokens.
+    if(bytes.toString("utf8")!==JSON.stringify(parsed))
+      throw new Error("Non-canonical cursor payload");
     const date=new Date(parsed.createdAt);
     if(!Number.isFinite(date.getTime()))
       throw new Error("Invalid timestamp");
