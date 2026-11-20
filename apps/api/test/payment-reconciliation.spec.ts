@@ -7,6 +7,7 @@ import { Database } from "../src/database/database";
 import { commerceTestPassword, seedCommerceFixtures } from "./commerce-fixtures";
 import { FakePaymentProvider } from "./fake-payment-provider";
 import { FakeRefundProvider } from "./fake-refund-provider";
+import { PaymentOutcomeService } from "../src/payments/payment-outcome.service";
 
 let app: INestApplication;
 let second: INestApplication;
@@ -174,6 +175,78 @@ test("lookup occurs before reconciliation locks and stale snapshot is rejected a
   assert.equal(stored.settlementState, "exception");
   assert.equal((await db.order.findUniqueOrThrow({ where: { id: order.id } })).paymentStatus, "requires_review");
   assert.equal((await db.paymentReconciliation.findFirstOrThrow({ where: { paymentAttemptId: attempt.id }, orderBy: { createdAt: "desc" } })).result, "exception");
+});
+
+test("concurrent verified callback wins: a stale recovery lookup never downgrades a paid order", async () => {
+  const { order, attempt } = await createOrderAndAttempt();
+  fake.lookupHandler = async (input) => {
+    // This provider callback reaches the independent second instance while
+    // reconciliation is waiting on the external status API.
+    await secondDb.$transaction(async (tx) => {
+      await second.get(PaymentOutcomeService).apply(tx, attempt.id, {
+        providerId: "fake", merchantReference: input.merchantReference,
+        providerReference: input.providerReference, state: "succeeded",
+        amountMinor: attempt.amountMinor, currency: "GHS",
+      }, { actorId: "payment-provider", requestId: "concurrent-callback-uat", source: "provider_event" });
+    });
+    return {
+      providerId: "fake", merchantReference: input.merchantReference,
+      providerReference: input.providerReference, state: "pending" as const,
+    };
+  };
+  const result = await reconcile(attempt.id, await admin());
+  assert.equal(result.response.status, 200);
+  assert.equal(result.body.data.result, "exception");
+  assert.equal((await db.paymentAttempt.findUniqueOrThrow({ where: { id: attempt.id } })).status, "succeeded");
+  assert.equal((await db.order.findUniqueOrThrow({ where: { id: order.id } })).paymentStatus, "succeeded");
+  assert.equal(await db.outboxEvent.count({ where: { type: "payment.succeeded", aggregateId: attempt.id } }), 1);
+  assert.equal(await db.outboxEvent.count({ where: { type: "payment.reconciliation_exception", aggregateId: attempt.id } }), 0);
+});
+
+test("provider Unpaid/Pending is not a completed settlement and remains recoverable", async () => {
+  const { order, attempt } = await createOrderAndAttempt();
+  fake.lookupResult = {
+    providerId: "fake", merchantReference: attempt.merchantReference,
+    providerReference: attempt.providerRef ?? undefined,
+    state: "pending",
+  };
+  const token = await admin();
+  const first = await reconcile(attempt.id, token);
+  assert.equal(first.response.status, 200);
+  assert.equal(first.body.data.result, "matched");
+  let stored = await db.paymentAttempt.findUniqueOrThrow({ where: { id: attempt.id } });
+  assert.equal(stored.status, "pending");
+  assert.equal(stored.settlementState, "unsettled");
+  assert.equal((await db.order.findUniqueOrThrow({ where: { id: order.id } })).paymentStatus, "pending");
+  assert.equal(await db.outboxEvent.count({ where: { type: "payment.reconciled", aggregateId: attempt.id } }), 0);
+  assert.equal(await db.outboxEvent.count({ where: { type: "payment.succeeded", aggregateId: attempt.id } }), 0);
+
+  // Recover legacy incorrect classification without pretending the customer paid.
+  await db.paymentAttempt.update({
+    where: { id: attempt.id },
+    data: { settlementState: "reconciled", version: { increment: 1 } },
+  });
+  const retried = await reconcile(attempt.id, token);
+  assert.equal(retried.response.status, 200);
+  stored = await db.paymentAttempt.findUniqueOrThrow({ where: { id: attempt.id } });
+  assert.equal(stored.status, "pending");
+  assert.equal(stored.settlementState, "unsettled");
+  assert.equal(await db.outboxEvent.count({ where: { type: "payment.reconciled", aggregateId: attempt.id } }), 0);
+
+  // Later independently matched Paid status can settle the same attempt exactly once.
+  fake.lookupResult = {
+    providerId: "fake", merchantReference: attempt.merchantReference,
+    providerReference: attempt.providerRef ?? undefined,
+    state: "succeeded", amountMinor: attempt.amountMinor, currency: "GHS",
+  };
+  const settled = await reconcile(attempt.id, token);
+  assert.equal(settled.response.status, 200);
+  stored = await db.paymentAttempt.findUniqueOrThrow({ where: { id: attempt.id } });
+  assert.equal(stored.status, "succeeded");
+  assert.equal(stored.settlementState, "reconciled");
+  assert.equal((await db.order.findUniqueOrThrow({ where: { id: order.id } })).paymentStatus, "succeeded");
+  assert.equal(await db.outboxEvent.count({ where: { type: "payment.reconciled", aggregateId: attempt.id } }), 1);
+  assert.equal(await db.outboxEvent.count({ where: { type: "payment.succeeded", aggregateId: attempt.id } }), 1);
 });
 
 test("authoritative amount mismatch becomes reconciliation exception without success", async () => {
