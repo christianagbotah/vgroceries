@@ -186,3 +186,20 @@ test("history cursor rejects noncanonical base64 and extra JSON fields before da
   assert.equal(activity().listCalls,0);
   assert.equal(activity().detailCalls,0);
 });
+
+test("history cursor rejects duplicate keys and noncanonical JSON before querying sales",async()=>{
+  const {instance,activity}=setup([sale(1)]);
+  const row=sale(2);
+  const date=row.createdAt.toISOString();
+  const invalid=[
+    JSON.stringify({id:row.id,createdAt:date}), // wrong field order
+    `{"createdAt":"${date}","id":"${row.id}","id":"${row.id}"}`, // duplicate key
+    `{ "createdAt":"${date}","id":"${row.id}" }`, // extra whitespace
+  ];
+  for(const payload of invalid){
+    const cursor=Buffer.from(payload).toString("base64url");
+    await assert.rejects(()=>instance.listPage(cursor),/Invalid cash sale history cursor/);
+  }
+  assert.equal(activity().listCalls,0);
+  assert.equal(activity().detailCalls,0);
+});
