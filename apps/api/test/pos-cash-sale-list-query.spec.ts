@@ -231,6 +231,10 @@ test("history cursor encoder fails closed on invalid source records", () => {
     () => encodePosCashHistoryCursor({ createdAt: new Date("2026-11-20T09:00:00.000Z"), id: "not-a-uuid" }),
     /Cannot generate cash history cursor from invalid record/,
   );
+  assert.throws(
+    () => encodePosCashHistoryCursor({ createdAt: new Date("2026-11-20T09:00:00.000Z"), id: "00000000-0000-0000-0000-000000000000" }),
+    /Cannot generate cash history cursor from invalid record/,
+  );
   const createdAt = new Date("2026-11-20T09:00:00.000Z");
   const cursor = encodePosCashHistoryCursor({ createdAt, id: validId });
   assert.deepEqual(decodePosCashHistoryCursor(cursor), { createdAt, id: validId });
