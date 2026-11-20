@@ -51,7 +51,7 @@ describe("Role-aware illustrated system manual",()=>{
     for(const role of ["inventory_manager","cashier","rider","customer"] as const){
       const scope=screensForRole(role);
       expect(scope.length).toBeGreaterThan(5);
-      for(const screen of scope)expect(allowed[role]).toContain(screen.audience);
+      for(const screen of scope)expect((allowed[role] as readonly string[]).includes(screen.audience)).toBe(true);
       expect(scope.some(s=>s.path==="/admin/settings")).toBe(false);
       expect(scope.some(s=>s.path==="/admin/team")).toBe(false);
     }
