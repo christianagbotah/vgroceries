@@ -648,7 +648,10 @@ export function readConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
   const pilotMode = env.STAGING_MOMO_PILOT_ENABLED;
   if (pilotMode !== undefined && !["true", "false"].includes(pilotMode))
     throw new Error("STAGING_MOMO_PILOT_ENABLED must be true or false");
-  if (pilotMode !== "true" && pilotFields.some((key) => Boolean(env[key])))
+  // An explicit false is an emergency kill switch: stale private values must
+  // not crash the whole POS API or permit new prompts. Omitted flag with a
+  // partial private bundle remains a fail-fast configuration error.
+  if (pilotMode === undefined && pilotFields.some((key) => Boolean(env[key])))
     throw new Error("Pilot private fields require explicit STAGING_MOMO_PILOT_ENABLED=true");
   let stagingMomoPilot: StagingMomoPilotConfig | undefined;
   if (pilotMode === "true") {
@@ -690,7 +693,7 @@ export function readConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
   // open Direct Receive prompts to its guests or unrelated customers.
   if (env.NODE_ENV === "production" &&
       webOrigins.includes("https://portal.varietygroceries.com") &&
-      hubtelPayment?.directReceive && !stagingMomoPilot)
+      hubtelPayment?.directReceive && !stagingMomoPilot && pilotMode !== "false")
     throw new Error("Staging Hubtel Direct Receive requires an active owner-only pilot gate");
 
   const paystackNames = [

@@ -70,10 +70,20 @@ test("staging pilot is off unless all restricted owner payment settings are expr
     {HUBTEL_REFUND_BASIC_PASSWORD:"different"},
     {PAYMENT_ENABLED_METHODS:"hosted_checkout"},
     {WEB_ORIGINS:"https://varietygroceries.com"},
-    {STAGING_MOMO_PILOT_ENABLED:"false"},
+
   ]) {
     assert.throws(()=>readConfig({...env(),...change}),/Staging|staging|Pilot|pilot|Hubtel|Refund|payment/);
   }
+});
+
+test("explicit OFF stops a pilot without crashing a shared staging POS API",()=>{
+  const config=readConfig({...env(),STAGING_MOMO_PILOT_ENABLED:"false"});
+  assert.equal(config.stagingMomoPilot,undefined);
+  const locked=new PaymentPolicyService(config,{} as never,{} as never,{} as never);
+  assert.throws(()=>locked.assertElectronicMethodAvailable("mobile_money"),/restricted pilot/);
+  const noFlag=env();
+  delete (noFlag as Record<string,string>).STAGING_MOMO_PILOT_ENABLED;
+  assert.throws(()=>readConfig(noFlag),/private fields require explicit/);
 });
 
 test("expired pilot fails closed without taking the staging API offline on restart",()=>{

@@ -55,3 +55,5 @@ Refund:
 - **Post-test**: remove temporary pilot configuration, reload/restart the API, recheck anonymous availability false, stop all further prompts and preserve immutable audit evidence.
 
 The owner has explicitly authorized a staging test, **not** exposure to unrelated customers. This branch does not enable payment in its default configuration; no test wallet is charged until the owner approves the actual MoMo prompt.
+
+**Emergency kill switch:** Set `STAGING_MOMO_PILOT_ENABLED=false` and restart the staging API. Existing server-side policy must deny electronic checkout even if other protected pilot fields remain. Do not delete historic order, provider attempt or payment evidence.
