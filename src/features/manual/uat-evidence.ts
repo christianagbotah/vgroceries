@@ -30,12 +30,14 @@ export function createManualUatCsv(screens:readonly ManualScreen[]):string {
   const rows=[MANUAL_UAT_HEADER.map(csvCell).join(",")];
   screens.forEach((s,index)=>{
     const key=`vg-${String(index+1).padStart(3,"0")}-${screenSlug(s.path)}`;
+    const initialStatus=s.readiness==="pending"?"BLOCKED_PENDING_RELEASE":"NOT_TESTED";
     const values=[
       String(index+1),s.title,s.path,s.audience,
       MANUAL_READINESS_LABELS[s.readiness],
-      `${key}-desktop.png`,"NOT_TESTED",
-      `${key}-mobile.png`,"NOT_TESTED",
-      "NOT_TESTED","NOT_TESTED","","","","",
+      `${key}-desktop.png`,initialStatus,
+      `${key}-mobile.png`,initialStatus,
+      initialStatus,initialStatus,"","","",
+      s.readiness==="pending"?`Draft-only ${s.releaseSource??"external source"}; do not test before reviewed POS deployment`:"",
     ];
     rows.push(values.map(csvCell).join(","));
   });

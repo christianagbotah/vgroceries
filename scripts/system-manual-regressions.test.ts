@@ -1,8 +1,8 @@
 import {describe,expect,test} from "bun:test";
-import {readdirSync,readFileSync} from "node:fs";
+import {existsSync,readdirSync,readFileSync} from "node:fs";
 import {join,relative,resolve} from "node:path";
 import {
-  MANUAL_SCREENS,screenLink,screensForRole,
+  MANUAL_SCREENS,MANUAL_PENDING_SCREENS,MANUAL_DOCUMENTED_SCREENS,screenLink,screensForRole,
 } from "../src/features/manual/catalogue";
 import {MANUAL_WORKFLOWS,workflowsForRole} from "../src/features/manual/workflows";
 import {createOfflineManualHtml,printManualAsPdf} from "../src/features/manual/export";
@@ -42,8 +42,10 @@ describe("Role-aware illustrated system manual",()=>{
 
   test("admin sees every role; non-admin viewers see only their scope and safe shared help",()=>{
     const admin=screensForRole("admin");
-    expect(admin.length).toBe(MANUAL_SCREENS.length);
+    expect(admin.length).toBe(MANUAL_DOCUMENTED_SCREENS.length);
     expect(admin.some(s=>s.path==="/admin/settings")).toBe(true);
+    expect(admin.some(s=>s.path==="/admin/pos/verified-uat/history")).toBe(true);
+    expect(admin.some(s=>s.path==="/admin/pos/verified-uat/reconciliation")).toBe(true);
     expect(admin.some(s=>s.path==="/staff/rider/cod")).toBe(true);
     expect(admin.some(s=>s.path==="/checkout")).toBe(true);
     const allowed={
@@ -154,11 +156,11 @@ describe("Role-aware illustrated system manual",()=>{
     }
   });
 
-  test("79-screen screenshot UAT checklist remains entirely unapproved and empty of private data",()=>{
-    const csv=createManualUatCsv(MANUAL_SCREENS);
+  test("79 current routes plus two blocked POS drafts produce an unapproved evidence checklist",()=>{
+    const csv=createManualUatCsv(MANUAL_DOCUMENTED_SCREENS);
     expect(readFileSync(join(root,"docs/MANUAL_SCREENSHOT_UAT_TEMPLATE_20261120.csv"),"utf8")).toBe(csv.replaceAll("\r\n","\n"));
     const lines=csv.trimEnd().split("\r\n");
-    expect(lines).toHaveLength(80);
+    expect(lines).toHaveLength(82);
     expect(MANUAL_UAT_HEADER).toHaveLength(15);
     expect(lines[0]).toContain("Source release SHA");
     expect(lines[0]).toContain("Role and direct URL UAT");
@@ -166,7 +168,10 @@ describe("Role-aware illustrated system manual",()=>{
     expect(lines[1]).toContain("vg-001-home-mobile.png");
     expect(lines[1]).not.toContain("PASS");
     expect((csv.match(/NOT_TESTED/g)??[]).length).toBe(MANUAL_SCREENS.length*4);
-    for(const screen of MANUAL_SCREENS){
+    expect((csv.match(/BLOCKED_PENDING_RELEASE/g)??[]).length).toBe(MANUAL_PENDING_SCREENS.length*4);
+    expect(lines[80]).toContain("BLOCKED_PENDING_RELEASE");
+    expect(lines[81]).toContain("BLOCKED_PENDING_RELEASE");
+    for(const screen of MANUAL_DOCUMENTED_SCREENS){
       expect(csv).toContain(screen.path);
       expect(csv).toContain(screen.title);
     }
@@ -176,6 +181,31 @@ describe("Role-aware illustrated system manual",()=>{
     expect(tampered).not.toContain("\"=HYPERLINK");
     expect(()=>downloadManualUatCsv("customer",MANUAL_SCREENS)).toThrow(/Administrator/);
     expect(()=>downloadManualUatCsv("cashier",MANUAL_SCREENS)).toThrow(/Administrator/);
+  });
+
+  test("POS read-only draft guides remain outside the 79 canonical source routes",()=>{
+    expect(MANUAL_SCREENS).toHaveLength(79);
+    expect(MANUAL_PENDING_SCREENS.map(s=>s.path)).toEqual([
+      "/admin/pos/verified-uat/history",
+      "/admin/pos/verified-uat/reconciliation",
+    ]);
+    const exported=createOfflineManualHtml("admin",screensForRole("admin"),workflowsForRole("admin"));
+    for(const screen of MANUAL_PENDING_SCREENS){
+      expect(screen.audience).toBe("admin");
+      expect(screen.readiness).toBe("pending");
+      expect(screen.releaseSource).toContain("PR #175");
+      expect(MANUAL_SCREENS.some(s=>s.path===screen.path)).toBe(false);
+      expect(existsSync(join(root,"src/app",screen.path.slice(1),"page.tsx"))).toBe(false);
+      expect(exported).toContain(screen.path);
+    }
+    expect(exported).toContain("Not part of this deployed release");
+    expect(exported).toContain("Not navigable in this release");
+    for(const role of ["customer","cashier","inventory_manager","rider"] as const){
+      const edition=createOfflineManualHtml(role,screensForRole(role),workflowsForRole(role));
+      for(const screen of MANUAL_PENDING_SCREENS)expect(edition).not.toContain(screen.path);
+    }
+    const reader=readFileSync(join(root,"src/features/manual/reader.tsx"),"utf8");
+    expect(reader).toContain("Screen link intentionally disabled");
   });
 
   test("manual uses authenticated role and links from customer, cashier, admin, rider portals",()=>{

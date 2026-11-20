@@ -2,6 +2,7 @@ import {writeFileSync} from "node:fs";
 import {join} from "node:path";
 import {
   MANUAL_READINESS_LABELS,MANUAL_ROLE_LABELS,MANUAL_SCREENS,
+  MANUAL_DOCUMENTED_SCREENS,MANUAL_PENDING_SCREENS,
   screensForRole,
 } from "../src/features/manual/catalogue";
 import {MANUAL_WORKFLOWS,workflowsForRole} from "../src/features/manual/workflows";
@@ -34,7 +35,7 @@ const sections=[
 "",
 "## Authority and specialist role mapping",
 "",
-"**Authenticated API role set (current):** administrator, inventory manager, cashier, rider and customer. Administrators see all 79 guide chapters. Other authenticated roles see the screens applicable to their role plus shared guidance. A manual chapter never grants API access.",
+"**Authenticated API role set (current):** administrator, inventory manager, cashier, rider and customer. Administrators see the full guide, currently 79 main-derived source pages plus two separately marked draft POS pages from PR #175; those two are not deployed. Other authenticated roles see the screens applicable to their role plus shared guidance. A manual chapter never grants API access.",
 "",
 "**Design/demo specialization (not a live role grant):** owner/admin, operations manager, inventory officer, cashier, picker/packer, dispatcher, finance/refund reviewer and rider exist as richer design-time/demo menu roles. Their distinct production server grants and branch scopes are separate UAT/implementation work. In particular, the staff demo selector is **not** a production impersonation or authorization mechanism.",
 "",
@@ -71,11 +72,14 @@ const sections=[
 }),
 "## Screen-by-screen reference",
 "",
-...MANUAL_SCREENS.flatMap((screen,i)=>{
+`**Scope:** ${MANUAL_SCREENS.length} canonical main-derived application routes and ${MANUAL_PENDING_SCREENS.length} additional administrator-only draft POS routes from unmerged PR #175. The two draft routes are NOT DEPLOYED, are not present in this source checkout and must not be marked tested until the approved POS release is deployed.`,
+"",
+...MANUAL_DOCUMENTED_SCREENS.flatMap((screen,i)=>{
   const diagram=manualVisual(screen);
   return [
   `### ${String(i+1).padStart(2,"0")}. ${esc(screen.title)}`,"",
   `**Route:** \`${screen.path}\` · **Audience:** ${screen.audience} · **Status:** ${MANUAL_READINESS_LABELS[screen.readiness]}`,"",
+  ...(screen.readiness==="pending"?[`**Pending source:** ${screen.releaseSource}. This page is in an independent draft PR and is NOT present in the reviewed canonical portal or deployed staging.`,""]:[]),
   `- **Purpose:** ${esc(screen.purpose)}`,
   `- **Steps:** Locate the navigation and screen; ${esc(screen.action)}`,
   `- **Verify:** ${esc(screen.check)}`,
@@ -89,9 +93,9 @@ const sections=[
 }),
 "## UAT and screenshot capture plan",
 "",
-"**Evidence checklist:** The administrator manual can generate a role-scoped download of `variety-groceries-screen-uat-evidence-template.csv`. The checked-in `docs/MANUAL_SCREENSHOT_UAT_TEMPLATE_20261120.csv` contains the same 79 screen rows, all initially NOT_TESTED. Follow `docs/MANUAL_SCREENSHOT_UAT_RUNBOOK_20261120.md` to capture real redacted staging screenshots and verify each role. Do not treat conceptual diagrams as screenshot evidence.",
+"**Evidence checklist:** The administrator manual can generate a role-scoped download of `variety-groceries-screen-uat-evidence-template.csv`. The checked-in `docs/MANUAL_SCREENSHOT_UAT_TEMPLATE_20261120.csv` contains 79 canonical source rows initially NOT_TESTED and 2 POS draft rows blocked as BLOCKED_PENDING_RELEASE. Follow `docs/MANUAL_SCREENSHOT_UAT_RUNBOOK_20261120.md` to capture real redacted staging screenshots and verify each role. Do not treat conceptual diagrams as screenshot evidence.",
 "",
-"**Screenshot coverage**: each of the 79 existing screens must be captured on the same release SHA using approved sample/test identities. Before embedding a real screenshot, verify correct role, product logo, live enabled flags, mobile layout and no private customer information. Mask names, phone numbers, tokens, credentials, receipts, or banking references. Attach one desktop and (where materially different) one mobile screenshot per screen. Do not mistake the conceptual screen diagrams for captured screenshots.",
+"**Screenshot coverage**: each of the 79 current-source screens must be captured on the same release SHA using approved sample/test identities. Two separately sourced draft POS screens must remain BLOCKED_PENDING_RELEASE until installed in a reviewed release pair. Before embedding a real screenshot, verify correct role, product logo, live enabled flags, mobile layout and no private customer information. Mask names, phone numbers, tokens, credentials, receipts, or banking references. Attach one desktop and (where materially different) one mobile screenshot per screen. Do not mistake the conceptual screen diagrams for captured screenshots.",
 "",
 "**Role/UAT script:** Verify administrator sees every manual section; inventory manager sees only inventory + shared; cashier sees only cashier + shared; rider sees only rider + shared; customer and guest see customer + shared. Test expired sessions, logout/login account change, direct URL access, no admin instruction leakage in visible views, keyboard search, navigation, offline HTML export, print PDF, mobile legibility and screen links.",
 "",
@@ -106,6 +110,6 @@ writeFileSync(path,output);
 const csvPath=join(process.cwd(),"docs/MANUAL_SCREENSHOT_UAT_TEMPLATE_20261120.csv");
 // Normalize the tracked CSV to LF so git whitespace checks are clean;
 // the one-click browser download retains RFC-compatible CRLF rows.
-writeFileSync(csvPath,createManualUatCsv(MANUAL_SCREENS).replaceAll("\r\n","\n"));
-console.log("Generated",path,"screens",MANUAL_SCREENS.length,"workflows",MANUAL_WORKFLOWS.length,"characters",output.length);
-console.log("Generated",csvPath,"rows",MANUAL_SCREENS.length,"all not tested");
+writeFileSync(csvPath,createManualUatCsv(MANUAL_DOCUMENTED_SCREENS).replaceAll("\r\n","\n"));
+console.log("Generated",path,"canonical screens",MANUAL_SCREENS.length,"pending POS",MANUAL_PENDING_SCREENS.length,"workflows",MANUAL_WORKFLOWS.length,"characters",output.length);
+console.log("Generated",csvPath,"rows",MANUAL_DOCUMENTED_SCREENS.length,"pending POS rows blocked");

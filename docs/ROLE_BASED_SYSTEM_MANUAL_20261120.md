@@ -16,7 +16,7 @@
 
 | Verified role | Visible screen guides | Workflow diagrams | Notes |
 |---|---:|---:|---|
-| Administrator — all roles | 79 | 11 | All role views; preview as each role without changing backend permissions. |
+| Administrator — all roles | 81 | 11 | All role views; preview as each role without changing backend permissions. |
 | Customer | 31 | 3 | Only role-specific and common guidance; actual API grants remain server-enforced. |
 | Inventory manager | 14 | 1 | Only role-specific and common guidance; actual API grants remain server-enforced. |
 | Cashier | 9 | 2 | Only role-specific and common guidance; actual API grants remain server-enforced. |
@@ -24,7 +24,7 @@
 
 ## Authority and specialist role mapping
 
-**Authenticated API role set (current):** administrator, inventory manager, cashier, rider and customer. Administrators see all 79 guide chapters. Other authenticated roles see the screens applicable to their role plus shared guidance. A manual chapter never grants API access.
+**Authenticated API role set (current):** administrator, inventory manager, cashier, rider and customer. Administrators see the full guide, currently 79 main-derived source pages plus two separately marked draft POS pages from PR #175; those two are not deployed. Other authenticated roles see the screens applicable to their role plus shared guidance. A manual chapter never grants API access.
 
 **Design/demo specialization (not a live role grant):** owner/admin, operations manager, inventory officer, cashier, picker/packer, dispatcher, finance/refund reviewer and rider exist as richer design-time/demo menu roles. Their distinct production server grants and branch scopes are separate UAT/implementation work. In particular, the staff demo selector is **not** a production impersonation or authorization mechanism.
 
@@ -324,6 +324,8 @@ flowchart LR
 **Next step:** Escalate uncertain status rather than telling the customer money has moved.
 
 ## Screen-by-screen reference
+
+**Scope:** 79 canonical main-derived application routes and 2 additional administrator-only draft POS routes from unmerged PR #175. The two draft routes are NOT DEPLOYED, are not present in this source checkout and must not be marked tested until the approved POS release is deployed.
 
 ### 01. Storefront home
 
@@ -1589,11 +1591,47 @@ flowchart LR
   A --> C["④ Physical delivery and cash handover are independent evidence events"]
 ```
 
+### 80. POS cash-sale history — draft only
+
+**Route:** `/admin/pos/verified-uat/history` · **Audience:** admin · **Status:** DRAFT PR #175 — NOT DEPLOYED, test blocked
+
+**Pending source:** Draft PR #175 — pending staging release parity. This page is in an independent draft PR and is NOT present in the reviewed canonical portal or deployed staging.
+
+- **Purpose:** Read-only administrator review of backend-recorded physical cash sales in bounded pages.
+- **Steps:** Locate the navigation and screen; When this separate POS branch is deployed with its gated read authority, check 25-sale keyset pages, older/newer navigation, on-page search and original immutable receipt links.
+- **Verify:** Verify real admin access; 401/403 for unauthorized sessions; no mutation, tax invoice or settlement claims. Cash-sale backend flag remains OFF by default.
+- **Screen figure:** Financial evidence and drawer view (cash). The visual below is illustrative, not a screenshot. During UAT, check actual controls against the corresponding authenticated screen.
+
+```mermaid
+flowchart LR
+  N["① Counter sales"] --> V["② POS cash-sale history — draft only"]
+  V --> A["③ Separate approval state"]
+  A --> C["④ Do not equate recorded cash with verified electronic settlement"]
+```
+
+### 81. POS till reconciliation — draft only
+
+**Route:** `/admin/pos/verified-uat/reconciliation` · **Audience:** admin · **Status:** DRAFT PR #175 — NOT DEPLOYED, test blocked
+
+**Pending source:** Draft PR #175 — pending staging release parity. This page is in an independent draft PR and is NOT present in the reviewed canonical portal or deployed staging.
+
+- **Purpose:** Read-only administrator till reconciliation using authoritative drawer-ledger arithmetic and a guarded CSV export.
+- **Steps:** Locate the navigation and screen; After independent staging release approval, select a test till, examine opening float and cash movements, compare physical variance with ledger integrity, and verify the authorized CSV snapshot.
+- **Verify:** An open till has no closing count; the last 20 sale references are not total sales. Never interpret drawer count as Hubtel, COD, bank or refund settlement.
+- **Screen figure:** Financial evidence and drawer view (cash). The visual below is illustrative, not a screenshot. During UAT, check actual controls against the corresponding authenticated screen.
+
+```mermaid
+flowchart LR
+  N["① Counter sales"] --> V["② POS till reconciliation — draft only"]
+  V --> A["③ Separate approval state"]
+  A --> C["④ Do not equate recorded cash with verified electronic settlement"]
+```
+
 ## UAT and screenshot capture plan
 
-**Evidence checklist:** The administrator manual can generate a role-scoped download of `variety-groceries-screen-uat-evidence-template.csv`. The checked-in `docs/MANUAL_SCREENSHOT_UAT_TEMPLATE_20261120.csv` contains the same 79 screen rows, all initially NOT_TESTED. Follow `docs/MANUAL_SCREENSHOT_UAT_RUNBOOK_20261120.md` to capture real redacted staging screenshots and verify each role. Do not treat conceptual diagrams as screenshot evidence.
+**Evidence checklist:** The administrator manual can generate a role-scoped download of `variety-groceries-screen-uat-evidence-template.csv`. The checked-in `docs/MANUAL_SCREENSHOT_UAT_TEMPLATE_20261120.csv` contains 79 canonical source rows initially NOT_TESTED and 2 POS draft rows blocked as BLOCKED_PENDING_RELEASE. Follow `docs/MANUAL_SCREENSHOT_UAT_RUNBOOK_20261120.md` to capture real redacted staging screenshots and verify each role. Do not treat conceptual diagrams as screenshot evidence.
 
-**Screenshot coverage**: each of the 79 existing screens must be captured on the same release SHA using approved sample/test identities. Before embedding a real screenshot, verify correct role, product logo, live enabled flags, mobile layout and no private customer information. Mask names, phone numbers, tokens, credentials, receipts, or banking references. Attach one desktop and (where materially different) one mobile screenshot per screen. Do not mistake the conceptual screen diagrams for captured screenshots.
+**Screenshot coverage**: each of the 79 current-source screens must be captured on the same release SHA using approved sample/test identities. Two separately sourced draft POS screens must remain BLOCKED_PENDING_RELEASE until installed in a reviewed release pair. Before embedding a real screenshot, verify correct role, product logo, live enabled flags, mobile layout and no private customer information. Mask names, phone numbers, tokens, credentials, receipts, or banking references. Attach one desktop and (where materially different) one mobile screenshot per screen. Do not mistake the conceptual screen diagrams for captured screenshots.
 
 **Role/UAT script:** Verify administrator sees every manual section; inventory manager sees only inventory + shared; cashier sees only cashier + shared; rider sees only rider + shared; customer and guest see customer + shared. Test expired sessions, logout/login account change, direct URL access, no admin instruction leakage in visible views, keyboard search, navigation, offline HTML export, print PDF, mobile legibility and screen links.
 

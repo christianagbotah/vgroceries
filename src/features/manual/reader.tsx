@@ -97,6 +97,9 @@ function ScreenDetails({screen,index,total}:{screen:ManualScreen;index:number;to
       <span className="inline-flex max-w-full rounded-full border bg-muted px-3 py-1 text-xs font-semibold">
         {MANUAL_READINESS_LABELS[screen.readiness]}
       </span>
+      {screen.readiness==="pending"?<p role="status" className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm font-semibold leading-6 text-amber-950">
+        Draft-source training only: {screen.releaseSource}. This route is not part of the reviewed canonical source or deployed portal. Do not test it or claim it exists until the protected POS release is installed and independently approved.
+      </p>:null}
     </div>
     <ScreenSchematic screen={screen}/>
     <div className="grid gap-3 sm:grid-cols-2">
@@ -115,11 +118,12 @@ function ScreenDetails({screen,index,total}:{screen:ManualScreen;index:number;to
         <p className="mt-3 text-sm leading-6 text-muted-foreground">
           The presence of a page does not confirm its backend writer, provider or business process is approved for real transactions.
         </p>
-        <Link href={route}
-          className="mt-4 inline-flex min-h-11 items-center gap-2 rounded-lg border px-4 py-2 text-sm font-semibold text-primary hover:bg-accent">
-          {screen.path.includes("[")?"Open parent list":"Open screen"}
-          <ExternalLink className="size-4" aria-hidden="true"/>
-        </Link>
+        {screen.readiness==="pending"?<p className="mt-4 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-900">Screen link intentionally disabled until a reviewed POS staging deployment.</p>:
+          <Link href={route}
+            className="mt-4 inline-flex min-h-11 items-center gap-2 rounded-lg border px-4 py-2 text-sm font-semibold text-primary hover:bg-accent">
+            {screen.path.includes("[")?"Open parent list":"Open screen"}
+            <ExternalLink className="size-4" aria-hidden="true"/>
+          </Link>}
       </section>
     </div>
   </article>;
@@ -227,8 +231,8 @@ export function ManualReader({guestScope="customer"}:{guestScope?:"customer"|"ri
         <p className="text-xs font-bold uppercase tracking-[0.17em] text-[#e6c67c]">VG · Training and operations</p>
         <h1 className="mt-2 max-w-4xl font-serif text-3xl font-bold leading-tight sm:text-4xl">Every screen. Every handoff. The right instructions for your role.</h1>
         <p className="mt-3 max-w-4xl text-sm leading-6 text-white/85">
-          Explore {screens.length} documented screens and {workflows.length} workflow diagrams, with annotated visual maps, key tasks and safety checks.
-          This manual describes source screens; it does not authorize disabled modules, real money or inventory changes.
+          Explore {screens.length} documented chapters and {workflows.length} workflow diagrams, with annotated visual maps, key tasks and safety checks.
+          The administrator edition includes two explicitly marked POS draft-only pages not yet part of this release. This manual does not authorize disabled modules, real money or inventory changes.
         </p>
         <div className="mt-4 flex flex-wrap items-center gap-2 text-xs">
           <span className="rounded-full border border-white/30 px-3 py-1.5">{checking?"Checking account…":authenticated?MANUAL_ROLE_LABELS[role]:guestScope==="rider"?"Guest · rider demo guide":"Guest · customer guide"}</span>
@@ -237,7 +241,7 @@ export function ManualReader({guestScope="customer"}:{guestScope?:"customer"|"ri
         </div>
       </div>
       {role==="admin"&&authenticated&&!checking?<p className="mb-4 rounded-xl border border-[#c3dfcb] bg-[#f0f7f0] p-4 text-sm leading-6">
-        <strong>Administrator screenshot acceptance:</strong> Use “Screenshot UAT checklist” above to download the full 79-screen evidence template. Every desktop, mobile, functionality and role check begins <strong>NOT_TESTED</strong>. Fill in the deployed source SHA, redacted screenshot evidence, reviewer and UTC approval only after checking the actual staging screen. Nothing is auto-approved by the manual.
+        <strong>Administrator screenshot acceptance:</strong> Use “Screenshot UAT checklist” above to download the full 81-chapter evidence template: 79 current-source routes start <strong>NOT_TESTED</strong> and the 2 separately sourced POS draft routes start <strong>BLOCKED_PENDING_RELEASE</strong>. Fill in the deployed source SHA, redacted screenshot evidence, reviewer and UTC approval only after checking the actual staging screen. Nothing is auto-approved by the manual.
       </p>:null}
       <details className="mb-5 rounded-xl border bg-white p-4 text-sm leading-6">
         <summary className="cursor-pointer font-bold text-[#1c563b]">Role access: real accounts versus specialist demo roles</summary>

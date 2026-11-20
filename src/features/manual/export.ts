@@ -30,6 +30,7 @@ export function createOfflineManualHtml(role:ManualRole,screens:ManualScreen[],f
       <p class="kicker">SCREEN ${String(i+1).padStart(2,"0")} · ${safe(screen.section)}</p>
       <h2>${safe(screen.title)}</h2>
       <p><code>${safe(screen.path)}</code> <span class="pill">${safe(MANUAL_READINESS_LABELS[screen.readiness])}</span></p>
+      ${screen.readiness==="pending"?`<p class="guard"><strong>Not part of this deployed release:</strong> ${safe(screen.releaseSource??"Independent draft source")}. Do not visit or test this route until protected POS staging parity and review are complete.</p>`:""}
       <div class="diagram" role="img" aria-label="Illustrative navigation map for ${safe(screen.title)}">
         <div class="diagram-head">VARIETY GROCERIES · ${safe(screen.section)}</div>
         <div class="diagram-main">
@@ -53,9 +54,11 @@ export function createOfflineManualHtml(role:ManualRole,screens:ManualScreen[],f
       <li><strong>Understand:</strong> ${safe(screen.purpose)}</li>
       <li><strong>Perform:</strong> ${safe(screen.action)}</li>
       <li><strong>Verify:</strong> ${safe(screen.check)}</li></ol>
-      <p><strong>Navigation:</strong> ${screen.path.includes("[")
-        ? `Open the parent list ${safe(screenLink(screen.path))}, then select the correct record.`
-        : `Go to ${safe(screen.path)} on the application domain.`}</p>
+      <p><strong>Navigation:</strong> ${screen.readiness==="pending"
+        ? "Not navigable in this release. After reviewed staging deployment and independent role checks, open the approved POS route."
+        : screen.path.includes("[")
+          ? `Open the parent list ${safe(screenLink(screen.path))}, then select the correct record.`
+          : `Go to ${safe(screen.path)} on the application domain.`}</p>
     </section>`).join("");
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"/>
     <meta name="viewport" content="width=device-width,initial-scale=1"/>
@@ -114,7 +117,7 @@ export function createOfflineManualHtml(role:ManualRole,screens:ManualScreen[],f
       <main class="container">
         <h2>How to use this manual</h2>
         <p>Follow the navigation below. Each screen has an actual route, purpose, next action, safety checkpoint and a visual explanation. Process diagrams describe sequence and separation of responsibilities. Administrative access is never granted by this document.</p>
-        <p><strong>Readiness:</strong> This product is under staged acceptance. Do not use UAT/demo screens as proof of real payment, stock, courier, refund, invoice or COD settlement.</p>
+        <p><strong>Readiness:</strong> This product is under staged acceptance. The administrator edition includes two clearly labelled pending draft POS pages from PR #175; they are <strong>not</strong> pages of the current reviewed release. Do not use UAT/demo screens as proof of real payment, stock, courier, refund, invoice or COD settlement.</p>
         <p><strong>Role truth:</strong> The backend currently recognizes administrator, inventory manager, cashier, rider and customer. Specialist roles such as operations manager, inventory officer, picker/packer, dispatcher and finance/refund reviewer appear in demo/design menus but are not separately activated production grants. Only authenticated server permissions authorize business actions.</p>
         <h2>Contents</h2><nav class="toc" aria-label="Manual chapters">${toc}</nav>
         <h2>Business workflows</h2>${flowItems}

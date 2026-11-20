@@ -1,6 +1,6 @@
-# Variety Groceries — 79-screen screenshot and role UAT acceptance runbook
+# Variety Groceries — 79 canonical + 2 draft POS screen UAT acceptance runbook
 
-**Purpose:** Turn the source-level 79-screen role manual into an evidence-backed, screenshot-accurate edition *without claiming any financial operation is already approved*. This is a human-reviewed staging procedure, **not** a permission to deploy, seed live data or initiate money movement.
+**Purpose:** Turn the 79-screen canonical guide plus two separately sourced POS draft chapters into an evidence-backed, screenshot-accurate edition *without claiming any financial operation is already approved*. This is a human-reviewed staging procedure, **not** a permission to deploy, seed live data or initiate money movement.
 
 ## Source of truth and scope
 
@@ -8,15 +8,15 @@
 2. Use only the separately reviewed POS-integrated staging release (current upstreams **3052** portal / **3049** API). Do **not** replace it with older **3037 / 3027** scripts. Follow `docs/CANONICAL_POS_PORTAL_RELEASE_PARITY_GATE_20261116.md`.
 3. Open `/manual` **only when that release contains the manual**. A current 404 means the guide is not deployed, not that UAT has passed.
 4. Sign in with an approved *test* account of each **real backend role** (administrator, inventory manager, cashier, rider, customer). Do not treat demo selector roles as production grants.
-5. Under the verified **administrator** manual, click **Screenshot UAT checklist** to download a CSV containing a separate row for every documented screen. Every verification column starts as `NOT_TESTED`; there is no fabricated reviewer, release SHA or screenshot.
+5. Under the verified **administrator** manual, click **Screenshot UAT checklist** to download an 81-row CSV: the 79 canonical pages start `NOT_TESTED`, and the two independently sourced draft POS pages start `BLOCKED_PENDING_RELEASE`. There is no fabricated reviewer, release SHA or screenshot.
 
 ## Source parity warning: manual screens versus POS staging
 
-The 79 checklist rows match **the currently reviewed main-derived documentation branch**. They are not proof of complete coverage of the independent POS-integrated staging worktree. In particular, draft **PR #175** includes separate read-only cash-sale history and till-reconciliation screens (for example `/admin/pos/verified-uat/history` and `/admin/pos/verified-uat/reconciliation`) that are not yet part of this main-derived catalogue. Before a release, reconcile **every** staging-only route and feature flag against the selected immutable source SHA; extend the guide and checklist, then rerun route-coverage tests. Do **not** silently treat absent screens as approved, and do **not** merge or deploy the documentation by replacing the running POS portal.
+The checklist covers **79 current canonical route screens** plus **two draft-only administrator guides** sourced directly from PR #175: read-only `/admin/pos/verified-uat/history` and `/admin/pos/verified-uat/reconciliation`. These two are **NOT present in this checkout or approved as deployed**; they remain `BLOCKED_PENDING_RELEASE` until protected POS staging parity and role-based UAT prove the routes exist and function safely. There may be additional routes in the independent POS staging worktree beyond this compared PR; before release, reconcile **every** staging-only route, service contract and feature flag against the selected immutable source SHA. Do **not** silently treat absent screens as approved or replace the current POS portal with a legacy deployment.
 
 ## Per-screen evidence procedure
 
-For every row of the CSV:
+For each **canonical route** row, follow the evidence procedure below. For the two draft POS rows, leave every assessment `BLOCKED_PENDING_RELEASE` until the approved reviewed release pair includes them; only then begin the same UAT procedure:
 
 1. Identify the correct role and log in to the designated *isolated* UAT account. Verify the live `/auth/me` role and branch/location scope, not merely the menu label. Log the exact portal/API release SHAs.
 2. Navigate to the actual screen; for dynamic `/[id]` or `/[slug]` paths open the legitimate parent list, select a **sanitized UAT record** and follow its own link.
@@ -49,8 +49,8 @@ For every row of the CSV:
 
 ## Evidence and sign-off rules
 
-The CSV deliberately begins with **all outcomes NOT_TESTED** and blank reviewer/timestamp/SHA columns. Do not transform `NOT_TESTED` to `PASS` without actual screenshots, authenticated tests and the reviewer’s approval. Do not claim a production launch is safe from a count of green page screenshots alone.
+The CSV deliberately begins with **79 canonical rows marked NOT_TESTED** and **two POS draft rows marked BLOCKED_PENDING_RELEASE** in every assessment column, with blank reviewer/timestamp/SHA columns. Do not transform `NOT_TESTED` or `BLOCKED_PENDING_RELEASE` to `PASS` without an approved deployed release, actual screenshots, authenticated tests and the reviewer’s approval. Do not claim a production launch is safe from a count of green page screenshots alone.
 
 **Release gate:** only the designated owner/release operators may approve a merged, parity-verified portal/API release pair. Payment verification, Hubtel provider permissions, real refund reconciliation, stock invariants, COD authority, backups and rollout checks must independently pass before a limited financial pilot or public production launch.
 
-**Manual coverage:** Current source catalogue contains 79 existing application screens plus separate manual entry routes. The regression test checks that each existing `src/app/**/page.tsx` screen has a guide; if new routes are added, regenerate the manual, update the checklist and re-run the route coverage test.
+**Manual coverage:** Current-source catalogue contains 79 existing application screens, plus two explicitly `pending` PR #175 POS guides and separate manual entry routes. The regression test checks that each existing `src/app/**/page.tsx` screen has a canonical guide and that two pending routes are kept separate until integrated; if new routes are added or merged, reconcile the source, regenerate the manual, update the checklist and rerun the route-coverage test.

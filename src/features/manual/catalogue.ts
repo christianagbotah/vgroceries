@@ -4,7 +4,7 @@
  */
 export type ManualRole = "admin" | "inventory_manager" | "cashier" | "rider" | "customer";
 export type ManualAudience = "admin" | "inventory" | "cashier" | "rider" | "customer" | "shared";
-export type ManualReadiness = "preview" | "gated" | "implemented";
+export type ManualReadiness = "preview" | "gated" | "implemented" | "pending";
 
 export interface ManualScreen {
   path: string;
@@ -15,6 +15,8 @@ export interface ManualScreen {
   purpose: string;
   action: string;
   check: string;
+  /** External draft source; not a page in this checkout and not a live-route claim. */
+  releaseSource?: string;
 }
 /** One entry for every screen currently present in src/app (except the manual itself).
  * Each row is path, title, audience, section, readiness, purpose, action, checkpoint.
@@ -109,6 +111,34 @@ export const MANUAL_SCREENS: ManualScreen[] = rows.map(([path,title,audience,sec
   path,title,audience,section,readiness,purpose,action,check,
 }));
 
+/** Source reviewed from separate, unmerged draft PR #175. DO NOT treat these
+ * pages as part of the canonical 79 main-derived routes or deployed portal.
+ * They become active guide routes only after complete release-pair parity UAT.
+ */
+export const MANUAL_PENDING_SCREENS:ManualScreen[]=[
+  {
+    path:"/admin/pos/verified-uat/history",
+    title:"POS cash-sale history — draft only",audience:"admin",
+    section:"Counter sales",readiness:"pending",releaseSource:"Draft PR #175 — pending staging release parity",
+    purpose:"Read-only administrator review of backend-recorded physical cash sales in bounded pages.",
+    action:"When this separate POS branch is deployed with its gated read authority, check 25-sale keyset pages, older/newer navigation, on-page search and original immutable receipt links.",
+    check:"Verify real admin access; 401/403 for unauthorized sessions; no mutation, tax invoice or settlement claims. Cash-sale backend flag remains OFF by default.",
+  },
+  {
+    path:"/admin/pos/verified-uat/reconciliation",
+    title:"POS till reconciliation — draft only",audience:"admin",
+    section:"Counter sales",readiness:"pending",releaseSource:"Draft PR #175 — pending staging release parity",
+    purpose:"Read-only administrator till reconciliation using authoritative drawer-ledger arithmetic and a guarded CSV export.",
+    action:"After independent staging release approval, select a test till, examine opening float and cash movements, compare physical variance with ledger integrity, and verify the authorized CSV snapshot.",
+    check:"An open till has no closing count; the last 20 sale references are not total sales. Never interpret drawer count as Hubtel, COD, bank or refund settlement.",
+  },
+];
+
+/** All documented training chapters: current canonical source + separately
+ * labeled draft-only POS pages. Does not change any Next.js application route.
+ */
+export const MANUAL_DOCUMENTED_SCREENS:ManualScreen[]=[...MANUAL_SCREENS,...MANUAL_PENDING_SCREENS];
+
 export const MANUAL_ROLE_LABELS: Record<ManualRole,string> = {
   admin:"Administrator — all roles", inventory_manager:"Inventory manager",
   cashier:"Cashier", rider:"Rider", customer:"Customer",
@@ -117,11 +147,12 @@ export const MANUAL_READINESS_LABELS: Record<ManualReadiness,string> = {
   implemented:"Implemented screen (acceptance still required)",
   gated:"UAT / controlled feature gate",
   preview:"Prototype or preview — verify backend authority",
+  pending:"DRAFT PR #175 — NOT DEPLOYED, test blocked",
 };
 
 /** Filtering is a display aid only: the real backend enforces action permissions. */
 export function screensForRole(role:ManualRole): ManualScreen[] {
-  if(role==="admin")return MANUAL_SCREENS;
+  if(role==="admin")return MANUAL_DOCUMENTED_SCREENS;
   const allowed:ManualAudience[] = role==="inventory_manager"
     ? ["inventory","shared"] : role==="customer"
       ? ["customer","shared"] : role==="cashier"
