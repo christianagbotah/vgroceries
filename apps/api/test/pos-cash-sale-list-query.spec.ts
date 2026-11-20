@@ -235,3 +235,25 @@ test("history cursor encoder fails closed on invalid source records", () => {
   const cursor = encodePosCashHistoryCursor({ createdAt, id: validId });
   assert.deepEqual(decodePosCashHistoryCursor(cursor), { createdAt, id: validId });
 });
+
+test("history cursor rejects non-object JSON, invalid UTF-8 and non-UUID identities before reads", async () => {
+  const {instance,activity}=setup([sale(1)]);
+  const createdAt="2026-11-20T09:00:00.000Z";
+  const payloads=[
+    "null",
+    "[]",
+    JSON.stringify({createdAt,id:null}),
+    JSON.stringify({createdAt,id:123}),
+    JSON.stringify({createdAt,id:"00000000-0000-0000-0000-000000000000"}),
+    JSON.stringify({createdAt,id:randomUUID(),unexpected:"extra"}),
+  ];
+  const cursors=[
+    ...payloads.map(payload=>Buffer.from(payload).toString("base64url")),
+    Buffer.from([0xc3,0x28]).toString("base64url"),
+    Buffer.from([0xff,0xfe,0xfd]).toString("base64url"),
+  ];
+  for(const cursor of cursors)
+    await assert.rejects(()=>instance.listPage(cursor),/Invalid cash sale history cursor/);
+  assert.equal(activity().listCalls,0);
+  assert.equal(activity().detailCalls,0);
+});
