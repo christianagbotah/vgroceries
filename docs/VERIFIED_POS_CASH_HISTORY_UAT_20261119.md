@@ -55,7 +55,11 @@ turn it on. The `AdminAuthGate` is UX-level protection; the NestJS
   workflows: use a verified same-origin reverse proxy in staging UAT.
 - No name, receipt, provider secret or customer data is persisted in browser
   storage. Transport requests use real staff credentials, `no-store` and
-  no operation-registry memoization.
+  no operation-registry memoization. All administrator-only POS cash-sale JSON
+  GETs now explicitly return `Cache-Control: private, no-store` (in addition
+  to the global API no-store policy), so customer names and till evidence are
+  not eligible for shared caching. The isolated HTTP integration test checks
+  the header on all sale and till JSON history/detail/reconciliation reads.
 - The same default-OFF build gate also protects a **separate read-only**
   `/admin/pos/verified-uat/reconciliation` screen. It lists currently known
   tills, requests only the selected till’s backend `GET` cash ledger, checks

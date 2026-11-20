@@ -26,11 +26,13 @@ export class PosCashSalesController {
     return req.actor.id;
   }
   @Get()
+  @Header("Cache-Control","private, no-store")
   async list(@Req() req:AuthRequest){
     this.admin(req);return {ok:true,data:await this.sales.list()};
   }
   // Explicit route before :saleId; read-only keyset paging, admin on every hit.
   @Get("history")
+  @Header("Cache-Control","private, no-store")
   async history(@Req() req:AuthRequest,@Query() raw:unknown){
     this.admin(req);
     const parsed=posCashHistoryQuerySchema.safeParse(raw);
@@ -50,6 +52,7 @@ export class PosCashSalesController {
     return this.sales.printReceipt(id);
   }
   @Get(":saleId")
+  @Header("Cache-Control","private, no-store")
   async detail(@Req() req:AuthRequest,@Param("saleId") id:string){
     this.admin(req);return {ok:true,data:await this.sales.detail(id)};
   }

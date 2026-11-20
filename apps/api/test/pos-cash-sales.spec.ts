@@ -143,6 +143,23 @@ test("one counted cash sale atomically depletes reserved goods and updates till 
   const receipt=await api("GET",`/admin/pos/cash-sales/${sale.id}`,admin);
   assert.equal(receipt.status,200);
   assert.equal(receipt.payload.data.reference,sale.reference);
+  // Sale identity, customer name and cash-drawer evidence are private even
+  // when accessed by an authenticated administrator through a proxy/CDN.
+  for(const path of [
+    "/admin/pos/cash-sales",
+    "/admin/pos/cash-sales/history?limit=25",
+    `/admin/pos/cash-sales/${sale.id}`,
+    "/admin/pos/tills",
+    `/admin/pos/tills/${till.id}`,
+    `/admin/pos/tills/${till.id}/reconciliation`,
+  ]){
+    const privateResponse=await fetch(base+"/api/v1"+path,{
+      headers:{authorization:"Bearer "+admin},
+    });
+    assert.equal(privateResponse.status,200,path);
+    assert.match(privateResponse.headers.get("cache-control")??"",/private/i,path);
+    assert.match(privateResponse.headers.get("cache-control")??"",/no-store/i,path);
+  }
   const printResponse=await fetch(
     base+`/api/v1/admin/pos/cash-sales/${sale.id}/print`,{
       headers:{authorization:"Bearer "+admin},
