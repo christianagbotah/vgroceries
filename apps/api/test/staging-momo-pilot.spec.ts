@@ -49,6 +49,11 @@ test("staging pilot is off unless all restricted owner payment settings are expr
   delete (off as Record<string,string>).STAGING_MOMO_PILOT_ENABLED;
   for(const k of Object.keys(off))
     if(k.startsWith("STAGING_MOMO_PILOT_"))delete (off as Record<string,string>)[k];
+  // Staging rejects direct RMP without a private pilot even at startup.
+  assert.throws(()=>readConfig(off),/owner-only pilot gate/);
+  // Outside the staging domain, the configuration can be inspected, but the
+  // payment policy still refuses direct wallet prompts without an owner gate.
+  off.WEB_ORIGINS="https://isolated-unit.example.test";
   const unrestricted = readConfig(off);
   assert.equal(unrestricted.stagingMomoPilot,undefined);
   const lockedPolicy = new PaymentPolicyService(unrestricted, {} as never, {} as never, {} as never);
