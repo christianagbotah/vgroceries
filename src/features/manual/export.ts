@@ -115,6 +115,7 @@ export function createOfflineManualHtml(role:ManualRole,screens:ManualScreen[],f
         <h2>How to use this manual</h2>
         <p>Follow the navigation below. Each screen has an actual route, purpose, next action, safety checkpoint and a visual explanation. Process diagrams describe sequence and separation of responsibilities. Administrative access is never granted by this document.</p>
         <p><strong>Readiness:</strong> This product is under staged acceptance. Do not use UAT/demo screens as proof of real payment, stock, courier, refund, invoice or COD settlement.</p>
+        <p><strong>Role truth:</strong> The backend currently recognizes administrator, inventory manager, cashier, rider and customer. Specialist roles such as operations manager, inventory officer, picker/packer, dispatcher and finance/refund reviewer appear in demo/design menus but are not separately activated production grants. Only authenticated server permissions authorize business actions.</p>
         <h2>Contents</h2><nav class="toc" aria-label="Manual chapters">${toc}</nav>
         <h2>Business workflows</h2>${flowItems}
         <h2>Screen-by-screen guide</h2>${screenItems}

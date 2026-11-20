@@ -232,6 +232,12 @@ export function ManualReader({guestScope="customer"}:{guestScope?:"customer"|"ri
           <span className="rounded-full border border-white/30 px-3 py-1.5">UAT and production gates marked</span>
         </div>
       </div>
+      <details className="mb-5 rounded-xl border bg-white p-4 text-sm leading-6">
+        <summary className="cursor-pointer font-bold text-[#1c563b]">Role access: real accounts versus specialist demo roles</summary>
+        <p className="mt-3">The authenticated backend currently recognizes <strong>administrator, inventory manager, cashier, rider and customer</strong>. The guide selects this real role using the server-verified session. Administrators may read every role’s guide.</p>
+        <p className="mt-2">The design/demo menu also describes owner/admin, operations manager, inventory officer, picker/packer, dispatcher and finance/refund reviewer. Those specialist design roles are <strong>not independent production login grants</strong> until their server-side authority and branch boundaries are implemented and accepted.</p>
+        <p className="mt-2 text-muted-foreground">Seeing a guide, role label or menu never authorizes a payment, refund, stock adjustment, customer disclosure or shipment action.</p>
+      </details>
       {printError?<p role="alert" className="mb-4 rounded-lg border border-destructive/40 p-3 text-sm text-destructive">{printError}</p>:null}
       <div className="mb-5 flex flex-wrap gap-3 rounded-xl border bg-card p-4">
         <div className="min-w-[210px] flex-1">

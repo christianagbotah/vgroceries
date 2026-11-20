@@ -22,6 +22,14 @@
 | Cashier | 9 | 2 | Only role-specific and common guidance; actual API grants remain server-enforced. |
 | Rider | 13 | 1 | Only role-specific and common guidance; actual API grants remain server-enforced. |
 
+## Authority and specialist role mapping
+
+**Authenticated API role set (current):** administrator, inventory manager, cashier, rider and customer. Administrators see all 79 guide chapters. Other authenticated roles see the screens applicable to their role plus shared guidance. A manual chapter never grants API access.
+
+**Design/demo specialization (not a live role grant):** owner/admin, operations manager, inventory officer, cashier, picker/packer, dispatcher, finance/refund reviewer and rider exist as richer design-time/demo menu roles. Their distinct production server grants and branch scopes are separate UAT/implementation work. In particular, the staff demo selector is **not** a production impersonation or authorization mechanism.
+
+**Release decision:** Test actual server-granted account role and resource scope for each persona, including direct URL denial, staff revocation, branch reassignment, cashier cash limits and independent refund approvals. Do not infer backend authority from a visual menu.
+
 ## Overall business process
 
 ```mermaid
