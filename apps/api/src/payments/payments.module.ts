@@ -9,6 +9,7 @@ import { PaymentEventService } from "./payment-event.service";
 import { PaymentInitiationService } from "./payment-initiation.service";
 import { PaymentQueryService } from "./payment-query.service";
 import { PaymentReconciliationService } from "./payment-reconciliation.service";
+import { HubtelPaymentRecoveryService } from "./hubtel-payment-recovery.service";
 import { PaymentOutcomeService } from "./payment-outcome.service";
 import { PaymentPolicyService } from "./payment-policy.service";
 import { PaymentProviderRegistry } from "./payment-provider.registry";
@@ -34,6 +35,7 @@ import { RefundProviderRegistry } from "./refund-provider.registry";
     PaymentEventService,
     PaymentQueryService,
     PaymentReconciliationService,
+    HubtelPaymentRecoveryService,
   ],
   exports: [
     PaymentProviderRegistry,
@@ -46,6 +48,7 @@ import { RefundProviderRegistry } from "./refund-provider.registry";
     PaymentEventService,
     PaymentQueryService,
     PaymentReconciliationService,
+    HubtelPaymentRecoveryService,
   ],
 })
 export class PaymentsModule {}
