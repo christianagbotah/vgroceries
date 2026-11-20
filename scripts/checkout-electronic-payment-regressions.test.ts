@@ -23,7 +23,12 @@ describe("storefront electronic payment intent", () => {
   test("checkout does not ask shoppers to choose provider rails", () => {
     const page = read("src/app/(storefront)/checkout/page.tsx");
     expect(page).toContain('useState<PaymentMethod>("electronic")');
-    expect(page).toContain('value="electronic"');
+    // The configured method is selected by the server, never a customer-
+    // supplied arbitrary payment rail. A MoMo *network* is selected only
+    // after the server has authorized the direct-MoMo method.
+    expect(page).toContain('value={electronicMethod}');
+    expect(page).toContain('result.method==="mobile_money"');
+    expect(page).toContain('electronicAvailability!=="available"');
     expect(page).not.toContain("Object.keys(PAYMENT_METHOD_LABELS)");
     expect(page).not.toContain("demo account");
     expect(page).not.toContain("demo location");

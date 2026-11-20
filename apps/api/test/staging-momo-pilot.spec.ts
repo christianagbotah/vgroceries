@@ -72,7 +72,7 @@ test("staging pilot is off unless all restricted owner payment settings are expr
     {WEB_ORIGINS:"https://varietygroceries.com"},
     {STAGING_MOMO_PILOT_ENABLED:"false"},
   ]) {
-    assert.throws(()=>readConfig({...env(),...change}),/Staging|staging|pilot|Hubtel|Refund|payment/);
+    assert.throws(()=>readConfig({...env(),...change}),/Staging|staging|Pilot|pilot|Hubtel|Refund|payment/);
   }
 });
 
