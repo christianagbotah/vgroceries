@@ -1,6 +1,7 @@
 import type {ManualRole,ManualScreen} from "./catalogue";
 import {MANUAL_READINESS_LABELS,MANUAL_ROLE_LABELS,screenLink} from "./catalogue";
 import type {ManualWorkflow} from "./workflows";
+import {manualVisual} from "./visual-model";
 
 const escapeHtml=(text:string)=>text.replace(/[&<>"']/g,char=>({
   "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;",
@@ -36,6 +37,12 @@ export function createOfflineManualHtml(role:ManualRole,screens:ManualScreen[],f
           <div class="diagram-body">
             <strong>② ${safe(screen.title)}</strong>
             <div class="diagram-box">Purpose: ${safe(screen.purpose)}</div>
+            <div class="blueprint blueprint-${manualVisual(screen).kind}">
+              <strong>Illustrated ${safe(manualVisual(screen).heading)}</strong>
+              <div class="blueprint-steps">${manualVisual(screen).elements.map((element,j)=>
+                `<span><b>${j+1}</b> ${safe(element)}</span>`).join("")}</div>
+              <p class="blueprint-note">${safe(manualVisual(screen).emphasis)}</p>
+            </div>
             <div class="diagram-box">③ Key action: ${safe(screen.action)}</div>
             <div class="diagram-footer">④ Review: ${safe(screen.check)}</div>
           </div>
@@ -80,10 +87,21 @@ export function createOfflineManualHtml(role:ManualRole,screens:ManualScreen[],f
       .diagram-body{padding:13px;min-width:0}
       .diagram-box{padding:9px;margin-top:9px;background:#f6f8f5;border:1px solid #e4e9df;border-radius:7px}
       .diagram-footer{margin-top:9px;color:#795b2b}
+      .blueprint{margin:10px 0;border:1px solid #cadfd0;background:#f1f8f2;border-radius:10px;padding:12px}
+      .blueprint strong{color:#1d583b}
+      .blueprint-steps{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;margin-top:9px}
+      .blueprint-steps span{min-width:0;overflow-wrap:anywhere;border:1px solid #d2dfd4;background:#fff;border-radius:7px;padding:9px;font-size:11px}
+      .blueprint-steps b{display:inline-block;padding:2px 6px;margin-right:4px;background:#1f6246;color:#fff;border-radius:50%}
+      .blueprint-note{font-size:11px;color:#775a2e;border-left:3px solid #c5a769;padding-left:9px}
+      .blueprint-checkout,.blueprint-cash{background:#fff9eb;border-color:#e8d9a8}
+      .blueprint-rider{max-width:360px;margin-left:auto;margin-right:auto;border-left:7px solid #1b5a3f}
+      .blueprint-timeline .blueprint-steps{grid-template-columns:1fr}
+      .blueprint-dashboard .blueprint-steps span{min-height:66px}
+      .blueprint-catalogue .blueprint-steps{grid-template-columns:repeat(4,minmax(0,1fr))}
       .caption{font-size:12px;color:#66736a}code{overflow-wrap:anywhere}
       .fine{font-size:12px;color:#d4e4d9}
       @page{margin:14mm;size:A4}
-      @media(max-width:670px){.toc{columns:1}.cover{padding:40px 22px}.chapter{padding:17px}.diagram-main{grid-template-columns:110px 1fr}}
+      @media(max-width:670px){.toc{columns:1}.cover{padding:40px 22px}.chapter{padding:17px}.diagram-main{grid-template-columns:100px 1fr}.blueprint-catalogue .blueprint-steps{grid-template-columns:repeat(2,minmax(0,1fr))}}
       @media print{body{background:white}.container{padding:0}.chapter{border:0;border-radius:0;margin:0;padding:15px 0;break-before:page}.cover{break-after:page;padding:35mm 10mm}.toc{break-after:page}.node,.diagram-head,.diagram-nav,.diagram-box,.guard{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
     </style></head><body>
       <header class="cover">
@@ -114,7 +132,8 @@ export function downloadOfflineManual(role:ManualRole,screens:ManualScreen[],flo
   document.body.appendChild(anchor);
   anchor.click();
   anchor.remove();
-  setTimeout(()=>URL.revokeObjectURL(url),1000);
+  // Android downloads can take longer to start; do not revoke immediately.
+  setTimeout(()=>URL.revokeObjectURL(url),60_000);
 }
 export function printManualAsPdf(role:ManualRole,screens:ManualScreen[],flows:ManualWorkflow[]){
   // User-initiated popup: the browser can Print > Save as PDF. The complete,
@@ -123,8 +142,9 @@ export function printManualAsPdf(role:ManualRole,screens:ManualScreen[],flows:Ma
   if(!popup)return false;
   popup.document.open();
   popup.document.write(createOfflineManualHtml(role,screens,flows));
+  // Print once the full multi-chapter manual has rendered, not while the
+  // document is still being parsed (which can produce blank PDFs on mobile).
+  popup.addEventListener("load",()=>{popup.focus();popup.print();},{once:true});
   popup.document.close();
-  popup.focus();
-  popup.print();
   return true;
 }

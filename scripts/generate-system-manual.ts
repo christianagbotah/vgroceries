@@ -5,8 +5,10 @@ import {
   screensForRole,
 } from "../src/features/manual/catalogue";
 import {MANUAL_WORKFLOWS,workflowsForRole} from "../src/features/manual/workflows";
+import {manualVisual} from "../src/features/manual/visual-model";
 
 const esc=(text:string)=>text.replaceAll("|","\\|");
+const mermaidLabel=(text:string)=>text.replaceAll('"',"'").replace(/[<>]/g,"").replace(/\\s+/g," ").trim().slice(0,112);
 const sections=[
 "# Variety Groceries — complete role-based system manual (source edition)",
 "",
@@ -60,14 +62,22 @@ const sections=[
 }),
 "## Screen-by-screen reference",
 "",
-...MANUAL_SCREENS.flatMap((screen,i)=>[
+...MANUAL_SCREENS.flatMap((screen,i)=>{
+  const diagram=manualVisual(screen);
+  return [
   `### ${String(i+1).padStart(2,"0")}. ${esc(screen.title)}`,"",
   `**Route:** \`${screen.path}\` · **Audience:** ${screen.audience} · **Status:** ${MANUAL_READINESS_LABELS[screen.readiness]}`,"",
   `- **Purpose:** ${esc(screen.purpose)}`,
   `- **Steps:** Locate the navigation and screen; ${esc(screen.action)}`,
   `- **Verify:** ${esc(screen.check)}`,
-  `- **Screen figure:** In the in-app manual, read boxes ① navigation, ② screen context, ③ key action, and ④ control check. These are illustrated schematics until authorized staging screenshots are collected.`,"",
-]),
+  `- **Screen figure:** ${diagram.heading} (${diagram.kind}). The visual below is illustrative, not a screenshot. During UAT, check actual controls against the corresponding authenticated screen.`,"",
+  "```mermaid","flowchart LR",
+  `  N["① ${mermaidLabel(screen.section)}"] --> V["② ${mermaidLabel(screen.title)}"]`,
+  `  V --> A["③ ${mermaidLabel(diagram.elements[2]??screen.action)}"]`,
+  `  A --> C["④ ${mermaidLabel(diagram.emphasis)}"]`,
+  "```","",
+];
+}),
 "## UAT and screenshot capture plan",
 "",
 "**Screenshot coverage**: each of the 79 existing screens must be captured on the same release SHA using approved sample/test identities. Before embedding a real screenshot, verify correct role, product logo, live enabled flags, mobile layout and no private customer information. Mask names, phone numbers, tokens, credentials, receipts, or banking references. Attach one desktop and (where materially different) one mobile screenshot per screen. Do not mistake the conceptual screen diagrams for captured screenshots.",

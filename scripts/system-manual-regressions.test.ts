@@ -5,7 +5,8 @@ import {
   MANUAL_SCREENS,screenLink,screensForRole,
 } from "../src/features/manual/catalogue";
 import {MANUAL_WORKFLOWS,workflowsForRole} from "../src/features/manual/workflows";
-import {createOfflineManualHtml} from "../src/features/manual/export";
+import {createOfflineManualHtml,printManualAsPdf} from "../src/features/manual/export";
+import {manualVisual,type ManualVisualType} from "../src/features/manual/visual-model";
 
 const root=resolve(import.meta.dir,"..");
 function* files(directory:string):Generator<string>{
@@ -73,6 +74,22 @@ describe("Role-aware illustrated system manual",()=>{
     expect(workflowsForRole("admin").length).toBe(MANUAL_WORKFLOWS.length);
   });
 
+  test("screen diagrams vary by source-grounded screen type and never assert fabricated values",()=>{
+    const visuals=MANUAL_SCREENS.map(screen=>manualVisual(screen));
+    const kinds=new Set<ManualVisualType>(visuals.map(x=>x.kind));
+    expect(kinds.size).toBe(9);
+    for(const visual of visuals){
+      expect(visual.heading.length).toBeGreaterThan(5);
+      expect(visual.elements).toHaveLength(4);
+      expect(visual.emphasis.length).toBeGreaterThan(25);
+    }
+    expect(manualVisual(MANUAL_SCREENS.find(x=>x.path==="/shop")!).kind).toBe("catalogue");
+    expect(manualVisual(MANUAL_SCREENS.find(x=>x.path==="/checkout")!).kind).toBe("checkout");
+    expect(manualVisual(MANUAL_SCREENS.find(x=>x.path==="/admin/inventory")!).kind).toBe("ledger");
+    expect(manualVisual(MANUAL_SCREENS.find(x=>x.path==="/staff/rider/cod")!).kind).toBe("rider");
+    expect(manualVisual(MANUAL_SCREENS.find(x=>x.path==="/admin/payments")!).kind).toBe("cash");
+  });
+
   test("full downloaded offline manual has TOC, complete bounded role edition, diagram and safe escaping",()=>{
     const screens=screensForRole("cashier"),flows=workflowsForRole("cashier");
     const html=createOfflineManualHtml("cashier",screens,flows);
@@ -80,6 +97,9 @@ describe("Role-aware illustrated system manual",()=>{
     expect(html).toContain("WORKFLOW");
     expect(html).toContain("SCREEN");
     expect(html).toContain("Annotated conceptual screen map");
+    expect(html).toContain("blueprint-form");
+    expect(html).toContain("blueprint-cash");
+    expect(createOfflineManualHtml("admin",screensForRole("admin"),workflowsForRole("admin"))).toContain("blueprint-dashboard");
     expect(html).toContain('href="#screen-0"');
     expect(html).not.toContain("System settings");
     expect(html).not.toContain("manage customer SMS credentials");
@@ -90,6 +110,47 @@ describe("Role-aware illustrated system manual",()=>{
     expect(injection).not.toContain("<script>");
     expect(injection).toContain("&lt;script&gt;");
     expect(html).toContain("@page{margin:14mm;size:A4}");
+  });
+
+  test("guest/customer offline edition never includes admin back-office chapters",()=>{
+    const guestHtml=createOfflineManualHtml("customer",screensForRole("customer"),workflowsForRole("customer"));
+    expect(guestHtml).toContain("Customer — User Manual");
+    expect(guestHtml).toContain("Checkout");
+    expect(guestHtml).not.toContain("/admin/settings");
+    expect(guestHtml).not.toContain("/admin/team");
+    expect(guestHtml).not.toContain("Staff AI assistant");
+    expect(guestHtml).toContain("blueprint-checkout");
+    const riderHtml=createOfflineManualHtml("rider",screensForRole("rider"),workflowsForRole("rider"));
+    expect(riderHtml).toContain("Rider COD declaration");
+    expect(riderHtml).not.toContain("System settings");
+  });
+
+  test("Print / Save PDF opens the full edition only after document load",()=>{
+    const prior=Object.getOwnPropertyDescriptor(globalThis,"window");
+    let onLoad=()=>{};
+    let printed=0,focused=0,html="";
+    const popup={
+      document:{open:()=>{},write:(value:string)=>{html+=value;},close:()=>{}},
+      addEventListener:(event:string,callback:()=>void)=>{
+        expect(event).toBe("load");onLoad=callback;
+      },
+      focus:()=>{focused++;},print:()=>{printed++;},
+    };
+    try{
+      Object.defineProperty(globalThis,"window",{
+        configurable:true,value:{open:()=>popup},
+      });
+      expect(printManualAsPdf("cashier",screensForRole("cashier"),workflowsForRole("cashier"))).toBe(true);
+      expect(printed).toBe(0);
+      expect(html).toContain("Cashier — User Manual");
+      expect(html).not.toContain("/admin/team");
+      onLoad();
+      expect(printed).toBe(1);
+      expect(focused).toBe(1);
+    }finally{
+      if(prior)Object.defineProperty(globalThis,"window",prior);
+      else Reflect.deleteProperty(globalThis,"window");
+    }
   });
 
   test("manual uses authenticated role and links from customer, cashier, admin, rider portals",()=>{

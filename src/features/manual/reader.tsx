@@ -16,6 +16,8 @@ import {
 } from "./catalogue";
 import {workflowsForRole,type ManualWorkflow} from "./workflows";
 import {downloadOfflineManual,printManualAsPdf} from "./export";
+import {manualVisual} from "./visual-model";
+import {ManualVisualShape} from "./visual-shape";
 
 type FocusRole=ManualRole|"all";
 const allRoles:ManualRole[]=["admin","inventory_manager","cashier","rider","customer"];
@@ -43,6 +45,7 @@ function ScreenSchematic({screen}:{screen:ManualScreen}){
         <div className="rounded-lg border bg-[#f7faf7] p-3 text-xs leading-5 text-[#415646]">
           {screen.purpose}
         </div>
+        <ManualVisualShape visual={manualVisual(screen)}/>
         <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
           <div className="rounded-lg border border-[#d5e6d7] bg-white p-3 text-xs leading-5 text-[#3a5b45]">
             <span className="font-bold text-[#155b3c]">③ Key activity</span>
@@ -178,11 +181,17 @@ export function ManualReader({guestScope="customer"}:{guestScope?:"customer"|"ri
     for(const s of filteredScreens)groups.set(s.section,[...(groups.get(s.section)??[]),s]);
     return [...groups.entries()];
   },[filteredScreens]);
-  const chooseScreen=(path:string)=>{setSelectedPath(path);setMobileNav(false);};
-  const chooseFlow=(id:string)=>{setSelectedFlow(id);setMobileNav(false);};
+  const showGuide=()=>window.requestAnimationFrame(()=>
+    document.getElementById("manual-content")?.scrollIntoView({behavior:"smooth",block:"start"}));
+  const chooseScreen=(path:string)=>{setSelectedPath(path);setMobileNav(false);showGuide();};
+  const chooseFlow=(id:string)=>{setSelectedFlow(id);setMobileNav(false);showGuide();};
   const rolesToView=role==="admin"
     ? ["all","customer","inventory_manager","cashier","rider"] as FocusRole[]
     : [];
+  const backToPortal=authenticated
+    ?role==="admin"?"/admin":role==="inventory_manager"?"/admin/inventory":
+      role==="cashier"?"/staff/cashier/workspace":role==="rider"?"/staff/rider/cod":"/account"
+    :guestScope==="rider"?"/rider":"/account";
   const print=()=>setPrintError(printManualAsPdf(effectiveRole,screens,workflows)
     ?"":"Allow pop-ups for this page, then choose Print / Save PDF again.");
   return <div className="min-h-screen bg-[#f6f8f4] text-foreground">
@@ -207,6 +216,9 @@ export function ManualReader({guestScope="customer"}:{guestScope?:"customer"|"ri
       </div>
     </header>
     <div className="mx-auto max-w-[1480px] px-3 py-6 sm:px-6">
+      <Link href={backToPortal} className="mb-4 inline-flex min-h-11 items-center gap-2 text-sm font-semibold text-[#225b3f] hover:underline">
+        <ArrowLeft className="size-4" aria-hidden="true"/> Return to {authenticated?role==="customer"?"my account":"my workspace":"the portal"}
+      </Link>
       <div className="mb-5 overflow-hidden rounded-2xl bg-[#133f2d] p-5 text-white sm:p-8">
         <p className="text-xs font-bold uppercase tracking-[0.17em] text-[#e6c67c]">VG · Training and operations</p>
         <h1 className="mt-2 max-w-4xl font-serif text-3xl font-bold leading-tight sm:text-4xl">Every screen. Every handoff. The right instructions for your role.</h1>
@@ -261,7 +273,7 @@ export function ManualReader({guestScope="customer"}:{guestScope?:"customer"|"ri
               className={`block w-full rounded-lg px-3 py-2.5 text-left text-sm hover:bg-muted ${f.id===flow?.id?"bg-[#e4efe5] font-semibold text-[#185439]":""}`}>{f.title}</button>)}
           </nav>
         </aside>
-        <main className="min-w-0 rounded-xl border bg-card p-4 sm:p-7">
+        <main id="manual-content" className="min-w-0 scroll-mt-24 rounded-xl border bg-card p-4 sm:p-7">
           {view==="screens"&&screen?<ScreenDetails screen={screen} index={screenIndex} total={filteredScreens.length}/>:null}
           {view==="workflows"&&flow?<section className="space-y-5">
             <div><p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">WORKFLOW · {filteredFlows.indexOf(flow)+1} OF {filteredFlows.length}</p>

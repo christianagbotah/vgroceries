@@ -324,7 +324,14 @@ flowchart LR
 - **Purpose:** Browse featured groceries, offers, categories and shop entry points.
 - **Steps:** Locate the navigation and screen; Choose a department or search for a product.
 - **Verify:** Product imagery, availability and offers require published catalogue review.
-- **Screen figure:** In the in-app manual, read boxes ① navigation, ② screen context, ③ key action, and ④ control check. These are illustrated schematics until authorized staging screenshots are collected.
+- **Screen figure:** Product browsing cards (catalogue). The visual below is illustrative, not a screenshot. During UAT, check actual controls against the corresponding authenticated screen.
+
+```mermaid
+flowchart LR
+  N["① Shop & discover"] --> V["② Storefront home"]
+  V --> A["③ Price and availability"]
+  A --> C["④ Cart contents are not a reservation"]
+```
 
 ### 02. All groceries
 
@@ -333,7 +340,14 @@ flowchart LR
 - **Purpose:** Browse and filter the grocery catalogue.
 - **Steps:** Locate the navigation and screen; Search, choose a category, inspect an item and its unit.
 - **Verify:** A displayed item is not a guaranteed reservation.
-- **Screen figure:** In the in-app manual, read boxes ① navigation, ② screen context, ③ key action, and ④ control check. These are illustrated schematics until authorized staging screenshots are collected.
+- **Screen figure:** Product browsing cards (catalogue). The visual below is illustrative, not a screenshot. During UAT, check actual controls against the corresponding authenticated screen.
+
+```mermaid
+flowchart LR
+  N["① Shop & discover"] --> V["② All groceries"]
+  V --> A["③ Price and availability"]
+  A --> C["④ Cart contents are not a reservation"]
+```
 
 ### 03. Categories
 
@@ -342,7 +356,14 @@ flowchart LR
 - **Purpose:** Browse grocery departments.
 - **Steps:** Locate the navigation and screen; Open a category tile to view its product list.
 - **Verify:** Only verified, published products should be offered.
-- **Screen figure:** In the in-app manual, read boxes ① navigation, ② screen context, ③ key action, and ④ control check. These are illustrated schematics until authorized staging screenshots are collected.
+- **Screen figure:** Product browsing cards (catalogue). The visual below is illustrative, not a screenshot. During UAT, check actual controls against the corresponding authenticated screen.
+
+```mermaid
+flowchart LR
+  N["① Shop & discover"] --> V["② Categories"]
+  V --> A["③ Price and availability"]
+  A --> C["④ Cart contents are not a reservation"]
+```
 
 ### 04. Category products
 
@@ -351,7 +372,14 @@ flowchart LR
 - **Purpose:** View products in one department.
 - **Steps:** Locate the navigation and screen; Review pack sizes and product cards; open product details.
 - **Verify:** Stock must be checked again at checkout.
-- **Screen figure:** In the in-app manual, read boxes ① navigation, ② screen context, ③ key action, and ④ control check. These are illustrated schematics until authorized staging screenshots are collected.
+- **Screen figure:** Product browsing cards (catalogue). The visual below is illustrative, not a screenshot. During UAT, check actual controls against the corresponding authenticated screen.
+
+```mermaid
+flowchart LR
+  N["① Shop & discover"] --> V["② Category products"]
+  V --> A["③ Price and availability"]
+  A --> C["④ Cart contents are not a reservation"]
+```
 
 ### 05. Product details
 
@@ -360,7 +388,14 @@ flowchart LR
 - **Purpose:** Review a product, variants, image, quantity and price.
 - **Steps:** Locate the navigation and screen; Choose a variant and add a suitable quantity to the basket.
 - **Verify:** Product descriptions and allergen details must come from verified sources.
-- **Screen figure:** In the in-app manual, read boxes ① navigation, ② screen context, ③ key action, and ④ control check. These are illustrated schematics until authorized staging screenshots are collected.
+- **Screen figure:** Product browsing cards (catalogue). The visual below is illustrative, not a screenshot. During UAT, check actual controls against the corresponding authenticated screen.
+
+```mermaid
+flowchart LR
+  N["① Shop & discover"] --> V["② Product details"]
+  V --> A["③ Price and availability"]
+  A --> C["④ Cart contents are not a reservation"]
+```
 
 ### 06. Shopping basket
 
@@ -369,7 +404,14 @@ flowchart LR
 - **Purpose:** Review selected products before checkout.
 - **Steps:** Locate the navigation and screen; Adjust quantities, remove items and proceed to checkout.
 - **Verify:** Basket contents are not reserved stock.
-- **Screen figure:** In the in-app manual, read boxes ① navigation, ② screen context, ③ key action, and ④ control check. These are illustrated schematics until authorized staging screenshots are collected.
+- **Screen figure:** Customer checkout sequence (checkout). The visual below is illustrative, not a screenshot. During UAT, check actual controls against the corresponding authenticated screen.
+
+```mermaid
+flowchart LR
+  N["① Checkout"] --> V["② Shopping basket"]
+  V --> A["③ Payment status"]
+  A --> C["④ Unverified provider result stays pending"]
+```
 
 ### 07. Checkout
 
@@ -378,7 +420,14 @@ flowchart LR
 - **Purpose:** Choose delivery or pickup, confirm the authoritative quote and initiate payment.
 - **Steps:** Locate the navigation and screen; Confirm contact, address/collection point and method; submit once.
 - **Verify:** Never treat a redirect or provider HTTP 200 as verified settlement.
-- **Screen figure:** In the in-app manual, read boxes ① navigation, ② screen context, ③ key action, and ④ control check. These are illustrated schematics until authorized staging screenshots are collected.
+- **Screen figure:** Customer checkout sequence (checkout). The visual below is illustrative, not a screenshot. During UAT, check actual controls against the corresponding authenticated screen.
+
+```mermaid
+flowchart LR
+  N["① Checkout"] --> V["② Checkout"]
+  V --> A["③ Payment status"]
+  A --> C["④ Unverified provider result stays pending"]
+```
 
 ### 08. Payment provider return
 
@@ -387,7 +436,14 @@ flowchart LR
 - **Purpose:** Display the provider-return checkpoint after hosted checkout.
 - **Steps:** Locate the navigation and screen; Follow the status link to verify the server's latest recorded outcome.
 - **Verify:** A browser return is not proof that money was captured.
-- **Screen figure:** In the in-app manual, read boxes ① navigation, ② screen context, ③ key action, and ④ control check. These are illustrated schematics until authorized staging screenshots are collected.
+- **Screen figure:** Customer checkout sequence (checkout). The visual below is illustrative, not a screenshot. During UAT, check actual controls against the corresponding authenticated screen.
+
+```mermaid
+flowchart LR
+  N["① Checkout"] --> V["② Payment provider return"]
+  V --> A["③ Payment status"]
+  A --> C["④ Unverified provider result stays pending"]
+```
 
 ### 09. Checkout status
 
@@ -396,7 +452,14 @@ flowchart LR
 - **Purpose:** Track a specific checkout/order verification state.
 - **Steps:** Locate the navigation and screen; Refresh status and follow the verified order reference.
 - **Verify:** An unresolved provider state must not be labelled paid.
-- **Screen figure:** In the in-app manual, read boxes ① navigation, ② screen context, ③ key action, and ④ control check. These are illustrated schematics until authorized staging screenshots are collected.
+- **Screen figure:** Customer checkout sequence (checkout). The visual below is illustrative, not a screenshot. During UAT, check actual controls against the corresponding authenticated screen.
+
+```mermaid
+flowchart LR
+  N["① Checkout"] --> V["② Checkout status"]
+  V --> A["③ Payment status"]
+  A --> C["④ Unverified provider result stays pending"]
+```
 
 ### 10. Track an order
 
@@ -405,7 +468,14 @@ flowchart LR
 - **Purpose:** Track a legitimate order using its reference and verification proof.
 - **Steps:** Locate the navigation and screen; Enter required verification details and inspect milestones.
 - **Verify:** Location and ETA must be supported by real delivery evidence.
-- **Screen figure:** In the in-app manual, read boxes ① navigation, ② screen context, ③ key action, and ④ control check. These are illustrated schematics until authorized staging screenshots are collected.
+- **Screen figure:** Evidence timeline (timeline). The visual below is illustrative, not a screenshot. During UAT, check actual controls against the corresponding authenticated screen.
+
+```mermaid
+flowchart LR
+  N["① Orders & delivery"] --> V["② Track an order"]
+  V --> A["③ Current status"]
+  A --> C["④ Every status transition must be supported by source evidence"]
+```
 
 ### 11. Delivery options
 
@@ -414,7 +484,14 @@ flowchart LR
 - **Purpose:** Understand service areas, fulfilment and pickup options.
 - **Steps:** Locate the navigation and screen; Review zones and any displayed fees or pickup instructions.
 - **Verify:** Actual coverage and operating hours need launch validation.
-- **Screen figure:** In the in-app manual, read boxes ① navigation, ② screen context, ③ key action, and ④ control check. These are illustrated schematics until authorized staging screenshots are collected.
+- **Screen figure:** Guidance and assistance (guide). The visual below is illustrative, not a screenshot. During UAT, check actual controls against the corresponding authenticated screen.
+
+```mermaid
+flowchart LR
+  N["① Orders & delivery"] --> V["② Delivery options"]
+  V --> A["③ Follow relevant action"]
+  A --> C["④ Published guidance must match current approved business rules"]
+```
 
 ### 12. Delivery report
 
@@ -423,7 +500,14 @@ flowchart LR
 - **Purpose:** View delivery-related information exposed in the storefront.
 - **Steps:** Locate the navigation and screen; Inspect available delivery breakdowns.
 - **Verify:** Report content is not a verified rider cash receipt.
-- **Screen figure:** In the in-app manual, read boxes ① navigation, ② screen context, ③ key action, and ④ control check. These are illustrated schematics until authorized staging screenshots are collected.
+- **Screen figure:** Searchable operational records (ledger). The visual below is illustrative, not a screenshot. During UAT, check actual controls against the corresponding authenticated screen.
+
+```mermaid
+flowchart LR
+  N["① Orders & delivery"] --> V["② Delivery report"]
+  V --> A["③ Select one record"]
+  A --> C["④ List visibility does not independently authorize mutations"]
+```
 
 ### 13. Customer sign in
 
@@ -432,7 +516,14 @@ flowchart LR
 - **Purpose:** Access a customer account using registered credentials.
 - **Steps:** Locate the navigation and screen; Sign in with phone or email and password.
 - **Verify:** Never share one-time codes or passwords with support agents.
-- **Screen figure:** In the in-app manual, read boxes ① navigation, ② screen context, ③ key action, and ④ control check. These are illustrated schematics until authorized staging screenshots are collected.
+- **Screen figure:** Validated entry or edit (form). The visual below is illustrative, not a screenshot. During UAT, check actual controls against the corresponding authenticated screen.
+
+```mermaid
+flowchart LR
+  N["① Account & support"] --> V["② Customer sign in"]
+  V --> A["③ Validate input"]
+  A --> C["④ The backend independently enforces authorization and field validation"]
+```
 
 ### 14. Create an account
 
@@ -441,7 +532,14 @@ flowchart LR
 - **Purpose:** Register a customer account.
 - **Steps:** Locate the navigation and screen; Provide real contact details and a strong password.
 - **Verify:** Registration is separate from confirming a successful purchase.
-- **Screen figure:** In the in-app manual, read boxes ① navigation, ② screen context, ③ key action, and ④ control check. These are illustrated schematics until authorized staging screenshots are collected.
+- **Screen figure:** Validated entry or edit (form). The visual below is illustrative, not a screenshot. During UAT, check actual controls against the corresponding authenticated screen.
+
+```mermaid
+flowchart LR
+  N["① Account & support"] --> V["② Create an account"]
+  V --> A["③ Validate input"]
+  A --> C["④ The backend independently enforces authorization and field validation"]
+```
 
 ### 15. My account
 
@@ -450,7 +548,14 @@ flowchart LR
 - **Purpose:** See account summary, recent orders and shortcuts.
 - **Steps:** Locate the navigation and screen; Open recent orders, addresses and profile.
 - **Verify:** Information is scoped to the signed-in customer.
-- **Screen figure:** In the in-app manual, read boxes ① navigation, ② screen context, ③ key action, and ④ control check. These are illustrated schematics until authorized staging screenshots are collected.
+- **Screen figure:** Overview and KPI panels (dashboard). The visual below is illustrative, not a screenshot. During UAT, check actual controls against the corresponding authenticated screen.
+
+```mermaid
+flowchart LR
+  N["① Account & support"] --> V["② My account"]
+  V --> A["③ Action queue"]
+  A --> C["④ A summary is not a substitute for its source ledger"]
+```
 
 ### 16. My profile
 
@@ -459,7 +564,14 @@ flowchart LR
 - **Purpose:** Review and update customer contact information.
 - **Steps:** Locate the navigation and screen; Edit supported fields and save; confirm changes.
 - **Verify:** Correct phone and address details are essential for delivery.
-- **Screen figure:** In the in-app manual, read boxes ① navigation, ② screen context, ③ key action, and ④ control check. These are illustrated schematics until authorized staging screenshots are collected.
+- **Screen figure:** Validated entry or edit (form). The visual below is illustrative, not a screenshot. During UAT, check actual controls against the corresponding authenticated screen.
+
+```mermaid
+flowchart LR
+  N["① Account & support"] --> V["② My profile"]
+  V --> A["③ Validate input"]
+  A --> C["④ The backend independently enforces authorization and field validation"]
+```
 
 ### 17. Saved addresses
 
@@ -468,7 +580,14 @@ flowchart LR
 - **Purpose:** Manage saved delivery destinations.
 - **Steps:** Locate the navigation and screen; Add or edit an address and check landmarks before checkout.
 - **Verify:** Saving an address does not book a delivery slot.
-- **Screen figure:** In the in-app manual, read boxes ① navigation, ② screen context, ③ key action, and ④ control check. These are illustrated schematics until authorized staging screenshots are collected.
+- **Screen figure:** Validated entry or edit (form). The visual below is illustrative, not a screenshot. During UAT, check actual controls against the corresponding authenticated screen.
+
+```mermaid
+flowchart LR
+  N["① Account & support"] --> V["② Saved addresses"]
+  V --> A["③ Validate input"]
+  A --> C["④ The backend independently enforces authorization and field validation"]
+```
 
 ### 18. Saved lists
 
@@ -477,7 +596,14 @@ flowchart LR
 - **Purpose:** Keep preferred shopping items for later.
 - **Steps:** Locate the navigation and screen; Review and update favourite or repeat-shopping lists.
 - **Verify:** Reordering still requires fresh stock and price verification.
-- **Screen figure:** In the in-app manual, read boxes ① navigation, ② screen context, ③ key action, and ④ control check. These are illustrated schematics until authorized staging screenshots are collected.
+- **Screen figure:** Searchable operational records (ledger). The visual below is illustrative, not a screenshot. During UAT, check actual controls against the corresponding authenticated screen.
+
+```mermaid
+flowchart LR
+  N["① Account & support"] --> V["② Saved lists"]
+  V --> A["③ Select one record"]
+  A --> C["④ List visibility does not independently authorize mutations"]
+```
 
 ### 19. Notifications
 
@@ -486,7 +612,14 @@ flowchart LR
 - **Purpose:** Read customer-owned in-app updates.
 - **Steps:** Locate the navigation and screen; Review unread items and open linked orders.
 - **Verify:** In-app notices do not prove that an SMS/email was delivered.
-- **Screen figure:** In the in-app manual, read boxes ① navigation, ② screen context, ③ key action, and ④ control check. These are illustrated schematics until authorized staging screenshots are collected.
+- **Screen figure:** Searchable operational records (ledger). The visual below is illustrative, not a screenshot. During UAT, check actual controls against the corresponding authenticated screen.
+
+```mermaid
+flowchart LR
+  N["① Account & support"] --> V["② Notifications"]
+  V --> A["③ Select one record"]
+  A --> C["④ List visibility does not independently authorize mutations"]
+```
 
 ### 20. My orders
 
@@ -495,7 +628,14 @@ flowchart LR
 - **Purpose:** Review customer-owned order history and statuses.
 - **Steps:** Locate the navigation and screen; Open an order for the current recorded payment and fulfilment state.
 - **Verify:** Payment, packing and delivery are independent statuses.
-- **Screen figure:** In the in-app manual, read boxes ① navigation, ② screen context, ③ key action, and ④ control check. These are illustrated schematics until authorized staging screenshots are collected.
+- **Screen figure:** Searchable operational records (ledger). The visual below is illustrative, not a screenshot. During UAT, check actual controls against the corresponding authenticated screen.
+
+```mermaid
+flowchart LR
+  N["① Orders & delivery"] --> V["② My orders"]
+  V --> A["③ Select one record"]
+  A --> C["④ List visibility does not independently authorize mutations"]
+```
 
 ### 21. Order details
 
@@ -504,7 +644,14 @@ flowchart LR
 - **Purpose:** Inspect the lines, prices and progress of a particular order.
 - **Steps:** Locate the navigation and screen; Check payment verification, fulfilment and eligible next actions.
 - **Verify:** Cancellation and return eligibility are controlled by the backend.
-- **Screen figure:** In the in-app manual, read boxes ① navigation, ② screen context, ③ key action, and ④ control check. These are illustrated schematics until authorized staging screenshots are collected.
+- **Screen figure:** Evidence timeline (timeline). The visual below is illustrative, not a screenshot. During UAT, check actual controls against the corresponding authenticated screen.
+
+```mermaid
+flowchart LR
+  N["① Orders & delivery"] --> V["② Order details"]
+  V --> A["③ Current status"]
+  A --> C["④ Every status transition must be supported by source evidence"]
+```
 
 ### 22. My return requests
 
@@ -513,7 +660,14 @@ flowchart LR
 - **Purpose:** See a customer's submitted return claims and their state.
 - **Steps:** Locate the navigation and screen; Review a claim and any requested next step.
 - **Verify:** Acceptance does not itself mean cash refunded or goods restocked.
-- **Screen figure:** In the in-app manual, read boxes ① navigation, ② screen context, ③ key action, and ④ control check. These are illustrated schematics until authorized staging screenshots are collected.
+- **Screen figure:** Searchable operational records (ledger). The visual below is illustrative, not a screenshot. During UAT, check actual controls against the corresponding authenticated screen.
+
+```mermaid
+flowchart LR
+  N["① Returns"] --> V["② My return requests"]
+  V --> A["③ Select one record"]
+  A --> C["④ List visibility does not independently authorize mutations"]
+```
 
 ### 23. Return request detail
 
@@ -522,7 +676,14 @@ flowchart LR
 - **Purpose:** Read an individual return request, linked order and progress.
 - **Steps:** Locate the navigation and screen; Review quantities, decisions and physical receipt evidence.
 - **Verify:** No refund should be promised before financial verification.
-- **Screen figure:** In the in-app manual, read boxes ① navigation, ② screen context, ③ key action, and ④ control check. These are illustrated schematics until authorized staging screenshots are collected.
+- **Screen figure:** Evidence timeline (timeline). The visual below is illustrative, not a screenshot. During UAT, check actual controls against the corresponding authenticated screen.
+
+```mermaid
+flowchart LR
+  N["① Returns"] --> V["② Return request detail"]
+  V --> A["③ Current status"]
+  A --> C["④ Every status transition must be supported by source evidence"]
+```
 
 ### 24. Shopping assistant
 
@@ -531,7 +692,14 @@ flowchart LR
 - **Purpose:** Explore AI-assisted product suggestions.
 - **Steps:** Locate the navigation and screen; Ask about groceries or a budget and confirm suggested items.
 - **Verify:** AI output must not invent stock, nutrition, discounts or health claims.
-- **Screen figure:** In the in-app manual, read boxes ① navigation, ② screen context, ③ key action, and ④ control check. These are illustrated schematics until authorized staging screenshots are collected.
+- **Screen figure:** Guidance and assistance (guide). The visual below is illustrative, not a screenshot. During UAT, check actual controls against the corresponding authenticated screen.
+
+```mermaid
+flowchart LR
+  N["① Shop & discover"] --> V["② Shopping assistant"]
+  V --> A["③ Follow relevant action"]
+  A --> C["④ Published guidance must match current approved business rules"]
+```
 
 ### 25. Help centre
 
@@ -540,7 +708,14 @@ flowchart LR
 - **Purpose:** Find common support guidance and links to operational information.
 - **Steps:** Locate the navigation and screen; Open the relevant help topic or full user manual.
 - **Verify:** Public policy text must match approved business rules.
-- **Screen figure:** In the in-app manual, read boxes ① navigation, ② screen context, ③ key action, and ④ control check. These are illustrated schematics until authorized staging screenshots are collected.
+- **Screen figure:** Guidance and assistance (guide). The visual below is illustrative, not a screenshot. During UAT, check actual controls against the corresponding authenticated screen.
+
+```mermaid
+flowchart LR
+  N["① Guidance & policies"] --> V["② Help centre"]
+  V --> A["③ Follow relevant action"]
+  A --> C["④ Published guidance must match current approved business rules"]
+```
 
 ### 26. Privacy policy
 
@@ -549,7 +724,14 @@ flowchart LR
 - **Purpose:** Review customer-data and privacy terms.
 - **Steps:** Locate the navigation and screen; Read the published policy before sharing personal information.
 - **Verify:** Final legal wording needs business approval.
-- **Screen figure:** In the in-app manual, read boxes ① navigation, ② screen context, ③ key action, and ④ control check. These are illustrated schematics until authorized staging screenshots are collected.
+- **Screen figure:** Guidance and assistance (guide). The visual below is illustrative, not a screenshot. During UAT, check actual controls against the corresponding authenticated screen.
+
+```mermaid
+flowchart LR
+  N["① Guidance & policies"] --> V["② Privacy policy"]
+  V --> A["③ Follow relevant action"]
+  A --> C["④ Published guidance must match current approved business rules"]
+```
 
 ### 27. Terms and conditions
 
@@ -558,7 +740,14 @@ flowchart LR
 - **Purpose:** Review commercial and platform terms.
 - **Steps:** Locate the navigation and screen; Check terms applicable to current order and service.
 - **Verify:** Operational terms require final legal approval.
-- **Screen figure:** In the in-app manual, read boxes ① navigation, ② screen context, ③ key action, and ④ control check. These are illustrated schematics until authorized staging screenshots are collected.
+- **Screen figure:** Guidance and assistance (guide). The visual below is illustrative, not a screenshot. During UAT, check actual controls against the corresponding authenticated screen.
+
+```mermaid
+flowchart LR
+  N["① Guidance & policies"] --> V["② Terms and conditions"]
+  V --> A["③ Follow relevant action"]
+  A --> C["④ Published guidance must match current approved business rules"]
+```
 
 ### 28. Returns policy
 
@@ -567,7 +756,14 @@ flowchart LR
 - **Purpose:** Read the published customer returns guidance.
 - **Steps:** Locate the navigation and screen; Check eligible cases and required evidence.
 - **Verify:** Published guidance does not override refund authorization.
-- **Screen figure:** In the in-app manual, read boxes ① navigation, ② screen context, ③ key action, and ④ control check. These are illustrated schematics until authorized staging screenshots are collected.
+- **Screen figure:** Guidance and assistance (guide). The visual below is illustrative, not a screenshot. During UAT, check actual controls against the corresponding authenticated screen.
+
+```mermaid
+flowchart LR
+  N["① Guidance & policies"] --> V["② Returns policy"]
+  V --> A["③ Follow relevant action"]
+  A --> C["④ Published guidance must match current approved business rules"]
+```
 
 ### 29. Forgot password
 
@@ -576,7 +772,14 @@ flowchart LR
 - **Purpose:** Start a secure password recovery flow.
 - **Steps:** Locate the navigation and screen; Provide the registered account identity and follow verified instructions.
 - **Verify:** Do not disclose a reset token to another person.
-- **Screen figure:** In the in-app manual, read boxes ① navigation, ② screen context, ③ key action, and ④ control check. These are illustrated schematics until authorized staging screenshots are collected.
+- **Screen figure:** Validated entry or edit (form). The visual below is illustrative, not a screenshot. During UAT, check actual controls against the corresponding authenticated screen.
+
+```mermaid
+flowchart LR
+  N["① Identity & security"] --> V["② Forgot password"]
+  V --> A["③ Validate input"]
+  A --> C["④ The backend independently enforces authorization and field validation"]
+```
 
 ### 30. Reset password
 
@@ -585,7 +788,14 @@ flowchart LR
 - **Purpose:** Complete a recovery flow using the authorized reset link.
 - **Steps:** Locate the navigation and screen; Set a new strong password and sign in again.
 - **Verify:** An expired or used token must be rejected.
-- **Screen figure:** In the in-app manual, read boxes ① navigation, ② screen context, ③ key action, and ④ control check. These are illustrated schematics until authorized staging screenshots are collected.
+- **Screen figure:** Validated entry or edit (form). The visual below is illustrative, not a screenshot. During UAT, check actual controls against the corresponding authenticated screen.
+
+```mermaid
+flowchart LR
+  N["① Identity & security"] --> V["② Reset password"]
+  V --> A["③ Validate input"]
+  A --> C["④ The backend independently enforces authorization and field validation"]
+```
 
 ### 31. Operations dashboard
 
@@ -594,7 +804,14 @@ flowchart LR
 - **Purpose:** See summarized orders, revenue and operational indicators.
 - **Steps:** Locate the navigation and screen; Review alerts then open a source report before acting.
 - **Verify:** Dashboard figures must be reconciled against source records.
-- **Screen figure:** In the in-app manual, read boxes ① navigation, ② screen context, ③ key action, and ④ control check. These are illustrated schematics until authorized staging screenshots are collected.
+- **Screen figure:** Overview and KPI panels (dashboard). The visual below is illustrative, not a screenshot. During UAT, check actual controls against the corresponding authenticated screen.
+
+```mermaid
+flowchart LR
+  N["① Administration"] --> V["② Operations dashboard"]
+  V --> A["③ Action queue"]
+  A --> C["④ A summary is not a substitute for its source ledger"]
+```
 
 ### 32. All orders
 
@@ -603,7 +820,14 @@ flowchart LR
 - **Purpose:** Filter and review order queues, channels and payment states.
 - **Steps:** Locate the navigation and screen; Find an order and inspect full detail before taking an action.
 - **Verify:** Unverified provider outcomes are not captured payments.
-- **Screen figure:** In the in-app manual, read boxes ① navigation, ② screen context, ③ key action, and ④ control check. These are illustrated schematics until authorized staging screenshots are collected.
+- **Screen figure:** Searchable operational records (ledger). The visual below is illustrative, not a screenshot. During UAT, check actual controls against the corresponding authenticated screen.
+
+```mermaid
+flowchart LR
+  N["① Orders & fulfilment"] --> V["② All orders"]
+  V --> A["③ Select one record"]
+  A --> C["④ List visibility does not independently authorize mutations"]
+```
 
 ### 33. Order administration
 
@@ -612,7 +836,14 @@ flowchart LR
 - **Purpose:** Inspect a server-owned order and its fulfilment decisions.
 - **Steps:** Locate the navigation and screen; Review lines, verification, dispatch and permitted actions.
 - **Verify:** Use the correct owner and preserve immutable history.
-- **Screen figure:** In the in-app manual, read boxes ① navigation, ② screen context, ③ key action, and ④ control check. These are illustrated schematics until authorized staging screenshots are collected.
+- **Screen figure:** Evidence timeline (timeline). The visual below is illustrative, not a screenshot. During UAT, check actual controls against the corresponding authenticated screen.
+
+```mermaid
+flowchart LR
+  N["① Orders & fulfilment"] --> V["② Order administration"]
+  V --> A["③ Current status"]
+  A --> C["④ Every status transition must be supported by source evidence"]
+```
 
 ### 34. Picking and packing
 
@@ -621,7 +852,14 @@ flowchart LR
 - **Purpose:** Manage eligible picking, packing and handover stages.
 - **Steps:** Locate the navigation and screen; Open a verified order, check reserved lines and record approved steps.
 - **Verify:** Do not deduct stock a second time after authorized depletion.
-- **Screen figure:** In the in-app manual, read boxes ① navigation, ② screen context, ③ key action, and ④ control check. These are illustrated schematics until authorized staging screenshots are collected.
+- **Screen figure:** Searchable operational records (ledger). The visual below is illustrative, not a screenshot. During UAT, check actual controls against the corresponding authenticated screen.
+
+```mermaid
+flowchart LR
+  N["① Orders & fulfilment"] --> V["② Picking and packing"]
+  V --> A["③ Select one record"]
+  A --> C["④ List visibility does not independently authorize mutations"]
+```
 
 ### 35. Counter sales / POS
 
@@ -630,7 +868,14 @@ flowchart LR
 - **Purpose:** Inspect POS workspace and the current demo/cashier workflows.
 - **Steps:** Locate the navigation and screen; Check role, till identity and availability before entering a sale.
 - **Verify:** A demo preview is not permission to capture physical cash.
-- **Screen figure:** In the in-app manual, read boxes ① navigation, ② screen context, ③ key action, and ④ control check. These are illustrated schematics until authorized staging screenshots are collected.
+- **Screen figure:** Financial evidence and drawer view (cash). The visual below is illustrative, not a screenshot. During UAT, check actual controls against the corresponding authenticated screen.
+
+```mermaid
+flowchart LR
+  N["① Counter sales"] --> V["② Counter sales / POS"]
+  V --> A["③ Separate approval state"]
+  A --> C["④ Do not equate recorded cash with verified electronic settlement"]
+```
 
 ### 36. Verified POS UAT
 
@@ -639,7 +884,14 @@ flowchart LR
 - **Purpose:** Review real-API quote and stock-check previews under separate flags.
 - **Steps:** Locate the navigation and screen; Verify quote, open-till selection and strict server response.
 - **Verify:** Quoting does not reserve stock, collect money or hand over goods.
-- **Screen figure:** In the in-app manual, read boxes ① navigation, ② screen context, ③ key action, and ④ control check. These are illustrated schematics until authorized staging screenshots are collected.
+- **Screen figure:** Financial evidence and drawer view (cash). The visual below is illustrative, not a screenshot. During UAT, check actual controls against the corresponding authenticated screen.
+
+```mermaid
+flowchart LR
+  N["① Counter sales"] --> V["② Verified POS UAT"]
+  V --> A["③ Separate approval state"]
+  A --> C["④ Do not equate recorded cash with verified electronic settlement"]
+```
 
 ### 37. Cashier sessions
 
@@ -648,7 +900,14 @@ flowchart LR
 - **Purpose:** Review till opening floats, movements and closing status.
 - **Steps:** Locate the navigation and screen; Check reconciliation and authorized drawer activity.
 - **Verify:** Till discrepancy and electronic settlement must not be conflated.
-- **Screen figure:** In the in-app manual, read boxes ① navigation, ② screen context, ③ key action, and ④ control check. These are illustrated schematics until authorized staging screenshots are collected.
+- **Screen figure:** Financial evidence and drawer view (cash). The visual below is illustrative, not a screenshot. During UAT, check actual controls against the corresponding authenticated screen.
+
+```mermaid
+flowchart LR
+  N["① Counter sales"] --> V["② Cashier sessions"]
+  V --> A["③ Separate approval state"]
+  A --> C["④ Do not equate recorded cash with verified electronic settlement"]
+```
 
 ### 38. Content studio
 
@@ -657,7 +916,14 @@ flowchart LR
 - **Purpose:** Manage draft and published website content.
 - **Steps:** Locate the navigation and screen; Select a page, edit the draft and publish only after review.
 - **Verify:** Publishing can change public policy text immediately.
-- **Screen figure:** In the in-app manual, read boxes ① navigation, ② screen context, ③ key action, and ④ control check. These are illustrated schematics until authorized staging screenshots are collected.
+- **Screen figure:** Validated entry or edit (form). The visual below is illustrative, not a screenshot. During UAT, check actual controls against the corresponding authenticated screen.
+
+```mermaid
+flowchart LR
+  N["① Content & catalogue"] --> V["② Content studio"]
+  V --> A["③ Validate input"]
+  A --> C["④ The backend independently enforces authorization and field validation"]
+```
 
 ### 39. Homepage content
 
@@ -666,7 +932,14 @@ flowchart LR
 - **Purpose:** Edit hero, banners and supported storefront homepage sections.
 - **Steps:** Locate the navigation and screen; Preview the draft before publication.
 - **Verify:** Use approved brand assets and verified campaign claims.
-- **Screen figure:** In the in-app manual, read boxes ① navigation, ② screen context, ③ key action, and ④ control check. These are illustrated schematics until authorized staging screenshots are collected.
+- **Screen figure:** Validated entry or edit (form). The visual below is illustrative, not a screenshot. During UAT, check actual controls against the corresponding authenticated screen.
+
+```mermaid
+flowchart LR
+  N["① Content & catalogue"] --> V["② Homepage content"]
+  V --> A["③ Validate input"]
+  A --> C["④ The backend independently enforces authorization and field validation"]
+```
 
 ### 40. Content page editor
 
@@ -675,7 +948,14 @@ flowchart LR
 - **Purpose:** Edit policy/help pages in the CMS.
 - **Steps:** Locate the navigation and screen; Review the page draft and publish reviewed copy.
 - **Verify:** Privacy, returns and terms require final business sign-off.
-- **Screen figure:** In the in-app manual, read boxes ① navigation, ② screen context, ③ key action, and ④ control check. These are illustrated schematics until authorized staging screenshots are collected.
+- **Screen figure:** Validated entry or edit (form). The visual below is illustrative, not a screenshot. During UAT, check actual controls against the corresponding authenticated screen.
+
+```mermaid
+flowchart LR
+  N["① Content & catalogue"] --> V["② Content page editor"]
+  V --> A["③ Validate input"]
+  A --> C["④ The backend independently enforces authorization and field validation"]
+```
 
 ### 41. Product catalogue
 
@@ -684,7 +964,14 @@ flowchart LR
 - **Purpose:** Review items, variants, publication and media.
 - **Steps:** Locate the navigation and screen; Search a product and inspect its pricing and availability.
 - **Verify:** Supplier facts, pack sizes and photos need verification.
-- **Screen figure:** In the in-app manual, read boxes ① navigation, ② screen context, ③ key action, and ④ control check. These are illustrated schematics until authorized staging screenshots are collected.
+- **Screen figure:** Searchable operational records (ledger). The visual below is illustrative, not a screenshot. During UAT, check actual controls against the corresponding authenticated screen.
+
+```mermaid
+flowchart LR
+  N["① Content & catalogue"] --> V["② Product catalogue"]
+  V --> A["③ Select one record"]
+  A --> C["④ List visibility does not independently authorize mutations"]
+```
 
 ### 42. Product editor
 
@@ -693,7 +980,14 @@ flowchart LR
 - **Purpose:** Manage individual product details, images, variants and settings.
 - **Steps:** Locate the navigation and screen; Review the correct SKU and save permitted changes.
 - **Verify:** Do not invent nutrition or substitute an unverified image.
-- **Screen figure:** In the in-app manual, read boxes ① navigation, ② screen context, ③ key action, and ④ control check. These are illustrated schematics until authorized staging screenshots are collected.
+- **Screen figure:** Validated entry or edit (form). The visual below is illustrative, not a screenshot. During UAT, check actual controls against the corresponding authenticated screen.
+
+```mermaid
+flowchart LR
+  N["① Content & catalogue"] --> V["② Product editor"]
+  V --> A["③ Validate input"]
+  A --> C["④ The backend independently enforces authorization and field validation"]
+```
 
 ### 43. Category management
 
@@ -702,7 +996,14 @@ flowchart LR
 - **Purpose:** Maintain shopping department structure.
 - **Steps:** Locate the navigation and screen; Inspect the category hierarchy and its product placement.
 - **Verify:** Changing categories can affect storefront navigation.
-- **Screen figure:** In the in-app manual, read boxes ① navigation, ② screen context, ③ key action, and ④ control check. These are illustrated schematics until authorized staging screenshots are collected.
+- **Screen figure:** Searchable operational records (ledger). The visual below is illustrative, not a screenshot. During UAT, check actual controls against the corresponding authenticated screen.
+
+```mermaid
+flowchart LR
+  N["① Content & catalogue"] --> V["② Category management"]
+  V --> A["③ Select one record"]
+  A --> C["④ List visibility does not independently authorize mutations"]
+```
 
 ### 44. Inventory overview
 
@@ -711,7 +1012,14 @@ flowchart LR
 - **Purpose:** Review stock by location, reservations and sellable balance.
 - **Steps:** Locate the navigation and screen; Filter branch/product and inspect stock evidence.
 - **Verify:** Available-to-sell stock excludes reservations and safety stock.
-- **Screen figure:** In the in-app manual, read boxes ① navigation, ② screen context, ③ key action, and ④ control check. These are illustrated schematics until authorized staging screenshots are collected.
+- **Screen figure:** Searchable operational records (ledger). The visual below is illustrative, not a screenshot. During UAT, check actual controls against the corresponding authenticated screen.
+
+```mermaid
+flowchart LR
+  N["① Inventory"] --> V["② Inventory overview"]
+  V --> A["③ Select one record"]
+  A --> C["④ List visibility does not independently authorize mutations"]
+```
 
 ### 45. Goods receiving
 
@@ -720,7 +1028,14 @@ flowchart LR
 - **Purpose:** Record verified physical receipts to stock.
 - **Steps:** Locate the navigation and screen; Check supplier/product, lot, quantity and expiry before posting.
 - **Verify:** A purchase order alone is not physical stock receipt.
-- **Screen figure:** In the in-app manual, read boxes ① navigation, ② screen context, ③ key action, and ④ control check. These are illustrated schematics until authorized staging screenshots are collected.
+- **Screen figure:** Validated entry or edit (form). The visual below is illustrative, not a screenshot. During UAT, check actual controls against the corresponding authenticated screen.
+
+```mermaid
+flowchart LR
+  N["① Inventory"] --> V["② Goods receiving"]
+  V --> A["③ Validate input"]
+  A --> C["④ The backend independently enforces authorization and field validation"]
+```
 
 ### 46. Inventory adjustments
 
@@ -729,7 +1044,14 @@ flowchart LR
 - **Purpose:** Request or review audited stock corrections.
 - **Steps:** Locate the navigation and screen; Specify lot, quantity, reason and required approval.
 - **Verify:** A draft adjustment must not change stock before authorization.
-- **Screen figure:** In the in-app manual, read boxes ① navigation, ② screen context, ③ key action, and ④ control check. These are illustrated schematics until authorized staging screenshots are collected.
+- **Screen figure:** Validated entry or edit (form). The visual below is illustrative, not a screenshot. During UAT, check actual controls against the corresponding authenticated screen.
+
+```mermaid
+flowchart LR
+  N["① Inventory"] --> V["② Inventory adjustments"]
+  V --> A["③ Validate input"]
+  A --> C["④ The backend independently enforces authorization and field validation"]
+```
 
 ### 47. Stocktakes
 
@@ -738,7 +1060,14 @@ flowchart LR
 - **Purpose:** Compare counted stock with system quantity.
 - **Steps:** Locate the navigation and screen; Select a stocktake and record physical counting evidence.
 - **Verify:** Variance must be approved before stock correction.
-- **Screen figure:** In the in-app manual, read boxes ① navigation, ② screen context, ③ key action, and ④ control check. These are illustrated schematics until authorized staging screenshots are collected.
+- **Screen figure:** Searchable operational records (ledger). The visual below is illustrative, not a screenshot. During UAT, check actual controls against the corresponding authenticated screen.
+
+```mermaid
+flowchart LR
+  N["① Inventory"] --> V["② Stocktakes"]
+  V --> A["③ Select one record"]
+  A --> C["④ List visibility does not independently authorize mutations"]
+```
 
 ### 48. Expiry and quarantine
 
@@ -747,7 +1076,14 @@ flowchart LR
 - **Purpose:** Review damaged, expired and quarantined stock.
 - **Steps:** Locate the navigation and screen; Inspect lot condition and any quarantine action.
 - **Verify:** Quarantined or expired stock cannot be sold.
-- **Screen figure:** In the in-app manual, read boxes ① navigation, ② screen context, ③ key action, and ④ control check. These are illustrated schematics until authorized staging screenshots are collected.
+- **Screen figure:** Searchable operational records (ledger). The visual below is illustrative, not a screenshot. During UAT, check actual controls against the corresponding authenticated screen.
+
+```mermaid
+flowchart LR
+  N["① Inventory"] --> V["② Expiry and quarantine"]
+  V --> A["③ Select one record"]
+  A --> C["④ List visibility does not independently authorize mutations"]
+```
 
 ### 49. Suppliers
 
@@ -756,7 +1092,14 @@ flowchart LR
 - **Purpose:** Maintain approved supplier contact and trading details.
 - **Steps:** Locate the navigation and screen; Find a supplier and review its current details.
 - **Verify:** Supplier records do not independently prove inventory.
-- **Screen figure:** In the in-app manual, read boxes ① navigation, ② screen context, ③ key action, and ④ control check. These are illustrated schematics until authorized staging screenshots are collected.
+- **Screen figure:** Searchable operational records (ledger). The visual below is illustrative, not a screenshot. During UAT, check actual controls against the corresponding authenticated screen.
+
+```mermaid
+flowchart LR
+  N["① Purchasing"] --> V["② Suppliers"]
+  V --> A["③ Select one record"]
+  A --> C["④ List visibility does not independently authorize mutations"]
+```
 
 ### 50. Purchase orders
 
@@ -765,7 +1108,14 @@ flowchart LR
 - **Purpose:** Create and review purchasing documents.
 - **Steps:** Locate the navigation and screen; Review selected line quantities, unit prices and totals.
 - **Verify:** A purchase order preview is not a stock movement.
-- **Screen figure:** In the in-app manual, read boxes ① navigation, ② screen context, ③ key action, and ④ control check. These are illustrated schematics until authorized staging screenshots are collected.
+- **Screen figure:** Searchable operational records (ledger). The visual below is illustrative, not a screenshot. During UAT, check actual controls against the corresponding authenticated screen.
+
+```mermaid
+flowchart LR
+  N["① Purchasing"] --> V["② Purchase orders"]
+  V --> A["③ Select one record"]
+  A --> C["④ List visibility does not independently authorize mutations"]
+```
 
 ### 51. Logistics network
 
@@ -774,7 +1124,14 @@ flowchart LR
 - **Purpose:** Configure fulfilment nodes, routes and operational policies.
 - **Steps:** Locate the navigation and screen; Review workflow versions and simulate before activation.
 - **Verify:** Route planning is not proof of dispatch or arrival.
-- **Screen figure:** In the in-app manual, read boxes ① navigation, ② screen context, ③ key action, and ④ control check. These are illustrated schematics until authorized staging screenshots are collected.
+- **Screen figure:** Searchable operational records (ledger). The visual below is illustrative, not a screenshot. During UAT, check actual controls against the corresponding authenticated screen.
+
+```mermaid
+flowchart LR
+  N["① Delivery operations"] --> V["② Logistics network"]
+  V --> A["③ Select one record"]
+  A --> C["④ List visibility does not independently authorize mutations"]
+```
 
 ### 52. Shipment execution
 
@@ -783,7 +1140,14 @@ flowchart LR
 - **Purpose:** Review shipment plans and custody checkpoints.
 - **Steps:** Locate the navigation and screen; Open a shipment and inspect real movement evidence.
 - **Verify:** No GPS/ETA or arrival should be invented.
-- **Screen figure:** In the in-app manual, read boxes ① navigation, ② screen context, ③ key action, and ④ control check. These are illustrated schematics until authorized staging screenshots are collected.
+- **Screen figure:** Evidence timeline (timeline). The visual below is illustrative, not a screenshot. During UAT, check actual controls against the corresponding authenticated screen.
+
+```mermaid
+flowchart LR
+  N["① Delivery operations"] --> V["② Shipment execution"]
+  V --> A["③ Current status"]
+  A --> C["④ Every status transition must be supported by source evidence"]
+```
 
 ### 53. Dispatch queue
 
@@ -792,7 +1156,14 @@ flowchart LR
 - **Purpose:** Review orders ready for delivery assignment and progress.
 - **Steps:** Locate the navigation and screen; Select an eligible order and assigned rider/provider.
 - **Verify:** Delivery is not proof of COD settlement.
-- **Screen figure:** In the in-app manual, read boxes ① navigation, ② screen context, ③ key action, and ④ control check. These are illustrated schematics until authorized staging screenshots are collected.
+- **Screen figure:** Searchable operational records (ledger). The visual below is illustrative, not a screenshot. During UAT, check actual controls against the corresponding authenticated screen.
+
+```mermaid
+flowchart LR
+  N["① Delivery operations"] --> V["② Dispatch queue"]
+  V --> A["③ Select one record"]
+  A --> C["④ List visibility does not independently authorize mutations"]
+```
 
 ### 54. COD exceptions
 
@@ -801,7 +1172,14 @@ flowchart LR
 - **Purpose:** Review unpaid-cash exceptions and independent counting evidence.
 - **Steps:** Locate the navigation and screen; Trace rider declaration, supervisor checks and discrepancy.
 - **Verify:** Do not mark cash remitted until independently reconciled.
-- **Screen figure:** In the in-app manual, read boxes ① navigation, ② screen context, ③ key action, and ④ control check. These are illustrated schematics until authorized staging screenshots are collected.
+- **Screen figure:** Searchable operational records (ledger). The visual below is illustrative, not a screenshot. During UAT, check actual controls against the corresponding authenticated screen.
+
+```mermaid
+flowchart LR
+  N["① Delivery operations"] --> V["② COD exceptions"]
+  V --> A["③ Select one record"]
+  A --> C["④ List visibility does not independently authorize mutations"]
+```
 
 ### 55. Rider management
 
@@ -810,7 +1188,14 @@ flowchart LR
 - **Purpose:** Manage rider profiles and assignments.
 - **Steps:** Locate the navigation and screen; Verify active rider and location grants.
 - **Verify:** Avoid giving riders unrelated customer/finance data.
-- **Screen figure:** In the in-app manual, read boxes ① navigation, ② screen context, ③ key action, and ④ control check. These are illustrated schematics until authorized staging screenshots are collected.
+- **Screen figure:** Searchable operational records (ledger). The visual below is illustrative, not a screenshot. During UAT, check actual controls against the corresponding authenticated screen.
+
+```mermaid
+flowchart LR
+  N["① Delivery operations"] --> V["② Rider management"]
+  V --> A["③ Select one record"]
+  A --> C["④ List visibility does not independently authorize mutations"]
+```
 
 ### 56. Delivery providers
 
@@ -819,7 +1204,14 @@ flowchart LR
 - **Purpose:** Review courier/provider configuration and availability.
 - **Steps:** Locate the navigation and screen; Check provider scope and supported services.
 - **Verify:** Live courier integrations require credentialed acceptance.
-- **Screen figure:** In the in-app manual, read boxes ① navigation, ② screen context, ③ key action, and ④ control check. These are illustrated schematics until authorized staging screenshots are collected.
+- **Screen figure:** Searchable operational records (ledger). The visual below is illustrative, not a screenshot. During UAT, check actual controls against the corresponding authenticated screen.
+
+```mermaid
+flowchart LR
+  N["① Delivery operations"] --> V["② Delivery providers"]
+  V --> A["③ Select one record"]
+  A --> C["④ List visibility does not independently authorize mutations"]
+```
 
 ### 57. Returns queue
 
@@ -828,7 +1220,14 @@ flowchart LR
 - **Purpose:** Review return cases and their approval state.
 - **Steps:** Locate the navigation and screen; Inspect the original order and eligible lines.
 - **Verify:** A delivery return is not by itself a restock or refund.
-- **Screen figure:** In the in-app manual, read boxes ① navigation, ② screen context, ③ key action, and ④ control check. These are illustrated schematics until authorized staging screenshots are collected.
+- **Screen figure:** Searchable operational records (ledger). The visual below is illustrative, not a screenshot. During UAT, check actual controls against the corresponding authenticated screen.
+
+```mermaid
+flowchart LR
+  N["① Returns & refunds"] --> V["② Returns queue"]
+  V --> A["③ Select one record"]
+  A --> C["④ List visibility does not independently authorize mutations"]
+```
 
 ### 58. Return case
 
@@ -837,7 +1236,14 @@ flowchart LR
 - **Purpose:** Inspect a particular return and its evidence.
 - **Steps:** Locate the navigation and screen; Review quantities and inspection before decisions.
 - **Verify:** Do not return spoiled goods to sellable stock.
-- **Screen figure:** In the in-app manual, read boxes ① navigation, ② screen context, ③ key action, and ④ control check. These are illustrated schematics until authorized staging screenshots are collected.
+- **Screen figure:** Evidence timeline (timeline). The visual below is illustrative, not a screenshot. During UAT, check actual controls against the corresponding authenticated screen.
+
+```mermaid
+flowchart LR
+  N["① Returns & refunds"] --> V["② Return case"]
+  V --> A["③ Current status"]
+  A --> C["④ Every status transition must be supported by source evidence"]
+```
 
 ### 59. Customer return claims
 
@@ -846,7 +1252,14 @@ flowchart LR
 - **Purpose:** Review submitted customer claims and decisions.
 - **Steps:** Locate the navigation and screen; Verify original order, requested quantities and claim status.
 - **Verify:** An accepted claim is not physical inspection or refund.
-- **Screen figure:** In the in-app manual, read boxes ① navigation, ② screen context, ③ key action, and ④ control check. These are illustrated schematics until authorized staging screenshots are collected.
+- **Screen figure:** Evidence timeline (timeline). The visual below is illustrative, not a screenshot. During UAT, check actual controls against the corresponding authenticated screen.
+
+```mermaid
+flowchart LR
+  N["① Returns & refunds"] --> V["② Customer return claims"]
+  V --> A["③ Current status"]
+  A --> C["④ Every status transition must be supported by source evidence"]
+```
 
 ### 60. Physical return intake
 
@@ -855,7 +1268,14 @@ flowchart LR
 - **Purpose:** Record goods physically received and inspected.
 - **Steps:** Locate the navigation and screen; Check original lot, quantity, evidence and quarantine outcome.
 - **Verify:** Restocking requires separate inspected authorization.
-- **Screen figure:** In the in-app manual, read boxes ① navigation, ② screen context, ③ key action, and ④ control check. These are illustrated schematics until authorized staging screenshots are collected.
+- **Screen figure:** Searchable operational records (ledger). The visual below is illustrative, not a screenshot. During UAT, check actual controls against the corresponding authenticated screen.
+
+```mermaid
+flowchart LR
+  N["① Returns & refunds"] --> V["② Physical return intake"]
+  V --> A["③ Select one record"]
+  A --> C["④ List visibility does not independently authorize mutations"]
+```
 
 ### 61. Refund authority
 
@@ -864,7 +1284,14 @@ flowchart LR
 - **Purpose:** Review and authorize eligible refund obligations.
 - **Steps:** Locate the navigation and screen; Check payment proof, amount and approval requirements.
 - **Verify:** A refund request is not a provider-confirmed refund.
-- **Screen figure:** In the in-app manual, read boxes ① navigation, ② screen context, ③ key action, and ④ control check. These are illustrated schematics until authorized staging screenshots are collected.
+- **Screen figure:** Financial evidence and drawer view (cash). The visual below is illustrative, not a screenshot. During UAT, check actual controls against the corresponding authenticated screen.
+
+```mermaid
+flowchart LR
+  N["① Returns & refunds"] --> V["② Refund authority"]
+  V --> A["③ Separate approval state"]
+  A --> C["④ Do not equate recorded cash with verified electronic settlement"]
+```
 
 ### 62. Customer administration
 
@@ -873,7 +1300,14 @@ flowchart LR
 - **Purpose:** Find supported customer records and contact details.
 - **Steps:** Locate the navigation and screen; Use permitted search to open a legitimate support case.
 - **Verify:** Respect least-privilege access to personal data.
-- **Screen figure:** In the in-app manual, read boxes ① navigation, ② screen context, ③ key action, and ④ control check. These are illustrated schematics until authorized staging screenshots are collected.
+- **Screen figure:** Searchable operational records (ledger). The visual below is illustrative, not a screenshot. During UAT, check actual controls against the corresponding authenticated screen.
+
+```mermaid
+flowchart LR
+  N["① Customer service"] --> V["② Customer administration"]
+  V --> A["③ Select one record"]
+  A --> C["④ List visibility does not independently authorize mutations"]
+```
 
 ### 63. Payment ledger
 
@@ -882,7 +1316,14 @@ flowchart LR
 - **Purpose:** Review verified provider payment attempts and reconciliation.
 - **Steps:** Locate the navigation and screen; Inspect transaction reference and provider evidence.
 - **Verify:** Payment success must be independently verified.
-- **Screen figure:** In the in-app manual, read boxes ① navigation, ② screen context, ③ key action, and ④ control check. These are illustrated schematics until authorized staging screenshots are collected.
+- **Screen figure:** Financial evidence and drawer view (cash). The visual below is illustrative, not a screenshot. During UAT, check actual controls against the corresponding authenticated screen.
+
+```mermaid
+flowchart LR
+  N["① Finance & reporting"] --> V["② Payment ledger"]
+  V --> A["③ Separate approval state"]
+  A --> C["④ Do not equate recorded cash with verified electronic settlement"]
+```
 
 ### 64. Reports
 
@@ -891,7 +1332,14 @@ flowchart LR
 - **Purpose:** Review available operational and financial reports.
 - **Steps:** Locate the navigation and screen; Set the reporting interval and cross-check source ledgers.
 - **Verify:** Reports are not independently audited statements.
-- **Screen figure:** In the in-app manual, read boxes ① navigation, ② screen context, ③ key action, and ④ control check. These are illustrated schematics until authorized staging screenshots are collected.
+- **Screen figure:** Overview and KPI panels (dashboard). The visual below is illustrative, not a screenshot. During UAT, check actual controls against the corresponding authenticated screen.
+
+```mermaid
+flowchart LR
+  N["① Finance & reporting"] --> V["② Reports"]
+  V --> A["③ Action queue"]
+  A --> C["④ A summary is not a substitute for its source ledger"]
+```
 
 ### 65. Staff AI assistant
 
@@ -900,7 +1348,14 @@ flowchart LR
 - **Purpose:** Explore assistive insights for operations.
 - **Steps:** Locate the navigation and screen; Use AI explanations as decision support only.
 - **Verify:** AI cannot create verified stock or payment authority.
-- **Screen figure:** In the in-app manual, read boxes ① navigation, ② screen context, ③ key action, and ④ control check. These are illustrated schematics until authorized staging screenshots are collected.
+- **Screen figure:** Overview and KPI panels (dashboard). The visual below is illustrative, not a screenshot. During UAT, check actual controls against the corresponding authenticated screen.
+
+```mermaid
+flowchart LR
+  N["① Finance & reporting"] --> V["② Staff AI assistant"]
+  V --> A["③ Action queue"]
+  A --> C["④ A summary is not a substitute for its source ledger"]
+```
 
 ### 66. Team and roles
 
@@ -909,7 +1364,14 @@ flowchart LR
 - **Purpose:** Manage staff identities, roles and permissions.
 - **Steps:** Locate the navigation and screen; Review each person's branch and task scope.
 - **Verify:** Only the server can enforce access, regardless of menu visibility.
-- **Screen figure:** In the in-app manual, read boxes ① navigation, ② screen context, ③ key action, and ④ control check. These are illustrated schematics until authorized staging screenshots are collected.
+- **Screen figure:** Searchable operational records (ledger). The visual below is illustrative, not a screenshot. During UAT, check actual controls against the corresponding authenticated screen.
+
+```mermaid
+flowchart LR
+  N["① Administration"] --> V["② Team and roles"]
+  V --> A["③ Select one record"]
+  A --> C["④ List visibility does not independently authorize mutations"]
+```
 
 ### 67. Verified staff UAT
 
@@ -918,7 +1380,14 @@ flowchart LR
 - **Purpose:** Review real cashier invitations and secure role assignments.
 - **Steps:** Locate the navigation and screen; Check branch grants and invitation activation.
 - **Verify:** Do not assume a demo user has production authority.
-- **Screen figure:** In the in-app manual, read boxes ① navigation, ② screen context, ③ key action, and ④ control check. These are illustrated schematics until authorized staging screenshots are collected.
+- **Screen figure:** Validated entry or edit (form). The visual below is illustrative, not a screenshot. During UAT, check actual controls against the corresponding authenticated screen.
+
+```mermaid
+flowchart LR
+  N["① Administration"] --> V["② Verified staff UAT"]
+  V --> A["③ Validate input"]
+  A --> C["④ The backend independently enforces authorization and field validation"]
+```
 
 ### 68. Audit log
 
@@ -927,7 +1396,14 @@ flowchart LR
 - **Purpose:** Trace activity and operational changes.
 - **Steps:** Locate the navigation and screen; Filter a source record and inspect actor/time evidence.
 - **Verify:** An audit entry must be immutable and access-controlled.
-- **Screen figure:** In the in-app manual, read boxes ① navigation, ② screen context, ③ key action, and ④ control check. These are illustrated schematics until authorized staging screenshots are collected.
+- **Screen figure:** Searchable operational records (ledger). The visual below is illustrative, not a screenshot. During UAT, check actual controls against the corresponding authenticated screen.
+
+```mermaid
+flowchart LR
+  N["① Administration"] --> V["② Audit log"]
+  V --> A["③ Select one record"]
+  A --> C["④ List visibility does not independently authorize mutations"]
+```
 
 ### 69. System settings
 
@@ -936,7 +1412,14 @@ flowchart LR
 - **Purpose:** Manage business, storefront and integration settings.
 - **Steps:** Locate the navigation and screen; Inspect and validate configuration before saving.
 - **Verify:** Payment and SMS secrets must not be exposed in the manual.
-- **Screen figure:** In the in-app manual, read boxes ① navigation, ② screen context, ③ key action, and ④ control check. These are illustrated schematics until authorized staging screenshots are collected.
+- **Screen figure:** Validated entry or edit (form). The visual below is illustrative, not a screenshot. During UAT, check actual controls against the corresponding authenticated screen.
+
+```mermaid
+flowchart LR
+  N["① Administration"] --> V["② System settings"]
+  V --> A["③ Validate input"]
+  A --> C["④ The backend independently enforces authorization and field validation"]
+```
 
 ### 70. Demo controls
 
@@ -945,7 +1428,14 @@ flowchart LR
 - **Purpose:** Use illustrative datasets for UAT training.
 - **Steps:** Locate the navigation and screen; Reset or explore non-production examples.
 - **Verify:** Demo activity is not a real sale, inventory or payment.
-- **Screen figure:** In the in-app manual, read boxes ① navigation, ② screen context, ③ key action, and ④ control check. These are illustrated schematics until authorized staging screenshots are collected.
+- **Screen figure:** Guidance and assistance (guide). The visual below is illustrative, not a screenshot. During UAT, check actual controls against the corresponding authenticated screen.
+
+```mermaid
+flowchart LR
+  N["① Administration"] --> V["② Demo controls"]
+  V --> A["③ Follow relevant action"]
+  A --> C["④ Published guidance must match current approved business rules"]
+```
 
 ### 71. Staff sign in
 
@@ -954,7 +1444,14 @@ flowchart LR
 - **Purpose:** Sign into an authorized staff account.
 - **Steps:** Locate the navigation and screen; Use the assigned identity and password.
 - **Verify:** Real roles are determined by the server, not by a demo selector.
-- **Screen figure:** In the in-app manual, read boxes ① navigation, ② screen context, ③ key action, and ④ control check. These are illustrated schematics until authorized staging screenshots are collected.
+- **Screen figure:** Validated entry or edit (form). The visual below is illustrative, not a screenshot. During UAT, check actual controls against the corresponding authenticated screen.
+
+```mermaid
+flowchart LR
+  N["① Identity & security"] --> V["② Staff sign in"]
+  V --> A["③ Validate input"]
+  A --> C["④ The backend independently enforces authorization and field validation"]
+```
 
 ### 72. Cashier invitation activation
 
@@ -963,7 +1460,14 @@ flowchart LR
 - **Purpose:** Accept an administrator-issued staff invitation.
 - **Steps:** Locate the navigation and screen; Validate the invite and create credentials.
 - **Verify:** An invitation alone is not permission to sell stock.
-- **Screen figure:** In the in-app manual, read boxes ① navigation, ② screen context, ③ key action, and ④ control check. These are illustrated schematics until authorized staging screenshots are collected.
+- **Screen figure:** Validated entry or edit (form). The visual below is illustrative, not a screenshot. During UAT, check actual controls against the corresponding authenticated screen.
+
+```mermaid
+flowchart LR
+  N["① Cashier workspace"] --> V["② Cashier invitation activation"]
+  V --> A["③ Validate input"]
+  A --> C["④ The backend independently enforces authorization and field validation"]
+```
 
 ### 73. My cashier workspace
 
@@ -972,7 +1476,14 @@ flowchart LR
 - **Purpose:** Inspect assigned branches, tills and own recent sales.
 - **Steps:** Locate the navigation and screen; Sign in with a real cashier account, then refresh records.
 - **Verify:** This page is read-only; it cannot collect cash or change inventory.
-- **Screen figure:** In the in-app manual, read boxes ① navigation, ② screen context, ③ key action, and ④ control check. These are illustrated schematics until authorized staging screenshots are collected.
+- **Screen figure:** Financial evidence and drawer view (cash). The visual below is illustrative, not a screenshot. During UAT, check actual controls against the corresponding authenticated screen.
+
+```mermaid
+flowchart LR
+  N["① Cashier workspace"] --> V["② My cashier workspace"]
+  V --> A["③ Separate approval state"]
+  A --> C["④ Do not equate recorded cash with verified electronic settlement"]
+```
 
 ### 74. Verified rider sign in
 
@@ -981,7 +1492,14 @@ flowchart LR
 - **Purpose:** Sign in to the server-verified rider area.
 - **Steps:** Locate the navigation and screen; Use an assigned rider account and confirm your branch.
 - **Verify:** A legacy demo rider ID is not production authentication.
-- **Screen figure:** In the in-app manual, read boxes ① navigation, ② screen context, ③ key action, and ④ control check. These are illustrated schematics until authorized staging screenshots are collected.
+- **Screen figure:** Mobile rider workspace (rider). The visual below is illustrative, not a screenshot. During UAT, check actual controls against the corresponding authenticated screen.
+
+```mermaid
+flowchart LR
+  N["① Rider workspace"] --> V["② Verified rider sign in"]
+  V --> A["③ Record exception or cash declaration"]
+  A --> C["④ Physical delivery and cash handover are independent evidence events"]
+```
 
 ### 75. Rider COD declaration
 
@@ -990,7 +1508,14 @@ flowchart LR
 - **Purpose:** Declare physically collected COD money against eligible delivered jobs.
 - **Steps:** Locate the navigation and screen; Confirm counted cash and possession with an evidence note.
 - **Verify:** A rider declaration is not supervisor acceptance or bank remittance.
-- **Screen figure:** In the in-app manual, read boxes ① navigation, ② screen context, ③ key action, and ④ control check. These are illustrated schematics until authorized staging screenshots are collected.
+- **Screen figure:** Mobile rider workspace (rider). The visual below is illustrative, not a screenshot. During UAT, check actual controls against the corresponding authenticated screen.
+
+```mermaid
+flowchart LR
+  N["① Rider workspace"] --> V["② Rider COD declaration"]
+  V --> A["③ Record exception or cash declaration"]
+  A --> C["④ Physical delivery and cash handover are independent evidence events"]
+```
 
 ### 76. Rider demo sign in
 
@@ -999,7 +1524,14 @@ flowchart LR
 - **Purpose:** Open the legacy demonstration rider experience.
 - **Steps:** Locate the navigation and screen; Choose the demo identity to explore sample jobs.
 - **Verify:** No real rider payment, location or settlement is recorded.
-- **Screen figure:** In the in-app manual, read boxes ① navigation, ② screen context, ③ key action, and ④ control check. These are illustrated schematics until authorized staging screenshots are collected.
+- **Screen figure:** Mobile rider workspace (rider). The visual below is illustrative, not a screenshot. During UAT, check actual controls against the corresponding authenticated screen.
+
+```mermaid
+flowchart LR
+  N["① Rider demo"] --> V["② Rider demo sign in"]
+  V --> A["③ Record exception or cash declaration"]
+  A --> C["④ Physical delivery and cash handover are independent evidence events"]
+```
 
 ### 77. Today's rider jobs
 
@@ -1008,7 +1540,14 @@ flowchart LR
 - **Purpose:** View assigned example deliveries and their stage.
 - **Steps:** Locate the navigation and screen; Open a job, review destination and delivery instructions.
 - **Verify:** Legacy rider screens may contain illustrative data only.
-- **Screen figure:** In the in-app manual, read boxes ① navigation, ② screen context, ③ key action, and ④ control check. These are illustrated schematics until authorized staging screenshots are collected.
+- **Screen figure:** Mobile rider workspace (rider). The visual below is illustrative, not a screenshot. During UAT, check actual controls against the corresponding authenticated screen.
+
+```mermaid
+flowchart LR
+  N["① Rider demo"] --> V["② Today's rider jobs"]
+  V --> A["③ Record exception or cash declaration"]
+  A --> C["④ Physical delivery and cash handover are independent evidence events"]
+```
 
 ### 78. Rider job detail
 
@@ -1017,7 +1556,14 @@ flowchart LR
 - **Purpose:** Inspect a rider delivery job and available demo actions.
 - **Steps:** Locate the navigation and screen; Review assigned items and contact information before action.
 - **Verify:** Do not represent a demo completion as real delivery proof.
-- **Screen figure:** In the in-app manual, read boxes ① navigation, ② screen context, ③ key action, and ④ control check. These are illustrated schematics until authorized staging screenshots are collected.
+- **Screen figure:** Mobile rider workspace (rider). The visual below is illustrative, not a screenshot. During UAT, check actual controls against the corresponding authenticated screen.
+
+```mermaid
+flowchart LR
+  N["① Rider demo"] --> V["② Rider job detail"]
+  V --> A["③ Record exception or cash declaration"]
+  A --> C["④ Physical delivery and cash handover are independent evidence events"]
+```
 
 ### 79. Rider job history
 
@@ -1026,7 +1572,14 @@ flowchart LR
 - **Purpose:** Review previous example deliveries.
 - **Steps:** Locate the navigation and screen; Open a completed or failed example job for context.
 - **Verify:** Demo history is not a cash or settlement ledger.
-- **Screen figure:** In the in-app manual, read boxes ① navigation, ② screen context, ③ key action, and ④ control check. These are illustrated schematics until authorized staging screenshots are collected.
+- **Screen figure:** Mobile rider workspace (rider). The visual below is illustrative, not a screenshot. During UAT, check actual controls against the corresponding authenticated screen.
+
+```mermaid
+flowchart LR
+  N["① Rider demo"] --> V["② Rider job history"]
+  V --> A["③ Record exception or cash declaration"]
+  A --> C["④ Physical delivery and cash handover are independent evidence events"]
+```
 
 ## UAT and screenshot capture plan
 
