@@ -65,5 +65,10 @@ export function clearCheckoutAttemptAfterDefiniteRejection(
 ): boolean {
   if (!definitePreCommitRejections.has(errorCode)) return false;
   clearCheckoutAttemptKey(store);
+  // Some storage implementations silently ignore removeItem. Do not report a
+  // fresh retry identity until removal is independently verified.
+  if (store.getItem(CHECKOUT_ATTEMPT_KEY) !== null) {
+    throw new Error("The previous checkout identity could not be cleared. Please contact support before retrying.");
+  }
   return true;
 }
