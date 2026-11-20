@@ -28,6 +28,9 @@ export function decodePosCashHistoryCursor(cursor:string|undefined){
     const date=new Date(parsed.createdAt);
     if(!Number.isFinite(date.getTime()))
       throw new Error("Invalid timestamp");
+    // Issued cursors always use UTC ISO milliseconds; reject alternate offsets/precision.
+    if(parsed.createdAt!==date.toISOString())
+      throw new Error("Non-canonical timestamp");
     return {createdAt:date,id:parsed.id};
   }catch{
     throw new ApiProblem(400,"VALIDATION_FAILED","Invalid cash sale history cursor.");
