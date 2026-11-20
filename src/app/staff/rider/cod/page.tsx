@@ -108,9 +108,12 @@ export default function VerifiedRiderCodPage(){
         <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Declare cash in your possession</h1>
         <p className="text-sm text-muted-foreground">{riderName ? `Signed in: ${riderName}. ` : ""}Only your real, completed COD deliveries are listed.</p>
       </div>
-      <Button type="button" variant="outline" className="h-11 gap-2" onClick={signOut}>
-        <LogOut className="size-4" aria-hidden /> Sign out
-      </Button>
+      <div className="flex flex-wrap gap-2">
+        <Button variant="outline" className="min-h-11" asChild><Link href="/manual">User manual</Link></Button>
+        <Button type="button" variant="outline" className="h-11 gap-2" onClick={signOut}>
+          <LogOut className="size-4" aria-hidden /> Sign out
+        </Button>
+      </div>
     </header>
     <section role="note" className="flex gap-3 rounded-xl border border-amber-500/40 bg-amber-500/5 p-4 text-sm leading-6">
       <ShieldAlert className="mt-0.5 size-5 shrink-0 text-amber-700 dark:text-amber-300" aria-hidden />

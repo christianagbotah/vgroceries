@@ -49,7 +49,10 @@ export default function CashierWorkspacePage() {
     <main className="mx-auto min-h-screen max-w-4xl space-y-5 px-4 py-7 sm:px-6">
       <header className="flex flex-wrap items-center justify-between gap-3">
         <Link href="/" className="inline-flex min-h-11 items-center font-semibold text-primary">Variety Groceries</Link>
-        <Button variant="outline" className="min-h-11" onClick={() => void signOut()}>Sign out</Button>
+        <div className="flex flex-wrap gap-2">
+          <Button variant="outline" className="min-h-11" asChild><Link href="/manual">User manual</Link></Button>
+          <Button variant="outline" className="min-h-11" onClick={() => void signOut()}>Sign out</Button>
+        </div>
       </header>
       <div>
         <p className="text-sm font-semibold text-primary">Authenticated · Read only</p>
