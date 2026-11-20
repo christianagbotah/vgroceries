@@ -183,6 +183,24 @@ export class PaymentReconciliationService {
         return { attemptId, result: "exception" as const };
       }
 
+      // A provider may independently confirm the reference but still say
+      // "Unpaid"/Pending. That is NOT final settlement. Keep the attempt
+      // recoverable for a later lookup if the final Hubtel callback is lost.
+      if (["initiated", "pending"].includes(after.status)) {
+        if (after.settlementState === "reconciled")
+          await tx.paymentAttempt.update({
+            where: { id: attemptId },
+            data: { settlementState: "unsettled", version: { increment: 1 } },
+          });
+        await tx.paymentReconciliation.create({
+          data: this.reconciliationData(
+            attemptId, snapshot.provider, trigger, observation, "matched",
+            requestId, "Provider confirmed the reference but payment remains pending.",
+          ),
+        });
+        return { attemptId, result: "matched" as const };
+      }
+
       const alreadyReconciled = after.settlementState === "reconciled";
       if (!alreadyReconciled)
         await tx.paymentAttempt.update({

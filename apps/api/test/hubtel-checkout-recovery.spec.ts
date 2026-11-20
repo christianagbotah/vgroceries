@@ -59,7 +59,8 @@ test("default preview selects bounded, pending, unsettled hosted attempts withou
   assert.equal(query.where.provider, "hubtel");
   assert.equal(query.where.method, "hosted_checkout");
   assert.deepEqual(query.where.status, { in: ["initiated", "pending"] });
-  assert.equal(query.where.settlementState, "unsettled");
+  assert.deepEqual(query.where.settlementState, { in: ["unsettled", "reconciled"] });
+  assert.deepEqual(query.where.reconciliations, { none: { createdAt: { gte: new Date("2026-11-20T14:55:00Z") } } });
   assert.deepEqual(query.where.order, { paymentStatus: { in: ["pending", "unpaid"] } });
   assert.deepEqual(query.where.createdAt, { lte: new Date("2026-11-20T14:55:00Z") });
   assert.deepEqual(query.orderBy, [{ createdAt: "asc" }, { id: "asc" }]);

@@ -10,7 +10,7 @@ This change adds a missing **bounded, opt-in, provider-status recovery runner** 
 
 `npm run payments:hubtel:reconcile` in `apps/api` requires an existing compiled API and the usual private server environment. With no arguments it **previews** up to 10 eligible attempts and does not call Hubtel or change payment data.
 
-Eligibility is deliberately narrow: method **hosted_checkout**, provider **hubtel**, payment attempt `initiated` or `pending`, `settlementState=unsettled`, linked order `paymentStatus=pending/unpaid`, and created at least **5 minutes** ago (or later when `PAYMENT_RECONCILE_AFTER_SECONDS` is longer). Items already resolved or needing review are excluded. The oldest 10 are scanned first.
+Eligibility is deliberately narrow: method **hosted_checkout**, provider **hubtel**, payment attempt `initiated` or `pending`, linked order `paymentStatus=pending/unpaid`, and created at least **5 minutes** ago (or later when `PAYMENT_RECONCILE_AFTER_SECONDS` is longer). Include unsettled attempts and earlier erroneously tagged `reconciled` pending attempts; exclude final/exception states. A recent reconciliation within the same minimum interval causes a backoff before the next sweep. The oldest 10 are scanned first. An independently verified provider **Unpaid/Pending** lookup is evidence of an unresolved attempt, *not* final settlement: it leaves or restores `settlementState=unsettled` so later verified `Paid` evidence may still be applied. Repeated checks do not initiate new payment requests.
 
 An operator-reviewed one-shot execution is:
 

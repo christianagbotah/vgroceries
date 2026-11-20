@@ -57,8 +57,13 @@ export class HubtelPaymentRecoveryService {
         provider: "hubtel",
         method: "hosted_checkout",
         status: { in: ["initiated", "pending"] },
-        settlementState: "unsettled",
+        // Earlier builds could wrongly mark an Unpaid check "reconciled".
+        // Include those unresolved attempts and return them to unsettled.
+        settlementState: { in: ["unsettled", "reconciled"] },
         createdAt: { lte: cutoff },
+        // Avoid repeatedly selecting the same pending record while starving
+        // other customers in a bounded recovery batch.
+        reconciliations: { none: { createdAt: { gte: cutoff } } },
         order: { paymentStatus: { in: ["pending", "unpaid"] } },
       },
       select: { id: true },
