@@ -8,7 +8,10 @@ const openapi = () => JSON.parse(readFileSync(join(root, "docs/openapi-foundatio
 describe("registered POS customer selector production contract", () => {
   test("published route is authenticated GET only with bounded q and no mutations", () => {
     const doc = openapi();
-    expect(Object.keys(doc.paths)).toHaveLength(161);
+    // Generated production OpenAPI now includes the read-only paginated
+    // POS cash history route in addition to the existing customer selector.
+    expect(Object.keys(doc.paths)).toHaveLength(162);
+    expect(Object.keys(doc.paths["/api/v1/admin/pos/cash-sales/history"])).toEqual(["get"]);
     const route = doc.paths["/api/v1/admin/pos/customers"];
     expect(route).toBeDefined();
     expect(Object.keys(route)).toEqual(["get"]);
