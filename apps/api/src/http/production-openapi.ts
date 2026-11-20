@@ -480,6 +480,24 @@ export function productionOpenApi(app: INestApplication): OpenAPIObject {
     requestBody: { required: true, content: { "application/json": { schema: ref(requestSchema) } } },
     responses: authorityResponses(responseSchema),
   });
+  doc.paths["/api/v1/checkout/payment-availability"] = {
+    get: {
+      security: [],
+      description: "Read-only server payment/refund readiness for storefront display; not evidence of provider IP allowlisting, a successful charge or bank settlement.",
+      responses: {
+        "200": { description: "Current electronic checkout availability (never a payment receipt)", content: { "application/json": { schema: {
+          type:"object", additionalProperties:false, required:["ok","data"],
+          properties:{
+            ok:{type:"boolean",enum:[true]},
+            data:{type:"object",additionalProperties:false,required:["electronicAvailable","mode"],
+              properties:{electronicAvailable:{type:"boolean"},mode:{type:"string",enum:["production"]}}},
+          },
+        } } } },
+        "500": errorResponse,
+      },
+    },
+  };
+
   // Only configured customer-visible nodes from active server-validated routes.
   // No remote pickup is exposed unless the dedicated customer pickup flag is enabled.
   doc.paths["/api/v1/checkout/zones/{zoneId}/pickup-points"] = {
