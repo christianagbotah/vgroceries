@@ -42,6 +42,7 @@ are client components over the same mock API.
 | `/admin/pos` | Counter sales: barcode/search, tiles, cart, discounts (permission-gated), cash/MoMo/card, change, held drafts (with expiry), receipt print, transaction lookup, return entry (demo boundary) |
 | `/admin/pos/verified-uat` | Explicitly gated, administrator-only **read-only** real-API POS price preview; no sale, payment, or reservation actions |
 | `/admin/pos/verified-uat/history` | Separately gated, administrator-only **read-only** real-API POS cash-sale history (latest 50) with authenticated original receipt links; no cash collection or stock mutation |
+| `/admin/pos/verified-uat/reconciliation` | Separately gated administrator-only **read-only** server cash-drawer reconciliation for a selected till, including cash movements, cash sales, expected drawer cash, closing variance and authenticated CSV; excludes provider, tax and refund settlement |
 | `/admin/cashier-sessions` | Opening float, movements, expected vs counted, close & reconcile |
 | `/admin/products` | Products, variants, prices, availability, publication |
 | `/admin/products/[id]` | Product detail: variants + price change (audited), publication, lots, movements |

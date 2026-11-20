@@ -309,9 +309,10 @@ export function VerifiedPosQuoteUat() {
             scopeNote="Administrators may search active registered accounts across Variety Groceries. Phone numbers are masked." /> : null}
         </>
       ) : null}
-      {verifiedPosCashHistoryUatEnabled ? <Button asChild variant="outline">
-        <Link href="/admin/pos/verified-uat/history">Review verified cash-sale history</Link>
-      </Button> : null}
+      {verifiedPosCashHistoryUatEnabled ? <>
+        <Button asChild variant="outline"><Link href="/admin/pos/verified-uat/history">Review verified cash-sale history</Link></Button>
+        <Button asChild variant="outline"><Link href="/admin/pos/verified-uat/reconciliation">Review cash drawer reconciliation</Link></Button>
+      </> : null}
       <Button asChild variant="outline"><Link href="/admin/pos">Back to POS overview</Link></Button>
     </main>
   );

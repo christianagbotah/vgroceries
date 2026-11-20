@@ -179,6 +179,9 @@ export function VerifiedPosCashHistoryUat() {
         </article>)}
       </div>
     </> : null}
-    <Button variant="outline" asChild><Link href="/admin/pos/verified-uat">Back to POS preview</Link></Button>
+    <div className="flex flex-wrap gap-2">
+      <Button variant="outline" asChild><Link href="/admin/pos/verified-uat/reconciliation">Review cash drawer reconciliation</Link></Button>
+      <Button variant="outline" asChild><Link href="/admin/pos/verified-uat">Back to POS preview</Link></Button>
+    </div>
   </main>;
 }

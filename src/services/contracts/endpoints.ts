@@ -19,4 +19,5 @@ export const restEndpoints: Record<string, RestEndpoint> = {
   "pos.verified.quote": { method: "POST", path: "/admin/pos/quote" },
   // Administrator-only receipt history. GET never records cash or depletes stock.
   "pos.verified.cash-sales": { method: "GET", path: "/admin/pos/cash-sales" },
+  "pos.verified.reconciliation": { method: "GET", path: "/admin/pos/tills/{sessionId}/reconciliation" },
 };
