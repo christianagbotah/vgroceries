@@ -110,6 +110,15 @@ describe("checkout completion retry safety", () => {
     }
   });
 
+  test("silently ignored storage removal fails closed instead of claiming a fresh attempt", () => {
+    const { store, items } = makeStore();
+    const first = getOrCreateCheckoutAttemptKey(store, () => firstUuid);
+    const ignoredRemoval: CheckoutAttemptStore = { ...store, removeItem: () => {} };
+    expect(() => clearCheckoutAttemptAfterDefiniteRejection(ignoredRemoval, "OUT_OF_STOCK")).toThrow("could not be cleared");
+    expect(items.get(CHECKOUT_ATTEMPT_KEY)).toBe(first);
+    expect(getOrCreateCheckoutAttemptKey(store, () => secondUuid)).toBe(first);
+  });
+
   test("blocked storage does not claim a rejected attempt was reset", () => {
     const { store } = makeStore();
     getOrCreateCheckoutAttemptKey(store, () => firstUuid);
