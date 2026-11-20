@@ -219,3 +219,19 @@ test("history cursor rejects alternate timestamp offsets and precision before da
   assert.equal(activity().listCalls,0);
   assert.equal(activity().detailCalls,0);
 });
+
+
+test("history cursor encoder fails closed on invalid source records", () => {
+  const validId = randomUUID();
+  assert.throws(
+    () => encodePosCashHistoryCursor({ createdAt: new Date(Number.NaN), id: validId }),
+    /Cannot generate cash history cursor from invalid record/,
+  );
+  assert.throws(
+    () => encodePosCashHistoryCursor({ createdAt: new Date("2026-11-20T09:00:00.000Z"), id: "not-a-uuid" }),
+    /Cannot generate cash history cursor from invalid record/,
+  );
+  const createdAt = new Date("2026-11-20T09:00:00.000Z");
+  const cursor = encodePosCashHistoryCursor({ createdAt, id: validId });
+  assert.deepEqual(decodePosCashHistoryCursor(cursor), { createdAt, id: validId });
+});
