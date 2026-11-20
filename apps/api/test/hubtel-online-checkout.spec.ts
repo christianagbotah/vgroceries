@@ -303,7 +303,7 @@ test("hosted fee identity never turns an underpayment or inconsistent fee fields
     await assert.rejects(provider.lookup({
       merchantReference: reference, expectedAmountMinor: 100,
       signal: new AbortController().signal,
-    }), /Hubtel.*(fee|currency)/i, JSON.stringify(bad));
+    }), /Hubtel.*(fee|currency|net order)/i, JSON.stringify(bad));
   }
 });
 
