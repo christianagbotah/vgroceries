@@ -63,6 +63,20 @@ export default function CheckoutPage() {
   const [ghanaPostGps, setGhanaPostGps] = useState("");
 
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("electronic");
+  const [electronicAvailability, setElectronicAvailability] = useState<"checking" | "available" | "unavailable">("checking");
+  const [paymentAvailabilityRefresh, setPaymentAvailabilityRefresh] = useState(0);
+  useEffect(() => {
+    let active = true;
+    setElectronicAvailability("checking");
+    void apiOps.checkoutPaymentAvailability()
+      .then((result) => {
+        if (active) setElectronicAvailability(result.mode === "production" && result.electronicAvailable ? "available" : "unavailable");
+      })
+      .catch(() => {
+        if (active) setElectronicAvailability("unavailable");
+      });
+    return () => { active = false; };
+  }, [paymentAvailabilityRefresh]);
   const [placing, setPlacing] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [orderError, setOrderError] = useState<string | null>(null);
@@ -228,6 +242,11 @@ export default function CheckoutPage() {
   };
 
   const placeOrder = async () => {
+    // A client-side hint only. The server remains authoritative at checkout.
+    if (paymentMethod === "electronic" && electronicAvailability !== "available") {
+      setOrderError("Electronic payment is unavailable. No money has been requested. Choose an offered cash option or check again later.");
+      return;
+    }
     // A stale cart or an availability query failure must never reach the
     // checkout transaction. The backend performs a *second* locked check.
     setStockChecking(true);
@@ -649,10 +668,13 @@ export default function CheckoutPage() {
             </h2>
             <RadioGroup value={paymentMethod} onValueChange={(v) => setPaymentMethod(v as PaymentMethod)} className="grid gap-2 sm:grid-cols-2" aria-label="Payment method">
               <Label data-clickable htmlFor="pay-electronic" className={cn("flex cursor-pointer items-center gap-3 rounded-lg border p-3 font-normal", paymentMethod === "electronic" && "border-primary bg-primary/5")}>
-                <RadioGroupItem value="electronic" id="pay-electronic" />
+                <RadioGroupItem value="electronic" id="pay-electronic" disabled={electronicAvailability !== "available"} />
                 <span>
                   <span className="block text-sm font-medium">Electronic payment</span>
-                  <span className="block text-xs text-muted-foreground">Continue securely with the configured payment provider</span>
+                  <span className="block text-xs text-muted-foreground">
+                    {electronicAvailability === "available" ? "Continue securely with the configured payment provider"
+                      : electronicAvailability === "checking" ? "Checking payment availability…" : "Not currently available"}
+                  </span>
                 </span>
               </Label>
               {fulfilment === "collection" ? (
@@ -667,6 +689,17 @@ export default function CheckoutPage() {
                 </Label>
               ) : null}
             </RadioGroup>
+            {electronicAvailability !== "available" ? (
+              <div role="status" className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-amber-500/40 bg-amber-50/60 p-3 text-sm text-amber-950 dark:bg-amber-900/10 dark:text-amber-100">
+                <p className="min-w-0 flex-1">
+                  {electronicAvailability === "checking" ? "Checking whether secure electronic checkout is available…" :
+                    "Electronic payment is unavailable. No money has been requested. You may choose cash at collection or delivery only if offered above."}
+                </p>
+                <Button type="button" size="sm" variant="outline" className="min-h-9" disabled={electronicAvailability === "checking"} onClick={() => setPaymentAvailabilityRefresh(n => n + 1)}>
+                  Check again
+                </Button>
+              </div>
+            ) : null}
             <p className="text-xs text-muted-foreground">
               {paymentMethod === "electronic"
                 ? "After placing the order, the secure payment provider will show the payment options available for this order. Variety Groceries never asks you to choose a provider rail here."
@@ -722,14 +755,16 @@ export default function CheckoutPage() {
               ) : null}
             </div>
             <Button size="lg" className="h-12 w-full text-base" onClick={placeOrder}
-              disabled={placing || stockChecking || Boolean(stockError) || stockIssues.length > 0 || !meetsMinimum}>
+              disabled={placing || stockChecking || Boolean(stockError) || stockIssues.length > 0 || !meetsMinimum || (paymentMethod === "electronic" && electronicAvailability !== "available")}>
               {placing ? (
                 <>
                   <Loader2 className="size-5 animate-spin" aria-hidden /> Placing your order…
                 </>
               ) : (
                 <>
-                  Place order · {formatMoney(total)} <ArrowRight className="size-4" aria-hidden />
+                  {paymentMethod === "electronic" && electronicAvailability !== "available"
+                    ? electronicAvailability === "checking" ? "Checking payment availability…" : "Electronic checkout unavailable"
+                    : <>Place order · {formatMoney(total)} <ArrowRight className="size-4" aria-hidden /></>}
                 </>
               )}
             </Button>

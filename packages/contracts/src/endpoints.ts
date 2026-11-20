@@ -15,6 +15,7 @@ export const restEndpoints: Record<string, RestEndpoint> = {
   "catalog.by-variants": {"method": "POST", "path": "/catalog/products:by-variants"},
   "content.homepage": {"method": "GET", "path": "/content/homepage"},
   "content.page": {"method": "GET", "path": "/content/pages/{slug}"},
+  "checkout.payment-availability": {"method": "GET", "path": "/checkout/payment-availability"},
   "checkout.quote": {"method": "POST", "path": "/checkout/quote"},
   "checkout.complete": {"method": "POST", "path": "/checkout/complete"},
   "payments.initiate": {"method": "POST", "path": "/orders/{orderId}/payment-attempts"},
