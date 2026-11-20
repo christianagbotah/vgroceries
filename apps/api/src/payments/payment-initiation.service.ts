@@ -313,6 +313,7 @@ export class PaymentInitiationService {
       observation = await adapter.lookup({
         merchantReference: attempt.merchantReference,
         providerReference: attempt.providerRef ?? undefined,
+        expectedAmountMinor: attempt.amountMinor,
         signal: AbortSignal.timeout(this.paymentConfig().requestTimeoutMs),
       });
     } catch {

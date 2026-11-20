@@ -297,14 +297,39 @@ export class HubtelPaymentProvider implements PaymentProviderAdapter {
     const merchantReference = text(data, "clientReference", "ClientReference");
     if (merchantReference !== input.merchantReference)
       throw new Error("Hubtel collection status reference does not match the payment attempt.");
-    const amountMinor = moneyMinor(data.amount ?? data.Amount);
+    const grossMinor = moneyMinor(data.amount ?? data.Amount);
+    const chargeRaw = data.charges ?? data.Charges;
+    const netRaw = data.amountAfterCharges ?? data.AmountAfterCharges;
+    const chargesMinor = moneyMinor(chargeRaw);
+    const netMinor = moneyMinor(netRaw);
+    const hasFullBreakdown = chargeRaw != null && netRaw != null;
+    const validBreakdown = hasFullBreakdown && grossMinor !== undefined &&
+      chargesMinor !== undefined && netMinor !== undefined &&
+      grossMinor === netMinor + chargesMinor;
+    // Hubtel's observed production Online Checkout payment of ₵1.00 returned
+    // amount=₵1.01, charges=₵0.01 and amountAfterCharges=₵1.00.
+    // Only the server-owned original payment amount can authorize choosing the
+    // provider's net amount rather than its gross customer charge.
+    const expected = input.expectedAmountMinor;
+    const expectedValid = expected === undefined ||
+      (Number.isSafeInteger(expected) && expected > 0);
+    let amountMinor = grossMinor;
+    if (expected !== undefined && expectedValid && grossMinor !== expected &&
+        validBreakdown && netMinor === expected && chargesMinor! > 0)
+      amountMinor = netMinor;
     const currencyCode = data.currencyCode ?? data.CurrencyCode;
     // Hubtel's published status example returns currencyCode: null for a
     // Ghanaian collection account. Our merchant collection is GHS-only.
     const currencyValid = currencyCode === null || currencyCode === undefined ||
       String(currencyCode).toUpperCase() === "GHS";
     let observedState = state(data.status ?? data.Status);
-    if (observedState === "succeeded" && (amountMinor === undefined || !currencyValid))
+    // A contradictory explicit fee breakdown, malformed cents or a claimed
+    // fee-adjusted match without fee proof must NEVER settle a grocery order.
+    const contradictoryBreakdown = hasFullBreakdown && !validBreakdown;
+    const unprovenNetMatch = expected !== undefined && grossMinor !== expected &&
+      netMinor === expected && !validBreakdown;
+    if (observedState === "succeeded" && (grossMinor === undefined || !currencyValid ||
+        !expectedValid || contradictoryBreakdown || unprovenNetMatch))
       observedState = "unknown";
     const channelRaw = text(data, "paymentMethod", "PaymentMethod");
     const channel = channelRaw?.toLowerCase().replace(/[^a-z0-9_]/g, "_").slice(0, 48);
