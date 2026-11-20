@@ -2,7 +2,7 @@ import {Inject,Injectable} from "@nestjs/common";
 import {createHash,randomUUID} from "node:crypto";
 import {Prisma} from "@prisma/client";
 import {
-  posCashSaleListSchema,posCashSaleViewSchema,
+  posCashSaleListSchema,posCashSaleViewSchema,posCashSaleHistoryPageSchema,
   type PosCashSaleComplete,
 } from "@variety/contracts";
 import {API_CONFIG,type ApiConfig} from "../config";
@@ -10,6 +10,7 @@ import {Database} from "../database/database";
 import {ApiProblem} from "../http/errors";
 import {StockDepletionService} from "../inventory/stock-depletion.service";
 import {renderPosCashReceiptHtml} from "./pos-receipt-html";
+import {decodePosCashHistoryCursor,encodePosCashHistoryCursor} from "./pos-cash-history-cursor";
 
 type Tx=Prisma.TransactionClient;
 const hash=(x:unknown)=>createHash("sha256").update(JSON.stringify(x)).digest("hex");
@@ -101,6 +102,35 @@ export class PosCashSalesService {
     });
     return posCashSaleListSchema.parse({
       enabled:true,sales:rows.map(row=>this.viewFromRow(row)),
+    });
+  }
+  /** Stable, bounded keyset paging for cash-only administrator investigations.
+   * No offset scan, sale mutation, settlement claim or unbounded export.
+   */
+  async listPage(cursor?:string,limit=25){
+    this.ensureOn();
+    if(!Number.isSafeInteger(limit)||limit<1||limit>50)
+      throw new ApiProblem(400,"VALIDATION_FAILED",
+        "Cash sale history page size must be between 1 and 50.");
+    const position=decodePosCashHistoryCursor(cursor);
+    const rows=await this.db.posCashSale.findMany({
+      ...(position?{where:{OR:[
+        {createdAt:{lt:position.createdAt}},
+        {createdAt:position.createdAt,id:{lt:position.id}},
+      ]}}:{}),
+      orderBy:[{createdAt:"desc"},{id:"desc"}],
+      take:limit+1,
+      include:{hold:{include:{lines:{orderBy:[{variantId:"asc"},{id:"asc"}]}}}},
+    });
+    const hasMore=rows.length>limit;
+    const page=rows.slice(0,limit);
+    const last=page.at(-1);
+    return posCashSaleHistoryPageSchema.parse({
+      enabled:true,
+      sales:page.map(row=>this.viewFromRow(row)),
+      hasMore,
+      nextCursor:hasMore&&last
+        ?encodePosCashHistoryCursor({createdAt:last.createdAt,id:last.id}):null,
     });
   }
   async complete(actorId:string,key:string,requestId:string,input:PosCashSaleComplete){

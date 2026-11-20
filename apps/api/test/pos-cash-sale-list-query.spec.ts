@@ -2,6 +2,9 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { PosCashSalesService } from "../src/cashier-tills/pos-cash-sales.service";
+import {
+  decodePosCashHistoryCursor, encodePosCashHistoryCursor,
+} from "../src/cashier-tills/pos-cash-history-cursor";
 import type { Database } from "../src/database/database";
 import type { ApiConfig } from "../src/config";
 import type { StockDepletionService } from "../src/inventory/stock-depletion.service";
@@ -106,4 +109,64 @@ test("cash history accepts no sales in one bounded read", async () => {
   assert.deepEqual(await instance.list(), { enabled: true, sales: [] });
   assert.equal(activity().listCalls, 1);
   assert.equal(activity().detailCalls, 0);
+});
+
+test("keyset cash history returns a bounded 25-row page with a verifiable continuation", async () => {
+  const data = Array.from({ length: 26 }, (_, i) => ({
+    ...sale(i), createdAt: new Date(Date.UTC(2026,10,20,12,0,0)-i*1000),
+  }));
+  const { instance, activity } = setup(data);
+  const page = await instance.listPage();
+  assert.equal(page.enabled, true);
+  assert.equal(page.sales.length, 25);
+  assert.equal(page.hasMore, true);
+  assert.equal(page.sales[24]?.reference, "VG-POS-TEST-24");
+  assert.equal(page.nextCursor!==null, true);
+  const position = decodePosCashHistoryCursor(page.nextCursor!);
+  assert.equal(position?.id, data[24]!.id);
+  assert.equal(position?.createdAt.toISOString(),data[24]!.createdAt.toISOString());
+  assert.equal(activity().listCalls,1);
+  assert.equal(activity().detailCalls,0);
+  assert.deepEqual(activity().receivedOptions, {
+    orderBy:[{createdAt:"desc"},{id:"desc"}],take:26,
+    include:{hold:{include:{lines:{orderBy:[{variantId:"asc"},{id:"asc"}]}}}},
+  });
+});
+
+test("later keyset page uses both timestamp and ID, never an offset", async () => {
+  const pivot=sale(1),date=new Date("2026-11-20T11:59:00.000Z");
+  const cursor=encodePosCashHistoryCursor({createdAt:date,id:pivot.id});
+  const { instance, activity }=setup([sale(2)]);
+  const page=await instance.listPage(cursor,5);
+  assert.equal(page.hasMore,false);
+  assert.equal(page.nextCursor,null);
+  assert.equal(page.sales.length,1);
+  assert.deepEqual(activity().receivedOptions,{
+    where:{OR:[
+      {createdAt:{lt:date}},
+      {createdAt:date,id:{lt:pivot.id}},
+    ]},
+    orderBy:[{createdAt:"desc"},{id:"desc"}],take:6,
+    include:{hold:{include:{lines:{orderBy:[{variantId:"asc"},{id:"asc"}]}}}},
+  });
+});
+
+test("malformed and oversized continuation or page size fail before touching database", async () => {
+  const {instance,activity}=setup([sale(1)]);
+  for(const cursor of [
+    "!", "A", "../evil", "x".repeat(257),
+    Buffer.from(JSON.stringify({createdAt:"bad",id:randomUUID()})).toString("base64url"),
+    Buffer.from(JSON.stringify({createdAt:new Date().toISOString(),id:"bad"})).toString("base64url"),
+    Buffer.from("not-json").toString("base64url"),
+  ]) await assert.rejects(()=>instance.listPage(cursor),/Invalid cash sale history cursor/);
+  for(const size of [0,-1,51,1.25,Number.POSITIVE_INFINITY])
+    await assert.rejects(()=>instance.listPage(undefined,size),/page size/i);
+  assert.equal(activity().listCalls,0);
+  assert.equal(activity().detailCalls,0);
+});
+
+test("a disabled cash-sale authority blocks all paged reads",async()=>{
+  const {instance,activity}=setup([sale(1)],false);
+  await assert.rejects(()=>instance.listPage(),/not activated/i);
+  assert.equal(activity().listCalls,0);
 });

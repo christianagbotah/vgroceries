@@ -7,6 +7,7 @@ import { operationMeta } from "../src/services/operation-registry";
 import {
   assertVerifiedPosCashHistoryUat,
   parseVerifiedPosCashHistory,
+  parseVerifiedPosCashHistoryPage,
   verifiedPosReceiptPrintUrl,
 } from "../src/features/staff/verified-pos-cash-history-client";
 
@@ -74,6 +75,62 @@ describe("Real-API POS cash-sale history, administrator-only and read-only", () 
       { enabled: true, sales: Array.from({ length: 51 }, () => sample) },
       null,
     ]) expect(() => parseVerifiedPosCashHistory(envelope)).toThrow();
+  });
+
+  test("rejects spoofed, unsorted, duplicate or non-advancing keyset pages", () => {
+    const newer = { ...sample, id: uuid("05"), reference: "VG-POS-NEW" };
+    const page = {
+      enabled: true as const, sales: [newer, sample],
+      hasMore: true, nextCursor: "eyJwIjoiMTIzIn0",
+    };
+    expect(parseVerifiedPosCashHistoryPage(page)).toEqual(page);
+    for (const bad of [
+      { hasMore: true, nextCursor: null },
+      { hasMore: false, nextCursor: "abc" },
+      { nextCursor: "" },
+      { nextCursor: "../" },
+      { sales: [sample, newer] },
+      { sales: [sample, sample] },
+      { sales: [{ ...sample, electronicPaymentVerified: true }] },
+      { sales: Array.from({ length: 51 }, () => sample) },
+      { extra: "untrusted" },
+    ]) expect(() => parseVerifiedPosCashHistoryPage({ ...page, ...bad })).toThrow();
+    expect(() => parseVerifiedPosCashHistoryPage(page, page.nextCursor)).toThrow();
+    expect(parseVerifiedPosCashHistoryPage({
+      enabled: true, sales: [], hasMore: false, nextCursor: null,
+    }).sales).toEqual([]);
+  });
+
+  test("new page API resolves to authenticated GET with fixed page limit and no cache", async () => {
+    expect(restEndpoints["pos.verified.cash-sales-page"]).toEqual({
+      method: "GET", path: "/admin/pos/cash-sales/history",
+    });
+    expect(operationMeta["pos.verified.cash-sales-page"]).toEqual({});
+    let calls = 0;
+    globalThis.fetch = (async (url: string | Request | URL, init?: RequestInit) => {
+      calls++;
+      expect(String(url)).toBe(
+        "https://portal.example.test/api/v1/admin/pos/cash-sales/history?limit=25&cursor=abc123",
+      );
+      expect(init?.method).toBe("GET");
+      expect(init?.body).toBeUndefined();
+      expect(init?.credentials).toBe("include");
+      expect(init?.cache).toBe("no-store");
+      return new Response(JSON.stringify({
+        ok: true, data: {
+          enabled: true, sales: [sample], hasMore: false, nextCursor: null,
+        },
+      }), { status: 200, headers: { "content-type": "application/json" } });
+    }) as typeof fetch;
+    const adapter = new HttpServiceAdapter(
+      "https://portal.example.test/api/v1", { credentials: "include" },
+    );
+    const response = await adapter.request({
+      op: "pos.verified.cash-sales-page",
+      query: { limit: 25, cursor: "abc123" },
+    });
+    expect(parseVerifiedPosCashHistoryPage(response, "abc123").sales).toEqual([sample]);
+    expect(calls).toBe(1);
   });
 
   test("prints only known UUID on validated real API, no customer data in URL", () => {

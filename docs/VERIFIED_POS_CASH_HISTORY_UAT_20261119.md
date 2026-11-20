@@ -18,19 +18,30 @@ turn it on. The `AdminAuthGate` is UX-level protection; the NestJS
 
 ## Data and available UI
 
-- `GET /api/v1/admin/pos/cash-sales` is the **only** cash-history service operation.
-  It reports at most the most recent 50 entries, not a complete financial ledger.
-  The API now eager-loads those 50 sale records with their original stock-hold
-  line prices in one bounded Prisma relation fetch rather than running a
-  separate detail lookup for every sale. The strict public response contract,
-  administrator requirement, ordering and default-OFF backend flag remain
-  unchanged; the real API test suite has a no-N+1 query regression.
+- The legacy `GET /api/v1/admin/pos/cash-sales` returns the latest 50 records
+  for backwards compatibility. The new admin history UI instead uses
+  `GET /api/v1/admin/pos/cash-sales/history?limit=25&cursor=...` with a
+  validated time-and-ID keyset cursor. It presents 25 records at a time and
+  can request older pages without an unbounded client cache or offset scan.
+  The server caps page size at 50, uses one sentinel record to detect another
+  page, and rejects unknown parameters, malformed cursors and oversized limits.
+  No aggregate count or settlement claims are made.
+  Both endpoints eager-load bounded sales with their original stock-hold
+  line prices in one Prisma relation fetch rather than running separate
+  detail lookups. The strict public contracts, administrator requirement,
+  ordering and default-OFF backend flag remain unchanged. The isolated API
+  suite tests both the no-N+1 query and deterministic cursor bounds.
 - The shared, strict `posCashSaleListSchema` validates all rows. The client
   additionally rejects duplicate identities, inconsistent line/cash totals,
   paid/electronic and tax-invoice assertions and overlong listings.
-- The UI supports searching only the already returned list by reference,
-  customer name or till ID; an empty result does not assert that a till is
-  balanced or that the full business history is empty.
+- The UI supports searching only the current server page by reference,
+  customer name or till ID; it labels that scope clearly. “Older sales”
+  advances with the server continuation token, “Newer sales” restores the
+  previous cursor, and each navigation replaces (rather than accumulates)
+  sensitive sale records in browser state. Refresh restarts on page one.
+  If permissions expire between pages, previously displayed records are cleared.
+  An empty page does not assert that a till is balanced or that the full
+  business history is empty.
 - Each record includes server-created sale reference, timestamp in Ghana time,
   original cashier-till identifier, item quantities, cash counted, change
   handed to the customer, and total in **₵**. SKU IDs appear in the item

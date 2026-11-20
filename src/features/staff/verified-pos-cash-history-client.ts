@@ -1,7 +1,9 @@
 import { z } from "zod";
 import {
   posCashSaleListSchema,
+  posCashSaleHistoryPageSchema,
   type PosCashSaleView,
+  type PosCashSaleHistoryPage,
 } from "@/services/contracts";
 import { ApiError } from "@/services/adapters/types";
 import { isDemoStaffSessionActive } from "./staff-demo-session";
@@ -42,6 +44,46 @@ export function parseVerifiedPosCashHistory(input: unknown): PosCashSaleView[] {
       throw new ApiError("BAD_RESPONSE", "Cash history totals could not be reconciled.");
   }
   return parsed.data.sales;
+}
+
+/** Validate the server's single bounded page before rendering any records. */
+export function parseVerifiedPosCashHistoryPage(
+  input: unknown, requestedCursor?: string,
+): PosCashSaleHistoryPage {
+  const parsed = posCashSaleHistoryPageSchema.safeParse(input);
+  if (!parsed.success)
+    throw new ApiError("BAD_RESPONSE", "The cash-sale history page was invalid.");
+  const page = parsed.data;
+  parseVerifiedPosCashHistory({ enabled: true, sales: page.sales });
+  if (page.nextCursor && page.nextCursor === requestedCursor)
+    throw new ApiError("BAD_RESPONSE", "The cash-sale history cursor did not advance.");
+  for (let i = 1; i < page.sales.length; i++) {
+    const newer = page.sales[i - 1]!, older = page.sales[i]!;
+    const newerTime = Date.parse(newer.createdAt);
+    const olderTime = Date.parse(older.createdAt);
+    if (newerTime < olderTime ||
+        (newerTime === olderTime && newer.id <= older.id))
+      throw new ApiError("BAD_RESPONSE", "The sale history was not ordered consistently.");
+  }
+  return page;
+}
+
+export async function loadVerifiedPosCashHistoryPage(
+  cursor?: string,
+): Promise<PosCashSaleHistoryPage> {
+  assertVerifiedPosCashHistoryUat({
+    enabled: verifiedPosCashHistoryUatEnabled,
+    demo: isDemoStaffSessionActive(),
+    apiBase: process.env.NEXT_PUBLIC_API_BASE_URL,
+  });
+  if (cursor !== undefined &&
+      (cursor.length > 256 || !/^[A-Za-z0-9_-]+$/.test(cursor)))
+    throw new ApiError("VALIDATION_FAILED", "An invalid sale-history cursor was supplied.");
+  const { api } = await import("@/services/client");
+  const page = await api<unknown>("pos.verified.cash-sales-page", {
+    query: { limit: 25, ...(cursor ? { cursor } : {}) },
+  });
+  return parseVerifiedPosCashHistoryPage(page, cursor);
 }
 
 export function verifiedPosReceiptPrintUrl(saleId: string, apiBase: string): string {
