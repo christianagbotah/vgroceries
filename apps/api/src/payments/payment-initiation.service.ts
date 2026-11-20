@@ -137,7 +137,7 @@ export class PaymentInitiationService {
       if (this.config.stagingMomoPilot) {
         // Global per-customer advisory lock prevents separate orders racing the
         // single owner pilot. Idempotent replays returned before this gate.
-        await tx.$executeRaw\`SELECT pg_advisory_xact_lock(hashtextextended(\${"vg-staging-momo-pilot:"+this.config.stagingMomoPilot.customerId},0))\`;
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${"vg-staging-momo-pilot:"+this.config.stagingMomoPilot.customerId},0))`;
         const previous = await tx.paymentAttempt.count({ where: {
           provider: "hubtel", method: "mobile_money",
           order: { customerUserId: this.config.stagingMomoPilot.customerId },
