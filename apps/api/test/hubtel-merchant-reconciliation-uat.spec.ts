@@ -223,8 +223,12 @@ test("Hubtel 403 on lookup preserves payment uncertainty and never issues anothe
   const {orderId,attempt,token,paymentIdempotencyKey}=await checkout();
   statusMode="forbidden";
   const event=await callback(attempt.merchantReference,"Paid");
-  assert.ok(event.status>=400,"lookup failure must not produce a settled success");
+  // HTTP 200 may acknowledge persisted callback evidence even when the
+  // independent provider status call returned 403. It is NOT a paid receipt.
+  assert.equal(event.status,200);
+  assert.equal(await db.paymentProviderEvent.count({where:{paymentAttemptId:attempt.id}}),1);
   assert.notEqual((await db.order.findUniqueOrThrow({where:{id:orderId}})).paymentStatus,"succeeded");
+  assert.notEqual((await db.paymentAttempt.findUniqueOrThrow({where:{id:attempt.id}})).status,"succeeded");
   assert.equal(await db.outboxEvent.count({where:{type:"payment.succeeded",aggregateId:attempt.id}}),0);
   const replay=await post(`/orders/${orderId}/payment-attempts`,{},{
     authorization:`Bearer ${token}`,origin:"http://localhost:3000",
