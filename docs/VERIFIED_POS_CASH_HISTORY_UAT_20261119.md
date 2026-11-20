@@ -18,8 +18,13 @@ turn it on. The `AdminAuthGate` is UX-level protection; the NestJS
 
 ## Data and available UI
 
-- `GET /api/v1/admin/pos/cash-sales` is the **only** service operation.
+- `GET /api/v1/admin/pos/cash-sales` is the **only** cash-history service operation.
   It reports at most the most recent 50 entries, not a complete financial ledger.
+  The API now eager-loads those 50 sale records with their original stock-hold
+  line prices in one bounded Prisma relation fetch rather than running a
+  separate detail lookup for every sale. The strict public response contract,
+  administrator requirement, ordering and default-OFF backend flag remain
+  unchanged; the real API test suite has a no-N+1 query regression.
 - The shared, strict `posCashSaleListSchema` validates all rows. The client
   additionally rejects duplicate identities, inconsistent line/cash totals,
   paid/electronic and tax-invoice assertions and overlong listings.

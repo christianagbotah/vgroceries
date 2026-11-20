@@ -34,12 +34,9 @@ export class PosCashSalesService {
       throw new ApiProblem(503,"UNAVAILABLE",
         "Commerce inventory configuration is unavailable.");
   }
-  private async view(tx:Tx,id:string){
-    const row=await tx.posCashSale.findUnique({
-      where:{id},
-      include:{hold:{include:{lines:{orderBy:[{variantId:"asc"},{id:"asc"}]}}}},
-    });
-    if(!row)throw new ApiProblem(404,"NOT_FOUND","Counter cash sale not found.");
+  private viewFromRow(row:Prisma.PosCashSaleGetPayload<{
+    include:{hold:{include:{lines:true}}};
+  }>){
     return posCashSaleViewSchema.parse({
       id:row.id,reference:row.reference,holdId:row.holdId,
       tillSessionId:row.tillSessionId,locationId:row.locationId,
@@ -57,6 +54,14 @@ export class PosCashSalesService {
         unitPriceMinor:l.unitPriceMinor,lineTotalMinor:l.lineTotalMinor,
       })),
     });
+  }
+  private async view(tx:Tx,id:string){
+    const row=await tx.posCashSale.findUnique({
+      where:{id},
+      include:{hold:{include:{lines:{orderBy:[{variantId:"asc"},{id:"asc"}]}}}},
+    });
+    if(!row)throw new ApiProblem(404,"NOT_FOUND","Counter cash sale not found.");
+    return this.viewFromRow(row);
   }
   async detail(id:string){this.ensureOn();return this.view(this.db as Tx,id);}
   async printReceipt(id:string){
@@ -86,12 +91,16 @@ export class PosCashSalesService {
   }
   async list(){
     this.ensureOn();
+    // A bounded nested read replaces the former N+1 fetch (one select for
+    // IDs and as many as 50 individual view queries). Keep each sale's hold
+    // lines and their original prices together in the returned snapshot.
     const rows=await this.db.posCashSale.findMany({
       orderBy:[{createdAt:"desc"},{id:"desc"}],
-      take:50,select:{id:true},
+      take:50,
+      include:{hold:{include:{lines:{orderBy:[{variantId:"asc"},{id:"asc"}]}}}},
     });
     return posCashSaleListSchema.parse({
-      enabled:true,sales:await Promise.all(rows.map(x=>this.view(this.db as Tx,x.id))),
+      enabled:true,sales:rows.map(row=>this.viewFromRow(row)),
     });
   }
   async complete(actorId:string,key:string,requestId:string,input:PosCashSaleComplete){
