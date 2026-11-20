@@ -103,7 +103,7 @@ test("HTTP previously authenticated cashier loses access after live branch revoc
 
 test("OpenAPI documents only a protected GET for cashier workspace", () => {
   const paths = productionOpenApi(app).paths;
-  assert.equal(Object.keys(paths).length, 161);
+  assert.equal(Object.keys(paths).length, 162);
   const route = paths["/api/v1/cashier/pos/workspace"];
   assert.ok(route?.get);
   assert.equal(route?.post, undefined);
