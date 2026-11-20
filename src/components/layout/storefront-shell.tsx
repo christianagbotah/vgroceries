@@ -56,6 +56,7 @@ const NAV: NavItem[] = [
     category: category.slug,
   })),
   { href: "/help", label: "Help" },
+  { href: "/manual", label: "User manual" },
 ];
 
 function Brand({ compact = false, inverse = false }: { compact?: boolean; inverse?: boolean }) {

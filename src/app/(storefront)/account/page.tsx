@@ -8,7 +8,7 @@ import { LoadingState, ErrorState } from "@/components/shared/states";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Package, RotateCcw, ShoppingBag, MapPin, UserRound } from "lucide-react";
+import { BookOpen, Package, RotateCcw, ShoppingBag, MapPin, UserRound } from "lucide-react";
 
 export default function AccountPage() {
   const router = useRouter();
@@ -52,7 +52,7 @@ export default function AccountPage() {
         </CardContent>
       </Card>
 
-      <div className="grid gap-3 sm:grid-cols-3">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <Link href="/account/orders" className="group rounded-xl border bg-card p-4 transition-colors hover:border-primary/50">
           <p className="flex items-center gap-2 text-sm font-semibold">
             <ShoppingBag className="size-4 text-primary" aria-hidden /> {data.ordersCount} orders
@@ -70,6 +70,12 @@ export default function AccountPage() {
             <MapPin className="size-4 text-primary" aria-hidden /> {data.addresses.length} addresses
           </p>
           <p className="mt-1 text-xs text-muted-foreground">Saved delivery addresses</p>
+        </Link>
+        <Link href="/manual" className="group rounded-xl border bg-card p-4 transition-colors hover:border-primary/50">
+          <p className="flex items-center gap-2 text-sm font-semibold">
+            <BookOpen className="size-4 text-primary" aria-hidden /> User manual
+          </p>
+          <p className="mt-1 text-xs text-muted-foreground">Illustrated guides, workflows and printable instructions</p>
         </Link>
       </div>
 

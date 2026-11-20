@@ -5,7 +5,7 @@ import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { Bike, ClipboardList, LogOut, MapPin } from "lucide-react";
+import { Bike, BookOpen, ClipboardList, LogOut, MapPin } from "lucide-react";
 import { useEffect, useState } from "react";
 
 const RIDER_KEY = "vg-rider-id-v1";
@@ -40,6 +40,7 @@ export function RiderShell({ children, riderName }: { children: React.ReactNode;
   const nav = [
     { href: "/rider", label: "Today", icon: MapPin },
     { href: "/rider/history", label: "History", icon: ClipboardList },
+    { href: "/rider/guide", label: "User guide", icon: BookOpen },
   ];
 
   return (
