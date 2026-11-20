@@ -8,10 +8,17 @@ import sys
 from dataclasses import dataclass
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlsplit, urlunsplit
-from urllib.request import Request, urlopen
+from urllib.request import HTTPRedirectHandler, Request, build_opener
 
 PATH = "/api/v1/checkout/payment-availability"
 MAX_BODY = 32768
+
+
+class NoRedirect(HTTPRedirectHandler):
+    """Do not follow staging redirects to login pages or third-party hosts."""
+
+    def redirect_request(self, request, fp, code, msg, headers, newurl):
+        return None
 
 
 @dataclass(frozen=True)
@@ -76,7 +83,7 @@ def probe(origin: str, timeout: float) -> Result:
         headers={"Accept": "application/json", "Cache-Control": "no-store", "User-Agent": "vg-checkout-readiness-audit/1"},
     )
     try:
-        with urlopen(request, timeout=timeout) as response:
+        with build_opener(NoRedirect()).open(request, timeout=timeout) as response:
             if response.geturl() != endpoint:
                 return Result(4, "FAIL: checkout availability unexpectedly redirected.")
             body = response.read(MAX_BODY + 1)

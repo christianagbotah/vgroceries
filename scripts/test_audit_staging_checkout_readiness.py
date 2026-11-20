@@ -87,21 +87,27 @@ class CheckoutAvailabilityProbeTest(unittest.TestCase):
                     mod.endpoint_from_origin(origin)
 
     def test_probe_is_read_only_no_body_or_credentials(self):
-        with patch.object(mod, "urlopen", return_value=FakeResponse()) as open_url:
+        with patch.object(mod, "build_opener") as factory:
+            factory.return_value.open.return_value = FakeResponse()
             outcome = mod.probe(ORIGIN, 3)
         self.assertEqual(outcome.code, 0)
-        request = open_url.call_args.args[0]
+        self.assertIsInstance(factory.call_args.args[0], mod.NoRedirect)
+        request = factory.return_value.open.call_args.args[0]
         self.assertEqual(request.get_method(), "GET")
         self.assertEqual(request.full_url, URL)
         self.assertIsNone(request.data)
         self.assertNotIn("Authorization", request.headers)
 
     def test_redirect_and_network_errors_cannot_pass(self):
-        with patch.object(mod, "urlopen", return_value=FakeResponse(url=ORIGIN + "/login")):
+        self.assertIsNone(mod.NoRedirect().redirect_request(None, None, 302, "Found", {}, ORIGIN + "/login"))
+        with patch.object(mod, "build_opener") as factory:
+            factory.return_value.open.return_value = FakeResponse(url=ORIGIN + "/login")
             self.assertEqual(mod.probe(ORIGIN, 3).code, 4)
-        with patch.object(mod, "urlopen", side_effect=HTTPError(URL, 404, "missing", {}, None)):
+            factory.return_value.open.side_effect = HTTPError(URL, 302, "Redirect", {}, None)
             self.assertEqual(mod.probe(ORIGIN, 3).code, 4)
-        with patch.object(mod, "urlopen", side_effect=URLError("blocked")):
+            factory.return_value.open.side_effect = HTTPError(URL, 404, "Missing", {}, None)
+            self.assertEqual(mod.probe(ORIGIN, 3).code, 4)
+            factory.return_value.open.side_effect = URLError("blocked")
             self.assertEqual(mod.probe(ORIGIN, 3).code, 4)
 
 
