@@ -64,7 +64,7 @@ test("staging pilot is off unless all restricted owner payment settings are expr
     {STAGING_MOMO_PILOT_PHONE:"0241111111"},
     {STAGING_MOMO_PILOT_CHANNEL:"visa"},
     {STAGING_MOMO_PILOT_MAX_MINOR:"999999"},
-    {STAGING_MOMO_PILOT_EXPIRES_AT:"2020-01-01T00:00:00.000Z"},
+
     {STAGING_MOMO_PILOT_EXPIRES_AT:new Date(Date.now()+26*3600000).toISOString()},
     {HUBTEL_REFUND_BASE_URL:"https://example.test"},
     {HUBTEL_REFUND_BASIC_PASSWORD:"different"},
@@ -74,6 +74,15 @@ test("staging pilot is off unless all restricted owner payment settings are expr
   ]) {
     assert.throws(()=>readConfig({...env(),...change}),/Staging|staging|Pilot|pilot|Hubtel|Refund|payment/);
   }
+});
+
+test("expired pilot fails closed without taking the staging API offline on restart",()=>{
+  const config=readConfig({...env(),STAGING_MOMO_PILOT_EXPIRES_AT:"2020-01-01T00:00:00.000Z"});
+  assert.ok(config.stagingMomoPilot);
+  const locked=new PaymentPolicyService(config,{} as never,{} as never,{} as never);
+  assert.throws(()=>locked.assertStagingPilotCustomer({
+    kind:"customer",userId:id,actorId:id,actorScope:"customer:"+id,
+  }), /restricted/);
 });
 
 test("staging pilot denies guest/other users, changed phone/network, > cap and permits only exact owner",()=>{

@@ -679,7 +679,8 @@ export function readConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
         !Number.isSafeInteger(maxMinor) || maxMinor < 100 || maxMinor > 1_000 ||
         !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?Z$/.test(expiresRaw) ||
         !Number.isFinite(expiresAt.valueOf()) ||
-        expiresAt.valueOf() <= Date.now() ||
+        // The pilot must fail closed after expiry WITHOUT preventing the
+        // staging API from restarting. Runtime policy denies expired pilots.
         expiresAt.valueOf() - Date.now() > 24 * 60 * 60 * 1000)
       throw new Error("Staging MoMo pilot requires one customer UUID, one Ghana phone/network, <= ₵10 and <= 24h expiry");
     stagingMomoPilot = { customerId, phone, channel: channel as StagingMomoPilotConfig["channel"], maxMinor, expiresAt };
