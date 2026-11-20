@@ -203,3 +203,19 @@ test("history cursor rejects duplicate keys and noncanonical JSON before queryin
   assert.equal(activity().listCalls,0);
   assert.equal(activity().detailCalls,0);
 });
+
+test("history cursor rejects alternate timestamp offsets and precision before database access",async()=>{
+  const {instance,activity}=setup([sale(1)]);
+  const row=sale(2);
+  const invalid=[
+    "2026-11-20T09:00:00+00:00",
+    "2026-11-20T09:00:00Z",
+    "2026-11-20T10:00:00.000+01:00",
+  ];
+  for(const createdAt of invalid){
+    const cursor=Buffer.from(JSON.stringify({createdAt,id:row.id})).toString("base64url");
+    await assert.rejects(()=>instance.listPage(cursor),/Invalid cash sale history cursor/);
+  }
+  assert.equal(activity().listCalls,0);
+  assert.equal(activity().detailCalls,0);
+});
