@@ -35,7 +35,8 @@ interface StageAResult {
 
 function requestHash(orderId: string, input: PaymentInitiationRequest) {
   return createHash("sha256")
-    .update(JSON.stringify({ orderId, payerPhone: input.payerPhone ?? null, payerChannel: input.payerChannel ?? null }))
+    .update(JSON.stringify({ orderId, payerPhone: input.payerPhone ?? null,
+      ...(input.payerChannel ? { payerChannel: input.payerChannel } : {}) }))
     .digest("hex");
 }
 
