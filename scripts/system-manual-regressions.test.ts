@@ -7,6 +7,7 @@ import {
 import {MANUAL_WORKFLOWS,workflowsForRole} from "../src/features/manual/workflows";
 import {createOfflineManualHtml,printManualAsPdf} from "../src/features/manual/export";
 import {manualVisual,type ManualVisualType} from "../src/features/manual/visual-model";
+import {createManualUatCsv,downloadManualUatCsv,MANUAL_UAT_HEADER} from "../src/features/manual/uat-evidence";
 
 const root=resolve(import.meta.dir,"..");
 function* files(directory:string):Generator<string>{
@@ -153,6 +154,30 @@ describe("Role-aware illustrated system manual",()=>{
     }
   });
 
+  test("79-screen screenshot UAT checklist remains entirely unapproved and empty of private data",()=>{
+    const csv=createManualUatCsv(MANUAL_SCREENS);
+    expect(readFileSync(join(root,"docs/MANUAL_SCREENSHOT_UAT_TEMPLATE_20261120.csv"),"utf8")).toBe(csv.replaceAll("\r\n","\n"));
+    const lines=csv.trimEnd().split("\r\n");
+    expect(lines).toHaveLength(80);
+    expect(MANUAL_UAT_HEADER).toHaveLength(15);
+    expect(lines[0]).toContain("Source release SHA");
+    expect(lines[0]).toContain("Role and direct URL UAT");
+    expect(lines[1]).toContain("vg-001-home-desktop.png");
+    expect(lines[1]).toContain("vg-001-home-mobile.png");
+    expect(lines[1]).not.toContain("PASS");
+    expect((csv.match(/NOT_TESTED/g)??[]).length).toBe(MANUAL_SCREENS.length*4);
+    for(const screen of MANUAL_SCREENS){
+      expect(csv).toContain(screen.path);
+      expect(csv).toContain(screen.title);
+    }
+    expect(csv).not.toContain("approval granted");
+    const tampered=createManualUatCsv([{...MANUAL_SCREENS[0]!,title:'=HYPERLINK("https://invalid.test","bad")'}]);
+    expect(tampered).toContain("\"'=HYPERLINK");
+    expect(tampered).not.toContain("\"=HYPERLINK");
+    expect(()=>downloadManualUatCsv("customer",MANUAL_SCREENS)).toThrow(/Administrator/);
+    expect(()=>downloadManualUatCsv("cashier",MANUAL_SCREENS)).toThrow(/Administrator/);
+  });
+
   test("manual uses authenticated role and links from customer, cashier, admin, rider portals",()=>{
     const reader=readFileSync(join(root,"src/features/manual/reader.tsx"),"utf8");
     expect(reader).toContain("apiOps.accountSession()");
@@ -165,6 +190,8 @@ describe("Role-aware illustrated system manual",()=>{
     expect(reader).not.toContain("useSearchParams");
     expect(reader).toContain("downloadOfflineManual");
     expect(reader).toContain("printManualAsPdf");
+    expect(reader).toContain("downloadManualUatCsv");
+    expect(reader).toContain('role==="admin"&&authenticated&&!checking');
     for(const file of [
       "src/components/layout/admin-shell.tsx",
       "src/components/layout/storefront-shell.tsx",

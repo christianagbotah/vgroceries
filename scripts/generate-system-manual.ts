@@ -6,6 +6,7 @@ import {
 } from "../src/features/manual/catalogue";
 import {MANUAL_WORKFLOWS,workflowsForRole} from "../src/features/manual/workflows";
 import {manualVisual} from "../src/features/manual/visual-model";
+import {createManualUatCsv} from "../src/features/manual/uat-evidence";
 
 const esc=(text:string)=>text.replaceAll("|","\\|");
 const mermaidLabel=(text:string)=>text.replaceAll('"',"'").replace(/[<>]/g,"").replace(/\\s+/g," ").trim().slice(0,112);
@@ -88,6 +89,8 @@ const sections=[
 }),
 "## UAT and screenshot capture plan",
 "",
+"**Evidence checklist:** The administrator manual can generate a role-scoped download of `variety-groceries-screen-uat-evidence-template.csv`. The checked-in `docs/MANUAL_SCREENSHOT_UAT_TEMPLATE_20261120.csv` contains the same 79 screen rows, all initially NOT_TESTED. Follow `docs/MANUAL_SCREENSHOT_UAT_RUNBOOK_20261120.md` to capture real redacted staging screenshots and verify each role. Do not treat conceptual diagrams as screenshot evidence.",
+"",
 "**Screenshot coverage**: each of the 79 existing screens must be captured on the same release SHA using approved sample/test identities. Before embedding a real screenshot, verify correct role, product logo, live enabled flags, mobile layout and no private customer information. Mask names, phone numbers, tokens, credentials, receipts, or banking references. Attach one desktop and (where materially different) one mobile screenshot per screen. Do not mistake the conceptual screen diagrams for captured screenshots.",
 "",
 "**Role/UAT script:** Verify administrator sees every manual section; inventory manager sees only inventory + shared; cashier sees only cashier + shared; rider sees only rider + shared; customer and guest see customer + shared. Test expired sessions, logout/login account change, direct URL access, no admin instruction leakage in visible views, keyboard search, navigation, offline HTML export, print PDF, mobile legibility and screen links.",
@@ -100,4 +103,9 @@ const sections=[
 const output=sections.join("\n").trimEnd()+"\n";
 const path=join(process.cwd(),"docs/ROLE_BASED_SYSTEM_MANUAL_20261120.md");
 writeFileSync(path,output);
+const csvPath=join(process.cwd(),"docs/MANUAL_SCREENSHOT_UAT_TEMPLATE_20261120.csv");
+// Normalize the tracked CSV to LF so git whitespace checks are clean;
+// the one-click browser download retains RFC-compatible CRLF rows.
+writeFileSync(csvPath,createManualUatCsv(MANUAL_SCREENS).replaceAll("\r\n","\n"));
 console.log("Generated",path,"screens",MANUAL_SCREENS.length,"workflows",MANUAL_WORKFLOWS.length,"characters",output.length);
+console.log("Generated",csvPath,"rows",MANUAL_SCREENS.length,"all not tested");

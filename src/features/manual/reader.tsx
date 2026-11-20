@@ -5,7 +5,7 @@ import Link from "next/link";
 import Image from "next/image";
 import {
   ArrowDown,ArrowLeft,ArrowRight,BookOpen,CheckCircle2,Download,
-  ExternalLink,FileText,Menu,Printer,Search,ShieldAlert,
+  ClipboardCheck,ExternalLink,FileText,Menu,Printer,Search,ShieldAlert,
 } from "lucide-react";
 import {Button} from "@/components/ui/button";
 import {Input} from "@/components/ui/input";
@@ -16,6 +16,7 @@ import {
 } from "./catalogue";
 import {workflowsForRole,type ManualWorkflow} from "./workflows";
 import {downloadOfflineManual,printManualAsPdf} from "./export";
+import {downloadManualUatCsv} from "./uat-evidence";
 import {manualVisual} from "./visual-model";
 import {ManualVisualShape} from "./visual-shape";
 
@@ -209,6 +210,9 @@ export function ManualReader({guestScope="customer"}:{guestScope?:"customer"|"ri
           <Button size="sm" className="min-h-10" onClick={print} disabled={checking}>
             <Printer className="size-4"/> Print / Save PDF
           </Button>
+          {role==="admin"&&authenticated&&!checking?<Button variant="outline" size="sm" className="min-h-10" onClick={()=>downloadManualUatCsv("admin",screensForRole("admin"))}>
+            <ClipboardCheck className="size-4"/> Screenshot UAT checklist
+          </Button>:null}
           <Button variant="outline" size="sm" className="min-h-10 lg:hidden" onClick={()=>setMobileNav(x=>!x)} aria-expanded={mobileNav} aria-controls="manual-navigation">
             <Menu className="size-4"/> Chapters
           </Button>
@@ -232,6 +236,9 @@ export function ManualReader({guestScope="customer"}:{guestScope?:"customer"|"ri
           <span className="rounded-full border border-white/30 px-3 py-1.5">UAT and production gates marked</span>
         </div>
       </div>
+      {role==="admin"&&authenticated&&!checking?<p className="mb-4 rounded-xl border border-[#c3dfcb] bg-[#f0f7f0] p-4 text-sm leading-6">
+        <strong>Administrator screenshot acceptance:</strong> Use “Screenshot UAT checklist” above to download the full 79-screen evidence template. Every desktop, mobile, functionality and role check begins <strong>NOT_TESTED</strong>. Fill in the deployed source SHA, redacted screenshot evidence, reviewer and UTC approval only after checking the actual staging screen. Nothing is auto-approved by the manual.
+      </p>:null}
       <details className="mb-5 rounded-xl border bg-white p-4 text-sm leading-6">
         <summary className="cursor-pointer font-bold text-[#1c563b]">Role access: real accounts versus specialist demo roles</summary>
         <p className="mt-3">The authenticated backend currently recognizes <strong>administrator, inventory manager, cashier, rider and customer</strong>. The guide selects this real role using the server-verified session. Administrators may read every role’s guide.</p>
