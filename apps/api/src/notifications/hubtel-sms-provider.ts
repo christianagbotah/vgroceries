@@ -7,8 +7,12 @@ export interface HubtelSmsConfig {
 }
 export interface HubtelSmsResult { accepted: boolean; providerReference?: string }
 export function validateHubtelSmsConfig(config: HubtelSmsConfig): void {
+  // Reject raw URL syntax that WHATWG URL parsing would silently normalize.
+  if (typeof config.endpoint !== "string" || /[\\\\\u0000-\u0020\u007f]/.test(config.endpoint)) {
+    throw new Error("Hubtel SMS endpoint contains unsafe URL characters.");
+  }
   const url = new URL(config.endpoint);
-  if (url.protocol !== "https:" || !url.hostname.endsWith(".hubtel.com") || url.hostname === ".hubtel.com" || url.username || url.password || url.search || url.hash) {
+  if (url.protocol !== "https:" || !url.hostname.endsWith(".hubtel.com") || url.hostname === ".hubtel.com" || url.username || url.password || url.search || url.hash || url.port) {
     throw new Error("Hubtel SMS endpoint must be an HTTPS hubtel.com URL without credentials or query parameters.");
   }
   if (![config.clientId, config.clientSecret, config.senderId].every(value => typeof value === "string" && value.trim().length > 0)) {
