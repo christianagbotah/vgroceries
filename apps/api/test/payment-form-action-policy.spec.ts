@@ -52,3 +52,20 @@ test("hosted checkout redirects reject embedded credentials, custom ports and fr
     { kind: "redirect", url: "https://webpay.example.test/pay?reference=valid" },
   );
 });
+
+// URL() normalizes embedded tabs and newlines. Never accept a provider URL
+// that the browser could interpret differently from the raw gateway response.
+test("hosted checkout rejects control characters before URL normalization for both action types", () => {
+  const subject = policy();
+  for (const kind of ["redirect", "form_post"] as const) {
+    for (const url of [
+      "https://webpay.example.test/pa\ty",
+      "https://webpay.example.test/pa\ny",
+      "https://webpay.example.test/pay\r",
+      "https://webpay.example.test/pay\u007f",
+    ]) {
+      const action = kind === "form_post" ? { kind, url, fields } : { kind, url };
+      assert.throws(() => subject.validateProviderAction(action), /control characters/i);
+    }
+  }
+});
