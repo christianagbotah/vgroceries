@@ -29,8 +29,10 @@ export async function sendHubtelSms(
     method: "POST", headers: { Authorization: `Basic ${authorization}`, "Content-Type": "application/json" },
     body: JSON.stringify({ From: config.senderId, To: recipient, Content: content }),
     signal: AbortSignal.timeout(10000),
+    redirect: "error", // Never follow a redirect carrying provider authorization.
   });
   if (!response.ok) throw new Error(`Hubtel SMS transport HTTP ${response.status}`);
+  // A successful HTTP transport is not proof the SMS gateway accepted the message.
   const body: unknown = await response.json();
   if (!body || typeof body !== "object" || Array.isArray(body)) throw new Error("Invalid Hubtel SMS response.");
   const data = body as Record<string, unknown>;

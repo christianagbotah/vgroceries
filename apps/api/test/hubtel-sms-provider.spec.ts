@@ -18,3 +18,15 @@ test("sends authenticated JSON and accepts only explicit provider success", asyn
 test("HTTP 200 without provider acknowledgement is not successful", async () => {
   await assert.rejects(sendHubtelSms(config, "+233241234567", "Test", (async () => new Response("{}", { status: 200 })) as typeof fetch));
 });
+
+test("refuses redirects before sending provider credentials to another endpoint", async () => {
+  const fetcher = async (_url: string | URL | Request, init?: RequestInit) => {
+    assert.equal(init?.redirect, "error");
+    throw new TypeError("redirect disallowed");
+  };
+  await assert.rejects(sendHubtelSms(config, "+233241234567", "Test", fetcher as typeof fetch));
+});
+test("treats provider HTTP 403 as an authorization failure", async () => {
+  await assert.rejects(sendHubtelSms(config, "+233241234567", "Test", (async () =>
+    new Response(JSON.stringify({ Status: "success" }), { status: 403 })) as typeof fetch), /HTTP 403/);
+});
