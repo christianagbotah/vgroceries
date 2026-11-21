@@ -313,6 +313,9 @@ export const apiOps = {
   accountProfile: () => api<AccountProfileResponse>("account.profile"),
   accountProfileUpdate: (body: AccountProfileUpdateRequest) =>
     api<AccountProfileResponse>("account.profile.update", { body: body as unknown as Record<string, unknown> }),
+  accountPhoneOtpRequest: () => api<{ challengeId: string; expiresAt: string }>("account.phone-otp.request", { body: {} }),
+  accountPhoneOtpVerify: (challengeId: string, code: string) =>
+    api<{ verified: boolean }>("account.phone-otp.verify", { body: { challengeId, code } }),
   accountLogout: async () => {
     try { return await api<DoneResponse>("account.logout", { body: {} }); }
     finally { clearBrowserCsrfToken(); }

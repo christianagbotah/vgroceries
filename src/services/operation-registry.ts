@@ -71,6 +71,8 @@ export const operationMeta: Record<string, OperationMeta> = {
   "account.summary": { tags: [...ORD, ...RET] },
   "account.profile": { tags: ORD },
   "account.profile.update": { invalidates: ORD },
+  "account.phone-otp.request": { invalidates: ORD },
+  "account.phone-otp.verify": { invalidates: ORD },
   "account.logout": { invalidates: ["*"] },
   "account.orders": { tags: ORD },
   "account.notifications": { tags: ["notifications"] },
