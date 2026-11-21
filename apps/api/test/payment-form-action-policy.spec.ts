@@ -13,7 +13,7 @@ function policy() {
       hostedDomains: ["webpay.example.test"],
     },
   };
-  return new PaymentPolicyService(config as any, {} as any, {} as any, {} as any);
+  return new PaymentPolicyService(config as any, {} as any, {} as any);
 }
 
 const fields = { TERMINAL_ID: "0000000001", TRANSACTION_ID: "VG-PAY-1" };
