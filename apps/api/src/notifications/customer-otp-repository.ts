@@ -12,23 +12,28 @@ export class CustomerOtpRepository {
     if (!/^\+?[0-9]{9,15}$/.test(phone)) throw new Error("Invalid phone number.");
     const recipientFingerprint = customerDestinationFingerprint(phone);
     const windowStart = new Date(now.getTime() - 3600_000);
-    const recent = await this.db.customerOtpChallenge.findMany({
-      where: { recipientFingerprint, purpose, createdAt: { gte: windowStart } },
-      orderBy: { createdAt: "desc" }, take: OTP_MAX_ISSUES_PER_HOUR,
-      select: { createdAt: true },
-    });
-    if (recent.length >= OTP_MAX_ISSUES_PER_HOUR ||
-      (recent[0] && now.getTime() - recent[0].createdAt.getTime() < OTP_RESEND_INTERVAL_MS)) {
-      throw new Error("OTP request limit reached.");
-    }
+    // Serialize issuance for the same destination/purpose across API replicas.
+    // The transaction-scoped advisory lock closes the read-then-create race.
     const id = randomUUID();
     const code = generateCustomerOtp();
-    await this.db.customerOtpChallenge.create({ data: {
-      id, purpose, recipientFingerprint,
-      recipientEncrypted: encryptCustomerDestination(phone, this.encryptionKey),
-      codeDigest: digestCustomerOtp(this.secret, id, code),
-      expiresAt: new Date(now.getTime() + OTP_TTL_MS),
-    } });
+    await this.db.$transaction(async tx => {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${recipientFingerprint + ":" + purpose}, 0))`;
+      const recent = await tx.customerOtpChallenge.findMany({
+        where: { recipientFingerprint, purpose, createdAt: { gte: windowStart } },
+        orderBy: { createdAt: "desc" }, take: OTP_MAX_ISSUES_PER_HOUR,
+        select: { createdAt: true },
+      });
+      if (recent.length >= OTP_MAX_ISSUES_PER_HOUR ||
+        (recent[0] && now.getTime() - recent[0].createdAt.getTime() < OTP_RESEND_INTERVAL_MS)) {
+        throw new Error("OTP request limit reached.");
+      }
+      await tx.customerOtpChallenge.create({ data: {
+        id, purpose, recipientFingerprint,
+        recipientEncrypted: encryptCustomerDestination(phone, this.encryptionKey),
+        codeDigest: digestCustomerOtp(this.secret, id, code),
+        expiresAt: new Date(now.getTime() + OTP_TTL_MS),
+      } });
+    });
     return { id, code, expiresAt: new Date(now.getTime() + OTP_TTL_MS) };
   }
   async verify(id: string, code: string, now = new Date()): Promise<boolean> {
