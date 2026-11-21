@@ -1,0 +1,20 @@
+import { strict as assert } from "node:assert";
+import { test } from "node:test";
+import { sendHubtelSms, validateHubtelSmsConfig } from "../src/notifications/hubtel-sms-provider";
+const config = { endpoint: "https://sms.hubtel.com/v1/messages", clientId: "test", clientSecret: "secret", senderId: "VARIETY" };
+test("rejects untrusted endpoints and missing credentials", () => {
+  assert.throws(() => validateHubtelSmsConfig({ ...config, endpoint: "https://evil.example/send" }));
+  assert.throws(() => validateHubtelSmsConfig({ ...config, clientSecret: "" }));
+});
+test("sends authenticated JSON and accepts only explicit provider success", async () => {
+  const fetcher = async (_url: string | URL | Request, init?: RequestInit) => {
+    assert.match(String(init?.headers && (init.headers as Record<string, string>).Authorization), /^Basic /);
+    assert.equal(JSON.parse(String(init?.body)).To, "+233241234567");
+    return new Response(JSON.stringify({ Status: "success", MessageId: "msg-1" }), { status: 200 });
+  };
+  const result = await sendHubtelSms(config, "+233241234567", "Test order update", fetcher as typeof fetch);
+  assert.equal(result.providerReference, "msg-1");
+});
+test("HTTP 200 without provider acknowledgement is not successful", async () => {
+  await assert.rejects(sendHubtelSms(config, "+233241234567", "Test", (async () => new Response("{}", { status: 200 })) as typeof fetch));
+});
