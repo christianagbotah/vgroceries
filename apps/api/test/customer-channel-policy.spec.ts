@@ -21,3 +21,11 @@ test("deduplication key varies by event and channel", () => {
   assert.equal(customerDeliveryKey("evt-1", "sms", "customer-1"), customerDeliveryKey("evt-1", "sms", "customer-1"));
   assert.notEqual(customerDeliveryKey("evt-1", "sms", "customer-1"), customerDeliveryKey("evt-1", "email", "customer-1"));
 });
+
+test("delivery keys reject delimiter collisions and ambiguous identifiers", () => {
+  assert.throws(() => customerDeliveryKey("evt:sms", "email", "customer"));
+  assert.throws(() => customerDeliveryKey("evt", "sms", "customer:extra"));
+  assert.throws(() => customerDeliveryKey(" evt", "sms", "customer"));
+  assert.throws(() => customerDeliveryKey("evt\n", "sms", "customer"));
+  assert.equal(customerDeliveryKey("evt-1", "sms", "customer-1"), "evt-1:sms:customer-1");
+});

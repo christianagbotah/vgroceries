@@ -24,7 +24,11 @@ export function channelsForCustomer(
 
 /** Stable deduplication identifier for an event/channel/recipient delivery. */
 export function customerDeliveryKey(eventId: string, channel: CustomerChannel, recipientId: string): string {
-  if (!eventId || !recipientId) throw new Error("Delivery identity is required.");
+  // Colon-separated keys must reject delimiter injection to remain collision-free.
+  // Preserve the existing key format for valid persisted delivery identities.
+  if (![eventId, recipientId].every(value => typeof value === "string" && value.trim() === value && value.length > 0 && !value.includes(":") && !/[\u0000-\u001f\u007f]/.test(value))) {
+    throw new Error("Invalid delivery identity.");
+  }
   return `${eventId}:${channel}:${recipientId}`;
 }
 
