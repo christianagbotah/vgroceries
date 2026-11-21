@@ -82,6 +82,8 @@ export class PaymentPolicyService {
     }
     if (url.protocol !== "https:")
       throw new ApiProblem(503, "UNAVAILABLE", "Hosted payment redirects must use HTTPS.");
+    if (url.username || url.password || url.port || url.hash)
+      throw new ApiProblem(503, "UNAVAILABLE", "Hosted payment redirect contains disallowed URL components.");
     if (!payment.hostedDomains.includes(url.hostname.toLowerCase()))
       throw new ApiProblem(503, "UNAVAILABLE", "Hosted payment redirect is outside the configured allowlist.");
     return action;
