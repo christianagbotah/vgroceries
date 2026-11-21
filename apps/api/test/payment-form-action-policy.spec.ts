@@ -85,3 +85,19 @@ test("hosted checkout rejects surrounding spaces for redirect and form POST", ()
     }
   }
 });
+
+// WHATWG URL() treats raw backslashes as separators for HTTPS URLs. Reject
+// ambiguous gateway actions instead of allowing browser canonicalization.
+test("hosted checkout rejects raw backslashes for redirect and form POST", () => {
+  const subject = policy();
+  for (const kind of ["redirect", "form_post"] as const) {
+    for (const url of [
+      "https:\\\\webpay.example.test/pay",
+      "https://webpay.example.test\\\\evil.example/pay",
+      "https://webpay.example.test/pay\\\\next",
+    ]) {
+      const action = kind === "form_post" ? { kind, url, fields } : { kind, url };
+      assert.throws(() => subject.validateProviderAction(action), /control characters/i);
+    }
+  }
+});
