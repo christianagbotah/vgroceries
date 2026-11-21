@@ -39,7 +39,8 @@ export class PaymentPolicyService {
     const adapter = this.registry.requireConfigured();
     if (!adapter.capabilities().methods.includes(method))
       throw new ApiProblem(503, "UNAVAILABLE", "This electronic payment method is unavailable.");
-    this.refundRegistry.require(adapter.id, method);
+    // Collection readiness must not depend on optional automated refund capability.
+    // Refund eligibility and authorization are enforced by the separate refund workflow.
     return adapter;
   }
 
