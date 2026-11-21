@@ -487,6 +487,12 @@ export async function handleApi(req: ApiRequest): Promise<ApiResult> {
         sweepExpiredReservations(store);
         return ok(publicOrder(store, q("orderId") || b("orderId")));
       }
+      case "orders.track-public": {
+        const reference=String(body.reference??"").trim().toUpperCase();
+        const order=store.orders.find(o=>o.reference===reference);
+        if(!order)throw new OpError("NOT_FOUND","Order not found. Check the number and try again.");
+        return ok({reference:order.reference,paymentStatus:order.paymentStatus,fulfilmentStatus:order.fulfilmentStatus,deliveryStatus:order.deliveryStatus,fulfilment:order.fulfilment,createdAt:order.createdAt});
+      }
       case "orders.track": {
         sweepExpiredReservations(store);
         const reference = String(body.reference ?? query.get("reference") ?? "").trim().toUpperCase();
