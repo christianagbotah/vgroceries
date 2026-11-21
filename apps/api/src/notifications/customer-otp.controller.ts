@@ -25,11 +25,11 @@ export class CustomerOtpController {
     const user = await this.db.user.findUnique({ where: { id: actor.id }, select: { phone: true } });
     if (!user?.phone || !/^\+?[0-9]{9,15}$/.test(user.phone))
       throw new ApiProblem(400, "VALIDATION_FAILED", "Update your account phone number first.");
-    return user.phone;
+    return { phone: user.phone, userId: actor.id };
   }
   @Post("request")
   async request(@Req() req: ApiRequest) {
-    const phone = await this.customerPhone(req);
+    const { phone, userId } = await this.customerPhone(req);
     const repo = this.repository();
     const endpoint = process.env.HUBTEL_SMS_ENDPOINT;
     const clientId = process.env.HUBTEL_SMS_CLIENT_ID;
@@ -38,7 +38,7 @@ export class CustomerOtpController {
     if (!endpoint || !clientId || !clientSecret || !senderId)
       throw new ApiProblem(503, "FEATURE_DISABLED", "Phone verification delivery is not configured.");
     let challenge;
-    try { challenge = await repo.issue(phone, "phone_verification"); }
+    try { challenge = await repo.issue(userId, phone, "phone_verification"); }
     catch { throw new ApiProblem(429, "RATE_LIMITED", "Please wait before requesting another code."); }
     try {
       await sendHubtelSms({ endpoint, clientId, clientSecret, senderId }, phone,
@@ -51,19 +51,20 @@ export class CustomerOtpController {
   }
   @Post("verify")
   async verify(@Req() req: ApiRequest, @Body() body: unknown) {
-    const phone = await this.customerPhone(req);
+    const { phone, userId } = await this.customerPhone(req);
     const repo = this.repository();
     if (!body || typeof body !== "object" || Array.isArray(body))
       throw new ApiProblem(400, "VALIDATION_FAILED", "Invalid verification request.");
     const { challengeId, code } = body as Record<string, unknown>;
     if (typeof challengeId !== "string" || typeof code !== "string" || !/^[0-9a-f-]{36}$/i.test(challengeId) || !/^\d{6}$/.test(code))
       throw new ApiProblem(400, "VALIDATION_FAILED", "Invalid verification request.");
-    const challenge = await this.db.customerOtpChallenge.findUnique({ where: { id: challengeId }, select: { recipientFingerprint: true, purpose: true } });
+    const challenge = await this.db.customerOtpChallenge.findUnique({ where: { id: challengeId }, select: { recipientFingerprint: true, purpose: true, userId: true } });
     const { customerDestinationFingerprint } = await import("./customer-message-crypto");
-    if (!challenge || challenge.purpose !== "phone_verification" || challenge.recipientFingerprint !== customerDestinationFingerprint(phone))
+    if (!challenge || challenge.userId !== userId || challenge.purpose !== "phone_verification" || challenge.recipientFingerprint !== customerDestinationFingerprint(phone))
       throw new ApiProblem(400, "VALIDATION_FAILED", "Invalid or expired verification code.");
     if (!await repo.verify(challengeId, code))
       throw new ApiProblem(400, "VALIDATION_FAILED", "Invalid or expired verification code.");
+    await this.db.user.updateMany({ where: { id: userId, phone }, data: { phoneVerifiedAt: new Date() } });
     return { ok: true, data: { verified: true } };
   }
 }

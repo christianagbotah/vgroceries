@@ -20,6 +20,7 @@ model User {
   email String? @unique
   name String
   phone String @default("")
+  phoneVerifiedAt DateTime? @db.Timestamptz(3)
   passwordHash String
   role Role
   active Boolean @default(true)
@@ -1677,6 +1678,7 @@ model CustomerSupportActivity {
 /// Phone destinations are encrypted at rest; fingerprint supports rate limits.
 model CustomerOtpChallenge {
   id String @id @default(uuid())
+  userId String
   purpose String
   recipientFingerprint String
   recipientEncrypted String

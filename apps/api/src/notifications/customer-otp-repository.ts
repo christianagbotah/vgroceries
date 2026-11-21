@@ -8,7 +8,8 @@ import { otpConsumeWhere, otpFailureWhere } from "./customer-otp-state";
  * Never expose the generated code in a public controller response. */
 export class CustomerOtpRepository {
   constructor(private readonly db: Database, private readonly secret: string, private readonly encryptionKey: string) {}
-  async issue(phone: string, purpose: "phone_verification" | "sensitive_action", now = new Date()) {
+  async issue(userId: string, phone: string, purpose: "phone_verification" | "sensitive_action", now = new Date()) {
+    if (!/^[0-9a-f-]{36}$/i.test(userId)) throw new Error("Invalid customer identity.");
     if (!/^\+?[0-9]{9,15}$/.test(phone)) throw new Error("Invalid phone number.");
     const recipientFingerprint = customerDestinationFingerprint(phone);
     const windowStart = new Date(now.getTime() - 3600_000);
@@ -28,7 +29,7 @@ export class CustomerOtpRepository {
         throw new Error("OTP request limit reached.");
       }
       await tx.customerOtpChallenge.create({ data: {
-        id, purpose, recipientFingerprint,
+        id, userId, purpose, recipientFingerprint,
         recipientEncrypted: encryptCustomerDestination(phone, this.encryptionKey),
         codeDigest: digestCustomerOtp(this.secret, id, code),
         expiresAt: new Date(now.getTime() + OTP_TTL_MS),

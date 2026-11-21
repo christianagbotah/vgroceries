@@ -1,6 +1,7 @@
 -- OTP lifecycle storage; no plaintext phone or code and no implicit SMS sending.
 CREATE TABLE "CustomerOtpChallenge" (
   "id" TEXT NOT NULL,
+  "userId" TEXT NOT NULL,
   "purpose" TEXT NOT NULL,
   "recipientFingerprint" TEXT NOT NULL,
   "recipientEncrypted" TEXT NOT NULL,
