@@ -8,7 +8,6 @@ import { API_CONFIG, type ApiConfig } from "../config";
 import { ApiProblem } from "../http/errors";
 import type { PaymentProviderAdapter } from "./payment-provider";
 import { PaymentProviderRegistry } from "./payment-provider.registry";
-import { RefundProviderRegistry } from "./refund-provider.registry";
 import { PaymentCaptureService } from "./payment-capture.service";
 
 @Injectable()
@@ -16,7 +15,6 @@ export class PaymentPolicyService {
   constructor(
     @Inject(API_CONFIG) private readonly config: ApiConfig,
     private readonly registry: PaymentProviderRegistry,
-    private readonly refundRegistry: RefundProviderRegistry,
     private readonly captures: PaymentCaptureService,
   ) {}
 
