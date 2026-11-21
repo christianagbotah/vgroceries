@@ -65,6 +65,8 @@ export const operationMeta: Record<string, OperationMeta> = {
   "pickup.appointment.cancel": { invalidates: [...ORD, ...LOGISTICS] },
   "orders.track-public": { tags: [...ORD, ...DEL] },
   "orders.track": { tags: [...ORD, ...DEL] },
+  "orders.track-otp.request": { tags: [...ORD, ...DEL] },
+  "orders.track-otp.verify": { tags: [...ORD, ...DEL] },
   "orders.detail": { tags: ORD },
 
   /* account */

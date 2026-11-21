@@ -223,6 +223,8 @@ export const apiOps = {
     api<PaymentOutcomeResponse>("checkout.payment-outcome", { body: { orderId, outcome } }),
   orderStatus: (orderId: string) => api<PublicOrder>("checkout.status", { query: { orderId } }),
   trackPublic: (reference: string) => api<{reference:string;paymentStatus:string;fulfilmentStatus:string;deliveryStatus:string;fulfilment:string;createdAt:string}>("orders.track-public", { body: { reference } }),
+  requestOrderOtp: (reference: string) => api<{challengeId:string;expiresAt:string}>("orders.track-otp.request", { body: { reference } }),
+  verifyOrderOtp: (reference: string, challengeId: string, code: string) => api<PublicOrder>("orders.track-otp.verify", { body: { reference, challengeId, code } }),
   track: (reference: string, code: string) => api<PublicOrder>("orders.track", { body: { reference, code } }),
   zones: () => api<ZoneView[]>("checkout.zones"),
   slots: (zoneId: string) => api<SlotView[]>("checkout.slots", { query: { zoneId } }),

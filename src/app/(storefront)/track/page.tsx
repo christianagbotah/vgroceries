@@ -45,9 +45,29 @@ function TrackFormContent({ orderId, initialReference, initialCode }: {
   const [publicResult,setPublicResult]=useState<{reference:string;paymentStatus:string;fulfilmentStatus:string;deliveryStatus:string;fulfilment:string;createdAt:string}|null>(null);
   const [publicLoading,setPublicLoading]=useState(false);
   const [verificationCode,setVerificationCode]=useState(initialCode);
+  const [otpChallenge,setOtpChallenge]=useState<{challengeId:string;expiresAt:string}|null>(null);
+  const [otpCode,setOtpCode]=useState("");
+  const [otpBusy,setOtpBusy]=useState(false);
+  const [otpError,setOtpError]=useState<string|null>(null);
+  const [otpResendAt,setOtpResendAt]=useState(0);
+  const [otpClock,setOtpClock]=useState(Date.now());
+  useEffect(()=>{if(!otpChallenge)return;const timer=window.setInterval(()=>setOtpClock(Date.now()),1000);return()=>window.clearInterval(timer);},[otpChallenge]);
+  const requestOrderOtp=async()=>{
+    setOtpBusy(true);setOtpError(null);
+    try{const result=await apiOps.requestOrderOtp(publicResult!.reference);setOtpChallenge(result);setOtpCode("");setOtpResendAt(Date.now()+60000);}
+    catch(err){setOtpError(err instanceof ApiError?err.message:"Unable to request SMS verification.");}
+    finally{setOtpBusy(false);}
+  };
+  const verifyOrderOtp=async()=>{
+    if(!publicResult||!otpChallenge)return;
+    setOtpBusy(true);setOtpError(null);
+    try{const details=await apiOps.verifyOrderOtp(publicResult.reference,otpChallenge.challengeId,otpCode);setOrder(details);setOtpChallenge(null);}
+    catch(err){setOtpError(err instanceof ApiError?err.message:"Verification failed. Check the code and try again.");}
+    finally{setOtpBusy(false);}
+  };
   const [publicError,setPublicError]=useState<string|null>(null);
   const lookupPublic=async(e?:React.FormEvent)=>{
-    e?.preventDefault();setPublicError(null);setPublicResult(null);setPublicLoading(true);
+    e?.preventDefault();setPublicError(null);setPublicResult(null);setOtpChallenge(null);setOtpCode("");setOrder(null);setPublicLoading(true);
     try{setPublicResult(await apiOps.trackPublic(reference.trim().toUpperCase()));}
     catch(err){setPublicError(err instanceof ApiError?err.message:"Unable to track order. Please try again.");}
     finally{setPublicLoading(false);}
@@ -122,6 +142,19 @@ function TrackFormContent({ orderId, initialReference, initialCode }: {
           <div className="space-y-2 border-t pt-3">
             <Button asChild className="w-full"><Link href="/account/orders">View order details and items</Link></Button>
             <p className="text-xs text-muted-foreground">Sign in to the purchasing account to see product names, quantities, prices and receipts. An order number alone cannot unlock private purchases.</p>
+            <div className="space-y-3 border-t pt-3" aria-label="Recover guest order by SMS">
+              <p className="font-semibold">Forgot your private order code?</p>
+              <p className="text-xs text-muted-foreground">Receive a six-digit verification code on the phone number used when placing this order. We never display the full number.</p>
+              {otpError?<p role="alert" className="text-xs text-destructive">{otpError}</p>:null}
+              <Button type="button" className="w-full" disabled={otpBusy||(Boolean(otpChallenge)&&otpClock<otpResendAt)} onClick={()=>void requestOrderOtp()}>
+                {otpBusy?"Please wait…":otpChallenge&&otpClock<otpResendAt?`Resend in ${Math.ceil((otpResendAt-otpClock)/1000)}s`:otpChallenge?"Resend SMS code":"Verify with SMS OTP"}
+              </Button>
+              {otpChallenge?<div className="space-y-2">
+                <Label htmlFor="guest-sms-code">SMS verification code</Label>
+                <Input id="guest-sms-code" inputMode="numeric" autoComplete="one-time-code" maxLength={6} value={otpCode} onChange={event=>setOtpCode(event.target.value.replace(/\D/g,"").slice(0,6))} placeholder="Enter 6-digit code" />
+                <Button type="button" variant="outline" className="w-full" disabled={otpBusy||otpCode.length!==6||otpClock>=new Date(otpChallenge.expiresAt).getTime()} onClick={()=>void verifyOrderOtp()}>View my order details</Button>
+              </div>:null}
+            </div>
             <div className="space-y-2 border-t pt-3" aria-label="Verify guest order details">
               <Label htmlFor="guest-order-code">Have a private order verification code?</Label>
               <Input id="guest-order-code" type="text" autoComplete="off" value={verificationCode} onChange={event => setVerificationCode(event.target.value)} placeholder="Enter your private code" required />
