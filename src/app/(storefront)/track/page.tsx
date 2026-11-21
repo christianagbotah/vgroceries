@@ -44,6 +44,7 @@ function TrackFormContent({ orderId, initialReference, initialCode }: {
   const [reference, setReference] = useState(initialReference);
   const [publicResult,setPublicResult]=useState<{reference:string;paymentStatus:string;fulfilmentStatus:string;deliveryStatus:string;fulfilment:string;createdAt:string}|null>(null);
   const [publicLoading,setPublicLoading]=useState(false);
+  const [verificationCode,setVerificationCode]=useState(initialCode);
   const [publicError,setPublicError]=useState<string|null>(null);
   const lookupPublic=async(e?:React.FormEvent)=>{
     e?.preventDefault();setPublicError(null);setPublicResult(null);setPublicLoading(true);
@@ -56,6 +57,16 @@ function TrackFormContent({ orderId, initialReference, initialCode }: {
   const [error, setError] = useState<string | null>(null);
   const [order, setOrder] = useState<PublicOrder | null>(null);
   const [verifiedLookup, setVerifiedLookup] = useState<VerifiedLookup | null>(null);
+  const verifyGuestOrder = async () => {
+    const candidate = reference.trim().toUpperCase();
+    const code = verificationCode.trim().toUpperCase();
+    if (!candidate || !code) return;
+    await requests.load(async () => ({
+      order: await apiOps.track(candidate, code),
+      lookup: { reference: candidate, code },
+    }), { replace: true });
+  };
+
   const [requests] = useState(() => createTrackingRequestCoordinator<TrackingResult>({
     onStart: () => { setLoading(true); setError(null); },
     onValue: result => { setOrder(result.order); setVerifiedLookup(result.lookup); },
@@ -111,6 +122,12 @@ function TrackFormContent({ orderId, initialReference, initialCode }: {
           <div className="space-y-2 border-t pt-3">
             <Button asChild className="w-full"><Link href="/account/orders">View order details and items</Link></Button>
             <p className="text-xs text-muted-foreground">Sign in to the purchasing account to see product names, quantities, prices and receipts. An order number alone cannot unlock private purchases.</p>
+            <div className="space-y-2 border-t pt-3" aria-label="Verify guest order details">
+              <Label htmlFor="guest-order-code">Have a private order verification code?</Label>
+              <Input id="guest-order-code" type="text" autoComplete="off" value={verificationCode} onChange={event => setVerificationCode(event.target.value)} placeholder="Enter your private code" required />
+              <Button type="button" onClick={() => void verifyGuestOrder()} variant="outline" className="w-full" disabled={loading || !verificationCode.trim()}>{loading ? "Verifying…" : "View guest order items"}</Button>
+              <p className="text-xs text-muted-foreground">Only the correct order number and private code can unlock itemised details. Do not share your code publicly.</p>
+            </div>
           </div>
         </section>:null}
       </form> : null}
