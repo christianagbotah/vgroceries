@@ -114,7 +114,14 @@ export class AccountProfileService {
           throw new ApiProblem(409, "CONFLICT", "That phone number is already in use.");
         if (emailCollision)
           throw new ApiProblem(409, "CONFLICT", "That email address is already in use.");
-        await tx.user.update({ where: { id: userId }, data: { name, phone, email } });
+        await tx.user.update({
+          where: { id: userId },
+          data: {
+            name, phone, email,
+            // Verification belongs to the verified phone, never a changed number.
+            ...(user.phone !== phone ? { phoneVerifiedAt: null } : {}),
+          },
+        });
         await tx.auditEvent.create({
           data: { actorId: userId, action: "account.profile_updated", entityId: userId, requestId, details: {} },
         });
