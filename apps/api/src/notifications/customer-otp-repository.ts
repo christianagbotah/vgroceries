@@ -17,7 +17,7 @@ export class CustomerOtpRepository {
     const id = randomUUID();
     const code = generateCustomerOtp();
     await this.db.$transaction(async tx => {
-      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${recipientFingerprint + ":" + purpose}, 0))`;
+      await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtextextended(${recipientFingerprint + ":" + purpose}, 0))`;
       const recent = await tx.customerOtpChallenge.findMany({
         where: { recipientFingerprint, purpose, createdAt: { gte: windowStart } },
         orderBy: { createdAt: "desc" }, take: OTP_MAX_ISSUES_PER_HOUR,
