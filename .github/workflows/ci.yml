@@ -92,6 +92,26 @@ jobs:
           tar -C candidate/payload -czf candidate/evidence/storefront.tar.gz .
           (cd candidate/evidence && sha256sum storefront.tar.gz > SHA256SUMS)
           (cd candidate/evidence && sha256sum --check SHA256SUMS)
+          # Validate archive entries before extraction; reject traversal, special
+          # files, hardlinks and symlinks pointing outside the extracted root.
+          python3 - <<'PY'
+          import posixpath
+          import tarfile
+          from pathlib import PurePosixPath
+
+          with tarfile.open("candidate/evidence/storefront.tar.gz", "r:gz") as archive:
+              for member in archive:
+                  path = PurePosixPath(member.name)
+                  if path.is_absolute() or ".." in path.parts:
+                      raise SystemExit(f"Unsafe archive path: {member.name}")
+                  if not (member.isfile() or member.isdir() or member.issym()):
+                      raise SystemExit(f"Unsafe archive entry type: {member.name}")
+                  if member.issym():
+                      target = posixpath.normpath(posixpath.join(posixpath.dirname(member.name), member.linkname))
+                      if member.linkname.startswith("/") or target == ".." or target.startswith("../"):
+                          raise SystemExit(f"Unsafe archive link: {member.name}")
+          print("Candidate archive extraction safety: PASS")
+          PY
           mkdir -p candidate/verification
           tar -xzf candidate/evidence/storefront.tar.gz -C candidate/verification
           test -f candidate/verification/server.js
