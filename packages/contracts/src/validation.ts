@@ -671,6 +671,7 @@ function withoutTransportReplay(schema: z.ZodTypeAny): z.ZodTypeAny {
 }
 
 export const requestSchemas: Record<string, z.ZodTypeAny> = {
+  "orders.track-public": trackPublicRequestSchema,
   "auth.login": loginRequestSchema,
   "auth.signup": registerRequestSchema,
   "checkout.quote": checkoutQuoteRequestSchema,
