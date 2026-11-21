@@ -4,6 +4,7 @@ import { Database } from "../database/database";
 import { IdentityService } from "../identity/identity.service";
 import { ApiProblem, ApiRequest } from "../http/errors";
 import { CustomerOtpRepository } from "./customer-otp-repository";
+import { customerDestinationFingerprint } from "./customer-message-crypto";
 import { sendHubtelSms } from "./hubtel-sms-provider";
 
 @ApiExcludeController()
@@ -59,12 +60,12 @@ export class CustomerOtpController {
     if (typeof challengeId !== "string" || typeof code !== "string" || !/^[0-9a-f-]{36}$/i.test(challengeId) || !/^\d{6}$/.test(code))
       throw new ApiProblem(400, "VALIDATION_FAILED", "Invalid verification request.");
     const challenge = await this.db.customerOtpChallenge.findUnique({ where: { id: challengeId }, select: { recipientFingerprint: true, purpose: true, userId: true } });
-    const { customerDestinationFingerprint } = await import("./customer-message-crypto");
     if (!challenge || challenge.userId !== userId || challenge.purpose !== "phone_verification" || challenge.recipientFingerprint !== customerDestinationFingerprint(phone))
       throw new ApiProblem(400, "VALIDATION_FAILED", "Invalid or expired verification code.");
     if (!await repo.verify(challengeId, code))
       throw new ApiProblem(400, "VALIDATION_FAILED", "Invalid or expired verification code.");
-    await this.db.user.updateMany({ where: { id: userId, phone }, data: { phoneVerifiedAt: new Date() } });
+    const updated = await this.db.user.updateMany({ where: { id: userId, phone, role: "customer" }, data: { phoneVerifiedAt: new Date() } });
+    if (updated.count !== 1) throw new ApiProblem(409, "PHONE_CHANGED", "Phone number changed during verification. Request a new code.");
     return { ok: true, data: { verified: true } };
   }
 }
