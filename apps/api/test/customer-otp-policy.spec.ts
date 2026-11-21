@@ -25,3 +25,9 @@ test("OTP resend enforces cooldown and hourly issuance cap", () => {
   assert.equal(canIssueCustomerOtp({ now, lastIssuedAt: new Date("2026-11-21T12:00:00Z"), issuesLastHour: 1 }), true);
   assert.equal(canIssueCustomerOtp({ now, issuesLastHour: 5 }), false);
 });
+
+test("OTP HMAC supports real UUID challenge IDs from repository", () => {
+  const id="123e4567-e89b-42d3-a456-426614174000";
+  const digest=digestCustomerOtp(key,id,"123456");
+  assert.equal(verifyCustomerOtpDigest(key,id,"123456",digest),true);
+});

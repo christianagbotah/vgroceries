@@ -26,7 +26,7 @@ export class OrdersController {constructor(private readonly principals:CheckoutP
  if(!clientId||!clientSecret||!senderId)throw new ApiProblem(503,"FEATURE_DISABLED","SMS verification unavailable.");
  let challenge;
  try{challenge=await this.otpRepo().issue(order.id,order.customerPhone,"sensitive_action");}
- catch{throw new ApiProblem(429,"RATE_LIMITED","Please wait before requesting another code.");}
+ catch(error){if(error instanceof Error&&error.message==="OTP request limit reached.")throw new ApiProblem(429,"RATE_LIMITED","Please wait before requesting another code.");throw error;}
  try{await sendHubtelSms({endpoint,clientId,clientSecret,senderId},order.customerPhone,`Variety Groceries order access code: ${challenge.code}. Expires in 5 minutes. Do not share.`);}
  catch{await this.db.customerOtpChallenge.updateMany({where:{id:challenge.id,status:"pending"},data:{status:"locked"}});throw new ApiProblem(503,"UNAVAILABLE","SMS delivery unavailable. Try again later.");}
  return {ok:true,data:{challengeId:challenge.id,expiresAt:challenge.expiresAt.toISOString()}};

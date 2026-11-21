@@ -11,7 +11,7 @@ export function generateCustomerOtp(): string {
 }
 export function digestCustomerOtp(keyHex: string, challengeId: string, code: string): string {
   if (!/^[0-9a-f]{64}$/i.test(keyHex)) throw new Error("Invalid OTP secret.");
-  if (!/^[a-zA-Z0-9_-]{12,128}$/.test(challengeId)) throw new Error("Invalid challenge identifier.");
+  if (!(/^[a-zA-Z0-9_-]{12,128}$/.test(challengeId) || /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(challengeId))) throw new Error("Invalid challenge identifier.");
   if (!/^\d{6}$/.test(code)) throw new Error("Invalid OTP code.");
   return createHmac("sha256", Buffer.from(keyHex, "hex"))
     .update(`customer-otp-v1:${challengeId}:${code}`).digest("hex");
