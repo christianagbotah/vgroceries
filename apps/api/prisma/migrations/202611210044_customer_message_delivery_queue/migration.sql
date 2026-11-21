@@ -21,7 +21,7 @@ CREATE TABLE "CustomerMessageDelivery" (
   CONSTRAINT "CustomerMessageDelivery_status_check" CHECK ("status" IN ('pending','sending','delivered','failed','suppressed')),
   CONSTRAINT "CustomerMessageDelivery_attempts_check" CHECK ("attempts" >= 0)
 );
-CREATE UNIQUE INDEX "CustomerMessageDelivery_sourceEventId_channel_recipientFingerprint_key"
+CREATE UNIQUE INDEX "CustomerMessageDelivery_sourceEventId_channel_recipientFing_key"
   ON "CustomerMessageDelivery"("sourceEventId","channel","recipientFingerprint");
 CREATE INDEX "CustomerMessageDelivery_status_nextAttemptAt_idx"
   ON "CustomerMessageDelivery"("status","nextAttemptAt");
