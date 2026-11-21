@@ -98,6 +98,7 @@ export class HubtelPaymentProvider implements PaymentProviderAdapter {
         customerSafeMessage: "This Hubtel payment method is not enabled yet.",
       };
     }
+    if (this.config.directReceive) return this.initiateDirectReceive(input);
     if (!this.config.requestMoneyUrl || !this.config.statusUrl) return {
       kind: "rejected", failureCode: "HUBTEL_DIRECT_NOT_CONFIGURED",
       customerSafeMessage: "Direct Request Money is not configured.",
@@ -170,6 +171,66 @@ export class HubtelPaymentProvider implements PaymentProviderAdapter {
       kind: "accepted",
       providerReference: paylinkId,
       action: { kind: "redirect", url: redirectUrl.toString() },
+    };
+  }
+
+  /** Official Hubtel RMP prompt; no paylink, no immediate paid assertion. */
+  private async initiateDirectReceive(input: PaymentProviderInitiationInput): Promise<PaymentProviderInitiationResult> {
+    const config = this.config.directReceive!;
+    // Never send a provider prompt with an unverified or arbitrary number.
+    if (!/^VG-PAY-[0-9A-F]{1,25}$/.test(input.merchantReference) ||
+        input.merchantReference.length > 32 ||
+        !Number.isSafeInteger(input.amountMinor) || input.amountMinor < 100 ||
+        input.amountMinor > HUBTEL_REQUEST_MONEY_MAX_MINOR || input.currency !== "GHS")
+      return { kind: "rejected", failureCode: "HUBTEL_DIRECT_INVALID_AMOUNT_OR_REFERENCE",
+        customerSafeMessage: "The mobile money request does not meet the provider's limits." };
+    if (!input.payerPhone || !/^\+233[0-9]{9}$/.test(input.payerPhone))
+      return { kind: "rejected", failureCode: "HUBTEL_DIRECT_PAYER_PHONE_REQUIRED",
+        customerSafeMessage: "A verified Ghana mobile money number is required." };
+    if (!input.payerChannel || !["mtn-gh", "vodafone-gh", "tigo-gh"].includes(input.payerChannel))
+      return { kind: "rejected", failureCode: "HUBTEL_DIRECT_CHANNEL_REQUIRED",
+        customerSafeMessage: "Select the mobile money network for your number." };
+
+    const response = await this.fetcher(
+      endpoint(config.receiveUrl, { merchantAccountNumber: config.merchantAccountNumber }), {
+        method: "POST",
+        headers: { authorization: basicAuth(this.config), accept: "application/json",
+          "content-type": "application/json" },
+        body: JSON.stringify({
+          CustomerName: input.payerName ?? "Variety Groceries Customer",
+          CustomerMsisdn: input.payerPhone.slice(1),
+          Channel: input.payerChannel,
+          Amount: input.amountMinor / 100,
+          Description: `Variety Groceries ${input.orderReference}`,
+          ClientReference: input.merchantReference,
+          PrimaryCallbackUrl: this.config.callbackUrl,
+          ...(input.payerEmail ? { CustomerEmail: input.payerEmail } : {}),
+        }),
+        signal: input.signal,
+        redirect: "error",
+      },
+    );
+    let root: JsonRecord | null = null;
+    try { root = record(await response.json()); } catch { /* never assume a charge failed */ }
+    const code = text(root, "ResponseCode", "responseCode");
+    // 2001/4103 are documented definitive provider rejections. A timeout,
+    // unknown body or transient status is ambiguous: reconciliation first.
+    if (code === "2001" || code === "4103")
+      return { kind: "rejected", failureCode: code,
+        customerSafeMessage: "Hubtel could not accept the mobile money request." };
+    if (!response.ok || !["0001", "0000"].includes(code ?? ""))
+      throw new Error("Hubtel Direct Receive initiation is unconfirmed; do not retry a new charge.");
+    const data = record(root?.Data ?? root?.data);
+    const echoedReference = text(data, "ClientReference", "clientReference");
+    const providerReference = text(data, "TransactionId", "transactionId");
+    if (!echoedReference || echoedReference !== input.merchantReference ||
+        !providerReference || moneyMinor(data?.Amount ?? data?.amount) !== input.amountMinor)
+      throw new Error("Hubtel Direct Receive response lacks matching merchant, transaction or amount evidence.");
+    return {
+      kind: "accepted",
+      providerReference,
+      action: { kind: "prompt", message:
+        "A Mobile Money approval request has been submitted. Approve it on your own phone and check this order for the independently verified result. Do not pay a second time." },
     };
   }
 
@@ -261,6 +322,14 @@ export class HubtelPaymentProvider implements PaymentProviderAdapter {
         merchantAccountNumber: hosted.merchantAccountNumber,
         reference: input.merchantReference,
         clientReference: input.merchantReference,
+      });
+      return this.lookupCollectionStatus(url, input);
+    }
+    if (this.config.directReceive) {
+      const direct = this.config.directReceive;
+      const url = endpoint(direct.statusUrl, {
+        merchantAccountNumber: direct.merchantAccountNumber,
+        reference: input.merchantReference,
       });
       return this.lookupCollectionStatus(url, input);
     }
@@ -356,14 +425,19 @@ export class HubtelPaymentProvider implements PaymentProviderAdapter {
     const expected = input.expectedAmountMinor;
     if (expected !== undefined && (!Number.isSafeInteger(expected) || expected <= 0))
       throw new Error("Invalid immutable checkout amount for Hubtel status matching.");
-    if (fullBreakdown && !coherentFees)
+    const hostedCheckout = Boolean(this.config.onlineCheckout);
+    // Only hosted checkout has verified customer-gross vs merchant-net fee
+    // semantics. Direct Receive Money's status requires the original gross
+    // checkout amount, not a guessed fee-adjusted net.
+    if (hostedCheckout && fullBreakdown && !coherentFees)
       throw new Error("Hubtel collection status reported contradictory fee evidence.");
-    if (expected !== undefined && grossMinor !== expected && netMinor === expected && !coherentFees)
+    if (hostedCheckout && expected !== undefined && grossMinor !== expected &&
+        netMinor === expected && !coherentFees)
       throw new Error("Hubtel collection status cannot prove its claimed net order amount.");
     // Real merchant status proof: original checkout ₵1.00, Hubtel customer
     // amount ₵1.01, fees ₵0.01, merchant net ₵1.00. Select the expected
     // order total only after independently proving gross = net + fees.
-    const amountMinor = expected !== undefined && grossMinor !== expected &&
+    const amountMinor = hostedCheckout && expected !== undefined && grossMinor !== expected &&
       coherentFees && netMinor === expected && chargesMinor! > 0 ? netMinor : grossMinor;
     const observedState = state(data.status ?? data.Status);
     const transactionId = text(data, "transactionId", "TransactionId");

@@ -61,13 +61,21 @@ export default function CheckoutPage() {
   const [ghanaPostGps, setGhanaPostGps] = useState("");
 
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("electronic");
+  const [electronicMethod,setElectronicMethod] = useState<"electronic"|"mobile_money">("electronic");
   const [electronicAvailability,setElectronicAvailability] = useState<"checking"|"available"|"unavailable">("checking");
   const [paymentAvailabilityRefresh,setPaymentAvailabilityRefresh] = useState(0);
   useEffect(()=>{
     let active=true;
     setElectronicAvailability("checking");
     apiOps.checkoutPaymentAvailability().then(result=>{
-      if(active)setElectronicAvailability(result.electronicAvailable?"available":"unavailable");
+      if (!active) return;
+      const enabled = result.mode==="production" && result.electronicAvailable;
+      setElectronicAvailability(enabled?"available":"unavailable");
+      if (enabled) {
+        const method = result.method==="mobile_money"?"mobile_money":"electronic";
+        setElectronicMethod(method);
+        setPaymentMethod(previous=>previous==="electronic"||previous==="mobile_money"?method:previous);
+      }
     }).catch(()=>{
       if(active)setElectronicAvailability("unavailable"); // Never assume readiness on network failure.
     });
@@ -209,7 +217,7 @@ export default function CheckoutPage() {
 
   const placeOrder = async () => {
     // Display preflight only: backend retains final financial authority.
-    if(paymentMethod==="electronic"&&electronicAvailability!=="available"){
+    if((paymentMethod==="electronic"||paymentMethod==="mobile_money")&&electronicAvailability!=="available"){
       setOrderError("Electronic checkout is unavailable. Select an eligible cash option or try again later; no payment has been requested.");
       return;
     }
@@ -607,9 +615,9 @@ export default function CheckoutPage() {
             </h2>
             <RadioGroup value={paymentMethod} onValueChange={(v) => setPaymentMethod(v as PaymentMethod)} className="grid gap-2 sm:grid-cols-2" aria-label="Payment method">
               <Label data-clickable htmlFor="pay-electronic" className={cn("flex cursor-pointer items-center gap-3 rounded-lg border p-3 font-normal", paymentMethod === "electronic" && "border-primary bg-primary/5")}>
-                <RadioGroupItem value="electronic" id="pay-electronic" disabled={electronicAvailability!=="available"} />
+                <RadioGroupItem value={electronicMethod} id="pay-electronic" disabled={electronicAvailability!=="available"} />
                 <span>
-                  <span className="block text-sm font-medium">Electronic payment</span>
+                  <span className="block text-sm font-medium">{electronicMethod==="mobile_money"?"Mobile Money — secure approval prompt":"Electronic payment"}</span>
                   <span className="block text-xs text-muted-foreground">
                     {electronicAvailability==="available"?"Continue securely with the configured payment provider":
                       electronicAvailability==="checking"?"Checking electronic payment availability…":"Not currently available"}
@@ -637,7 +645,9 @@ export default function CheckoutPage() {
                 onClick={()=>setPaymentAvailabilityRefresh(n=>n+1)}>Check again</Button>
             </div>:null}
             <p className="text-xs text-muted-foreground">
-              {paymentMethod === "electronic"
+              {paymentMethod === "mobile_money"
+                ? "Select your own mobile money network when confirming this order. You must approve the request on your phone; a prompt is not a payment receipt."
+                : paymentMethod === "electronic"
                 ? "After placing the order, the secure payment provider will show the payment options available for this order. Variety Groceries never asks you to choose a provider rail here."
                 : paymentMethod === "cash_counter"
                   ? "Pay at the counter when you collect. The order can be prepared before payment."
@@ -677,14 +687,14 @@ export default function CheckoutPage() {
               </div>
             ) : null}
 
-            <Button size="lg" className="h-12 w-full text-base" onClick={placeOrder} disabled={placing || !meetsMinimum || (paymentMethod==="electronic"&&electronicAvailability!=="available")}>
+            <Button size="lg" className="h-12 w-full text-base" onClick={placeOrder} disabled={placing || !meetsMinimum || ((paymentMethod==="electronic"||paymentMethod==="mobile_money")&&electronicAvailability!=="available")}>
               {placing ? (
                 <>
                   <Loader2 className="size-5 animate-spin" aria-hidden /> Placing your order…
                 </>
               ) : (
                 <>
-                  {paymentMethod==="electronic"&&electronicAvailability!=="available"
+                  {(paymentMethod==="electronic"||paymentMethod==="mobile_money")&&electronicAvailability!=="available"
                     ? electronicAvailability==="checking"?"Checking payment availability…":"Electronic checkout unavailable"
                     : <>Place order · {formatMoney(total)} <ArrowRight className="size-4" aria-hidden /></>}
                 </>

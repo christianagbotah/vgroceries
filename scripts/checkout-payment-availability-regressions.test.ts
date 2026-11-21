@@ -20,7 +20,9 @@ describe("server-owned checkout electronic payment readiness",()=>{
   expect(source).toContain("apiOps.checkoutPaymentAvailability()");
   expect(source).toContain('electronicAvailability!=="available"');
   expect(source).toContain("No money has been requested");
-  expect(source).toContain('paymentMethod==="electronic"&&electronicAvailability!=="available"');
+  // Both the generic checkout method and explicitly configured mobile money
+  // must fail closed before an order is created if provider readiness is OFF.
+  expect(source).toContain('(paymentMethod==="electronic"||paymentMethod==="mobile_money")&&electronicAvailability!=="available"');
   expect(source).toContain("setPaymentAvailabilityRefresh(n=>n+1)");
   expect(source).toContain("You may choose cash at collection or delivery only if offered above.");
  });

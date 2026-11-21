@@ -15,11 +15,15 @@ export class CheckoutController {
   constructor(private readonly quoteService: CheckoutQuoteService, private readonly command: CheckoutCommandService, private readonly principals: CheckoutPrincipalService, private readonly guests: GuestCheckoutService, private readonly payments: PaymentPolicyService) {}
   /** Public read-only display hint; the actual checkout remains server-authorized. */
   @Get("payment-availability") @Header("Cache-Control","no-store")
-  paymentAvailability() {
+  async paymentAvailability(@Req() req: ApiRequest) {
     try {
       this.payments.assertReadyIfConfigured();
-      this.payments.resolveElectronicMethod();
-      return {ok:true,data:{electronicAvailable:true,mode:"production"}};
+      const {method} = this.payments.resolveElectronicMethod();
+      if (this.payments.isStagingMomoPilot()) {
+        const principal = await this.principals.forRead(req);
+        this.payments.assertStagingPilotCustomer(principal);
+      }
+      return {ok:true,data:{electronicAvailable:true,mode:"production",method}};
     } catch {
       // Never expose credentials, merchant data or internal provider errors.
       return {ok:true,data:{electronicAvailable:false,mode:"production"}};

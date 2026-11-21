@@ -12,11 +12,13 @@ export type ElectronicPaymentMethod = z.infer<typeof electronicPaymentMethodSche
 export const paymentInitiationRequestSchema = z
   .object({
     payerPhone: z.string().regex(/^\+233\d{9}$/, "Payer phone must use Ghana +233 format").optional(),
+    payerChannel: z.enum(["mtn-gh", "vodafone-gh", "tigo-gh"]).optional(),
   })
   .strict();
 
 export interface PaymentInitiationRequest {
   payerPhone?: string;
+  payerChannel?: "mtn-gh" | "vodafone-gh" | "tigo-gh";
 }
 
 export type PaymentProviderAction =
