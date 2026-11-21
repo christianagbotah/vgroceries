@@ -69,3 +69,19 @@ test("hosted checkout rejects control characters before URL normalization for bo
     }
   }
 });
+
+// WHATWG URL() also trims surrounding ASCII spaces. Reject ambiguous raw
+// gateway URLs rather than relying on browser canonicalization.
+test("hosted checkout rejects surrounding spaces for redirect and form POST", () => {
+  const subject = policy();
+  for (const kind of ["redirect", "form_post"] as const) {
+    for (const url of [
+      " https://webpay.example.test/pay",
+      "https://webpay.example.test/pay ",
+      "  https://webpay.example.test/pay  ",
+    ]) {
+      const action = kind === "form_post" ? { kind, url, fields } : { kind, url };
+      assert.throws(() => subject.validateProviderAction(action), /control characters/i);
+    }
+  }
+});
