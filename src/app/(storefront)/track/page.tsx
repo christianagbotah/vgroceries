@@ -108,7 +108,10 @@ function TrackFormContent({ orderId, initialReference, initialCode }: {
           <p>Payment: <strong>{publicResult.paymentStatus.replaceAll("_"," ")}</strong></p>
           <p>Order status: <strong>{publicResult.fulfilmentStatus.replaceAll("_"," ")}</strong></p>
           {publicResult.fulfilment==="delivery"?<p>Delivery: <strong>{publicResult.deliveryStatus.replaceAll("_"," ")}</strong></p>:<p>Collection order</p>}
-          <p className="text-muted-foreground">For full order details, sign in or use your private verification code.</p>
+          <div className="space-y-2 border-t pt-3">
+            <Button asChild className="w-full"><Link href="/account/orders">View order details and items</Link></Button>
+            <p className="text-xs text-muted-foreground">Sign in to the purchasing account to see product names, quantities, prices and receipts. An order number alone cannot unlock private purchases.</p>
+          </div>
         </section>:null}
       </form> : null}
       {orderId && loading ? <LoadingState rows={4} label="Loading your order status" /> : null}
