@@ -64,3 +64,14 @@ test("rejects ambiguous Basic authentication identity and control-character cred
   assert.equal(called, false);
   assert.doesNotThrow(() => validateHubtelSmsConfig({ ...config, clientSecret: "valid:secret" }));
 });
+
+test("rejects blank and control-bearing SMS content without contacting the provider", async () => {
+  for (const content of ["", "   ", "\\t\\n", "Order\\u0000update", "Order\\u001bupdate", "Order\\u007fupdate", "x".repeat(1001)]) {
+    let contacted = false;
+    await assert.rejects(sendHubtelSms(config, "+233241234567", content, (async () => {
+      contacted = true;
+      throw new Error("unexpected transport");
+    }) as typeof fetch), /Invalid SMS content/);
+    assert.equal(contacted, false);
+  }
+});
