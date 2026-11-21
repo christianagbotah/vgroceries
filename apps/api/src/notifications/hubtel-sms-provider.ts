@@ -32,7 +32,7 @@ export async function sendHubtelSms(
 ): Promise<HubtelSmsResult> {
   validateHubtelSmsConfig(config);
   if (!/^\+?[0-9]{9,15}$/.test(recipient)) throw new Error("Invalid SMS recipient.");
-  if (!content || content.length > 1000) throw new Error("Invalid SMS content.");
+  if (!content.trim() || content.length > 1000 || /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/.test(content)) throw new Error("Invalid SMS content.");
   const authorization = Buffer.from(`${config.clientId}:${config.clientSecret}`).toString("base64");
   const response = await fetcher(config.endpoint, {
     method: "POST", headers: { Authorization: `Basic ${authorization}`, "Content-Type": "application/json" },
