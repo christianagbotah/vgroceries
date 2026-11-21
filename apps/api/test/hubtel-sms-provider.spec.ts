@@ -66,7 +66,7 @@ test("rejects ambiguous Basic authentication identity and control-character cred
 });
 
 test("rejects blank and control-bearing SMS content without contacting the provider", async () => {
-  for (const content of ["", "   ", "\\t\\n", "Order\\u0000update", "Order\\u001bupdate", "Order\\u007fupdate", "x".repeat(1001)]) {
+  for (const content of ["", "   ", "\t\n", "Order\u0000update", "Order\u001bupdate", "Order\u007fupdate", "x".repeat(1001)]) {
     let contacted = false;
     await assert.rejects(sendHubtelSms(config, "+233241234567", content, (async () => {
       contacted = true;
