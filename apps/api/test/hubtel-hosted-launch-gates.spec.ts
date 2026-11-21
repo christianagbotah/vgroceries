@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { createApplication } from "../src/bootstrap";
 import { readConfig, type HubtelRefundConfig } from "../src/config";
 import { PaymentPolicyService } from "../src/payments/payment-policy.service";
+import { RefundProviderRegistry } from "../src/payments/refund-provider.registry";
 import { HubtelRefundProvider } from "../src/payments/hubtel-refund-provider";
 import { HubtelPaymentProvider } from "../src/payments/hubtel-payment-provider";
 import type { RefundProviderAdapter } from "../src/payments/refund-provider";
@@ -41,17 +42,20 @@ async function runReadiness(refunds: RefundProviderAdapter[] = []) {
   const app = await createApplication(readConfig(hostedEnv()), [], refunds);
   try {
     const policy = app.get(PaymentPolicyService);
-    return assert.throws(() => policy.assertReadyIfConfigured(), /Refund capability|refund capability/i);
+    assert.doesNotThrow(() => policy.assertReadyIfConfigured());
+    assert.equal(policy.resolveElectronicMethod().method, "hosted_checkout");
+    // Refund operations remain independently capability-gated.
+    assert.throws(() => app.get(RefundProviderRegistry).require("hubtel", "hosted_checkout"), /Refund capability|refund capability/i);
   } finally {
     await app.close();
   }
 }
 
-test("Hosted Hubtel never passes launch readiness without a matching refund processor", async () => {
+test("Hosted Hubtel collection readiness does not require a refund processor", async () => {
   await runReadiness();
 });
 
-test("Adding the existing MoMo-only Hubtel refund API must NOT enable card-capable hosted checkout", async () => {
+test("MoMo-only Hubtel refund API cannot authorize hosted checkout refunds", async () => {
   const refund = new HubtelRefundProvider(legacyRefundConfig(), async () => {
     throw new Error("No provider requests should be made during readiness");
   });
