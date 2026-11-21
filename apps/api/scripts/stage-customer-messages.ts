@@ -6,6 +6,7 @@
 import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { customerDestinationFingerprint, encryptCustomerDestination } from "../src/notifications/customer-message-crypto";
+import { canStageCustomerDelivery } from "../src/notifications/customer-delivery-eligibility";
 import { customerMessage, type CustomerMessageEvent } from "../src/notifications/customer-channel-policy";
 
 const supported = new Set<CustomerMessageEvent>([
@@ -26,6 +27,12 @@ async function main() {
   if (!smsEnabled && !emailEnabled) {
     console.log("No consent-authorized delivery channels enabled.");
     return;
+  }
+  // No persisted per-customer consent source is wired yet. Never treat global
+  // flags or a provided phone/email as consent, even for historical events.
+  // Keep the eligibility gate wired for when consent records are introduced.
+  if (!canStageCustomerDelivery({ eventCreatedAt: new Date(), consentRecordedAt: null, channelEnabled: smsEnabled || emailEnabled })) {
+    throw new Error("Customer messaging blocked: persisted consent evidence is not configured.");
   }
   const db = new PrismaClient({ adapter: new PrismaPg({ connectionString: databaseUrl }) });
   try {
