@@ -46,7 +46,7 @@ export async function sendHubtelSms(
   if (!body || typeof body !== "object" || Array.isArray(body)) throw new Error("Invalid Hubtel SMS response.");
   const data = body as Record<string, unknown>;
   const code = data.status ?? data.Status ?? data.ResponseCode ?? data.responseCode;
-  const accepted = code === 0 || code === "0" || code === "0000" || code === "success" || code === "Success";
+  const accepted = code === 0 || code === "0" || code === "0000" || code === "success" || code === "Success" || (code === undefined && data.submitted === true);
   if (!accepted) throw new Error("Hubtel SMS did not confirm acceptance.");
   const ref = data.messageId ?? data.MessageId;
   return { accepted: true, providerReference: typeof ref === "string" ? ref : undefined };
