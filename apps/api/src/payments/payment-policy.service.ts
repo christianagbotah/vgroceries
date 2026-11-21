@@ -8,7 +8,6 @@ import { API_CONFIG, type ApiConfig } from "../config";
 import { ApiProblem } from "../http/errors";
 import type { PaymentProviderAdapter } from "./payment-provider";
 import { PaymentProviderRegistry } from "./payment-provider.registry";
-import { RefundProviderRegistry } from "./refund-provider.registry";
 import { PaymentCaptureService } from "./payment-capture.service";
 
 @Injectable()
@@ -16,7 +15,6 @@ export class PaymentPolicyService {
   constructor(
     @Inject(API_CONFIG) private readonly config: ApiConfig,
     private readonly registry: PaymentProviderRegistry,
-    private readonly refundRegistry: RefundProviderRegistry,
     private readonly captures: PaymentCaptureService,
   ) {}
 
@@ -39,7 +37,8 @@ export class PaymentPolicyService {
     const adapter = this.registry.requireConfigured();
     if (!adapter.capabilities().methods.includes(method))
       throw new ApiProblem(503, "UNAVAILABLE", "This electronic payment method is unavailable.");
-    this.refundRegistry.require(adapter.id, method);
+    // Collection readiness must not depend on optional automated refund capability.
+    // Refund eligibility and authorization are enforced by the separate refund workflow.
     return adapter;
   }
 
@@ -83,6 +82,8 @@ export class PaymentPolicyService {
     }
     if (url.protocol !== "https:")
       throw new ApiProblem(503, "UNAVAILABLE", "Hosted payment redirects must use HTTPS.");
+    if (url.username || url.password || url.port || url.hash)
+      throw new ApiProblem(503, "UNAVAILABLE", "Hosted payment redirect contains disallowed URL components.");
     if (!payment.hostedDomains.includes(url.hostname.toLowerCase()))
       throw new ApiProblem(503, "UNAVAILABLE", "Hosted payment redirect is outside the configured allowlist.");
     return action;
