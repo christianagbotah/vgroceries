@@ -38,6 +38,7 @@ export function readGuestCheckoutCsrfToken(): string | undefined {
 export async function withFreshGuestCheckoutRetry<T>(
   placeOnce: () => Promise<T>,
   readNewGuestToken: () => string | undefined = readGuestCheckoutCsrfToken,
+  allowNewGuestSessionRetry = true,
 ): Promise<T> {
   try {
     return await placeOnce();
@@ -46,6 +47,15 @@ export async function withFreshGuestCheckoutRetry<T>(
       error.code !== "FORBIDDEN" ||
       error.message !== FRESH_GUEST_CAPABILITY_MESSAGE) {
       throw error;
+    }
+    if (!allowNewGuestSessionRetry) {
+      // The saved checkout key might have been used by an expired guest
+      // session. A new guest actor scope could create a second order even
+      // with the same key. Do not transparently resubmit.
+      throw new ApiError(
+        "FORBIDDEN",
+        "Your guest session changed after an earlier checkout attempt. To avoid placing a duplicate order, verify the previous order with customer support before trying again.",
+      );
     }
     if (!readNewGuestToken()) {
       throw new ApiError(

@@ -41,6 +41,20 @@ describe("guest checkout double-submit CSRF recovery", () => {
     expect(requests).toEqual([body.idempotencyKey, body.idempotencyKey]);
   });
 
+  test("uncertain earlier checkout cannot automatically bootstrap a different guest actor", async () => {
+    let calls = 0;
+    const place = async () => {
+      calls++;
+      throw new ApiError("FORBIDDEN", FRESH_GUEST_CAPABILITY_MESSAGE);
+    };
+    await expect(withFreshGuestCheckoutRetry(place, () => token, false))
+      .rejects.toMatchObject({
+        code: "FORBIDDEN",
+        message: expect.stringContaining("avoid placing a duplicate order"),
+      });
+    expect(calls).toBe(1);
+  });
+
   test("guest session missing after first 403 fails closed without second POST", async () => {
     let calls = 0;
     const place = async () => {
@@ -90,6 +104,7 @@ describe("guest checkout double-submit CSRF recovery", () => {
     const client = read("src/services/client.ts");
     expect(client).toContain('withFreshGuestCheckoutRetry(() =>');
     expect(client).toContain('api<CompleteOrderResponse>("checkout.complete", {');
+    expect(client).toContain("options?.allowGuestBootstrapRetry === true");
     expect(client).toContain("body: body as unknown as Record<string, unknown>");
     expect(client).not.toContain('fetch("/api/v1/checkout/complete"');
   });

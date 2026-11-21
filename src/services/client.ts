@@ -205,11 +205,13 @@ export const apiOps = {
   quote: (lines: { variantId: string; quantity: string }[], zoneId?: string,
     pickup?: { destinationKind: "pickup_point"; finalPickupNodeId: string }) =>
     api<QuoteResponse>("checkout.quote", { body: { lines, zoneId, ...(pickup ?? {}) } }),
-  complete: (body: CompleteOrderRequest) =>
+  complete: (body: CompleteOrderRequest, options?: { allowGuestBootstrapRetry?: boolean }) =>
     withFreshGuestCheckoutRetry(() =>
       api<CompleteOrderResponse>("checkout.complete", {
         body: body as unknown as Record<string, unknown>,
       }),
+      undefined,
+      options?.allowGuestBootstrapRetry === true,
     ),
   paymentInitiate: (orderId: string, payerPhone: string | undefined, idempotencyKey: string) =>
     api<PaymentInitiationResult>("payments.initiate", {
@@ -220,6 +222,7 @@ export const apiOps = {
   paymentOutcome: (orderId: string, outcome: "succeeded" | "failed" | "pending") =>
     api<PaymentOutcomeResponse>("checkout.payment-outcome", { body: { orderId, outcome } }),
   orderStatus: (orderId: string) => api<PublicOrder>("checkout.status", { query: { orderId } }),
+  trackPublic: (reference: string) => api<{reference:string;paymentStatus:string;fulfilmentStatus:string;deliveryStatus:string;fulfilment:string;createdAt:string}>("orders.track-public", { body: { reference } }),
   track: (reference: string, code: string) => api<PublicOrder>("orders.track", { body: { reference, code } }),
   zones: () => api<ZoneView[]>("checkout.zones"),
   slots: (zoneId: string) => api<SlotView[]>("checkout.slots", { query: { zoneId } }),

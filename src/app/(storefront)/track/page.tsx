@@ -20,7 +20,7 @@ import { createTrackingRequestCoordinator, isTrackingTerminal } from "@/features
 type VerifiedLookup = { reference: string; code: string };
 type TrackingResult = { order: PublicOrder; lookup: VerifiedLookup | null };
 
-/** Secure tracking entry — order reference + verification code together. */
+/** Public tracking shows only status; private order details still require authorization. */
 export default function TrackPage() {
   return (
     <Suspense fallback={<LoadingState rows={4} label="Loading tracking" />}>
@@ -42,11 +42,31 @@ function TrackFormContent({ orderId, initialReference, initialCode }: {
   orderId: string | null; initialReference: string; initialCode: string;
 }) {
   const [reference, setReference] = useState(initialReference);
-  const [code, setCode] = useState(initialCode);
+  const [publicResult,setPublicResult]=useState<{reference:string;paymentStatus:string;fulfilmentStatus:string;deliveryStatus:string;fulfilment:string;createdAt:string}|null>(null);
+  const [publicLoading,setPublicLoading]=useState(false);
+  const [verificationCode,setVerificationCode]=useState(initialCode);
+  const [publicError,setPublicError]=useState<string|null>(null);
+  const lookupPublic=async(e?:React.FormEvent)=>{
+    e?.preventDefault();setPublicError(null);setPublicResult(null);setPublicLoading(true);
+    try{setPublicResult(await apiOps.trackPublic(reference.trim().toUpperCase()));}
+    catch(err){setPublicError(err instanceof ApiError?err.message:"Unable to track order. Please try again.");}
+    finally{setPublicLoading(false);}
+  };
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [order, setOrder] = useState<PublicOrder | null>(null);
   const [verifiedLookup, setVerifiedLookup] = useState<VerifiedLookup | null>(null);
+  const verifyGuestOrder = async () => {
+    const candidate = reference.trim().toUpperCase();
+    const code = verificationCode.trim().toUpperCase();
+    if (!candidate || !code) return;
+    await requests.load(async () => ({
+      order: await apiOps.track(candidate, code),
+      lookup: { reference: candidate, code },
+    }), { replace: true });
+  };
+
   const [requests] = useState(() => createTrackingRequestCoordinator<TrackingResult>({
     onStart: () => { setLoading(true); setError(null); },
     onValue: result => { setOrder(result.order); setVerifiedLookup(result.lookup); },
@@ -77,14 +97,6 @@ function TrackFormContent({ orderId, initialReference, initialCode }: {
     return () => window.clearInterval(timer);
   }, [order, orderId, verifiedLookup, refresh]);
 
-  const track = async (e?: React.FormEvent) => {
-    e?.preventDefault();
-    const lookup = { reference: reference.trim().toUpperCase(), code: code.trim().toUpperCase() };
-    setOrder(null);
-    setVerifiedLookup(null);
-    await requests.load(async () => ({ order: await apiOps.track(lookup.reference, lookup.code), lookup }), { replace: true });
-  };
-
   return (
     <div className="mx-auto max-w-2xl px-4 pb-10 pt-8">
       <div className="flex items-center gap-2">
@@ -94,41 +106,31 @@ function TrackFormContent({ orderId, initialReference, initialCode }: {
       <p className="mt-1 text-sm text-muted-foreground">
         {orderId
           ? "Showing live order status from your account — no verification code is needed when you open tracking from your own order."
-          : "Guest tracking uses the order reference and verification code from the confirmation screen."}
+          : "Enter your order number to see payment and fulfilment progress. Personal details remain private."}
       </p>
 
-      {!orderId ? <form onSubmit={track} className="mt-5 space-y-4 rounded-2xl border bg-card p-4 sm:p-5" aria-label="Track order form">
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div>
-            <Label htmlFor="tr-ref">Order reference</Label>
-            <Input
-              id="tr-ref"
-              className="h-11 font-mono uppercase"
-              placeholder="VG-XXXXXX"
-              value={reference}
-              onChange={(e) => setReference(e.target.value)}
-              autoComplete="off"
-              required
-            />
+      {!orderId ? <form onSubmit={lookupPublic} className="mt-5 space-y-4 rounded-2xl border bg-card p-4 sm:p-5" aria-label="Track order by number">
+        <Label htmlFor="public-order-number">Order number</Label>
+        <Input id="public-order-number" className="h-12 font-mono uppercase" placeholder="VG-XXXXXXXXXXXX" value={reference} onChange={e=>setReference(e.target.value)} autoComplete="off" required />
+        <Button type="submit" size="lg" className="h-12 w-full" disabled={publicLoading||!reference.trim()}>{publicLoading?"Checking…":"Track order"}</Button>
+        {publicError?<p role="alert" className="text-sm text-destructive">{publicError}</p>:null}
+        {publicResult?<section aria-live="polite" className="space-y-2 rounded-xl border p-4 text-sm">
+          <h2 className="font-semibold">Order {publicResult.reference}</h2>
+          <p>Payment: <strong>{publicResult.paymentStatus.replaceAll("_"," ")}</strong></p>
+          <p>Order status: <strong>{publicResult.fulfilmentStatus.replaceAll("_"," ")}</strong></p>
+          {publicResult.fulfilment==="delivery"?<p>Delivery: <strong>{publicResult.deliveryStatus.replaceAll("_"," ")}</strong></p>:<p>Collection order</p>}
+          <div className="space-y-2 border-t pt-3">
+            <Button asChild className="w-full"><Link href="/account/orders">View order details and items</Link></Button>
+            <p className="text-xs text-muted-foreground">Sign in to the purchasing account to see product names, quantities, prices and receipts. An order number alone cannot unlock private purchases.</p>
+            <div className="space-y-2 border-t pt-3" aria-label="Verify guest order details">
+              <Label htmlFor="guest-order-code">Have a private order verification code?</Label>
+              <Input id="guest-order-code" type="text" autoComplete="off" value={verificationCode} onChange={event => setVerificationCode(event.target.value)} placeholder="Enter your private code" required />
+              <Button type="button" onClick={() => void verifyGuestOrder()} variant="outline" className="w-full" disabled={loading || !verificationCode.trim()}>{loading ? "Verifying…" : "View guest order items"}</Button>
+              <p className="text-xs text-muted-foreground">Only the correct order number and private code can unlock itemised details. Do not share your code publicly.</p>
+            </div>
           </div>
-          <div>
-            <Label htmlFor="tr-code">Verification code</Label>
-            <Input
-              id="tr-code"
-              className="h-11 font-mono uppercase"
-              placeholder="6-character code"
-              value={code}
-              onChange={(e) => setCode(e.target.value)}
-              autoComplete="off"
-              required
-            />
-          </div>
-        </div>
-        <Button type="submit" size="lg" className="h-12 w-full" disabled={loading || !reference.trim() || !code.trim()}>
-          {loading ? "Checking…" : "Track order"}
-        </Button>
+        </section>:null}
       </form> : null}
-
       {orderId && loading ? <LoadingState rows={4} label="Loading your order status" /> : null}
 
       {error ? <ErrorState title="Could not track that order" message={error} className="mt-4" /> : null}
@@ -189,15 +191,6 @@ function TrackFormContent({ orderId, initialReference, initialCode }: {
             <Link href="/account/returns">Request a return</Link>
           </Button>
         </div>
-      ) : null}
-
-      {!orderId && !order && !error && !loading ? (
-        <p className="mt-6 rounded-xl border border-dashed p-3 text-sm text-muted-foreground">
-          Demo tip: track <code className="rounded bg-muted px-1 font-mono text-xs">VG-8Q2M1A</code> with code{" "}
-          <code className="rounded bg-muted px-1 font-mono text-xs">7H2K9P</code> (a delivered order with a partial refund), or{" "}
-          <code className="rounded bg-muted px-1 font-mono text-xs">VG-3P7K2D</code> with{" "}
-          <code className="rounded bg-muted px-1 font-mono text-xs">K4V9T2</code> (payment pending).
-        </p>
       ) : null}
 
       <p className="sr-only">

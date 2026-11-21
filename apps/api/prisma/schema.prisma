@@ -402,6 +402,28 @@ model Notification {
   @@index([recipientUserId, createdAt, id])
 }
 
+/// Provider-neutral, consent-gated external delivery queue. Never a payment authority.
+/// A worker must validate customer consent and event evidence before dispatch.
+model CustomerMessageDelivery {
+  id String @id @default(uuid())
+  sourceEventId String
+  channel String // sms | email | whatsapp
+  recipientFingerprint String // hashed normalized address; never raw PII in queue keys
+  recipientEncrypted String // envelope-encrypted destination, not plaintext
+  templateKey String
+  templateVersion Int @default(1)
+  status String @default("pending") // pending | sending | delivered | failed | suppressed
+  attempts Int @default(0)
+  nextAttemptAt DateTime @default(now()) @db.Timestamptz(3)
+  providerMessageId String?
+  lastErrorCode String?
+  consentRecordedAt DateTime? @db.Timestamptz(3)
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @default(now()) @db.Timestamptz(3)
+  @@unique([sourceEventId, channel, recipientFingerprint])
+  @@index([status, nextAttemptAt])
+}
+
 model NotificationOutboxReceipt {
   sourceEventId String @id
   sourceEvent OutboxEvent @relation(fields: [sourceEventId], references: [id])

@@ -20,6 +20,7 @@
     "media:coverage": "node --env-file-if-exists=.env dist/scripts/product-media-coverage.js",
     "seed:uat-storefront": "node --env-file-if-exists=.env dist/scripts/seed-uat-storefront.js",
     "logistics:bootstrap-direct": "node --env-file-if-exists=.env dist/scripts/bootstrap-direct-logistics.js",
+    "notifications:stage-external": "node --env-file-if-exists=.env dist/scripts/stage-customer-messages.js",
     "notifications:project": "node --env-file-if-exists=.env dist/scripts/project-notifications.js",
     "pickup:reminders:run": "node --env-file-if-exists=.env dist/scripts/project-pickup-reminders.js"
   },
