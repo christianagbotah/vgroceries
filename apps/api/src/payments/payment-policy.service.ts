@@ -76,7 +76,8 @@ export class PaymentPolicyService {
       throw new ApiProblem(503, "UNAVAILABLE", "Electronic payments are not configured.");
     // WHATWG URL parsing strips controls and surrounding spaces. Never accept
     // a provider URL whose raw bytes differ from the browser navigation target.
-    if (action.url !== action.url.trim() || /[\u0000-\u001F\u007F]/.test(action.url))
+    // Backslashes are also normalized as separators in special-scheme URLs.
+    if (action.url !== action.url.trim() || /[\u0000-\u001F\u007F\\]/.test(action.url))
       throw new ApiProblem(503, "UNAVAILABLE", "Hosted payment URL contains control characters.");
     let url: URL;
     try {
