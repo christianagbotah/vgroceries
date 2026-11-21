@@ -18,6 +18,11 @@ export function validateHubtelSmsConfig(config: HubtelSmsConfig): void {
   if (![config.clientId, config.clientSecret, config.senderId].every(value => typeof value === "string" && value.trim().length > 0)) {
     throw new Error("Hubtel SMS credentials and sender ID are required.");
   }
+  // Basic auth uses clientId:clientSecret; a colon in the ID changes the credential boundary.
+  // Reject control characters in all provider-controlled identity fields before transmission.
+  if (config.clientId.includes(":") || [config.clientId, config.clientSecret, config.senderId].some(value => /[\u0000-\u001f\u007f]/.test(value))) {
+    throw new Error("Hubtel SMS credentials or sender ID contain unsafe characters.");
+  }
 }
 export async function sendHubtelSms(
   config: HubtelSmsConfig,
