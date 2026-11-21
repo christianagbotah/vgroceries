@@ -31,7 +31,7 @@ export class CustomerOtpController {
   async request(@Req() req: ApiRequest) {
     const { phone, userId } = await this.customerPhone(req);
     const repo = this.repository();
-    const endpoint = process.env.HUBTEL_SMS_ENDPOINT;
+    const endpoint = process.env.HUBTEL_SMS_ENDPOINT ?? "https://sms.hubtel.com/v1/messages/send";
     const clientId = process.env.HUBTEL_SMS_CLIENT_ID;
     const clientSecret = process.env.HUBTEL_SMS_CLIENT_SECRET;
     const senderId = process.env.HUBTEL_SMS_SENDER_ID;
