@@ -287,7 +287,7 @@ export function StorefrontFooter() {
         <div>
           <p className="text-sm font-bold">Stay connected</p>
           <p className="mt-1 text-xs leading-relaxed text-white/65">Use your account for order history and repeat shopping. Public notification channels remain demo-only until launch configuration is complete.</p>
-          <div className="mt-4 flex gap-2"><Button asChild variant="secondary" className="h-10"><Link href="/account">My account</Link></Button><Button asChild className="h-10 bg-brand-amber text-[color:var(--brand-green-deep)] hover:bg-brand-amber/90"><Link href="/shop">Shop now</Link></Button></div>
+          <div className="mt-4 col-span-2 flex w-full min-w-0 flex-wrap items-center justify-center gap-2 sm:justify-start lg:col-span-1"><Button asChild variant="secondary" className="h-10 max-w-full min-w-0 px-3 text-xs sm:text-sm"><Link href="/account">My account</Link></Button><Button asChild className="h-10 max-w-full min-w-0 bg-brand-amber px-3 text-xs text-[color:var(--brand-green-deep)] hover:bg-brand-amber/90 sm:text-sm"><Link href="/shop">Shop now</Link></Button></div>
         </div>
       </div>
       <div className="border-t border-white/10"><div className="mx-auto flex max-w-[1500px] flex-wrap items-center justify-between gap-2 px-4 py-4 text-[11px] text-white/55"><p>© {new Date().getFullYear()} Variety Groceries · Ghana · Demo storefront</p><p>Mobile Money · Card · Bank transfer · Cash — provider connections remain clearly labelled in the checkout.</p></div></div>
