@@ -74,8 +74,9 @@ export class PaymentPolicyService {
     const payment = this.config.payments;
     if (!payment)
       throw new ApiProblem(503, "UNAVAILABLE", "Electronic payments are not configured.");
-    // WHATWG URL parsing silently strips tabs/newlines; reject ambiguous provider URLs first.
-    if (/[\u0000-\u001F\u007F]/.test(action.url))
+    // WHATWG URL parsing strips controls and surrounding spaces. Never accept
+    // a provider URL whose raw bytes differ from the browser navigation target.
+    if (action.url !== action.url.trim() || /[\u0000-\u001F\u007F]/.test(action.url))
       throw new ApiProblem(503, "UNAVAILABLE", "Hosted payment URL contains control characters.");
     let url: URL;
     try {
