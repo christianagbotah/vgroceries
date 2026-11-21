@@ -4,6 +4,7 @@ import { readConfig } from "../src/config";
 import { createApplication } from "../src/bootstrap";
 import { HubtelPaymentProvider } from "../src/payments/hubtel-payment-provider";
 import { PaymentProviderRegistry } from "../src/payments/payment-provider.registry";
+import { PaymentPolicyService } from "../src/payments/payment-policy.service";
 
 function fakeFetch(...responses: Array<{ status?: number; body: unknown }>) {
   const calls: Array<{ url: string; init?: RequestInit }> = [];
@@ -248,6 +249,15 @@ test("configured Hubtel bundle auto-registers the collection adapter in NestJS",
   try {
     assert.equal(app.get(PaymentProviderRegistry).requireConfigured().id, "hubtel");
     assert.deepEqual(app.get(PaymentProviderRegistry).requireConfigured().capabilities().methods, ["mobile_money"]);
+    // Collection must work without any configured refund API or refund entitlement.
+    assert.equal(config.hubtelRefund, null);
+    const paymentPolicy = app.get(PaymentPolicyService);
+    assert.equal(paymentPolicy.assertElectronicMethodAvailable("mobile_money").id, "hubtel");
+    assert.equal(paymentPolicy.resolveElectronicMethod().method, "mobile_money");
+    assert.throws(() => paymentPolicy.assertElectronicMethodAvailable("card_hosted"), /unavailable/i);
+    assert.throws(() => paymentPolicy.validateProviderAction({ kind: "redirect", url: "http://pay.hubtel.com/insecure" }), /HTTPS/i);
+    assert.throws(() => paymentPolicy.validateProviderAction({ kind: "redirect", url: "https://untrusted.example/checkout" }), /allowlist/i);
+    assert.deepEqual(paymentPolicy.validateProviderAction({ kind: "redirect", url: "https://pay.hubtel.com/checkout" }), { kind: "redirect", url: "https://pay.hubtel.com/checkout" });
   } finally {
     await app.close();
   }
