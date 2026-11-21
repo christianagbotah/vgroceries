@@ -33,3 +33,22 @@ test("provider form POST actions require HTTPS and a configured hosted domain", 
     { kind: "form_post", url: "https://webpay.example.test/pay", fields },
   );
 });
+
+test("hosted checkout redirects reject embedded credentials, custom ports and fragments", () => {
+  const subject = policy();
+  for (const url of [
+    "https://user:password@webpay.example.test/pay",
+    "https://webpay.example.test:8443/pay",
+    "https://webpay.example.test/pay#untrusted",
+  ]) {
+    assert.throws(
+      () => subject.validateProviderAction({ kind: "redirect", url }),
+      /disallowed URL components/i,
+      url,
+    );
+  }
+  assert.deepEqual(
+    subject.validateProviderAction({ kind: "redirect", url: "https://webpay.example.test/pay?reference=valid" }),
+    { kind: "redirect", url: "https://webpay.example.test/pay?reference=valid" },
+  );
+});
