@@ -75,6 +75,18 @@ jobs:
             echo 'Candidate contains a prohibited credential-like file' >&2
             exit 1
           fi
+          # Reject links escaping the candidate root before archiving or extraction.
+          # Standalone may legitimately contain internal relative links.
+          python3 - <<'PY'
+          from pathlib import Path
+          root = Path("candidate/payload").resolve()
+          for path in root.rglob("*"):
+              if path.is_symlink():
+                  target = path.resolve(strict=True)
+                  if not target.is_relative_to(root):
+                      raise SystemExit(f"Unsafe candidate symlink: {path}")
+          print("Candidate symlink containment: PASS")
+          PY
           printf '%s\n' "${GITHUB_SHA}" > candidate/evidence/source-sha.txt
           printf '%s\n' 'vgroceries-storefront-standalone-v1' > candidate/evidence/format.txt
           tar -C candidate/payload -czf candidate/evidence/storefront.tar.gz .
