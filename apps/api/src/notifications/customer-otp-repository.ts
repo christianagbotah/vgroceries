@@ -37,6 +37,34 @@ export class CustomerOtpRepository {
     });
     return { id, code, expiresAt: new Date(now.getTime() + OTP_TTL_MS) };
   }
+  /** Consumes the OTP and marks the same phone verified in one transaction.
+   * A phone change or failed verification rolls back both writes. */
+  async verifyPhone(userId: string, phone: string, id: string, code: string, now = new Date()): Promise<boolean> {
+    if (!/^[0-9a-f-]{36}$/i.test(id) || !/^\d{6}$/.test(code)) return false;
+    const digest = digestCustomerOtp(this.secret, id, code);
+    return this.db.$transaction(async tx => {
+      const challenge = await tx.customerOtpChallenge.findFirst({
+        where: { id, userId, purpose: "phone_verification", recipientFingerprint: customerDestinationFingerprint(phone) },
+        select: { id: true },
+      });
+      if (!challenge) return false;
+      const consumed = await tx.customerOtpChallenge.updateMany({
+        where: otpConsumeWhere(id, digest, now), data: { status: "consumed", consumedAt: now },
+      });
+      if (consumed.count !== 1) {
+        await tx.customerOtpChallenge.updateMany({
+          where: otpFailureWhere(id, now), data: { attempts: { increment: 1 } },
+        });
+        return false;
+      }
+      const updated = await tx.user.updateMany({
+        where: { id: userId, phone, role: "customer", active: true },
+        data: { phoneVerifiedAt: now },
+      });
+      if (updated.count !== 1) throw new Error("Account phone changed during verification.");
+      return true;
+    });
+  }
   async verify(id: string, code: string, now = new Date()): Promise<boolean> {
     if (!/^[0-9a-f-]{36}$/i.test(id) || !/^\d{6}$/.test(code)) return false;
     const digest = digestCustomerOtp(this.secret, id, code);
