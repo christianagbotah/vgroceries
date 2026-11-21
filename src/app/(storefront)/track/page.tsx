@@ -20,7 +20,7 @@ import { createTrackingRequestCoordinator, isTrackingTerminal } from "@/features
 type VerifiedLookup = { reference: string; code: string };
 type TrackingResult = { order: PublicOrder; lookup: VerifiedLookup | null };
 
-/** Secure tracking entry — order reference + verification code together. */
+/** Public tracking shows only status; private order details still require authorization. */
 export default function TrackPage() {
   return (
     <Suspense fallback={<LoadingState rows={4} label="Loading tracking" />}>
@@ -52,7 +52,6 @@ function TrackFormContent({ orderId, initialReference, initialCode }: {
     finally{setPublicLoading(false);}
   };
 
-  const [code, setCode] = useState(initialCode);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [order, setOrder] = useState<PublicOrder | null>(null);
@@ -86,14 +85,6 @@ function TrackFormContent({ orderId, initialReference, initialCode }: {
     const timer = window.setInterval(() => { void refresh(); }, 30000);
     return () => window.clearInterval(timer);
   }, [order, orderId, verifiedLookup, refresh]);
-
-  const track = async (e?: React.FormEvent) => {
-    e?.preventDefault();
-    const lookup = { reference: reference.trim().toUpperCase(), code: code.trim().toUpperCase() };
-    setOrder(null);
-    setVerifiedLookup(null);
-    await requests.load(async () => ({ order: await apiOps.track(lookup.reference, lookup.code), lookup }), { replace: true });
-  };
 
   return (
     <div className="mx-auto max-w-2xl px-4 pb-10 pt-8">
@@ -180,15 +171,6 @@ function TrackFormContent({ orderId, initialReference, initialCode }: {
             <Link href="/account/returns">Request a return</Link>
           </Button>
         </div>
-      ) : null}
-
-      {!orderId && !order && !error && !loading ? (
-        <p className="mt-6 rounded-xl border border-dashed p-3 text-sm text-muted-foreground">
-          Demo tip: track <code className="rounded bg-muted px-1 font-mono text-xs">VG-8Q2M1A</code> with code{" "}
-          <code className="rounded bg-muted px-1 font-mono text-xs">7H2K9P</code> (a delivered order with a partial refund), or{" "}
-          <code className="rounded bg-muted px-1 font-mono text-xs">VG-3P7K2D</code> with{" "}
-          <code className="rounded bg-muted px-1 font-mono text-xs">K4V9T2</code> (payment pending).
-        </p>
       ) : null}
 
       <p className="sr-only">
