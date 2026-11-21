@@ -90,8 +90,12 @@ jobs:
           printf '%s\n' "${GITHUB_SHA}" > candidate/evidence/source-sha.txt
           printf '%s\n' 'vgroceries-storefront-standalone-v1' > candidate/evidence/format.txt
           tar -C candidate/payload -czf candidate/evidence/storefront.tar.gz .
-          (cd candidate/evidence && sha256sum storefront.tar.gz > SHA256SUMS)
-          (cd candidate/evidence && sha256sum --check SHA256SUMS)
+          # Bind the source identity and format to the same integrity manifest
+          # as the archive; a consumer must verify all three before use.
+          (cd candidate/evidence && sha256sum storefront.tar.gz source-sha.txt format.txt > SHA256SUMS)
+          (cd candidate/evidence && sha256sum --check --strict SHA256SUMS)
+          test "$(cat candidate/evidence/source-sha.txt)" = "$GITHUB_SHA"
+          test "$(cat candidate/evidence/format.txt)" = 'vgroceries-storefront-standalone-v1'
           # Validate archive entries before extraction; reject traversal, special
           # files, hardlinks and symlinks pointing outside the extracted root.
           python3 - <<'PY'
