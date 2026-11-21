@@ -266,8 +266,8 @@ export function StorefrontMobileNav() {
 export function StorefrontFooter() {
   return (
     <footer className="storefront-footer-rich mt-auto bg-[color:var(--brand-green-deep)] text-white">
-      <div className="mx-auto grid max-w-[1500px] gap-8 px-4 py-10 sm:grid-cols-2 lg:grid-cols-[1.35fr_.8fr_.9fr_.8fr_1.3fr]">
-        <div className="space-y-4 sm:col-span-2 lg:col-span-1">
+      <div className="mx-auto grid max-w-[1500px] grid-cols-2 gap-x-4 gap-y-8 px-4 py-10 sm:gap-x-8 lg:grid-cols-[1.35fr_.8fr_.9fr_.8fr_1.3fr]">
+        <div className="col-span-2 space-y-4 lg:col-span-1">
           <Brand compact inverse />
           <p className="max-w-xs text-sm leading-relaxed text-white/70">A connected grocery experience for everyday Ghanaian homes — fresh food, pantry staples, household essentials and order support in one place.</p>
           <p className="text-xs font-semibold text-brand-amber">Prices shown in Ghana cedis (₵).</p>
