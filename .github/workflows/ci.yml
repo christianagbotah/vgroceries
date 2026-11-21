@@ -96,7 +96,31 @@ jobs:
           tar -xzf candidate/evidence/storefront.tar.gz -C candidate/verification
           test -f candidate/verification/server.js
           test -d candidate/verification/.next/static
-          rm -rf candidate/verification candidate/payload
+          # Boot ONLY the extracted artifact, from its own directory, on a separate
+          # loopback port. This catches missing traced runtime dependencies.
+          (
+            set -euo pipefail
+            cd candidate/verification
+            PORT=3107 HOSTNAME=127.0.0.1 NODE_ENV=production node server.js > ../artifact-smoke.log 2>&1 &
+            smoke_pid=$!
+            trap 'kill "$smoke_pid" 2>/dev/null || true; wait "$smoke_pid" 2>/dev/null || true' EXIT
+            ready=0
+            for i in $(seq 1 45); do
+              if curl --fail --silent --show-error --max-time 2 http://127.0.0.1:3107/ -o /dev/null 2>/dev/null; then
+                ready=1
+                break
+              fi
+              if ! kill -0 "$smoke_pid" 2>/dev/null; then break; fi
+              sleep 1
+            done
+            if [ "$ready" -ne 1 ]; then
+              echo 'Extracted standalone candidate failed isolated HTTP smoke test' >&2
+              cat ../artifact-smoke.log >&2
+              exit 1
+            fi
+            echo 'Extracted standalone candidate HTTP smoke: PASS'
+          )
+          rm -rf candidate/verification candidate/payload candidate/artifact-smoke.log
 
       - name: Upload non-deployable storefront candidate
         uses: actions/upload-artifact@v4
