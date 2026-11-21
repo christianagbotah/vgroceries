@@ -43,3 +43,24 @@ test("rejects endpoint normalization and nonstandard ports before authenticated 
   }
   assert.doesNotThrow(() => validateHubtelSmsConfig(config));
 });
+
+test("rejects ambiguous Basic authentication identity and control-character credentials", async () => {
+  for (const invalid of [
+    { clientId: "merchant:other" },
+    { clientId: "merchant\r\n" },
+    { clientSecret: "secret\u0000suffix" },
+    { senderId: "VG\nSHOP" },
+  ]) {
+    assert.throws(() => validateHubtelSmsConfig({ ...config, ...invalid }), /unsafe characters/);
+  }
+  let called = false;
+  await assert.rejects(
+    sendHubtelSms({ ...config, clientId: "merchant:other" }, "+233241234567", "Test", (async () => {
+      called = true;
+      throw new Error("unexpected network request");
+    }) as typeof fetch),
+    /unsafe characters/,
+  );
+  assert.equal(called, false);
+  assert.doesNotThrow(() => validateHubtelSmsConfig({ ...config, clientSecret: "valid:secret" }));
+});
