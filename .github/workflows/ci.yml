@@ -58,3 +58,38 @@ jobs:
 
       - name: Route sweep
         run: bun scripts/route-sweep.mjs http://localhost:3000
+
+      # Candidate only: this does not deploy or authorize a production cutover.
+      - name: Package source-light storefront candidate (exact SHA)
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f .next/standalone/server.js
+          test -d .next/static
+          mkdir -p candidate/payload/.next candidate/evidence
+          cp -a .next/standalone/. candidate/payload/
+          cp -a .next/static candidate/payload/.next/static
+          if [ -d public ]; then cp -a public candidate/payload/public; fi
+          # Fail closed if an unexpected secret file was copied by standalone tracing.
+          if find candidate/payload -type f \( -name '.env' -o -name '.env.*' -o -name '*.pem' -o -name '*.key' \) | grep -q .; then
+            echo 'Candidate contains a prohibited credential-like file' >&2
+            exit 1
+          fi
+          printf '%s\n' "${GITHUB_SHA}" > candidate/evidence/source-sha.txt
+          printf '%s\n' 'vgroceries-storefront-standalone-v1' > candidate/evidence/format.txt
+          tar -C candidate/payload -czf candidate/evidence/storefront.tar.gz .
+          (cd candidate/evidence && sha256sum storefront.tar.gz > SHA256SUMS)
+          (cd candidate/evidence && sha256sum --check SHA256SUMS)
+          mkdir -p candidate/verification
+          tar -xzf candidate/evidence/storefront.tar.gz -C candidate/verification
+          test -f candidate/verification/server.js
+          test -d candidate/verification/.next/static
+          rm -rf candidate/verification candidate/payload
+
+      - name: Upload non-deployable storefront candidate
+        uses: actions/upload-artifact@v4
+        with:
+          name: storefront-candidate-${{ github.sha }}
+          path: candidate/evidence/
+          if-no-files-found: error
+          retention-days: 7
