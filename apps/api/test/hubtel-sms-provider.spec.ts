@@ -30,3 +30,16 @@ test("treats provider HTTP 403 as an authorization failure", async () => {
   await assert.rejects(sendHubtelSms(config, "+233241234567", "Test", (async () =>
     new Response(JSON.stringify({ Status: "success" }), { status: 403 })) as typeof fetch), /HTTP 403/);
 });
+
+test("rejects endpoint normalization and nonstandard ports before authenticated transport", () => {
+  for (const endpoint of [
+    " https://sms.hubtel.com/v1/messages",
+    "https://sms.hubtel.com/v1/messages ",
+    "https://sms.hubtel.com/v1/\\\\messages",
+    "https://sms.hubtel.com/v1/\nmessages",
+    "https://sms.hubtel.com:8443/v1/messages",
+  ]) {
+    assert.throws(() => validateHubtelSmsConfig({ ...config, endpoint }), endpoint);
+  }
+  assert.doesNotThrow(() => validateHubtelSmsConfig(config));
+});
