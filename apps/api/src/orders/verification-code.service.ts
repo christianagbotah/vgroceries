@@ -26,6 +26,12 @@ export class VerificationCodeService {
     }
     return out;
   }
+  otpDigest(orderId: string, challengeId: string, code: string, keyVersion?: number): string {
+    const { key } = this.key(keyVersion);
+    return createHmac("sha256", key)
+      .update("order-sms-otp-v1:" + orderId + ":" + challengeId + ":" + code)
+      .digest("hex");
+  }
   digestFor(orderId: string, code: string, keyVersion: number): string {
     const { key } = this.key(keyVersion);
     const normalized = code.trim().toUpperCase();

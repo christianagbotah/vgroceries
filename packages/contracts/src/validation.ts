@@ -182,6 +182,13 @@ export const checkoutCompleteRestRequestSchema = checkoutCompleteBaseSchema.exte
   idempotencyKey: replayKeySchema.optional(),
 }).superRefine(validateDestination);
 
+export const trackPublicRequestSchema = z.object({
+  reference: z.string().trim().toUpperCase().regex(/^VG-[A-Z0-9]{6,32}$/),
+}).strict();
+export const trackOtpVerifyRequestSchema = trackPublicRequestSchema.extend({
+  challengeId: z.string().uuid(),
+  code: z.string().regex(/^[0-9]{6}$/),
+}).strict();
 export const trackRequestSchema = z.object({
   reference: z.string().trim().min(1).max(128),
   code: z.string().trim().min(1).max(64),
@@ -669,6 +676,9 @@ function withoutTransportReplay(schema: z.ZodTypeAny): z.ZodTypeAny {
 }
 
 export const requestSchemas: Record<string, z.ZodTypeAny> = {
+  "orders.track-public": trackPublicRequestSchema,
+  "orders.track-otp.request": trackPublicRequestSchema,
+  "orders.track-otp.verify": trackOtpVerifyRequestSchema,
   "auth.login": loginRequestSchema,
   "auth.signup": registerRequestSchema,
   "checkout.quote": checkoutQuoteRequestSchema,

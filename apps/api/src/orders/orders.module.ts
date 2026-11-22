@@ -6,6 +6,7 @@ import { PaymentsModule } from "../payments/payments.module";
 import { RefundsModule } from "../refunds/refunds.module";
 import { LogisticsModule } from "../logistics/logistics.module";
 import { VerificationCodeService } from "./verification-code.service";
+import { OrderTrackingOtpService } from "./order-tracking-otp.service";
 import { CheckoutQuoteService } from "./checkout-quote.service";
 import { CheckoutCommandService } from "./checkout-command.service";
 import { CheckoutController } from "./checkout.controller";
@@ -25,7 +26,7 @@ import { AdminOrderQueryService } from "./admin-order-query.service";
 @Module({
   imports: [InventoryModule, DeliveryConfigModule, CommerceIdentityModule, PaymentsModule, RefundsModule, LogisticsModule],
   controllers: [CheckoutController, OrdersController, AccountController, AccountOrdersController, AdminOrderActionsController, AdminOrdersController],
-  providers: [VerificationCodeService, CheckoutQuoteService, CheckoutCommandService, OrderProjectionService, OrderQueryService, TrackingThrottleService, OrderCancellationService, OrderFinancialActionService, AccountProfileService, AdminOrderQueryService],
+  providers: [VerificationCodeService, OrderTrackingOtpService, CheckoutQuoteService, CheckoutCommandService, OrderProjectionService, OrderQueryService, TrackingThrottleService, OrderCancellationService, OrderFinancialActionService, AccountProfileService, AdminOrderQueryService],
   exports: [VerificationCodeService, CheckoutQuoteService, CheckoutCommandService, OrderProjectionService, OrderQueryService, TrackingThrottleService, OrderCancellationService, OrderFinancialActionService],
 })
 export class OrdersModule {}

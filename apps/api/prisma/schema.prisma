@@ -517,6 +517,7 @@ model Order {
   deliveryEvents DeliveryEvent[]
   shipments Shipment[]
   collectionReceipts ShipmentCollectionReceipt[]
+  trackingOtpChallenges OrderTrackingOtpChallenge[]
   physicalReturnReceipts PhysicalReturnReceipt[]
   customerReturnClaims CustomerReturnClaim[]
   notifications Notification[]
@@ -792,6 +793,24 @@ model DeliverySlotBooking {
   createdAt DateTime @default(now()) @db.Timestamptz(3)
   releasedAt DateTime? @db.Timestamptz(3)
   @@index([slotId, state])
+}
+
+/// A short-lived, single-use SMS proof for viewing a guest order.
+/// Codes and phone numbers are never stored in this table.
+model OrderTrackingOtpChallenge {
+  id String @id @default(uuid())
+  orderId String
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  otpDigest String
+  keyVersion Int
+  requestIpHash String
+  attempts Int @default(0)
+  expiresAt DateTime @db.Timestamptz(3)
+  consumedAt DateTime? @db.Timestamptz(3)
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  @@index([orderId, createdAt])
+  @@index([requestIpHash, createdAt])
+  @@index([expiresAt])
 }
 
 model TrackingThrottle {
