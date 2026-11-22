@@ -103,8 +103,23 @@ jobs:
           import tarfile
           from pathlib import PurePosixPath
 
+          # Prevent duplicate-path shadowing and decompression bombs. These
+          # bounds apply to the uncompressed payload, not the gzip file size.
+          seen = set()
+          total_bytes = 0
+          member_count = 0
           with tarfile.open("candidate/evidence/storefront.tar.gz", "r:gz") as archive:
               for member in archive:
+                  member_count += 1
+                  if member_count > 100000:
+                      raise SystemExit("Candidate archive exceeds entry count limit")
+                  total_bytes += member.size
+                  if total_bytes > 1073741824:
+                      raise SystemExit("Candidate archive exceeds 1 GiB extracted size limit")
+                  normalized = posixpath.normpath(member.name)
+                  if normalized in seen:
+                      raise SystemExit(f"Duplicate candidate archive path: {member.name}")
+                  seen.add(normalized)
                   path = PurePosixPath(member.name)
                   if path.is_absolute() or ".." in path.parts:
                       raise SystemExit(f"Unsafe archive path: {member.name}")
