@@ -8,13 +8,14 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { LockKeyhole, Phone, ShoppingBag } from "lucide-react";
+import { Eye, EyeOff, LockKeyhole, Phone, ShoppingBag } from "lucide-react";
 
 export default function CustomerLoginPage() {
   const router = useRouter();
   const [returnPath, setReturnPath] = useState("/account");
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -66,7 +67,7 @@ export default function CustomerLoginPage() {
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="customer-password">Password</Label>
-              <div className="relative"><LockKeyhole className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden /><Input id="customer-password" type="password" autoComplete="current-password" className="h-11 pl-9" value={password} onChange={(e) => setPassword(e.target.value)} required /></div>
+              <div className="relative"><LockKeyhole className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden /><Input id="customer-password" type={showPassword ? "text" : "password"} autoComplete="current-password" className="h-11 pl-9 pr-12" value={password} onChange={(e) => setPassword(e.target.value)} required /><button type="button" className="absolute inset-y-0 right-0 flex w-11 items-center justify-center rounded-r-md text-muted-foreground hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-primary" onClick={() => setShowPassword((visible) => !visible)} aria-label={showPassword ? "Hide password" : "Show password"} aria-pressed={showPassword}>{showPassword ? <EyeOff className="size-5" aria-hidden /> : <Eye className="size-5" aria-hidden />}</button></div>
             </div>
             {error ? <p role="alert" className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">{error}</p> : null}
             <Button type="submit" size="lg" className="h-11 w-full" disabled={busy}>{busy ? "Signing in…" : "Sign in"}</Button>
