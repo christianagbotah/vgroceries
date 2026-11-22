@@ -11,6 +11,12 @@ on:
     branches: [main]
   workflow_dispatch:
 
+# Cancel superseded PR verification on the same branch to avoid duplicate
+# hosted builds; never cancel main-branch verification or manual runs.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   verify:
     runs-on: ubuntu-latest
