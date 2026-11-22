@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { apiOps, ApiError } from "@/services/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -145,6 +146,7 @@ export default function AccountProfilePage() {
         <CardContent className="space-y-3 text-sm text-muted-foreground">
           <p>Profile changes are kept separate from payment details and order history.</p>
           <p>Use the Log out action in the account header when you finish on a shared device.</p>
+          <Link href="/forgot-password" className="inline-flex min-h-11 items-center font-semibold text-primary underline underline-offset-4">Change or reset your password</Link>
           <div className="rounded-xl border p-4 space-y-3">
             <p className="font-semibold text-foreground">Phone verification</p>
             <p>Verify your saved phone number by SMS. Save any phone changes first.</p>
