@@ -382,6 +382,8 @@ export function foundationOpenApi(app: INestApplication) {
       const documentedProviderReturn = suffix === "/payments/providers/etranzact/return";
       // Defined with a sanitized envelope and explicit public security in productionOpenApi.
       const documentedCheckoutAvailability = suffix === "/checkout/payment-availability";
+      // Exact, public, rate-limited OTP routes; strict schemas are attached below.
+      const documentedTrackingOtp = ["/orders/track-otp/request", "/orders/track-otp/verify"].includes(suffix);
       // New P0a till routes have strict schemas and authorization set in
       // productionOpenApi; the foundation registry must not claim them as
       // unimplemented legacy routes.
@@ -418,7 +420,7 @@ export function foundationOpenApi(app: INestApplication) {
         "/admin/staff/{staffId}/actions",
         "/auth/staff-invitations/accept",
       ].includes(suffix);
-      if (productionExtension || documentedProviderReturn || documentedCheckoutAvailability || documentedPosTill || documentedStaff || documentedPasswordRecovery || documentedAdjustments) continue;
+      if (productionExtension || documentedProviderReturn || documentedCheckoutAvailability || documentedTrackingOtp || documentedPosTill || documentedStaff || documentedPasswordRecovery || documentedAdjustments) continue;
       throw new Error(`Undocumented foundation endpoint: ${path}`);
     }
     for (const method of ["get", "post"] as const) {
@@ -660,6 +662,50 @@ export function foundationOpenApi(app: INestApplication) {
     "429": etranzactReturnError,
     "500": etranzactReturnError,
     "503": etranzactReturnError,
+  };
+
+  // Public SMS order verification: document actual input/output contracts without
+  // suggesting that either endpoint accepts an authenticated customer session.
+  // Both remain subject to server-side rate limits, OTP expiry and one-time use.
+  const trackingOtpRequest = doc.paths["/api/v1/orders/track-otp/request"]!.post!;
+  trackingOtpRequest.security = [];
+  trackingOtpRequest.description =
+    "Public, rate-limited SMS challenge request. Unknown order numbers receive a non-enumerating challenge-shaped response; no order or phone information is disclosed. Requires configured SMS and OTP services.";
+  trackingOtpRequest.requestBody = {
+    required: true,
+    content: { "application/json": { schema: json(z.object({
+      reference: z.string().min(1).max(128),
+    }).strict()) } },
+  };
+  trackingOtpRequest.responses = {
+    "200": { description: "Non-enumerating challenge response", content: { "application/json": {
+      schema: json(z.object({ ok: z.literal(true), data: z.object({
+        challengeId: z.string().uuid(), expiresAt: z.string().datetime(),
+      }).strict() }).strict()),
+    } } },
+    "400": { description: "Invalid order number" },
+    "429": { description: "Request rate limit reached" },
+    "503": { description: "OTP or SMS service unavailable" },
+  };
+
+  const trackingOtpVerify = doc.paths["/api/v1/orders/track-otp/verify"]!.post!;
+  trackingOtpVerify.security = [];
+  trackingOtpVerify.description =
+    "Public, rate-limited one-time SMS code verification. Only a valid unexpired code for the matching order returns private order details; invalid or expired codes return 403.";
+  trackingOtpVerify.requestBody = {
+    required: true,
+    content: { "application/json": { schema: json(z.object({
+      reference: z.string().min(1).max(128),
+      challengeId: z.string().uuid(),
+      code: z.string().regex(/^\\d{6}$/),
+    }).strict()) } },
+  };
+  trackingOtpVerify.responses = {
+    "200": { description: "Verified private order details; requires a valid one-time challenge" },
+    "400": { description: "Invalid verification request" },
+    "403": { description: "Invalid or expired verification code" },
+    "429": { description: "Tracking rate limit reached" },
+    "503": { description: "OTP service unavailable" },
   };
 
   const paymentList = doc.paths["/api/v1/payments"]!.get!;
