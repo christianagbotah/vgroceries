@@ -12,6 +12,14 @@ for service in varietygroceries-api varietygroceries-portal varietygroceries-por
   printf '%s: ' "$service"
   systemctl show "$service" -p WorkingDirectory --value 2>/dev/null || true
 done
+printf '\nActive service process directories (symlink-resolved, read-only):\n'
+for service in varietygroceries-api varietygroceries-portal varietygroceries-portal-canonical vg-pos-staging-api vg-pos-staging-web varietygroceries-media-worker; do
+  pid=$(systemctl show "$service" -p MainPID --value 2>/dev/null || true)
+  if [[ "$pid" =~ ^[0-9]+$ ]] && (( pid > 1 )); then
+    cwd=$(readlink -- "/proc/$pid/cwd" 2>/dev/null || true)
+    printf '%s pid=%s cwd=%s\n' "$service" "$pid" "${cwd:-unavailable}"
+  fi
+done
 printf '\nRelease inventory (NO automatic deletion recommendations):\n'
 shopt -s nullglob
 for path in "$ROOT"/varietygroceries-*; do
