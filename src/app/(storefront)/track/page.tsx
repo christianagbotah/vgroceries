@@ -180,7 +180,7 @@ function TrackFormContent({ orderId, initialReference, initialCode }: {
               </div>
             </div>
             <p className="mt-1 text-sm text-muted-foreground">
-              Placed {order.createdAtLabel} UTC · {order.fulfilment === "delivery" ? `Delivery${order.slotLabel ? ` (${order.slotLabel})` : ""}` : "Collection"}
+              Placed {formatDateTime(order.createdAt)} UTC · {order.fulfilment === "delivery" ? `Delivery${order.slotLabel ? ` (${order.slotLabel})` : ""}` : "Collection"}
               {order.job?.riderName ? ` · Rider: ${order.job.riderName}` : ""}
             </p>
 
