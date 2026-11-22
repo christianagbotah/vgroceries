@@ -23,6 +23,16 @@ done
 printf '\nRelease inventory (NO automatic deletion recommendations):\n'
 # Reference flags are positive evidence only; 'not-observed' NEVER means safe to delete.
 active_roots=()
+# A configured WorkingDirectory can pin a release even when its service is
+# stopped or its main process has not yet started. Treat it as a protected
+# reference, not as proof that a release is healthy or safe to remove.
+for service in varietygroceries-api varietygroceries-portal varietygroceries-portal-canonical vg-pos-staging-api vg-pos-staging-web varietygroceries-media-worker; do
+  configured=$(systemctl show "$service" -p WorkingDirectory --value 2>/dev/null || true)
+  if [[ "$configured" == /* && -d "$configured" ]]; then
+    target=$(readlink -f -- "$configured" 2>/dev/null || true)
+    [[ -n "$target" ]] && active_roots+=("$target")
+  fi
+done
 for service in varietygroceries-api varietygroceries-portal varietygroceries-portal-canonical vg-pos-staging-api vg-pos-staging-web varietygroceries-media-worker; do
   pid=$(systemctl show "$service" -p MainPID --value 2>/dev/null || true)
   if [[ "$pid" =~ ^[0-9]+$ ]] && (( pid > 1 )); then
