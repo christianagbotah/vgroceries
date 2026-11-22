@@ -33,7 +33,7 @@ describe("rich storefront visual system", () => {
 
   test("hero headline and photography are visible before client hydration", () => {
     const hero = read("src/features/catalog/storefront-editorial-hero.tsx");
-    // Both image and headline must be rendered immediately, even before hydration.\n    expect(hero).toContain('key={current.id}\\n          initial={false}');\n    expect(hero).toContain('key={current.id}\\n            initial={false}');\n    expect(hero).toContain('alt={current.alt}');\n    expect(hero).toContain('id="home-hero-title"');
+    // Both image and headline must be rendered immediately, even before hydration.\n    expect(hero).toContain('key={current.id}\n          initial={false}');\n    expect(hero).toContain('key={current.id}\n            initial={false}');\n    expect(hero).toContain('alt={current.alt}');\n    expect(hero).toContain('id="home-hero-title"');
   });
 
   test("legacy Z logo is fully retired from public branding and metadata", () => {
