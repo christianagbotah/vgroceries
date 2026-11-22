@@ -23,7 +23,10 @@ jobs:
     # Bound hosted-runner consumption if a dependency, build, or smoke test hangs.
     timeout-minutes: 45
     steps:
+      # Build/test scripts must not inherit a reusable repository token.
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - name: Offline Hubtel access diagnostic tests (no provider requests)
         run: python3 -m unittest discover -s scripts -p 'test_hubtel_transaction_status_probe.py' -v
