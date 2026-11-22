@@ -205,7 +205,7 @@ export default function CheckoutStatusPage() {
           <StatusBadge kind="payment" status={order.paymentStatus} />
           <StatusBadge kind="fulfilment" status={order.fulfilmentStatus} />
           {order.fulfilment === "delivery" ? <StatusBadge kind="delivery" status={order.deliveryStatus} /> : null}
-          <span className="text-muted-foreground">Placed {order.createdAtLabel} UTC</span>
+          <span className="text-muted-foreground">Placed {formatDateTime(order.createdAt)} UTC</span>
         </div>
         <div className="mt-4"><OrderReceiptExperience order={order} /></div>
       </div>
