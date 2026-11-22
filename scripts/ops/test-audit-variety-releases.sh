@@ -11,6 +11,8 @@ ln -s "$tmp/releases/varietygroceries-test" "$tmp/webapps/varietygroceries-porta
 output="$(VG_RELEASE_ROOT="$tmp/releases" VG_WEBAPPS_ROOT="$tmp/webapps" bash "$here/audit-variety-releases.sh")"
 grep -q 'varietygroceries-test' <<< "$output"
 grep -q 'NO automatic deletion recommendations' <<< "$output"
+grep -Eq 'varietygroceries-test.*ref=ACTIVE-REFERENCE' <<< "$output"
+grep -q 'ref=not-observed is NOT evidence of non-use' <<< "$output"
 grep -q 'varietygroceries-api/current ->' <<< "$output"
 grep -q 'varietygroceries-portal-current ->' <<< "$output"
 test "$(cat "$tmp/releases/varietygroceries-test/keep.txt")" = 'fixture data must survive'
