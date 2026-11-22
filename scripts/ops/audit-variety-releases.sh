@@ -40,6 +40,22 @@ for service in varietygroceries-api varietygroceries-portal varietygroceries-por
     [[ -n "$cwd" ]] && active_roots+=("$cwd")
   fi
 done
+# A service may spawn workers whose cwd differs from MainPID. Inspect all
+# members of its systemd cgroup, including descendants in nested cgroups.
+# This is conservative positive-reference evidence only, never deletion proof.
+for service in varietygroceries-api varietygroceries-portal varietygroceries-portal-canonical vg-pos-staging-api vg-pos-staging-web varietygroceries-media-worker; do
+  group=$(systemctl show "$service" -p ControlGroup --value 2>/dev/null || true)
+  [[ "$group" == /* && "$group" != "/" && "$group" != *".."* ]] || continue
+  group_dir="/sys/fs/cgroup$group"
+  [[ -d "$group_dir" ]] || continue
+  while IFS= read -r -d '' procs; do
+    while IFS= read -r member; do
+      [[ "$member" =~ ^[0-9]+$ ]] || continue
+      member_cwd=$(readlink -f -- "/proc/$member/cwd" 2>/dev/null || true)
+      [[ -n "$member_cwd" ]] && active_roots+=("$member_cwd")
+    done < "$procs"
+  done < <(find "$group_dir" -name cgroup.procs -type f -print0 2>/dev/null)
+done
 for link in "$WEBAPPS"/varietygroceries-api/current "$WEBAPPS"/varietygroceries-portal-current; do
   [[ -L "$link" ]] || continue
   target=$(readlink -f -- "$link" 2>/dev/null || true)
