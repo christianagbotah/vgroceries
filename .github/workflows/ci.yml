@@ -1,5 +1,9 @@
 name: CI
 
+# Candidate packaging is read-only: never grant repository write privileges.
+permissions:
+  contents: read
+
 on:
   push:
     branches: [main]
