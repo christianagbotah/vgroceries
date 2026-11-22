@@ -185,6 +185,13 @@ jobs:
               cat ../artifact-smoke.log >&2
               exit 1
             fi
+            # A different listener could answer the curl while our server has died.
+            # Require the launched artifact process itself to remain alive.
+            if ! kill -0 "$smoke_pid" 2>/dev/null; then
+              echo 'Artifact smoke failed: launched server exited before verification' >&2
+              cat ../artifact-smoke.log >&2
+              exit 1
+            fi
             echo 'Extracted standalone candidate HTTP smoke: PASS'
           )
           rm -rf candidate/verification candidate/payload candidate/artifact-smoke.log
