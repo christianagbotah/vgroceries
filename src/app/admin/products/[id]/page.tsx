@@ -65,6 +65,14 @@ export default function AdminProductDetailPage() {
       toast({ title: "Enter a valid price", variant: "destructive" });
       return;
     }
+    if (minor === priceTarget.priceMinor) {
+      toast({ title: "Price unchanged", description: "Enter a different selling price before saving." });
+      return;
+    }
+    if (!priceReason.trim()) {
+      toast({ title: "Reason required", description: "Explain why the selling price is changing for the audit log.", variant: "destructive" });
+      return;
+    }
     setBusy(true);
     try {
       await apiOps.variantUpdate({ variantId: priceTarget.id, priceMinor: minor, reason: priceReason.trim() || "Price review", actor: user.id });
@@ -237,17 +245,29 @@ export default function AdminProductDetailPage() {
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
+            {priceTarget ? (
+              <div className="rounded-lg border bg-muted/40 p-3 text-sm" aria-live="polite">
+                <p className="text-muted-foreground">Current selling price</p>
+                <p className="text-lg font-semibold tabular-nums">₵{(priceTarget.priceMinor / 100).toFixed(2)}</p>
+                {(() => {
+                  const proposed = parseMoneyToMinor(priceInput);
+                  if (proposed === null || proposed <= 0) return <p className="mt-1 text-muted-foreground">Enter a valid new price to preview the change.</p>;
+                  const difference = proposed - priceTarget.priceMinor;
+                  return <p className="mt-1 font-medium tabular-nums">New price: ₵{(proposed / 100).toFixed(2)} · {difference === 0 ? "No change" : `${difference > 0 ? "Increase" : "Decrease"}: ₵${(Math.abs(difference) / 100).toFixed(2)}`}</p>;
+                })()}
+              </div>
+            ) : null}
             <div>
               <Label htmlFor="price-input">New price (₵)</Label>
               <Input id="price-input" className="h-11" inputMode="decimal" value={priceInput} onChange={(e) => setPriceInput(e.target.value)} placeholder="e.g. 12.50" />
             </div>
             <div>
-              <Label htmlFor="price-reason">Reason</Label>
+              <Label htmlFor="price-reason">Reason for change *</Label>
               <Input id="price-reason" className="h-11" value={priceReason} onChange={(e) => setPriceReason(e.target.value)} placeholder="e.g. supplier price update" />
             </div>
           </div>
           <DialogFooter>
-            <Button className="h-11" onClick={savePrice} disabled={busy}>{busy ? "Saving…" : "Save price"}</Button>
+            <Button className="h-11" onClick={savePrice} disabled={busy || !priceReason.trim() || parseMoneyToMinor(priceInput) === null || parseMoneyToMinor(priceInput) === priceTarget?.priceMinor}>{busy ? "Saving…" : "Save price"}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
