@@ -28,7 +28,7 @@ const updatePriceSchema = z.object({
   variantId: z.string().uuid(),
   priceMinor: z.number().int().positive().max(1000000000),
   reason: z.string().trim().min(3).max(500),
-}).strict();
+});
 
 @Controller("admin/variants")
 @UseGuards(AccessGuard)
