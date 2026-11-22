@@ -13,7 +13,10 @@ const now = new Date("2026-11-21T12:00:00Z");
 test("OTP issuance persists encrypted destination, digest, expiry and account binding", async () => {
   let stored: any;
   const tx = {
-    $queryRaw: async () => [{ pg_advisory_xact_lock: null }],
+    $queryRaw: async (sql: TemplateStringsArray) => {
+      assert.match(sql.join("?"), /SELECT 1::int AS locked FROM pg_advisory_xact_lock/);
+      return [{ locked: 1 }];
+    },
     customerOtpChallenge: {
       findMany: async () => [],
       create: async ({ data }: any) => { stored = data; return data; },
@@ -33,7 +36,7 @@ test("OTP issuance persists encrypted destination, digest, expiry and account bi
 test("OTP issuance enforces cooldown and hourly limit", async () => {
   let recent = [{ createdAt: new Date(now.getTime() - 1000) }];
   const tx = {
-    $queryRaw: async () => [],
+    $queryRaw: async () => [{ locked: 1 }],
     customerOtpChallenge: { findMany: async () => recent, create: async () => { throw new Error("must not create"); } },
   };
   const db = { $transaction: async (callback: any) => callback(tx) };

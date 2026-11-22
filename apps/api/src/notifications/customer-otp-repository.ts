@@ -18,7 +18,10 @@ export class CustomerOtpRepository {
     const id = randomUUID();
     const code = generateCustomerOtp();
     await this.db.$transaction(async tx => {
-      await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtextextended(${recipientFingerprint + ":" + purpose}, 0))`;
+      // PostgreSQL returns void here; PrismaPg cannot deserialize void (P2010).
+      // Select a supported scalar while retaining the same transaction lock.
+      const lock = await tx.$queryRaw<Array<{ locked: number }>>`SELECT 1::int AS locked FROM pg_advisory_xact_lock(hashtextextended(${recipientFingerprint + ":" + purpose}, 0))`;
+      if (lock[0]?.locked !== 1) throw new Error("Failed to acquire OTP issuance lock.");
       const recent = await tx.customerOtpChallenge.findMany({
         where: { recipientFingerprint, purpose, createdAt: { gte: windowStart } },
         orderBy: { createdAt: "desc" }, take: OTP_MAX_ISSUES_PER_HOUR,
