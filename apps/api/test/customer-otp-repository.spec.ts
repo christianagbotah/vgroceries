@@ -1,7 +1,7 @@
 import { strict as assert } from "node:assert";
 import { test } from "node:test";
 import { randomBytes, randomUUID } from "node:crypto";
-import { CustomerOtpRepository } from "../src/notifications/customer-otp-repository";
+import { CustomerOtpRepository, OtpIssueRateLimited } from "../src/notifications/customer-otp-repository";
 import { digestCustomerOtp } from "../src/notifications/customer-otp-policy";
 
 const secret = randomBytes(32).toString("hex");
@@ -13,7 +13,10 @@ const now = new Date("2026-11-21T12:00:00Z");
 test("OTP issuance persists encrypted destination, digest, expiry and account binding", async () => {
   let stored: any;
   const tx = {
-    $queryRaw: async () => [{ pg_advisory_xact_lock: null }],
+    $queryRaw: async (sql: TemplateStringsArray) => {
+      assert.match(sql.join("?"), /SELECT 1::int AS locked FROM pg_advisory_xact_lock/);
+      return [{ locked: 1 }];
+    },
     customerOtpChallenge: {
       findMany: async () => [],
       create: async ({ data }: any) => { stored = data; return data; },
@@ -33,14 +36,22 @@ test("OTP issuance persists encrypted destination, digest, expiry and account bi
 test("OTP issuance enforces cooldown and hourly limit", async () => {
   let recent = [{ createdAt: new Date(now.getTime() - 1000) }];
   const tx = {
-    $queryRaw: async () => [],
+    $queryRaw: async () => [{ locked: 1 }],
     customerOtpChallenge: { findMany: async () => recent, create: async () => { throw new Error("must not create"); } },
   };
   const db = { $transaction: async (callback: any) => callback(tx) };
   const repo = new CustomerOtpRepository(db as any, secret, encryption);
-  await assert.rejects(repo.issue(userId, phone, "phone_verification", now), /limit/);
+  await assert.rejects(repo.issue(userId, phone, "phone_verification", now), (err:unknown) => {
+    assert.ok(err instanceof OtpIssueRateLimited);
+    assert.equal(err.retryAfterSeconds, 59);
+    return true;
+  });
   recent = Array.from({ length: 5 }, () => ({ createdAt: new Date(now.getTime() - 120000) }));
-  await assert.rejects(repo.issue(userId, phone, "phone_verification", now), /limit/);
+  await assert.rejects(repo.issue(userId, phone, "phone_verification", now), (err:unknown) => {
+    assert.ok(err instanceof OtpIssueRateLimited);
+    assert.equal(err.retryAfterSeconds, 3480);
+    return true;
+  });
 });
 
 test("successful verification atomically consumes code and marks same account phone verified", async () => {

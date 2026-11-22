@@ -53,6 +53,14 @@ export class ApiExceptionFilter implements ExceptionFilter {
           errorType: exception instanceof Error ? exception.name : "unknown",
         }),
       );
+    // Retry-After lets clients show the real DB-backed lockout instead of a guess.
+    const retryDetails = supplied?.details as { retryAfterSeconds?: unknown } | undefined;
+    const retrySeconds = retryDetails?.retryAfterSeconds;
+    if (status === 429 && typeof retrySeconds === "number" &&
+      Number.isFinite(retrySeconds) && retrySeconds > 0 && retrySeconds <= 86_400) {
+      res.setHeader("Retry-After", String(Math.ceil(retrySeconds)));
+      res.setHeader("Cache-Control", "no-store");
+    }
     res.status(status).json({
       ok: false,
       error: supplied ?? { code, message },

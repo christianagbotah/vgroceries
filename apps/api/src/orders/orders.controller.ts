@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { Database } from "../database/database";
-import { CustomerOtpRepository } from "../notifications/customer-otp-repository";
+import { CustomerOtpRepository, OtpIssueRateLimited } from "../notifications/customer-otp-repository";
 import { sendHubtelSms } from "../notifications/hubtel-sms-provider";
 import { Body,Controller,Get,HttpCode,Param,Post,Req } from "@nestjs/common";
 import { ApiExcludeEndpoint, ApiTags } from "@nestjs/swagger";
@@ -26,7 +26,7 @@ export class OrdersController {constructor(private readonly principals:CheckoutP
  if(!clientId||!clientSecret||!senderId)throw new ApiProblem(503,"FEATURE_DISABLED","SMS verification unavailable.");
  let challenge;
  try{challenge=await this.otpRepo().issue(order.id,order.customerPhone,"sensitive_action");}
- catch{throw new ApiProblem(429,"RATE_LIMITED","Please wait before requesting another code.");}
+ catch(error){if(error instanceof OtpIssueRateLimited)throw new ApiProblem(429,"OTP_RATE_LIMITED","Please wait before requesting another SMS code.",{retryAfterSeconds:error.retryAfterSeconds});throw error;}
  try{await sendHubtelSms({endpoint,clientId,clientSecret,senderId},order.customerPhone,`Variety Groceries order access code: ${challenge.code}. Expires in 5 minutes. Do not share.`);}
  catch{await this.db.customerOtpChallenge.updateMany({where:{id:challenge.id,status:"pending"},data:{status:"locked"}});throw new ApiProblem(503,"UNAVAILABLE","SMS delivery unavailable. Try again later.");}
  return {ok:true,data:{challengeId:challenge.id,expiresAt:challenge.expiresAt.toISOString()}};
@@ -40,7 +40,10 @@ export class OrdersController {constructor(private readonly principals:CheckoutP
  await this.orders.limitTracking(req.ip||req.socket.remoteAddress||"unknown",normalized);
  const order=await this.db.order.findUnique({where:{reference:normalized},select:{id:true}});
  const challenge=order?await this.db.customerOtpChallenge.findFirst({where:{id:challengeId,userId:order.id,purpose:"sensitive_action"},select:{id:true}}):null;
- if(!challenge||!await this.otpRepo().verify(challengeId,code))throw new ApiProblem(403,"FORBIDDEN","Invalid or expired verification code.");
+ if(!challenge||!await this.otpRepo().verify(challengeId,code)){
+  await this.orders.registerFailedTracking(req.ip||req.socket.remoteAddress||"unknown",normalized);
+  throw new ApiProblem(403,"FORBIDDEN","Invalid or expired verification code.");
+ }
  return {ok:true,data:await this.orders.verifiedOrderDetails(order!.id)};
  }
  @Get(":orderId") async status(@Param("orderId") id:string,@Req() req:ApiRequest){const p=await this.principals.forRead(req);return{ok:true,data:await this.orders.status(p,id)};}
