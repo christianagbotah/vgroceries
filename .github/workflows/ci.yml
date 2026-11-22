@@ -130,6 +130,9 @@ jobs:
                       raise SystemExit(f"Unsafe archive path: {member.name}")
                   if not (member.isfile() or member.isdir() or member.issym()):
                       raise SystemExit(f"Unsafe archive entry type: {member.name}")
+                  # Extracted candidates must never introduce privileged executable bits.
+                  if member.mode & 0o6000:
+                      raise SystemExit(f"Unsafe setuid/setgid archive mode: {member.name}")
                   if member.issym():
                       symlink_paths.add(normalized)
                       target = posixpath.normpath(posixpath.join(posixpath.dirname(member.name), member.linkname))
