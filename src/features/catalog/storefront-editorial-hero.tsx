@@ -122,7 +122,7 @@ export function StorefrontEditorialHero({
       <AnimatePresence initial={false}>
         <motion.div
           key={current.id}
-          initial={reduceMotion ? false : { opacity: 0, scale: 1.025 }}
+          initial={false}
           animate={{ opacity: 1, scale: 1 }}
           exit={reduceMotion ? undefined : { opacity: 0 }}
           transition={transition}
@@ -157,7 +157,7 @@ export function StorefrontEditorialHero({
         <AnimatePresence initial={false} mode="sync">
           <motion.div
             key={current.id}
-            initial={reduceMotion ? false : { opacity: 0, y: 8 }}
+            initial={false}
             animate={{ opacity: 1, y: 0 }}
             exit={reduceMotion ? undefined : { opacity: 0, y: -6 }}
             transition={transition}
