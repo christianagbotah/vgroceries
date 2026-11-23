@@ -14,6 +14,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
+import { isDemoStaffSessionActive } from "@/features/staff/staff-demo-session";
 import { parseMoneyToMinor } from "@/lib/money";
 import { formatDate } from "@/lib/format";
 import { Pencil, Eye, EyeOff, Package, Warehouse } from "lucide-react";
@@ -30,6 +31,8 @@ export default function AdminProductDetailPage() {
   const [priceInput, setPriceInput] = useState("");
   const [priceReason, setPriceReason] = useState("");
   const [busy, setBusy] = useState(false);
+  const [demoSession, setDemoSession] = useState(false);
+  useEffect(() => { setDemoSession(isDemoStaffSessionActive()); }, []);
 
   const load = useCallback(async () => {
     try {
@@ -93,6 +96,7 @@ export default function AdminProductDetailPage() {
 
   return (
     <div className="space-y-4">
+      {demoSession && <div role="status" className="rounded-xl border border-amber-400 bg-amber-50 p-4 text-sm text-amber-950"><strong>Demo catalogue — separate from the public storefront.</strong> Changes made in this demo staff session affect sample records only and will not update customer prices or stock. Sign out of demo mode and use an authorised live staff account to edit the public catalogue.</div>}
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="flex items-start gap-3">
           <span className="relative size-20 shrink-0 overflow-hidden rounded-xl border bg-muted" aria-hidden>

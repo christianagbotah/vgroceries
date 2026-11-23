@@ -72,7 +72,7 @@ export function ProductMediaGallery({
       <div
         data-vg-product-hero
         className="relative isolate aspect-[1.08/1] overflow-hidden rounded-[24px] border border-[#e9efe7] bg-[radial-gradient(ellipse_at_50%_25%,#fff_0%,#f3f7ee_57%,#e9f0e4_100%)] sm:aspect-[1.12/1]"
-        onMouseMove={(event) => { if (event.pointerType === undefined) { const r=event.currentTarget.getBoundingClientRect(); setZoomPoint({x:((event.clientX-r.left)/r.width)*100,y:((event.clientY-r.top)/r.height)*100}); } }}
+        onMouseMove={(event) => { const r=event.currentTarget.getBoundingClientRect(); setZoomPoint({x:((event.clientX-r.left)/r.width)*100,y:((event.clientY-r.top)/r.height)*100}); }}
         onMouseLeave={() => setZoomPoint(null)}
         tabIndex={0}
         role="group"
