@@ -123,9 +123,9 @@ export function StorefrontEditorialHero({
         <motion.div
           key={current.id}
           initial={reduceMotion ? false : { opacity: 0, scale: 1.025 }}
-          animate={{ opacity: 1, scale: 1 }}
+          animate={{ opacity: 1, scale: reduceMotion ? 1 : [1.025, 1.08] }}
           exit={reduceMotion ? undefined : { opacity: 0 }}
-          transition={transition}
+          transition={reduceMotion ? transition : {opacity:transition,scale:{duration:8,ease:"linear"}}}
           className="absolute inset-0 z-0"
         >
           <Image
