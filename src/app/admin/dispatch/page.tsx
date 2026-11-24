@@ -37,7 +37,13 @@ const REASSIGNABLE = ["unassigned", "rescheduled", "failed"];
 
 export default function AdminDispatchPage() {
   const [demo, setDemo] = useState<boolean | null>(null);
-  useEffect(() => { setDemo(isDemoStaffSessionActive() || !process.env.NEXT_PUBLIC_API_BASE_URL); }, []);
+  // Resolve sessionStorage after hydration, following AdminAuthGate.
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setDemo(isDemoStaffSessionActive() || !process.env.NEXT_PUBLIC_API_BASE_URL);
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, []);
   if (demo === null) return <LoadingState label="Loading dispatch workspace" />;
   return demo ? <DemoDispatchPage /> : <VerifiedDispatch />;
 }
