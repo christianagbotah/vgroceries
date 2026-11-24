@@ -29,6 +29,7 @@ import {
   checkoutCompleteRestRequestSchema,
   publicOrderSchema,
   trackRequestSchema,
+  trackPublicRequestSchema,
   accountCancelPathRequestSchema,
   accountProfileUpdateRequestSchema,
   paymentInitiationRequestSchema,
@@ -673,9 +674,7 @@ export function foundationOpenApi(app: INestApplication) {
     "Public, rate-limited SMS challenge request. Unknown order numbers receive a non-enumerating challenge-shaped response; no order or phone information is disclosed. Requires configured SMS and OTP services.";
   trackingOtpRequest.requestBody = {
     required: true,
-    content: { "application/json": { schema: json(z.object({
-      reference: z.string().min(1).max(128),
-    }).strict()) } },
+    content: { "application/json": { schema: json(trackPublicRequestSchema) } },
   };
   trackingOtpRequest.responses = {
     "200": { description: "Non-enumerating challenge response", content: { "application/json": {
@@ -695,13 +694,13 @@ export function foundationOpenApi(app: INestApplication) {
   trackingOtpVerify.requestBody = {
     required: true,
     content: { "application/json": { schema: json(z.object({
-      reference: z.string().min(1).max(128),
+      reference: trackPublicRequestSchema.shape.reference,
       challengeId: z.string().uuid(),
-      code: z.string().regex(/^\\d{6}$/),
+      code: z.string().regex(/^\d{6}$/),
     }).strict()) } },
   };
   trackingOtpVerify.responses = {
-    "200": { description: "Verified private order details; requires a valid one-time challenge" },
+    "200": { description: "Verified private order details; requires a valid one-time challenge", content: { "application/json": { schema: ref("PublicOrderEnvelope") } } },
     "400": { description: "Invalid verification request" },
     "403": { description: "Invalid or expired verification code" },
     "429": { description: "Tracking rate limit reached" },

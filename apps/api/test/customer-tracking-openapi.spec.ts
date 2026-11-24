@@ -26,6 +26,10 @@ test("public tracking OTP contract documents POST request and verify only", () =
     assert.ok(operation.requestBody?.content?.["application/json"]?.schema);
     assert.ok(operation.responses?.["200"]);
   }
+  assert.deepEqual(verify.responses["200"].content["application/json"].schema, { $ref: "#/components/schemas/PublicOrderEnvelope" });
+  const code = verify.requestBody.content["application/json"].schema.properties.code;
+  assert.ok(new RegExp(code.pattern).test("123456"));
+  assert.ok(!new RegExp(code.pattern).test("abcdef"));
   assert.equal(doc.paths["/api/v1/orders/track-otp/request"]?.get, undefined);
   assert.equal(doc.paths["/api/v1/orders/track-otp/verify"]?.get, undefined);
 });
