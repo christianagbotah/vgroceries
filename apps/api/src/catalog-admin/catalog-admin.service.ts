@@ -21,6 +21,19 @@ export class CatalogAdminService {
     @Inject(API_CONFIG) private readonly config: ApiConfig,
   ) {}
 
+  async updateVariantPrice(actorId: string, requestId: string, input: { variantId: string; priceMinor: number; reason: string }) {
+    await this.db.$transaction(async (tx) => {
+      const variant = await tx.variant.findUnique({ where: { id: input.variantId } });
+      if (!variant) throw new ApiProblem(404, "NOT_FOUND", "Product variant not found.");
+      if (variant.priceMinor === input.priceMinor) throw new ApiProblem(409, "CONFLICT", "The selling price has not changed.");
+      await tx.variant.update({ where: { id: input.variantId }, data: { priceMinor: input.priceMinor } });
+      await tx.auditEvent.create({ data: {
+        actorId, requestId, action: "catalog.variant.price.updated", entityId: input.variantId,
+        details: { productId: variant.productId, beforePriceMinor: variant.priceMinor, afterPriceMinor: input.priceMinor, reason: input.reason },
+      } });
+    });
+  }
+
   private async availability(variantIds: string[]) {
     if (!variantIds.length) return new Map<string, AvailabilityRow>();
     const rows = await this.db.$queryRaw<AvailabilityRow[]>`

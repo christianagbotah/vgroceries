@@ -14,6 +14,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
+import { clearDemoStaffSession, isDemoStaffSessionActive } from "@/features/staff/staff-demo-session";
 import { parseMoneyToMinor } from "@/lib/money";
 import { formatDate } from "@/lib/format";
 import { Pencil, Eye, EyeOff, Package, Warehouse } from "lucide-react";
@@ -30,6 +31,8 @@ export default function AdminProductDetailPage() {
   const [priceInput, setPriceInput] = useState("");
   const [priceReason, setPriceReason] = useState("");
   const [busy, setBusy] = useState(false);
+  const [demoSession, setDemoSession] = useState(false);
+  useEffect(() => { setDemoSession(isDemoStaffSessionActive()); }, []);
 
   const load = useCallback(async () => {
     try {
@@ -93,6 +96,7 @@ export default function AdminProductDetailPage() {
 
   return (
     <div className="space-y-4">
+      {demoSession && <div role="status" className="rounded-xl border border-amber-400 bg-amber-50 p-4 text-sm text-amber-950"><strong>Demo catalogue — separate from the public storefront.</strong> Changes made in this demo staff session affect sample records only and will not update customer prices or stock. Sign out of demo mode and use an authorised live staff account to edit the public catalogue. <button type="button" className="ml-1 font-semibold underline underline-offset-2" onClick={() => { clearDemoStaffSession(); window.location.assign("/staff/login"); }}>Exit demo and sign in to live catalogue</button></div>}
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="flex items-start gap-3">
           <span className="relative size-20 shrink-0 overflow-hidden rounded-xl border bg-muted" aria-hidden>
@@ -137,7 +141,7 @@ export default function AdminProductDetailPage() {
             <thead className="bg-muted/60 text-left">
               <tr>
                 <th className="p-3 font-semibold">Variant</th>
-                <th className="p-3 text-right font-semibold">Price</th>
+                <th className="p-3 text-right font-semibold">Selling price (₵)</th>
                 <th className="p-3 font-semibold">Barcode</th>
                 <th className="hidden p-3 font-semibold md:table-cell">Purchasing unit</th>
                 <th className="p-3 text-right font-semibold">Sellable / reserved / available</th>

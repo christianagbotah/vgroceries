@@ -79,7 +79,7 @@ function ProductSection({
         </div>
         <Link href={href} className="hidden shrink-0 items-center text-xs font-bold text-primary hover:underline sm:inline-flex">{linkLabel} <ArrowRight className="ml-1 size-3.5" /></Link>
       </div>
-      <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8">
+      <div className="grid gap-2.5 [grid-template-columns:repeat(auto-fit,minmax(min(100%,155px),1fr))]">
         {products.map((product, index) => <ProductTile key={product.id} product={product} priority={index < 2} />)}
       </div>
       <Link href={href} className="mt-3 inline-flex items-center text-xs font-bold text-primary hover:underline sm:hidden">{linkLabel} <ArrowRight className="ml-1 size-3.5" /></Link>
@@ -139,7 +139,7 @@ export default async function HomePage() {
           </div>
           <Link href="/shop" className="hidden shrink-0 items-center text-xs font-bold text-primary hover:underline sm:inline-flex">See the full shop <ArrowRight className="ml-1 size-3.5" /></Link>
         </div>
-        <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8">{valuePicks.map((product, index) => <ProductTile key={product.id} product={product} priority={index < 2} />)}</div>
+        <div className="grid gap-2.5 [grid-template-columns:repeat(auto-fit,minmax(min(100%,155px),1fr))]">{valuePicks.map((product, index) => <ProductTile key={product.id} product={product} priority={index < 2} />)}</div>
       </section>
 
       <section className="storefront-promo-grid mt-8 grid gap-3 lg:grid-cols-[1.7fr_1fr]" aria-label="Store promotions">
