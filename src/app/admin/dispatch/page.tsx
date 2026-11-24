@@ -8,6 +8,8 @@
  */
 
 import Link from "next/link";
+import { isDemoStaffSessionActive } from "@/features/staff/staff-demo-session";
+import { VerifiedDispatch } from "@/features/staff/configuration/verified-dispatch";
 import { useEffect, useState } from "react";
 import { apiOps, ApiError } from "@/services/client";
 import { useApiData } from "@/features/staff/admin-data";
@@ -34,6 +36,13 @@ type ProviderRow = Queue["providers"][number];
 const REASSIGNABLE = ["unassigned", "rescheduled", "failed"];
 
 export default function AdminDispatchPage() {
+  const [demo, setDemo] = useState<boolean | null>(null);
+  useEffect(() => { setDemo(isDemoStaffSessionActive() || !process.env.NEXT_PUBLIC_API_BASE_URL); }, []);
+  if (demo === null) return <LoadingState label="Loading dispatch workspace" />;
+  return demo ? <DemoDispatchPage /> : <VerifiedDispatch />;
+}
+
+function DemoDispatchPage() {
   const { user, can } = useStaff();
   const { toast } = useToast();
   const { data, loading, error, reload } = useApiData(() => apiOps.dispatchQueue(), []);

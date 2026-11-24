@@ -59,3 +59,12 @@ Coverage is informational; staff arrange the external booking and verify
 coverage before recording it. No courier API booking, delivery or payment
 confirmation is implied. The legacy general dispatch screen still needs
 full migration to the production queue contract.
+
+The real-administrator /admin/dispatch route now selects the production
+workspace; explicit demo sessions retain the original demo screen. The
+production queue and fleet use their authoritative response schemas.
+Assignment, reassignment, unassignment, rescheduling, return request,
+physical receipt and observed manual courier milestones use server
+allowed actions and header-only idempotency. Delivery confirmation requires
+a proof reference; failure requires a reason. No cash collection, payment
+settlement or automatic courier booking is inferred from delivery status.

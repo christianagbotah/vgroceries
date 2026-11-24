@@ -13,6 +13,12 @@ import {
  */
 export const restEndpoints: Record<string, RestEndpoint> = {
   ...sharedRestEndpoints,
+  "admin.verified.dispatch.fleet": {method:"GET",path:"/admin/riders"},
+  "admin.verified.dispatch.unassign": {method:"POST",path:"/admin/dispatch/jobs/{jobId}/unassign",replayTransport:"headerOnly"},
+  "admin.verified.dispatch.reschedule": {method:"POST",path:"/admin/dispatch/jobs/{jobId}/reschedule",replayTransport:"headerOnly"},
+  "admin.verified.dispatch.return": {method:"POST",path:"/admin/dispatch/jobs/{jobId}/return-to-store",replayTransport:"headerOnly"},
+  "admin.verified.dispatch.receive": {method:"POST",path:"/admin/dispatch/jobs/{jobId}/returned-to-store",replayTransport:"headerOnly"},
+  "admin.verified.dispatch.transition": {method:"POST",path:"/admin/dispatch/jobs/{jobId}/provider-transition",replayTransport:"headerOnly"},
   "admin.directory.dispatch.queue": {method:"GET",path:"/admin/dispatch"},
   "admin.directory.dispatch.assign": {method:"POST",path:"/admin/dispatch/orders/{orderId}/assign",replayTransport:"headerOnly"},
   "admin.directory.dispatch.reassign": {method:"POST",path:"/admin/dispatch/jobs/{jobId}/reassign",replayTransport:"headerOnly"},
