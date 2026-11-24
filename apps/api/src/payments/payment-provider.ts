@@ -40,6 +40,8 @@ export type PaymentProviderInitiationResult =
 export interface PaymentProviderLookupInput {
   merchantReference: string;
   providerReference?: string;
+  /** Immutable payment amount from our database, NEVER from the callback. */
+  expectedAmountMinor?: number;
   signal: AbortSignal;
 }
 

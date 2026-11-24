@@ -344,7 +344,27 @@ export class HubtelPaymentProvider implements PaymentProviderAdapter {
           (typeof code !== "string" || code.trim().toUpperCase() !== "GHS"))
         throw new Error("Hubtel collection status currency could not be verified.");
     }
-    const amountMinor = moneyMinor(data.amount ?? data.Amount);
+    const grossMinor = moneyMinor(data.amount ?? data.Amount);
+    const chargeRaw = data.charges ?? data.Charges;
+    const netRaw = data.amountAfterCharges ?? data.AmountAfterCharges;
+    const chargesMinor = moneyMinor(chargeRaw);
+    const netMinor = moneyMinor(netRaw);
+    const fullBreakdown = chargeRaw != null && netRaw != null;
+    const coherentFees = fullBreakdown && grossMinor !== undefined &&
+      chargesMinor !== undefined && netMinor !== undefined &&
+      grossMinor === netMinor + chargesMinor;
+    const expected = input.expectedAmountMinor;
+    if (expected !== undefined && (!Number.isSafeInteger(expected) || expected <= 0))
+      throw new Error("Invalid immutable checkout amount for Hubtel status matching.");
+    if (fullBreakdown && !coherentFees)
+      throw new Error("Hubtel collection status reported contradictory fee evidence.");
+    if (expected !== undefined && grossMinor !== expected && netMinor === expected && !coherentFees)
+      throw new Error("Hubtel collection status cannot prove its claimed net order amount.");
+    // Real merchant status proof: original checkout ₵1.00, Hubtel customer
+    // amount ₵1.01, fees ₵0.01, merchant net ₵1.00. Select the expected
+    // order total only after independently proving gross = net + fees.
+    const amountMinor = expected !== undefined && grossMinor !== expected &&
+      coherentFees && netMinor === expected && chargesMinor! > 0 ? netMinor : grossMinor;
     const observedState = state(data.status ?? data.Status);
     const transactionId = text(data, "transactionId", "TransactionId");
     // Checkout session ID is intentionally NOT recorded as providerRef.

@@ -103,6 +103,7 @@ export class PaymentReconciliationService {
       observation = await adapter.lookup({
         merchantReference: snapshot.merchantReference,
         providerReference: snapshot.providerRef ?? undefined,
+        expectedAmountMinor: snapshot.amountMinor,
         signal: AbortSignal.timeout(this.paymentConfig().requestTimeoutMs),
       });
     } catch {

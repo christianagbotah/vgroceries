@@ -240,6 +240,73 @@ test("Hosted Failed or Expired without independent amount and transaction ID can
   }
 });
 
+test("verified Hubtel hosted checkout extra customer charge is reconciled to merchant order amount", async () => {
+  // Captured shape of the merchant's owner-authorized ₵1 test:
+  // Hubtel status Amount=1.01, Charges=.01, AmountAfterCharges=1.00.
+  const provider = new HubtelPaymentProvider(hostedConfig(), mockFetch({
+    json: statusReply({ amount: 1.01, charges: 0.01, amountAfterCharges: 1.00 }),
+  }).fetcher);
+  const observation = await provider.lookup({
+    merchantReference: reference, expectedAmountMinor: 100,
+    signal: new AbortController().signal,
+  });
+  assert.equal(observation.state, "succeeded");
+  assert.equal(observation.amountMinor, 100);
+  assert.equal(observation.currency, "GHS");
+  assert.equal(observation.providerReference, "hubtel-txn-001");
+
+  // Without an immutable database amount, the adapter is not permitted to
+  // silently reinterpret a provider-reported gross as a checkout price.
+  const withoutExpected = new HubtelPaymentProvider(hostedConfig(), mockFetch({
+    json: statusReply({ amount: 1.01, charges: 0.01, amountAfterCharges: 1.00 }),
+  }).fetcher);
+  assert.equal((await withoutExpected.lookup({
+    merchantReference: reference, signal: new AbortController().signal,
+  })).amountMinor, 101);
+});
+
+test("Hubtel hosted merchant-borne fees preserve exact gross checkout amount", async () => {
+  const provider = new HubtelPaymentProvider(hostedConfig(), mockFetch({
+    json: statusReply({ amount: 1.00, charges: 0.01, amountAfterCharges: 0.99 }),
+  }).fetcher);
+  const result = await provider.lookup({
+    merchantReference: reference, expectedAmountMinor: 100,
+    signal: new AbortController().signal,
+  });
+  assert.equal(result.state, "succeeded");
+  assert.equal(result.amountMinor, 100);
+});
+
+test("hosted fee identity never turns an underpayment or inconsistent fee fields into success", async () => {
+  // A correctly reported underpayment retains its true observed amount,
+  // ensuring PaymentOutcomeService's amount comparison refuses settlement.
+  const underpaid = new HubtelPaymentProvider(hostedConfig(), mockFetch({
+    json: statusReply({ amount: 0.90, charges: 0.01, amountAfterCharges: 0.89 }),
+  }).fetcher);
+  const underpayment = await underpaid.lookup({
+    merchantReference: reference, expectedAmountMinor: 100,
+    signal: new AbortController().signal,
+  });
+  assert.equal(underpayment.state, "succeeded");
+  assert.equal(underpayment.amountMinor, 90);
+
+  for (const bad of [
+    { amount: 1.01, charges: 0.02, amountAfterCharges: 1.00 },
+    { amount: 1.01, charges: 0.005, amountAfterCharges: 1.00 },
+    { amount: 1.01, charges: 0.01, amountAfterCharges: 0.99 },
+    { amount: 1.01, amountAfterCharges: 1.00 },
+    { amount: 1.01, charges: 0.01, amountAfterCharges: 1.00, currencyCode: "USD" },
+  ]) {
+    const provider = new HubtelPaymentProvider(hostedConfig(), mockFetch({
+      json: statusReply(bad),
+    }).fetcher);
+    await assert.rejects(provider.lookup({
+      merchantReference: reference, expectedAmountMinor: 100,
+      signal: new AbortController().signal,
+    }), /Hubtel.*(fee|currency|net order)/i, JSON.stringify(bad));
+  }
+});
+
 test("Hubtel Online Checkout callback is evidence requiring an authoritative lookup", async () => {
   const provider = new HubtelPaymentProvider(hostedConfig(), mockFetch().fetcher);
   const rawBody = Buffer.from(JSON.stringify({

@@ -198,6 +198,7 @@ export class PaymentEventService {
         observation = await adapter.lookup({
           merchantReference: verification.merchantReference ?? attempt.merchantReference,
           providerReference: verification.providerReference ?? attempt.providerRef ?? undefined,
+          expectedAmountMinor: attempt.amountMinor,
           signal: AbortSignal.timeout(this.config.payments!.requestTimeoutMs),
         });
       } catch {
