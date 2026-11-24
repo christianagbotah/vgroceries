@@ -21,6 +21,24 @@ or timestamped application releases there. The VPS is a runtime host only.
 4. Retain published release archives on GitHub for rollback. Reuse the exact
    previous verified version and checksum, not an arbitrary old branch.
 
+## Read-only runtime package preflight
+
+Download exactly the five assets from the trusted GitHub Release. Use the
+release's independently recorded source SHA, version and SHA-256 digest of
+the runtime archive (GitHub asset digest, not a value inferred from an
+untrusted downloaded archive). Run:
+
+```sh
+python3 scripts/ops/verify-github-runtime.py /path/to/downloaded-assets \
+  --sha "$EXPECTED_SHA" --version "$VERSION" --archive-sha256 "$TRUSTED_DIGEST"
+```
+
+The verifier checks identity, checksums, archive size, expected component
+layout, archive path traversal, privileged modes, special files, duplicate
+entries, credential-like paths and symlink containment. It never extracts,
+installs, restarts or changes live services. Review runtime compatibility,
+database schema and recovery independently before deployment.
+
 ## VPS topology
 
 Use one **private** application root, /home/lightworld/apps/varietygroceries,

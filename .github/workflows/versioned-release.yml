@@ -76,7 +76,10 @@ jobs:
       - name: Assemble and inspect source-light runtime
         env:
           VERSION: ${{ inputs.version }}
-        run: bash scripts/ops/package-github-runtime.sh
+        run: |
+          bash scripts/ops/package-github-runtime.sh
+          digest=$(sha256sum release-output/runtime.tar.gz | cut -d ' ' -f 1)
+          python3 scripts/ops/verify-github-runtime.py release-output --sha "$GITHUB_SHA" --version "$VERSION" --archive-sha256 "$digest"
       - uses: actions/upload-artifact@v4
         with:
           name: versioned-runtime-${{ github.sha }}

@@ -21,6 +21,9 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Runtime archive security regressions
+        run: PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s scripts/ops -p test_verify_github_runtime.py -v
+
       - name: Offline Hubtel access diagnostic tests (no provider requests)
         run: python3 -m unittest discover -s scripts -p 'test_hubtel_transaction_status_probe.py' -v
 
