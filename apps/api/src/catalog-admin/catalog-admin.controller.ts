@@ -24,10 +24,12 @@ export class CatalogAdminController {
   }
 }
 
-const updatePriceSchema = z.object({
+export const updatePriceSchema = z.object({
   variantId: z.string().uuid(),
   priceMinor: z.number().int().positive().max(1000000000),
   reason: z.string().trim().min(3).max(500),
+  expectedPriceMinor: z.number().int().nonnegative().max(1000000000).optional(),
+  actor: z.string().optional(), // Legacy client field; never used for authorization or audit.
 });
 
 @Controller("admin/variants")

@@ -377,6 +377,7 @@ export function foundationOpenApi(app: INestApplication) {
     const name = responses[suffix];
     if (!name) {
       const productionExtension =
+        suffix === "/admin/variants/update" ||
         suffix === "/admin/catalog/products" ||
         suffix.startsWith("/admin/catalog/products/") ||
         suffix.startsWith("/admin/catalog/media/");

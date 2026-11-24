@@ -114,6 +114,7 @@ import {
 } from "@variety/contracts";
 import { z } from "zod";
 import { foundationOpenApi } from "./openapi";
+import { updatePriceSchema } from "../catalog-admin/catalog-admin.controller";
 
 const ref = (name: string) => ({ $ref: `#/components/schemas/${name}` });
 const json = (schema: z.ZodType): SchemaObject =>
@@ -269,6 +270,8 @@ export function productionOpenApi(app: INestApplication): OpenAPIObject {
   const schemas = doc.components!.schemas as Record<string, SchemaObject>;
 
   Object.assign(schemas, {
+    VariantPriceUpdateRequest: json(updatePriceSchema),
+    VariantPriceUpdateEnvelope: json(z.object({ok:z.literal(true),data:z.object({success:z.literal(true)}).strict()}).strict()),
     StockAdjustmentLotOptionsEnvelope: json(z.object({ok:z.literal(true),data:stockAdjustmentLotOptionsSchema}).strict()),
     StockAdjustmentRequest: json(requestAdjustmentSchema),
     StockAdjustmentDecide: json(decideAdjustmentSchema),
@@ -629,6 +632,14 @@ export function productionOpenApi(app: INestApplication): OpenAPIObject {
   const mediaId: ParameterObject = { name: "mediaId", in: "path", required: true, schema: { type: "string", minLength: 1 } };
   const mediaErrors = { "400": errorResponse, "401": errorResponse, "403": errorResponse, "404": errorResponse, "409": errorResponse, "413": errorResponse, "500": errorResponse, "503": errorResponse };
 
+  doc.paths["/api/v1/admin/variants/update"] = {
+    post: {
+      security, description: "Administrator-only audited selling price change. Authenticated actor is authoritative; stale prices are rejected and no inventory is changed.",
+      parameters: [csrf],
+      requestBody: { required: true, content: { "application/json": { schema: ref("VariantPriceUpdateRequest") } } },
+      responses: { "201": response("VariantPriceUpdateEnvelope"), ...mediaErrors },
+    },
+  };
   doc.paths["/api/v1/admin/catalog/products"] = {
     post: {
       security,

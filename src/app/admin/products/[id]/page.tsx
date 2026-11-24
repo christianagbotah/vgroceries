@@ -72,13 +72,13 @@ export default function AdminProductDetailPage() {
       toast({ title: "Price unchanged", description: "Enter a different selling price before saving." });
       return;
     }
-    if (!priceReason.trim()) {
+    if (priceReason.trim().length < 3) {
       toast({ title: "Reason required", description: "Explain why the selling price is changing for the audit log.", variant: "destructive" });
       return;
     }
     setBusy(true);
     try {
-      await apiOps.variantUpdate({ variantId: priceTarget.id, priceMinor: minor, reason: priceReason.trim() || "Price review", actor: user.id });
+      await apiOps.variantUpdate({ variantId: priceTarget.id, priceMinor: minor, reason: priceReason.trim(), expectedPriceMinor: priceTarget.priceMinor });
       await load();
       setPriceTarget(null);
       setPriceInput("");

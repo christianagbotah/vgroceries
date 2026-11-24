@@ -21,12 +21,14 @@ export class CatalogAdminService {
     @Inject(API_CONFIG) private readonly config: ApiConfig,
   ) {}
 
-  async updateVariantPrice(actorId: string, requestId: string, input: { variantId: string; priceMinor: number; reason: string }) {
+  async updateVariantPrice(actorId: string, requestId: string, input: { variantId: string; priceMinor: number; reason: string; expectedPriceMinor?: number }) {
     await this.db.$transaction(async (tx) => {
       const variant = await tx.variant.findUnique({ where: { id: input.variantId } });
       if (!variant) throw new ApiProblem(404, "NOT_FOUND", "Product variant not found.");
+      if (input.expectedPriceMinor !== undefined && variant.priceMinor !== input.expectedPriceMinor) throw new ApiProblem(409, "VERSION_CONFLICT", "The selling price changed. Reload before retrying.");
       if (variant.priceMinor === input.priceMinor) throw new ApiProblem(409, "CONFLICT", "The selling price has not changed.");
-      await tx.variant.update({ where: { id: input.variantId }, data: { priceMinor: input.priceMinor } });
+      const changed = await tx.variant.updateMany({ where: { id: input.variantId, priceMinor: variant.priceMinor }, data: { priceMinor: input.priceMinor } });
+      if (changed.count !== 1) throw new ApiProblem(409, "VERSION_CONFLICT", "The selling price changed. Reload before retrying.");
       await tx.auditEvent.create({ data: {
         actorId, requestId, action: "catalog.variant.price.updated", entityId: input.variantId,
         details: { productId: variant.productId, beforePriceMinor: variant.priceMinor, afterPriceMinor: input.priceMinor, reason: input.reason },

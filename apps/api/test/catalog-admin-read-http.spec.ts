@@ -143,3 +143,29 @@ test("production OpenAPI publishes admin product and category read routes", () =
   assert.ok(document.paths["/api/v1/admin/products/{productId}"]?.get);
   assert.ok(document.paths["/api/v1/admin/categories"]?.get);
 });
+
+test("price updates require administrator authorization, valid reason and a current price; audit actor is server-owned", async () => {
+  const variant = await db.variant.create({ data: { productId: "product-cola", sku: "COLA-PRICE-TEST", name: "Price test", unit: "bottle", priceMinor: 900 } });
+  const admin = await login("catalog-admin@example.test");
+  const inventory = await login("catalog-inventory@example.test");
+  const change = async (headers: Record<string,string>, data: Record<string,unknown>) => {
+    const response = await fetch(base + "/api/v1/admin/variants/update", { method: "POST", headers: { "content-type": "application/json", ...headers }, body: JSON.stringify(data) });
+    return { status: response.status, body: await response.json() };
+  };
+  const payload = { variantId: variant.id, priceMinor: 1200, expectedPriceMinor: 900, reason: "Supplier cost review", actor: "untrusted-client" };
+  assert.equal((await change({}, payload)).status, 401);
+  assert.equal((await change(inventory, payload)).status, 403);
+  assert.equal((await change(admin, {...payload, reason: " "})).status, 400);
+  assert.equal((await change(admin, {...payload, priceMinor: -1})).status, 400);
+  assert.equal((await change(admin, {...payload, expectedPriceMinor: 800})).status, 409);
+  assert.equal((await change(admin, payload)).status, 201);
+  assert.equal((await db.variant.findUniqueOrThrow({where:{id:variant.id}})).priceMinor, 1200);
+  assert.equal((await change(admin, {...payload, priceMinor: 1300})).status, 409);
+  const events = await db.auditEvent.findMany({where:{entityId:variant.id,action:"catalog.variant.price.updated"}});
+  assert.equal(events.length, 1);
+  assert.equal(events[0].actorId, "catalog-admin");
+  assert.deepEqual(events[0].details, {productId:"product-cola", beforePriceMinor:900, afterPriceMinor:1200, reason:"Supplier cost review"});
+  const operation=productionOpenApi(app).paths["/api/v1/admin/variants/update"]?.post;
+  assert.ok(operation?.responses["201"]);
+  assert.deepEqual(operation.security, [{cookieAuth:[]},{bearerAuth:[]}]);
+});
