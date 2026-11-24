@@ -24,13 +24,16 @@ describe("server-owned checkout electronic payment readiness",()=>{
   expect(source).toContain("setPaymentAvailabilityRefresh(n=>n+1)");
   expect(source).toContain("You may choose cash at collection or delivery only if offered above.");
  });
- test("mock readiness is marked demo and production payment authority is unchanged",()=>{
+ test("mock readiness remains demo and production collection policy stays provider-gated",()=>{
   const mock=read("src/services/mock/router.ts");
   const client=read("src/services/client.ts");
   expect(mock).toContain('case "checkout.payment-availability":');
   expect(mock).toContain('electronicAvailable:true,mode:"demo"');
   expect(client).toContain('"checkout.payment-availability"');
-  expect(read("apps/api/src/payments/payment-policy.service.ts")).toContain("this.refundRegistry.require(adapter.id, method)");
+  const policy=read("apps/api/src/payments/payment-policy.service.ts");
+  expect(policy).toContain("this.registry.requireConfigured()");
+  expect(policy).toContain("adapter.capabilities().methods.includes(method)");
+  expect(policy).not.toContain("this.refundRegistry.require(adapter.id, method)");
   expect(read("apps/api/src/http/production-openapi.ts")).toContain('doc.paths["/api/v1/checkout/payment-availability"]');
  });
 });

@@ -20,6 +20,7 @@ model User {
   email String? @unique
   name String
   phone String @default("")
+  phoneVerifiedAt DateTime? @db.Timestamptz(3)
   passwordHash String
   role Role
   active Boolean @default(true)
@@ -400,6 +401,28 @@ model Notification {
   readAt DateTime? @db.Timestamptz(3)
   createdAt DateTime @default(now()) @db.Timestamptz(3)
   @@index([recipientUserId, createdAt, id])
+}
+
+/// Provider-neutral, consent-gated external delivery queue. Never a payment authority.
+/// A worker must validate customer consent and event evidence before dispatch.
+model CustomerMessageDelivery {
+  id String @id @default(uuid())
+  sourceEventId String
+  channel String // sms | email | whatsapp
+  recipientFingerprint String // hashed normalized address; never raw PII in queue keys
+  recipientEncrypted String // envelope-encrypted destination, not plaintext
+  templateKey String
+  templateVersion Int @default(1)
+  status String @default("pending") // pending | sending | delivered | failed | suppressed
+  attempts Int @default(0)
+  nextAttemptAt DateTime @default(now()) @db.Timestamptz(3)
+  providerMessageId String?
+  lastErrorCode String?
+  consentRecordedAt DateTime? @db.Timestamptz(3)
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @default(now()) @db.Timestamptz(3)
+  @@unique([sourceEventId, channel, recipientFingerprint])
+  @@index([status, nextAttemptAt])
 }
 
 model NotificationOutboxReceipt {
@@ -1649,4 +1672,23 @@ model CustomerSupportActivity {
   privateNote String?
   createdAt DateTime @default(now()) @db.Timestamptz(3)
   @@index([caseId, createdAt])
+}
+
+/// One-time phone challenge. OTP secrets are HMAC digests, never plaintext.
+/// Phone destinations are encrypted at rest; fingerprint supports rate limits.
+model CustomerOtpChallenge {
+  id String @id @default(uuid())
+  userId String
+  purpose String
+  recipientFingerprint String
+  recipientEncrypted String
+  codeDigest String
+  status String @default("pending")
+  attempts Int @default(0)
+  expiresAt DateTime @db.Timestamptz(3)
+  consumedAt DateTime? @db.Timestamptz(3)
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @default(now()) @db.Timestamptz(3)
+  @@index([recipientFingerprint, purpose, createdAt])
+  @@index([status, expiresAt])
 }

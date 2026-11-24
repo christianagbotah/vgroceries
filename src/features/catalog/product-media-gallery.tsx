@@ -3,7 +3,7 @@
 import Image from "next/image";
 import { useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
-import { ChevronLeft, ChevronRight, Expand, Images } from "lucide-react";
+import { ChevronLeft, ChevronRight, Images } from "lucide-react";
 import type { CatalogMediaImage } from "@/services/contracts";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 
@@ -49,6 +49,7 @@ export function ProductMediaGallery({
   [productName, featuredImage, gallery, fallbackImage]);
   const [activeId, setActiveId] = useState(media[0].id);
   const [direction, setDirection] = useState(1);
+  const [zoomPoint, setZoomPoint] = useState<{x:number;y:number}|null>(null);
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const touchX = useRef<number | null>(null);
   const suppressTap = useRef(false);
@@ -71,6 +72,8 @@ export function ProductMediaGallery({
       <div
         data-vg-product-hero
         className="relative isolate aspect-[1.08/1] overflow-hidden rounded-[24px] border border-[#e9efe7] bg-[radial-gradient(ellipse_at_50%_25%,#fff_0%,#f3f7ee_57%,#e9f0e4_100%)] sm:aspect-[1.12/1]"
+        onMouseMove={(event) => { const r=event.currentTarget.getBoundingClientRect(); setZoomPoint({x:((event.clientX-r.left)/r.width)*100,y:((event.clientY-r.top)/r.height)*100}); }}
+        onMouseLeave={() => setZoomPoint(null)}
         tabIndex={0}
         role="group"
         aria-label={productName + ": image " + (activeIndex + 1) + " of " + media.length + ". Use arrow keys to change images."}
@@ -113,13 +116,12 @@ export function ProductMediaGallery({
               <Image src={active.url} alt={active.altText || productName + " product image"} fill
                 priority={activeIndex === 0} unoptimized={!active.isLegacyFallback}
                 sizes="(max-width:1024px) 100vw, 650px"
-                className="object-contain p-3 transition-transform duration-500 hover:scale-[1.025] sm:p-5"
+                className="object-contain p-2 transition-transform duration-300 sm:p-3"
+                style={zoomPoint && !reducedMotion ? {transform:"scale(1.8)",transformOrigin:`${zoomPoint.x}% ${zoomPoint.y}%`} : undefined}
               />
             </motion.span>
           </AnimatePresence>
-          <span className="absolute bottom-3 left-3 flex items-center gap-2 rounded-full border border-white/75 bg-white/85 px-3 py-2 text-xs font-semibold text-[#183f2e] shadow-sm backdrop-blur">
-            <Expand className="size-3.5" aria-hidden /> Tap to explore
-          </span>
+
         </button>
         <span aria-hidden className="absolute left-3 top-3 z-20 inline-flex items-center gap-1 rounded-full bg-white/85 px-3 py-1.5 text-[11px] font-bold text-[#244c37] shadow-sm backdrop-blur">
           <Images className="size-3" /> {String(activeIndex + 1).padStart(2, "0")} / {String(media.length).padStart(2, "0")}
@@ -136,8 +138,7 @@ export function ProductMediaGallery({
         </> : null}
       </div>
 
-      {media.length > 1 ? (
-        <div className="flex snap-x snap-mandatory gap-2.5 overflow-x-auto pb-2" aria-label={productName + " gallery thumbnails"}>
+      <div className="flex snap-x snap-mandatory gap-2.5 overflow-x-auto pb-2" aria-label={productName + " gallery thumbnails"}>
           {media.map((item, index) => {
             const selected = item.id === active.id;
             return (
@@ -145,6 +146,7 @@ export function ProductMediaGallery({
                 aria-label={"View " + productName + " image " + (index + 1)}
                 aria-pressed={selected}
                 onClick={() => choose(index)}
+                onMouseEnter={() => choose(index)}
                 className={
                   "relative aspect-square w-[73px] shrink-0 snap-start overflow-hidden rounded-2xl border-2 bg-[#f5f8f0] transition-all duration-300 focus-visible:outline-2 focus-visible:outline-primary sm:w-[88px] " +
                   (selected ? "scale-[.96] border-[#1d7047] shadow-[0_6px_18px_rgba(18,93,56,.18)]" : "border-transparent hover:scale-[.97] hover:border-[#82b99b]")
@@ -155,7 +157,6 @@ export function ProductMediaGallery({
             );
           })}
         </div>
-      ) : null}
       <p className="px-1 text-xs leading-relaxed text-muted-foreground" aria-live="polite">
         {featuredImage || (gallery?.length ?? 0) > 0
           ? "Showing approved product photography. Swipe, use the arrows, or enlarge to inspect details."

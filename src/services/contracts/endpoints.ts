@@ -13,6 +13,10 @@ import {
  */
 export const restEndpoints: Record<string, RestEndpoint> = {
   ...sharedRestEndpoints,
+  "orders.track-otp.request": { method: "POST", path: "/orders/track-otp/request" },
+  "orders.track-otp.verify": { method: "POST", path: "/orders/track-otp/verify" },
+  "account.phone-otp.request": { method: "POST", path: "/account/phone-otp/request" },
+  "account.phone-otp.verify": { method: "POST", path: "/account/phone-otp/verify" },
   "admin.categories.create": { method: "POST", path: "/admin/categories" },
   // Administrator-only UAT preview; no stock reservation or payment action.
   "pos.verified.tills": { method: "GET", path: "/admin/pos/tills" },

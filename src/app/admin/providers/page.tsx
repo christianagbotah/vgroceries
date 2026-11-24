@@ -1,6 +1,7 @@
 "use client";
 
 import { apiOps } from "@/services/client";
+import Link from "next/link";
 import { useApiData } from "@/features/staff/admin-data";
 import { LoadingState, ErrorState } from "@/components/shared/states";
 import { StatusBadge } from "@/components/shared/status-badge";
@@ -26,6 +27,9 @@ export default function AdminProvidersPage() {
           technical access are checked by the owner first.
         </p>
       </div>
+
+      <p className="text-sm"><Link href="/admin/integrations" className="font-semibold text-primary underline">Integration management overview</Link> · External provider creation and editing are not enabled yet.</p>
+      <p className="text-sm"><Link href="/admin/integrations" className="inline-flex min-h-11 items-center font-semibold text-primary underline">View payment, SMS and delivery integration status</Link></p>
 
       <div className="grid gap-3 lg:grid-cols-2">
         {data.map((p: Provider) => (

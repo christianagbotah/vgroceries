@@ -266,8 +266,8 @@ export function StorefrontMobileNav() {
 export function StorefrontFooter() {
   return (
     <footer className="storefront-footer-rich mt-auto bg-[color:var(--brand-green-deep)] text-white">
-      <div className="mx-auto grid max-w-[1500px] gap-8 px-4 py-10 sm:grid-cols-2 lg:grid-cols-[1.35fr_.8fr_.9fr_.8fr_1.3fr]">
-        <div className="space-y-4 sm:col-span-2 lg:col-span-1">
+      <div className="mx-auto grid max-w-[1500px] grid-cols-2 gap-x-4 gap-y-8 px-4 py-10 sm:gap-x-8 lg:grid-cols-[1.35fr_.8fr_.9fr_.8fr_1.3fr]">
+        <div className="col-span-2 space-y-4 lg:col-span-1">
           <Brand compact inverse />
           <p className="max-w-xs text-sm leading-relaxed text-white/70">A connected grocery experience for everyday Ghanaian homes — fresh food, pantry staples, household essentials and order support in one place.</p>
           <p className="text-xs font-semibold text-brand-amber">Prices shown in Ghana cedis (₵).</p>
@@ -287,7 +287,14 @@ export function StorefrontFooter() {
         <div>
           <p className="text-sm font-bold">Stay connected</p>
           <p className="mt-1 text-xs leading-relaxed text-white/65">Use your account for order history and repeat shopping. Public notification channels remain demo-only until launch configuration is complete.</p>
-          <div className="mt-4 flex gap-2"><Button asChild variant="secondary" className="h-10"><Link href="/account">My account</Link></Button><Button asChild className="h-10 bg-brand-amber text-[color:var(--brand-green-deep)] hover:bg-brand-amber/90"><Link href="/shop">Shop now</Link></Button></div>
+          <div className="mt-4 hidden items-center gap-2 lg:flex">
+            <Button asChild variant="secondary" className="h-10 whitespace-nowrap"><Link href="/account">My account</Link></Button>
+            <Button asChild className="h-10 whitespace-nowrap bg-brand-amber text-[color:var(--brand-green-deep)] hover:bg-brand-amber/90"><Link href="/shop">Shop now</Link></Button>
+          </div>
+        </div>
+        <div className="col-span-2 grid w-full max-w-md grid-cols-2 gap-3 justify-self-center lg:hidden" aria-label="Storefront footer actions">
+          <Button asChild variant="secondary" className="h-11 min-w-0 w-full whitespace-nowrap px-3 text-sm"><Link href="/account">My account</Link></Button>
+          <Button asChild className="h-11 min-w-0 w-full whitespace-nowrap bg-brand-amber px-3 text-sm text-[color:var(--brand-green-deep)] hover:bg-brand-amber/90"><Link href="/shop">Shop now</Link></Button>
         </div>
       </div>
       <div className="border-t border-white/10"><div className="mx-auto flex max-w-[1500px] flex-wrap items-center justify-between gap-2 px-4 py-4 text-[11px] text-white/55"><p>© {new Date().getFullYear()} Variety Groceries · Ghana · Demo storefront</p><p>Mobile Money · Card · Bank transfer · Cash — provider connections remain clearly labelled in the checkout.</p></div></div>

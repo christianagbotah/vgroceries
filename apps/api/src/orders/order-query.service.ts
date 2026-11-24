@@ -14,5 +14,31 @@ export class OrderQueryService {
  constructor(private readonly db:Database,private readonly projection:OrderProjectionService,private readonly throttle:TrackingThrottleService,private readonly verification:VerificationCodeService){}
  async status(principal:CheckoutPrincipal,orderId:string):Promise<PublicOrder>{const o=await this.db.order.findUnique({where:{id:orderId},select:{id:true,customerUserId:true,guestSessionId:true}});const owned=!!o&&(principal.kind==="customer"?o.customerUserId===principal.userId:o.guestSessionId===principal.guestSessionId);if(!owned)throw new ApiProblem(404,"NOT_FOUND","Order not found.");return this.projection.publicOrder(orderId);}
  async listCustomer(userId:string,page:number,perPage:number):Promise<AccountOrderRow[]>{const rows=await this.db.order.findMany({where:{customerUserId:userId},orderBy:[{createdAt:"desc"},{id:"desc"}],skip:(page-1)*perPage,take:perPage,include:{_count:{select:{lines:true}}}});return rows.map(o=>({id:o.id,reference:o.reference,totalLabel:money(o.totalMinor),fulfilmentStatus:o.fulfilmentStatus,paymentStatus:o.paymentStatus,fulfilment:o.fulfilment,createdAtLabel:o.createdAt.toISOString(),lineCount:o._count.lines}));}
- async track(reference:string,code:string,clientKey:string,requestId:string):Promise<PublicOrder>{const normalized=reference.trim().toUpperCase();const o=await this.db.order.findUnique({where:{reference:normalized}});if(o&&this.verification.verify(o.id,code,o.verificationKeyVersion,o.verificationCodeHash))return this.projection.publicOrder(o.id);const referenceHash=tokenHash(normalized),clientHash=tokenHash(clientKey);try{await this.throttle.registerFailure(clientKey,normalized);}catch(error){if(error instanceof ApiProblem&&error.getStatus()===429)await this.db.auditEvent.create({data:{actorId:"public-tracking",action:"security.order_track_failed",entityId:referenceHash,requestId,details:{referenceHash,clientHash,outcome:"rate_limited"}}});throw error;}await this.db.auditEvent.create({data:{actorId:"public-tracking",action:"security.order_track_failed",entityId:referenceHash,requestId,details:{referenceHash,clientHash,outcome:"denied"}}});throw forbidden();}
+ async verifiedOrderDetails(id:string){return this.projection.publicOrder(id);}
+ async limitTracking(clientKey:string,reference:string){await this.throttle.registerLookup(clientKey,reference);await this.throttle.ensureNotBlocked(clientKey,reference);}
+ async registerFailedTracking(clientKey:string,reference:string){await this.throttle.registerFailure(clientKey,reference);}
+ async trackPublic(reference:string,clientKey:string){
+  const normalized=reference.trim().toUpperCase();
+  // Every lookup is volume-limited, but a successful status check is not a failed code attempt.
+  await this.limitTracking(clientKey,normalized);
+  const o=await this.db.order.findUnique({where:{reference:normalized},select:{reference:true,paymentStatus:true,fulfilmentStatus:true,deliveryStatus:true,fulfilment:true,createdAt:true}});
+  if(!o){await this.throttle.registerFailure(clientKey,normalized);throw new ApiProblem(404,"NOT_FOUND","Order not found. Check the number and try again.");}
+  return {reference:o.reference,paymentStatus:o.paymentStatus,fulfilmentStatus:o.fulfilmentStatus,deliveryStatus:o.deliveryStatus,fulfilment:o.fulfilment,createdAt:o.createdAt.toISOString()};
+ }
+ async track(reference:string,code:string,clientKey:string,requestId:string):Promise<PublicOrder>{
+  const normalized=reference.trim().toUpperCase();
+  const referenceHash=tokenHash(normalized),clientHash=tokenHash(clientKey);
+  const audit=async(outcome:"rate_limited"|"denied")=>this.db.auditEvent.create({data:{actorId:"public-tracking",action:"security.order_track_failed",entityId:referenceHash,requestId,details:{referenceHash,clientHash,outcome}}});
+  // The early guard and the atomic failure registration can both reject with 429.
+  // Record either path without persisting the order number, code or IP address.
+  const guarded=async(run:()=>Promise<void>)=>{
+   try{await run();}catch(error){if(error instanceof ApiProblem&&error.getStatus()===429)await audit("rate_limited");throw error;}
+  };
+  await guarded(()=>this.limitTracking(clientKey,normalized));
+  const o=await this.db.order.findUnique({where:{reference:normalized}});
+  if(o&&this.verification.verify(o.id,code,o.verificationKeyVersion,o.verificationCodeHash))return this.projection.publicOrder(o.id);
+  await guarded(()=>this.throttle.registerFailure(clientKey,normalized));
+  await audit("denied");
+  throw forbidden();
+ }
 }

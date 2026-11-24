@@ -1,0 +1,97 @@
+import { randomUUID } from "node:crypto";
+import type { Database } from "../database/database";
+import { customerDestinationFingerprint, encryptCustomerDestination } from "./customer-message-crypto";
+import { OTP_TTL_MS, OTP_MAX_ISSUES_PER_HOUR, OTP_RESEND_INTERVAL_MS, digestCustomerOtp, generateCustomerOtp } from "./customer-otp-policy";
+import { otpConsumeWhere, otpFailureWhere } from "./customer-otp-state";
+
+/** OTP issuance is already rate-limited separately from order tracking. */
+export class OtpIssueRateLimited extends Error {
+  constructor(readonly retryAfterSeconds: number) {
+    super("OTP request limit reached.");
+    this.name = "OtpIssueRateLimited";
+  }
+}
+
+/** Database-backed OTP operations. Dispatch must be handled by a verified SMS adapter.
+ * Never expose the generated code in a public controller response. */
+export class CustomerOtpRepository {
+  constructor(private readonly db: Database, private readonly secret: string, private readonly encryptionKey: string) {}
+  async issue(userId: string, phone: string, purpose: "phone_verification" | "sensitive_action", now = new Date()) {
+    if (!/^[0-9a-f-]{36}$/i.test(userId)) throw new Error("Invalid customer identity.");
+    if (!/^\+?[0-9]{9,15}$/.test(phone)) throw new Error("Invalid phone number.");
+    const recipientFingerprint = customerDestinationFingerprint(phone);
+    const windowStart = new Date(now.getTime() - 3600_000);
+    // Serialize issuance for the same destination/purpose across API replicas.
+    // The transaction-scoped advisory lock closes the read-then-create race.
+    const id = randomUUID();
+    const code = generateCustomerOtp();
+    await this.db.$transaction(async tx => {
+      // PostgreSQL returns void here; PrismaPg cannot deserialize void (P2010).
+      // Select a supported scalar while retaining the same transaction lock.
+      const lock = await tx.$queryRaw<Array<{ locked: number }>>`SELECT 1::int AS locked FROM pg_advisory_xact_lock(hashtextextended(${recipientFingerprint + ":" + purpose}, 0))`;
+      if (lock[0]?.locked !== 1) throw new Error("Failed to acquire OTP issuance lock.");
+      const recent = await tx.customerOtpChallenge.findMany({
+        where: { recipientFingerprint, purpose, createdAt: { gte: windowStart } },
+        orderBy: { createdAt: "desc" }, take: OTP_MAX_ISSUES_PER_HOUR,
+        select: { createdAt: true },
+      });
+      const cooldownMs = recent[0] ? OTP_RESEND_INTERVAL_MS - (now.getTime() - recent[0].createdAt.getTime()) : 0;
+      const hourlyMs = recent.length >= OTP_MAX_ISSUES_PER_HOUR
+        ? 3_600_000 - (now.getTime() - recent[recent.length - 1].createdAt.getTime()) : 0;
+      const remainingMs = Math.max(cooldownMs, hourlyMs);
+      if (remainingMs > 0) throw new OtpIssueRateLimited(Math.max(1, Math.ceil(remainingMs / 1000)));
+      await tx.customerOtpChallenge.create({ data: {
+        id, userId, purpose, recipientFingerprint,
+        recipientEncrypted: encryptCustomerDestination(phone, this.encryptionKey),
+        codeDigest: digestCustomerOtp(this.secret, id, code),
+        expiresAt: new Date(now.getTime() + OTP_TTL_MS),
+      } });
+    });
+    return { id, code, expiresAt: new Date(now.getTime() + OTP_TTL_MS) };
+  }
+  /** Consumes the OTP and marks the same phone verified in one transaction.
+   * A phone change or failed verification rolls back both writes. */
+  async verifyPhone(userId: string, phone: string, id: string, code: string, now = new Date()): Promise<boolean> {
+    if (!/^[0-9a-f-]{36}$/i.test(id) || !/^\d{6}$/.test(code)) return false;
+    const digest = digestCustomerOtp(this.secret, id, code);
+    return this.db.$transaction(async tx => {
+      const challenge = await tx.customerOtpChallenge.findFirst({
+        where: { id, userId, purpose: "phone_verification", recipientFingerprint: customerDestinationFingerprint(phone) },
+        select: { id: true },
+      });
+      if (!challenge) return false;
+      const consumed = await tx.customerOtpChallenge.updateMany({
+        where: otpConsumeWhere(id, digest, now), data: { status: "consumed", consumedAt: now },
+      });
+      if (consumed.count !== 1) {
+        await tx.customerOtpChallenge.updateMany({
+          where: otpFailureWhere(id, now), data: { attempts: { increment: 1 } },
+        });
+        return false;
+      }
+      const updated = await tx.user.updateMany({
+        where: { id: userId, phone, role: "customer", active: true },
+        data: { phoneVerifiedAt: now },
+      });
+      if (updated.count !== 1) throw new Error("Account phone changed during verification.");
+      return true;
+    });
+  }
+  async verify(id: string, code: string, now = new Date()): Promise<boolean> {
+    if (!/^[0-9a-f-]{36}$/i.test(id) || !/^\d{6}$/.test(code)) return false;
+    const digest = digestCustomerOtp(this.secret, id, code);
+    // Conditional update makes a successful OTP single-use even under concurrency.
+    const success = await this.db.customerOtpChallenge.updateMany({
+      where: otpConsumeWhere(id, digest, now),
+      data: { status: "consumed", consumedAt: now },
+    });
+    if (success.count === 1) return true;
+    // Incorrect attempts are incremented atomically; an expired or consumed
+    // challenge is never modified. This operation never returns the correct code.
+    await this.db.customerOtpChallenge.updateMany({
+      where: otpFailureWhere(id, now),
+      data: { attempts: { increment: 1 } },
+    });
+    return false;
+  }
+}

@@ -63,13 +63,18 @@ export const operationMeta: Record<string, OperationMeta> = {
   "pickup.appointments": { tags: [...ORD, ...LOGISTICS] },
   "pickup.appointment.book": { invalidates: [...ORD, ...LOGISTICS] },
   "pickup.appointment.cancel": { invalidates: [...ORD, ...LOGISTICS] },
+  "orders.track-public": { tags: [...ORD, ...DEL] },
   "orders.track": { tags: [...ORD, ...DEL] },
+  "orders.track-otp.request": { tags: [...ORD, ...DEL] },
+  "orders.track-otp.verify": { tags: [...ORD, ...DEL] },
   "orders.detail": { tags: ORD },
 
   /* account */
   "account.summary": { tags: [...ORD, ...RET] },
   "account.profile": { tags: ORD },
   "account.profile.update": { invalidates: ORD },
+  "account.phone-otp.request": { invalidates: ORD },
+  "account.phone-otp.verify": { invalidates: ORD },
   "account.logout": { invalidates: ["*"] },
   "account.orders": { tags: ORD },
   "account.notifications": { tags: ["notifications"] },

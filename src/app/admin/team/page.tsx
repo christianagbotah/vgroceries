@@ -1,6 +1,7 @@
 "use client";
 
 import VerifiedStaffPage from "./verified/page";
+import Link from "next/link";
 
 import { apiOps } from "@/services/client";
 import { useApiData } from "@/features/staff/admin-data";
@@ -14,7 +15,7 @@ import { ShieldCheck } from "lucide-react";
 type TeamRow = Awaited<ReturnType<typeof apiOps.team>>[number];
 
 export default function AdminTeamPage() {
-  if (process.env.NEXT_PUBLIC_STAFF_ONBOARDING_UAT === "1") return <VerifiedStaffPage />;
+  if (process.env.NEXT_PUBLIC_STAFF_ONBOARDING_UAT === "1") return <><div className="mb-4"><Link className="font-semibold text-primary underline" href="/admin/guides">View role operating guides</Link></div><VerifiedStaffPage /></>;
   return <DemoTeamPage />;
 }
 
@@ -31,7 +32,7 @@ function DemoTeamPage() {
       <div>
         <h1 className="font-serif text-2xl font-bold">Team &amp; roles</h1>
         <p className="text-sm text-muted-foreground">
-          Fictional demo identities. Role menus and action gating are UX only — the backend must
+          <Link className="font-semibold text-primary underline" href="/admin/guides">View role operating guides</Link>. Fictional demo identities. Role menus and action gating are UX only — the backend must
           enforce access on every protected operation.
         </p>
       </div>

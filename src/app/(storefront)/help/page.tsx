@@ -25,6 +25,7 @@ export default async function HelpPage() {
     <CmsInfoPage page={page}>
       <div className="grid gap-3 sm:grid-cols-2">
         {[
+          { href: "/manual", icon: Package, title: "Complete system manual", copy: "Searchable guide for customers and all staff roles" },
           { href: "/delivery", icon: Truck, title: "Delivery information", copy: "Zones, fees, slots and fulfilment options" },
           { href: "/returns-policy", icon: RotateCcw, title: "Returns & refunds", copy: "Return, inspection and refund information" },
           { href: "/track", icon: Package, title: "Track an order", copy: "Use your reference and verification code" },

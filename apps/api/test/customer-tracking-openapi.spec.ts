@@ -6,13 +6,32 @@ import { resolve } from "node:path";
 const doc = JSON.parse(readFileSync(resolve(process.cwd(), "../../docs/openapi-foundation.json"), "utf8"));
 
 test("L3 enriches both existing secure order endpoints without adding a public route", () => {
-  assert.equal(Object.keys(doc.paths).length, 161);
+  assert.equal(Object.keys(doc.paths).length, 164);
   const track = doc.paths["/api/v1/orders/track"].post;
   const detail = doc.paths["/api/v1/orders/{orderId}"].get;
   assert.deepEqual(track.responses["200"].content["application/json"].schema, { $ref: "#/components/schemas/PublicOrderEnvelope" });
   assert.deepEqual(detail.responses["200"].content["application/json"].schema, { $ref: "#/components/schemas/PublicOrderEnvelope" });
   assert.deepEqual(track.security, []);
   assert.deepEqual(detail.security, [{ cookieAuth: [] }, { bearerAuth: [] }, { guestAuth: [] }]);
+});
+
+test("public tracking OTP contract documents POST request and verify only", () => {
+  const request = doc.paths["/api/v1/orders/track-otp/request"]?.post;
+  const verify = doc.paths["/api/v1/orders/track-otp/verify"]?.post;
+  assert.ok(request, "OTP request route must be documented");
+  assert.ok(verify, "OTP verify route must be documented");
+  assert.deepEqual(request.security, []);
+  assert.deepEqual(verify.security, []);
+  for (const operation of [request, verify]) {
+    assert.ok(operation.requestBody?.content?.["application/json"]?.schema);
+    assert.ok(operation.responses?.["200"]);
+  }
+  assert.deepEqual(verify.responses["200"].content["application/json"].schema, { $ref: "#/components/schemas/PublicOrderEnvelope" });
+  const code = verify.requestBody.content["application/json"].schema.properties.code;
+  assert.ok(new RegExp(code.pattern).test("123456"));
+  assert.ok(!new RegExp(code.pattern).test("abcdef"));
+  assert.equal(doc.paths["/api/v1/orders/track-otp/request"]?.get, undefined);
+  assert.equal(doc.paths["/api/v1/orders/track-otp/verify"]?.get, undefined);
 });
 
 test("L3 published shape is strict and has no operational IDs, GPS, ETA or money mutation fields", () => {
@@ -152,7 +171,7 @@ test("R3a authenticated return claim routes use strict customer/admin authorizat
     "/api/v1/admin/return-claims",
     "/api/v1/admin/return-claims/{claimId}/decision",
   ];
-  assert.equal(Object.keys(doc.paths).length,161);
+  assert.equal(Object.keys(doc.paths).length,164);
   for(const path of paths){
     const op=doc.paths[path];
     assert.ok(op,"missing "+path);

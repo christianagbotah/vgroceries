@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { apiOps, ApiError } from "@/services/client";
 import { useStaff } from "@/features/staff/role-context";
 import { LoadingState, ErrorState } from "@/components/shared/states";
@@ -76,6 +77,14 @@ export default function AdminSettingsPage() {
           Business configuration. Actual delivery areas, fees, hours, refund policy, tax treatment
           and payment providers require owner configuration before launch.
         </p>
+      </div>
+
+      <div className="rounded-xl border bg-card p-4"><h2 className="font-semibold">Payment, SMS &amp; delivery integrations</h2><p className="mt-1 text-sm text-muted-foreground">Review supported provider families and current integration limitations in one place. Secure credential editing is not yet enabled.</p><Link href="/admin/integrations" className="mt-2 inline-flex min-h-11 items-center font-semibold text-primary underline underline-offset-4">Open integrations &amp; providers</Link></div>
+
+      <div className="rounded-xl border bg-card p-4 text-sm">
+        <h2 className="font-semibold">Payment, SMS and delivery integrations</h2>
+        <p className="mt-1 text-muted-foreground">Provider selection and API credentials are not editable in business settings yet. Review integration readiness without exposing secrets.</p>
+        <Link href="/admin/integrations" className="mt-2 inline-flex min-h-11 items-center font-semibold text-primary underline">Open integrations &amp; providers</Link>
       </div>
 
       <Card>

@@ -21,7 +21,9 @@ describe("rich storefront visual system", () => {
 
     expect(page).toContain("<StorefrontEditorialHero content={homepageContent} />");
     const hero = read("src/features/catalog/storefront-editorial-hero.tsx");
-    expect(hero).toContain("The feel-good grocery run");
+    expect(hero).toContain("buildStorefrontHeroSlides");
+    expect(hero).toContain("Fresh choices");
+    expect(hero).toContain("Fill the pantry");
     expect(hero).toContain("useReducedMotion");
     expect(page).toContain("Fresh Groceries");
     expect(page).toContain("category-image-grid");
@@ -31,9 +33,10 @@ describe("rich storefront visual system", () => {
 
   test("hero headline and photography are visible before client hydration", () => {
     const hero = read("src/features/catalog/storefront-editorial-hero.tsx");
-    expect(hero).toContain("initial: reducedMotion ? false : { opacity: 1, y: 12 }");
-    expect(hero).toContain("initial={reducedMotion ? false : { opacity: 1, scale: .96");
-    expect(hero).not.toContain("opacity: 0");
+    // Both image and headline must render immediately, before hydration.
+    expect(hero).toContain("key={current.id}" + "\n          initial={false}");
+    expect(hero).toContain("key={current.id}" + "\n            initial={false}");
+    expect(hero).toContain("alt={current.alt}");
     expect(hero).toContain('id="home-hero-title"');
   });
 

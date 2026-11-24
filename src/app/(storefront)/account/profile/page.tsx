@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { apiOps, ApiError } from "@/services/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,6 +19,42 @@ export default function AccountProfilePage() {
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
+  const [savedPhone, setSavedPhone] = useState("");
+  const [challenge, setChallenge] = useState<{ challengeId: string; expiresAt: string } | null>(null);
+  const [otpCode, setOtpCode] = useState("");
+  const [otpBusy, setOtpBusy] = useState(false);
+  const [otpVerified, setOtpVerified] = useState(false);
+  const [otpError, setOtpError] = useState<string | null>(null);
+  const [resendAt, setResendAt] = useState(0);
+  const [clock, setClock] = useState(Date.now());
+  useEffect(() => {
+    if (!challenge) return;
+    const timer = window.setInterval(() => setClock(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, [challenge]);
+  const requestOtp = async () => {
+    setOtpBusy(true); setOtpError(null);
+    try {
+      const result = await apiOps.accountPhoneOtpRequest();
+      setChallenge(result); setOtpCode(""); setOtpVerified(false);
+      setResendAt(Date.now() + 60000);
+      toast({ title: "Verification code sent", description: "Enter the six-digit code sent to your saved phone number." });
+    } catch (e) {
+      setOtpError(e instanceof ApiError ? e.message : "Could not send verification code.");
+    } finally { setOtpBusy(false); }
+  };
+  const verifyOtp = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!challenge) return;
+    setOtpBusy(true); setOtpError(null);
+    try {
+      await apiOps.accountPhoneOtpVerify(challenge.challengeId, otpCode);
+      setOtpVerified(true); setChallenge(null); setOtpCode("");
+      toast({ title: "Phone verified", description: "Your saved phone number is now verified." });
+    } catch (e) {
+      setOtpError(e instanceof ApiError ? e.message : "Verification failed. Check the code and try again.");
+    } finally { setOtpBusy(false); }
+  };
 
   useEffect(() => {
     (async () => {
@@ -25,6 +62,7 @@ export default function AccountProfilePage() {
         const profile = await apiOps.accountProfile();
         setName(profile.customer.name);
         setPhone(profile.customer.phone);
+        setSavedPhone(profile.customer.phone);
         setEmail(profile.customer.email ?? "");
       } catch (e) {
         setError(e instanceof ApiError ? e.message : "Could not load your profile.");
@@ -41,6 +79,10 @@ export default function AccountProfilePage() {
       const updated = await apiOps.accountProfileUpdate({ name, phone, email });
       setName(updated.customer.name);
       setPhone(updated.customer.phone);
+      if (updated.customer.phone !== savedPhone) {
+        setChallenge(null); setOtpVerified(false); setOtpCode("");
+      }
+      setSavedPhone(updated.customer.phone);
       setEmail(updated.customer.email ?? "");
       toast({ title: "Profile updated", description: "Your account details have been saved." });
     } catch (e) {
@@ -104,7 +146,23 @@ export default function AccountProfilePage() {
         <CardContent className="space-y-3 text-sm text-muted-foreground">
           <p>Profile changes are kept separate from payment details and order history.</p>
           <p>Use the Log out action in the account header when you finish on a shared device.</p>
-          <p className="rounded-xl border border-dashed p-3 text-xs">Your account session is protected by the production identity service. Password-recovery and multi-factor controls will be added in this security area.</p>
+          <Link href="/forgot-password" className="inline-flex min-h-11 items-center font-semibold text-primary underline underline-offset-4">Change or reset your password</Link>
+          <div className="rounded-xl border p-4 space-y-3">
+            <p className="font-semibold text-foreground">Phone verification</p>
+            <p>Verify your saved phone number by SMS. Save any phone changes first.</p>
+            {otpVerified && <p role="status" className="text-green-700">Phone verified successfully.</p>}
+            {phone !== savedPhone && <p role="status">Save your new phone number before requesting a code.</p>}
+            {otpError && <p role="alert" className="text-destructive">{otpError}</p>}
+            <Button type="button" variant="outline" disabled={otpBusy || phone !== savedPhone || !savedPhone || (Boolean(challenge) && clock < resendAt)} onClick={requestOtp}>
+              {otpBusy ? "Please wait…" : challenge ? clock < resendAt ? `Resend in ${Math.ceil((resendAt - clock) / 1000)}s` : "Resend code" : "Send verification code"}
+            </Button>
+            {challenge && <form className="space-y-3" onSubmit={verifyOtp}>
+              <Label htmlFor="account-otp-code">Six-digit SMS code</Label>
+              <Input id="account-otp-code" value={otpCode} onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, "").slice(0, 6))} inputMode="numeric" autoComplete="one-time-code" maxLength={6} required />
+              <p>Code expires {new Date(challenge.expiresAt).toLocaleTimeString()}.</p>
+              <Button type="submit" disabled={otpBusy || otpCode.length !== 6 || clock >= new Date(challenge.expiresAt).getTime()}>Verify phone</Button>
+            </form>}
+          </div>
         </CardContent>
       </Card>
     </div>

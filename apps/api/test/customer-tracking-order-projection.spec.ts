@@ -38,7 +38,7 @@ function harness(useShipment = true) {
   } as unknown as Database;
   const tracking = { project: async () => useShipment ? journey : null } as unknown as ShipmentCustomerTrackingService;
   const projection = new OrderProjectionService(db, tracking);
-  const throttle = { registerFailure: async (_clientKey: string, reference: string) => {
+  const throttle = { registerLookup: async () => {}, ensureNotBlocked: async () => {}, registerFailure: async (_clientKey: string, reference: string) => {
     failures.push(reference);
   } } as unknown as TrackingThrottleService;
   const verification = { verify: (_id: string, code: string) => code === "GOOD" } as unknown as VerificationCodeService;
@@ -122,7 +122,7 @@ test("cancelled orders with a planned Shipment show cancellation equally for own
     { ...journey.milestones[0]!, title: "Future delivery", status: "planned" },
   ] }) } as unknown as ShipmentCustomerTrackingService;
   const projection = new OrderProjectionService(db, tracking);
-  const query = new OrderQueryService(db, projection, { registerFailure: async () => {} } as unknown as TrackingThrottleService,
+  const query = new OrderQueryService(db, projection, { registerLookup: async () => {}, ensureNotBlocked: async () => {}, registerFailure: async () => {} } as unknown as TrackingThrottleService,
     { verify: () => true } as unknown as VerificationCodeService);
   const owner = await query.status({ kind: "customer", userId: "customer-a" } as never, order.id);
   const guest = await query.track(order.reference, "GOOD", "ip", "request");

@@ -73,7 +73,7 @@ export default function AccountOrderDetailPage() {
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <h2 className="font-serif text-xl font-bold">Order {order.reference}</h2>
-          <p className="text-sm text-muted-foreground">Placed {order.createdAtLabel} UTC</p>
+          <p className="text-sm text-muted-foreground">Placed {formatDateTime(order.createdAt)} UTC</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <StatusBadge kind="payment" status={order.paymentStatus} />

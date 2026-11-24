@@ -45,14 +45,14 @@ async function start(refunds: RefundProviderAdapter[] = []) {
   return { app, base: await app.getUrl() };
 }
 
-test("configured electronic charging fails readiness without same-provider refund capability", async () => {
+test("collection readiness does not require an automated refund provider", async () => {
   const { base } = await start([]);
-  assert.equal((await fetch(base + "/api/v1/health/ready")).status, 503);
+  assert.equal((await fetch(base + "/api/v1/health/ready")).status, 200);
 });
 
-test("refund readiness requires every enabled payment method", async () => {
+test("partial refund capability does not block configured collection methods", async () => {
   const { base } = await start([refundAdapter("fake", ["mobile_money"])]);
-  assert.equal((await fetch(base + "/api/v1/health/ready")).status, 503);
+  assert.equal((await fetch(base + "/api/v1/health/ready")).status, 200);
 });
 
 test("compatible refund adapter restores readiness", async () => {

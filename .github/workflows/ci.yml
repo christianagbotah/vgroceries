@@ -1,5 +1,8 @@
 name: CI
 
+permissions:
+  contents: read
+
 on:
   push:
     branches: [main]
@@ -9,16 +12,21 @@ on:
 
 jobs:
   verify:
-    runs-on: ubuntu-latest
+    # Pin the runner: Playwright 1.56 supports Ubuntu 24.04, while the
+    # floating ubuntu-latest image has moved to unsupported Ubuntu 26.04.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - name: Offline Hubtel access diagnostic tests (no provider requests)
         run: python3 -m unittest discover -s scripts -p 'test_hubtel_transaction_status_probe.py' -v
 
       - uses: oven-sh/setup-bun@v2
         with:
-          bun-version: latest
+          bun-version: 1.3.14
 
       - name: Install dependencies
         run: bun install --frozen-lockfile
@@ -58,3 +66,152 @@ jobs:
 
       - name: Route sweep
         run: bun scripts/route-sweep.mjs http://localhost:3000
+
+      - name: Install isolated Chromium browser test tools
+        timeout-minutes: 6
+        run: |
+          npm install --prefix /tmp/vgroceries-playwright --no-save --no-audit --no-fund playwright-core@1.56.1
+          CHROME_BIN="$(command -v google-chrome || command -v google-chrome-stable || command -v chromium || command -v chromium-browser || true)"
+          if [ -n "$CHROME_BIN" ]; then
+            echo "CHROMIUM_BIN=$CHROME_BIN" >> "$GITHUB_ENV"
+            echo "Using preinstalled GitHub runner Chrome."
+          else
+            echo "No system Chrome; downloading isolated Playwright Chromium."
+            npx --yes playwright@1.56.1 install chromium
+          fi
+
+      - name: Checkout browser retry acceptance (intercepted demo requests only)
+        timeout-minutes: 3
+        env:
+          PLAYWRIGHT_CORE_PATH: /tmp/vgroceries-playwright/node_modules/playwright-core
+        run: node scripts/checkout-browser-retry.mjs http://127.0.0.1:3000
+
+      # Candidate only: this does not deploy or authorize a production cutover.
+      - name: Package source-light storefront candidate (exact SHA)
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f .next/standalone/server.js
+          test -d .next/static
+          mkdir -p candidate/payload/.next candidate/evidence
+          cp -a .next/standalone/. candidate/payload/
+          cp -a .next/static candidate/payload/.next/static
+          if [ -d public ]; then cp -a public candidate/payload/public; fi
+          # Fail closed if an unexpected secret file was copied by standalone tracing.
+          if find candidate/payload -type f \( -name '.env' -o -name '.env.*' -o -name '*.pem' -o -name '*.key' \) | grep -q .; then
+            echo 'Candidate contains a prohibited credential-like file' >&2
+            exit 1
+          fi
+          # Reject links escaping the candidate root before archiving or extraction.
+          # Standalone may legitimately contain internal relative links.
+          python3 - <<'PY'
+          from pathlib import Path
+          root = Path("candidate/payload").resolve()
+          for path in root.rglob("*"):
+              if path.is_symlink():
+                  target = path.resolve(strict=True)
+                  if not target.is_relative_to(root):
+                      raise SystemExit(f"Unsafe candidate symlink: {path}")
+          print("Candidate symlink containment: PASS")
+          PY
+          printf '%s\n' "${GITHUB_SHA}" > candidate/evidence/source-sha.txt
+          printf '%s\n' 'vgroceries-storefront-standalone-v1' > candidate/evidence/format.txt
+          tar -C candidate/payload -czf candidate/evidence/storefront.tar.gz .
+          # Bind the source identity and format to the same integrity manifest
+          # as the archive; a consumer must verify all three before use.
+          (cd candidate/evidence && sha256sum storefront.tar.gz source-sha.txt format.txt > SHA256SUMS)
+          (cd candidate/evidence && sha256sum --check --strict SHA256SUMS)
+          test "$(cat candidate/evidence/source-sha.txt)" = "$GITHUB_SHA"
+          test "$(cat candidate/evidence/format.txt)" = 'vgroceries-storefront-standalone-v1'
+          # Validate archive entries before extraction; reject traversal, special
+          # files, hardlinks and symlinks pointing outside the extracted root.
+          python3 - <<'PY'
+          import posixpath
+          import tarfile
+          from pathlib import PurePosixPath
+
+          # Prevent duplicate-path shadowing and decompression bombs. These
+          # bounds apply to the uncompressed payload, not the gzip file size.
+          seen = set()
+          total_bytes = 0
+          member_count = 0
+          symlink_paths = set()
+          with tarfile.open("candidate/evidence/storefront.tar.gz", "r:gz") as archive:
+              for member in archive:
+                  member_count += 1
+                  if member_count > 100000:
+                      raise SystemExit("Candidate archive exceeds entry count limit")
+                  total_bytes += member.size
+                  if total_bytes > 1073741824:
+                      raise SystemExit("Candidate archive exceeds 1 GiB extracted size limit")
+                  normalized = posixpath.normpath(member.name)
+                  if normalized in seen:
+                      raise SystemExit(f"Duplicate candidate archive path: {member.name}")
+                  seen.add(normalized)
+                  path = PurePosixPath(member.name)
+                  if path.is_absolute() or ".." in path.parts:
+                      raise SystemExit(f"Unsafe archive path: {member.name}")
+                  if not (member.isfile() or member.isdir() or member.issym()):
+                      raise SystemExit(f"Unsafe archive entry type: {member.name}")
+                  # Extracted candidates must never introduce privileged executable bits.
+                  if member.mode & 0o6000:
+                      raise SystemExit(f"Unsafe setuid/setgid archive mode: {member.name}")
+                  if member.issym():
+                      symlink_paths.add(normalized)
+                      target = posixpath.normpath(posixpath.join(posixpath.dirname(member.name), member.linkname))
+                      if member.linkname.startswith("/") or target == ".." or target.startswith("../"):
+                          raise SystemExit(f"Unsafe archive link: {member.name}")
+          # A later archive entry beneath a symlink could redirect extraction
+          # outside the destination even when its own path is relative.
+          for entry in seen:
+              parent = posixpath.dirname(entry)
+              while parent not in ("", ".", "/"):
+                  if parent in symlink_paths:
+                      raise SystemExit(f"Archive entry traverses symlink parent: {entry}")
+                  parent = posixpath.dirname(parent)
+          print("Candidate archive extraction safety: PASS")
+          PY
+          mkdir -p candidate/verification
+          tar -xzf candidate/evidence/storefront.tar.gz -C candidate/verification
+          test -f candidate/verification/server.js
+          test -d candidate/verification/.next/static
+          # Boot ONLY the extracted artifact, from its own directory, on a separate
+          # loopback port. This catches missing traced runtime dependencies.
+          (
+            set -euo pipefail
+            cd candidate/verification
+            PORT=3107 HOSTNAME=127.0.0.1 NODE_ENV=production node server.js > ../artifact-smoke.log 2>&1 &
+            smoke_pid=$!
+            trap 'kill "$smoke_pid" 2>/dev/null || true; wait "$smoke_pid" 2>/dev/null || true' EXIT
+            ready=0
+            for i in $(seq 1 45); do
+              if curl --fail --silent --show-error --max-time 2 http://127.0.0.1:3107/ -o /dev/null 2>/dev/null; then
+                ready=1
+                break
+              fi
+              if ! kill -0 "$smoke_pid" 2>/dev/null; then break; fi
+              sleep 1
+            done
+            if [ "$ready" -ne 1 ]; then
+              echo 'Extracted standalone candidate failed isolated HTTP smoke test' >&2
+              cat ../artifact-smoke.log >&2
+              exit 1
+            fi
+            # A different listener could answer the curl while our server has died.
+            # Require the launched artifact process itself to remain alive.
+            if ! kill -0 "$smoke_pid" 2>/dev/null; then
+              echo 'Artifact smoke failed: launched server exited before verification' >&2
+              cat ../artifact-smoke.log >&2
+              exit 1
+            fi
+            echo 'Extracted standalone candidate HTTP smoke: PASS'
+          )
+          rm -rf candidate/verification candidate/payload candidate/artifact-smoke.log
+
+      - name: Upload non-deployable storefront candidate
+        uses: actions/upload-artifact@v4
+        with:
+          name: storefront-candidate-${{ github.sha }}
+          path: candidate/evidence/
+          if-no-files-found: error
+          retention-days: 7

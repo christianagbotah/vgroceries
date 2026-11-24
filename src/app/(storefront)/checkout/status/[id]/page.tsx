@@ -205,7 +205,7 @@ export default function CheckoutStatusPage() {
           <StatusBadge kind="payment" status={order.paymentStatus} />
           <StatusBadge kind="fulfilment" status={order.fulfilmentStatus} />
           {order.fulfilment === "delivery" ? <StatusBadge kind="delivery" status={order.deliveryStatus} /> : null}
-          <span className="text-muted-foreground">Placed {order.createdAtLabel} UTC</span>
+          <span className="text-muted-foreground">Placed {formatDateTime(order.createdAt)} UTC</span>
         </div>
         <div className="mt-4"><OrderReceiptExperience order={order} /></div>
       </div>
@@ -236,9 +236,9 @@ export default function CheckoutStatusPage() {
             Do not start another payment or approve a second prompt for this order. A pending transaction is not proof of payment, and a provider access error is not proof of failure.
           </p>
           {paymentMessage ? <p role="status" className="mt-3 text-sm">{paymentMessage}</p> : null}
-          <div className="mt-3 flex flex-wrap gap-2">
-            <Button type="button" variant="outline" onClick={() => void load()}>Refresh payment status</Button>
-            <Button asChild variant="outline"><Link href="/support">Contact support</Link></Button>
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            <Button type="button" variant="outline" className="w-full min-w-0 px-2 text-xs sm:text-sm" onClick={() => void load()}>Refresh payment status</Button>
+            <Button asChild variant="outline" className="w-full min-w-0 px-2 text-xs sm:text-sm"><Link href="/support">Contact support</Link></Button>
           </div>
         </div>
       ) : null}

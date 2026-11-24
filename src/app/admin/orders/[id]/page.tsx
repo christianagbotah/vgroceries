@@ -108,7 +108,7 @@ export default function AdminOrderDetailPage() {
             {order.posReceiptNo ? <StatusBadge kind="generic" status="receipt" label={`Receipt ${order.posReceiptNo}`} /> : null}
           </div>
         </div>
-        <p className="text-sm text-muted-foreground">Placed {order.createdAtLabel} UTC</p>
+        <p className="text-sm text-muted-foreground">Placed {formatDateTime(order.createdAt)} UTC</p>
       </div>
 
       {needsReview ? (
