@@ -1692,3 +1692,40 @@ model CustomerOtpChallenge {
   @@index([recipientFingerprint, purpose, createdAt])
   @@index([status, expiresAt])
 }
+
+/// Administrator-managed public business identity. Financial and runtime policy
+/// remains under its existing authority.
+model BusinessProfile {
+  id String @id
+  businessName String
+  supportPhone String
+  supportEmail String
+  address String
+  registrationNumber String
+  operatingHours String
+  receiptFooter String
+  version Int @default(1)
+  updatedAt DateTime @updatedAt @default(now()) @db.Timestamptz(3)
+}
+
+/// Manual partner directory only; it cannot enable external API dispatch.
+model DeliveryPartner {
+  id String @id @default(uuid())
+  name String
+  contactPhone String
+  contactEmail String
+  coverage String
+  notes String
+  active Boolean @default(true)
+  version Int @default(1)
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @default(now()) @db.Timestamptz(3)
+}
+
+/// Encrypted credential candidate, never read by the active runtime adapters.
+model IntegrationCredentialDraft {
+  id String @id
+  ciphertext String
+  version Int @default(1)
+  updatedAt DateTime @updatedAt @default(now()) @db.Timestamptz(3)
+}
