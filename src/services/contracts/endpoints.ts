@@ -13,6 +13,13 @@ import {
  */
 export const restEndpoints: Record<string, RestEndpoint> = {
   ...sharedRestEndpoints,
+  "admin.business.profile": { method: "GET", path: "/admin/settings/business" },
+  "admin.business.save": { method: "POST", path: "/admin/settings/business/update" },
+  "admin.delivery.partners": { method: "GET", path: "/admin/delivery-providers" },
+  "admin.delivery.partner.create": { method: "POST", path: "/admin/delivery-providers" },
+  "admin.delivery.partner.update": { method: "POST", path: "/admin/delivery-providers/{id}/update" },
+  "admin.integration.credentials": { method: "GET", path: "/admin/integrations/credentials" },
+  "admin.integration.draft.save": { method: "POST", path: "/admin/integrations/credentials/{id}/draft" },
   "orders.track-otp.request": { method: "POST", path: "/orders/track-otp/request" },
   "orders.track-otp.verify": { method: "POST", path: "/orders/track-otp/verify" },
   "account.phone-otp.request": { method: "POST", path: "/account/phone-otp/request" },

@@ -243,6 +243,13 @@ export const operationMeta: Record<string, OperationMeta> = {
   "admin.content.page": { tags: CONF },
   "admin.content.page.update": { invalidates: CONF },
   "admin.content.page.publish": { invalidates: CONF },
+  "admin.business.profile": {},
+  "admin.business.save": { invalidates: CONF },
+  "admin.delivery.partners": {},
+  "admin.delivery.partner.create": { invalidates: CONF },
+  "admin.delivery.partner.update": { invalidates: CONF },
+  "admin.integration.credentials": {},
+  "admin.integration.draft.save": { invalidates: CONF },
   "admin.settings": { tags: CONF },
   "admin.settings.update": { invalidates: CONF },
 
