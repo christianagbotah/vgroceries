@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { publicBusinessContactSchema } from "../packages/contracts/src/business-contact";
 import type { PublicOrder } from "../packages/contracts/src/checkout";
 import { assembleProductMedia } from "../src/features/catalog/product-media-gallery";
 import {
@@ -160,4 +161,18 @@ describe("Variety motion storefront and receipt safety", () => {
       expect(receipt).not.toContain(forbidden);
     }
   });
+});
+
+test("public support projection excludes private fields and receipt exports escape current support text", () => {
+ const contact = {supportPhone:"+233241111111",supportEmail:"help@example.test",address:"Accra",operatingHours:"Mon-Sat",receiptFooter:"<script>unsafe</script>"};
+ expect(publicBusinessContactSchema.safeParse(contact).success).toBe(true);
+ expect(publicBusinessContactSchema.safeParse({...contact,ciphertext:"private"}).success).toBe(false);
+ expect(publicBusinessContactSchema.safeParse({...contact,supportEmail:"invalid"}).success).toBe(false);
+ expect(receiptPlainText(order,contact)).toContain("Current support information:");
+ const html=receiptDownloadHtml(order,contact);
+ expect(html).toContain("&lt;script&gt;unsafe&lt;/script&gt;");
+ expect(html).not.toContain("<script>unsafe</script>");
+ expect(html).toContain("NOT PROOF OF PAYMENT");
+ expect(html).not.toContain(order.verificationCode as string);
+ expect(receiptDownloadHtml(order,null)).not.toContain("Current support information:");
 });

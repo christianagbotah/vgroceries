@@ -33,3 +33,14 @@ follow-up work. Existing payment/COD/financial flags remain unchanged.
 Do not apply the migration or deploy before CI and owner acceptance.
 The new routes follow the existing CMS pattern of manual API documentation
 pending formal OpenAPI integration.
+
+## Customer contact publication
+
+The read-only public GET /content/business-contact route explicitly selects
+only support phone, email, address, hours and receipt footer. Blank fields
+remain hidden, and missing backend data does not invent contact details.
+The storefront footer and Help page use this projection. Customer receipt
+display, HTML and text downloads show current support information separately
+from the historical order record. This is not a legal issuer snapshot or a tax
+invoice. Existing order financial values, official logo, historical issuer
+identity, and POS receipt records remain unchanged.

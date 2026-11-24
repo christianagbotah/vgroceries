@@ -1,3 +1,4 @@
+import type { PublicBusinessContact } from "@/services/contracts";
 import type { PublicOrder } from "@/services/contracts";
 import { formatMoney } from "@/lib/money";
 
@@ -39,7 +40,13 @@ const clean = (value: string) => value.replace(/&/g, "&amp;")
   .replace(/</g, "&lt;").replace(/>/g, "&gt;")
   .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
 
-export function receiptPlainText(order: PublicOrder): string {
+function currentSupport(contact?: PublicBusinessContact | null): string[] {
+  if (!contact) return [];
+  const lines = [contact.supportPhone && "Support phone: " + contact.supportPhone, contact.supportEmail && "Support email: " + contact.supportEmail, contact.receiptFooter].filter(Boolean);
+  return lines.length ? ["Current support information:", ...lines] : [];
+}
+
+export function receiptPlainText(order: PublicOrder, contact?: PublicBusinessContact | null): string {
   const state = receiptStatus(order);
   return [
     "VARIETY GROCERIES",
@@ -64,6 +71,7 @@ export function receiptPlainText(order: PublicOrder): string {
       "NOT PROOF OF PAYMENT. Payment has not been verified.",
     "Not a tax invoice. Verify fulfilment separately.",
     "For order details, sign in to varietygroceries.com.",
+    ...currentSupport(contact),
   ].join("\n");
 }
 
@@ -73,7 +81,7 @@ export function receiptPlainText(order: PublicOrder): string {
  * It is a record of the current server-returned order state, not
  * a tax invoice or authoritative payment settlement certificate.
  */
-export function receiptDownloadHtml(order: PublicOrder): string {
+export function receiptDownloadHtml(order: PublicOrder, contact?: PublicBusinessContact | null): string {
   const status = receiptStatus(order);
   const lines = order.lines.map(line =>
     "<tr><td>" + clean(line.productName) + "<small>" + clean(line.variantName) +
@@ -106,6 +114,7 @@ export function receiptDownloadHtml(order: PublicOrder): string {
     "<footer>" + (status.confirmed ? "Payment state is from the server record." :
       "NOT PROOF OF PAYMENT. Payment has not been verified.") +
       "<br>Not a tax invoice · Keep your order reference for enquiries</footer>",
+    currentSupport(contact).length ? "<footer>" + currentSupport(contact).map(clean).join("<br>") + "</footer>" : "",
     "</main></body></html>",
   ].join("");
 }

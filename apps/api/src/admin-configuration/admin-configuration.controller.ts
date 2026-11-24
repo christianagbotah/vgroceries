@@ -6,6 +6,7 @@ import type { AuthRequest } from "../identity/identity.service";
 import { ApiProblem } from "../http/errors";
 import { API_CONFIG, type ApiConfig } from "../config";
 import { businessProfileSchema, deliveryPartnerSchema, deliveryPartnerUpdateSchema, integrationIdSchema, parseCredentialDraft } from "./admin-configuration.schemas";
+import { PublicBusinessController } from "./public-business.controller";
 import { encryptCredentialDraft } from "./integration-vault";
 
 const ok = <T>(data:T) => ({ok:true,data});
@@ -95,5 +96,5 @@ export class AdminConfigurationController {
     }));
   }
 }
-@Module({controllers:[AdminConfigurationController]})
+@Module({controllers:[AdminConfigurationController,PublicBusinessController]})
 export class AdminConfigurationModule {}

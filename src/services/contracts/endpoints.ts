@@ -13,6 +13,7 @@ import {
  */
 export const restEndpoints: Record<string, RestEndpoint> = {
   ...sharedRestEndpoints,
+  "content.business-contact": { method: "GET", path: "/content/business-contact" },
   "admin.business.profile": { method: "GET", path: "/admin/settings/business" },
   "admin.business.save": { method: "POST", path: "/admin/settings/business/update" },
   "admin.delivery.partners": { method: "GET", path: "/admin/delivery-providers" },
