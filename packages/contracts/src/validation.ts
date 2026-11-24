@@ -126,6 +126,7 @@ export const guestAddressInputSchema = z.object({
 });
 
 const checkoutCompleteBaseSchema = z.object({
+  smsUpdatesOptIn: z.boolean().optional(),
   lines: z.array(cartLineInputSchema).min(1),
   customerName: z.string().min(1),
   customerPhone: z.string().min(1),

@@ -117,6 +117,8 @@ export interface GuestAddressInput {
 }
 
 export interface CompleteOrderRequest {
+  /** Explicit opt-in to transactional SMS for this order only. */
+  smsUpdatesOptIn?: boolean;
   lines: CartLineInput[];
   customerName: string;
   customerPhone: string;

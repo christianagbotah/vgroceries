@@ -82,6 +82,8 @@ test("semantic checkout hash ignores replay metadata and redundant matching cust
   const b = request({ idempotencyKey: "another-replay-key", customerId: undefined });
   assert.deepEqual(canonicalCheckoutRequest(a), canonicalCheckoutRequest(b));
   assert.equal(checkoutRequestHash(a), checkoutRequestHash(b));
+  assert.equal(checkoutRequestHash(a), checkoutRequestHash(request({ smsUpdatesOptIn: false })));
+  assert.notEqual(checkoutRequestHash(a), checkoutRequestHash(request({ smsUpdatesOptIn: true })));
   assert.notEqual(checkoutRequestHash(a), checkoutRequestHash(request({ lines: [{ variantId: "var_rice", quantity: "2" }] })));
   const existingDelivery = request({ fulfilment: "delivery", paymentMethod: "mobile_money" });
   assert.equal(checkoutRequestHash(existingDelivery), checkoutRequestHash({ ...existingDelivery, destinationKind: "doorstep" }));

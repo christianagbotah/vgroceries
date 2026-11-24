@@ -543,10 +543,22 @@ model Order {
   physicalReturnReceipts PhysicalReturnReceipt[]
   customerReturnClaims CustomerReturnClaim[]
   notifications Notification[]
+  smsConsent OrderSmsConsent?
   @@index([customerUserId, createdAt])
   @@index([guestSessionId, createdAt])
   @@index([zoneId, createdAt])
   @@index([slotId, createdAt])
+}
+
+/// An explicit order-scoped preference, bound to the checkout contact snapshot.
+/// No historical backfill; revocation and delivery authorization are separate.
+model OrderSmsConsent {
+  orderId String @id
+  order Order @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  recipientFingerprint String
+  policyVersion String
+  recordedAt DateTime @default(now()) @db.Timestamptz(3)
+  revokedAt DateTime? @db.Timestamptz(3)
 }
 
 /// Staff-verified physical possession of returned customer goods; never a
