@@ -134,6 +134,7 @@ export default function AdminDispatchPage() {
             manually. Failed deliveries can be rescheduled, reassigned or returned to store.
           </p>
         </div>
+        <Button asChild variant="outline" className="h-10"><Link href="/admin/dispatch/providers">Manual courier dispatch</Link></Button>
         <Button variant="outline" className="h-10" onClick={reload}>
           <RotateCw className="size-4" aria-hidden /> Refresh
         </Button>

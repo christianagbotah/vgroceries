@@ -44,3 +44,18 @@ display, HTML and text downloads show current support information separately
 from the historical order record. This is not a legal issuer snapshot or a tax
 invoice. Existing order financial values, official logo, historical issuer
 identity, and POS receipt records remain unchanged.
+
+## Manual courier assignments
+
+The administrator's /admin/dispatch/providers page reads the existing
+production dispatch queue and active directory partners. Assignment and
+reassignment use existing dispatch commands with header-only idempotency
+keys. A reserved directory: provider key identifies a stored partner.
+The server locks and validates that partner and snapshots its name rather
+than trusting client display text. Inactive or missing directory partners
+cannot be newly assigned. Already assigned jobs and historical snapshots
+are preserved. The older ad-hoc manual booking contract remains supported.
+Coverage is informational; staff arrange the external booking and verify
+coverage before recording it. No courier API booking, delivery or payment
+confirmation is implied. The legacy general dispatch screen still needs
+full migration to the production queue contract.

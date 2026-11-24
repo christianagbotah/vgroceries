@@ -13,6 +13,9 @@ import {
  */
 export const restEndpoints: Record<string, RestEndpoint> = {
   ...sharedRestEndpoints,
+  "admin.directory.dispatch.queue": {method:"GET",path:"/admin/dispatch"},
+  "admin.directory.dispatch.assign": {method:"POST",path:"/admin/dispatch/orders/{orderId}/assign",replayTransport:"headerOnly"},
+  "admin.directory.dispatch.reassign": {method:"POST",path:"/admin/dispatch/jobs/{jobId}/reassign",replayTransport:"headerOnly"},
   "content.business-contact": { method: "GET", path: "/content/business-contact" },
   "admin.business.profile": { method: "GET", path: "/admin/settings/business" },
   "admin.business.save": { method: "POST", path: "/admin/settings/business/update" },
