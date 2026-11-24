@@ -44,6 +44,14 @@ async function runReadiness(refunds: RefundProviderAdapter[] = []) {
     const policy = app.get(PaymentPolicyService);
     assert.doesNotThrow(() => policy.assertReadyIfConfigured());
     assert.equal(policy.resolveElectronicMethod().method, "hosted_checkout");
+    // Exercise the storefront's exact public HTTP contract, not only DI policy.
+    await app.listen(0, "127.0.0.1");
+    const response = await fetch((await app.getUrl()) + "/api/v1/checkout/payment-availability");
+    assert.equal(response.status, 200);
+    assert.equal(response.headers.get("cache-control"), "no-store");
+    assert.deepEqual(await response.json(), {
+      ok: true, data: { electronicAvailable: true, mode: "production" },
+    });
     // Refund operations remain independently capability-gated.
     assert.throws(() => app.get(RefundProviderRegistry).require("hubtel", "hosted_checkout"), /Refund capability|refund capability/i);
   } finally {

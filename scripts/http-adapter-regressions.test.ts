@@ -91,6 +91,29 @@ describe("production HTTP contract", () => {
     expect(calls[0].key).toBe(idempotencyKey);
     expect(calls[0].body).toMatchObject({ idempotencyKey });
   });
+  test("hosted payment handoff sends the replay key in the header, never the strict JSON body", async () => {
+    const http = new HttpServiceAdapter(`${base}/api/v1`);
+    for (const body of [{}, { payerPhone: "+233241111111" }]) {
+      await http.request({
+        op: "payments.initiate", query: { orderId: "order-test" },
+        body, idempotencyKey: "payment-retry-key-001",
+      });
+      expect(calls.at(-1)?.path).toBe("/api/v1/orders/order-test/payment-attempts");
+      expect(calls.at(-1)?.key).toBe("payment-retry-key-001");
+      expect(calls.at(-1)?.body).toEqual(body);
+    }
+    expect(calls).toHaveLength(2);
+  });
+  test("hosted payment still rejects conflicting replay keys and client-controlled amounts", async () => {
+    const http = new HttpServiceAdapter(`${base}/api/v1`);
+    await expect(http.request({ op: "payments.initiate", query: { orderId: "order-test" },
+      body: { idempotencyKey: "other-key" }, idempotencyKey: "payment-retry-key-001",
+    })).rejects.toMatchObject({ code: "IDEMPOTENCY_CONFLICT" });
+    await expect(http.request({ op: "payments.initiate", query: { orderId: "order-test" },
+      body: { amountMinor: 1 }, idempotencyKey: "payment-retry-key-001",
+    })).rejects.toMatchObject({ code: "VALIDATION_FAILED" });
+    expect(calls).toHaveLength(0);
+  });
   test("verified stock correction uses a strict JSON body and header-only idempotency", async () => {
     const body = {
       lotId: "lot-rice", variantId: "var-rice", locationId: "loc_accra",

@@ -9,7 +9,7 @@ describe("Hubtel storefront payment handoff", () => {
     const validation = read("packages/contracts/src/validation.ts");
     const client = read("src/services/client.ts");
     const operations = read("src/services/operation-registry.ts");
-    expect(endpoints).toContain('"payments.initiate": {"method": "POST", "path": "/orders/{orderId}/payment-attempts"}');
+    expect(endpoints).toContain('"payments.initiate": {"method": "POST", "path": "/orders/{orderId}/payment-attempts", "replayTransport": "headerOnly"}');
     expect(validation).toContain('"payments.initiate": paymentInitiationRequestSchema');
     expect(client).toContain("paymentInitiate");
     expect(client).toContain('api<PaymentInitiationResult>("payments.initiate"');

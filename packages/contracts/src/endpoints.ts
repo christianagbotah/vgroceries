@@ -23,7 +23,7 @@ export const restEndpoints: Record<string, RestEndpoint> = {
   "checkout.payment-availability": {"method": "GET", "path": "/checkout/payment-availability"},
   "checkout.quote": {"method": "POST", "path": "/checkout/quote"},
   "checkout.complete": {"method": "POST", "path": "/checkout/complete"},
-  "payments.initiate": {"method": "POST", "path": "/orders/{orderId}/payment-attempts"},
+  "payments.initiate": {"method": "POST", "path": "/orders/{orderId}/payment-attempts", "replayTransport": "headerOnly"},
   "checkout.payment-outcome": {"method": "POST", "path": "/orders/{orderId}/payment-outcome"},
   "checkout.status": {"method": "GET", "path": "/orders/{orderId}"},
   "orders.detail": {"method": "GET", "path": "/orders/{orderId}"},
