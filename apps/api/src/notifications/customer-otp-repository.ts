@@ -4,6 +4,14 @@ import { customerDestinationFingerprint, encryptCustomerDestination } from "./cu
 import { OTP_TTL_MS, OTP_MAX_ISSUES_PER_HOUR, OTP_RESEND_INTERVAL_MS, digestCustomerOtp, generateCustomerOtp } from "./customer-otp-policy";
 import { otpConsumeWhere, otpFailureWhere } from "./customer-otp-state";
 
+/** OTP issuance is already rate-limited separately from order tracking. */
+export class OtpIssueRateLimited extends Error {
+  constructor(readonly retryAfterSeconds: number) {
+    super("OTP request limit reached.");
+    this.name = "OtpIssueRateLimited";
+  }
+}
+
 /** Database-backed OTP operations. Dispatch must be handled by a verified SMS adapter.
  * Never expose the generated code in a public controller response. */
 export class CustomerOtpRepository {
@@ -18,16 +26,20 @@ export class CustomerOtpRepository {
     const id = randomUUID();
     const code = generateCustomerOtp();
     await this.db.$transaction(async tx => {
-      await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtextextended(${recipientFingerprint + ":" + purpose}, 0))`;
+      // PostgreSQL returns void here; PrismaPg cannot deserialize void (P2010).
+      // Select a supported scalar while retaining the same transaction lock.
+      const lock = await tx.$queryRaw<Array<{ locked: number }>>`SELECT 1::int AS locked FROM pg_advisory_xact_lock(hashtextextended(${recipientFingerprint + ":" + purpose}, 0))`;
+      if (lock[0]?.locked !== 1) throw new Error("Failed to acquire OTP issuance lock.");
       const recent = await tx.customerOtpChallenge.findMany({
         where: { recipientFingerprint, purpose, createdAt: { gte: windowStart } },
         orderBy: { createdAt: "desc" }, take: OTP_MAX_ISSUES_PER_HOUR,
         select: { createdAt: true },
       });
-      if (recent.length >= OTP_MAX_ISSUES_PER_HOUR ||
-        (recent[0] && now.getTime() - recent[0].createdAt.getTime() < OTP_RESEND_INTERVAL_MS)) {
-        throw new Error("OTP request limit reached.");
-      }
+      const cooldownMs = recent[0] ? OTP_RESEND_INTERVAL_MS - (now.getTime() - recent[0].createdAt.getTime()) : 0;
+      const hourlyMs = recent.length >= OTP_MAX_ISSUES_PER_HOUR
+        ? 3_600_000 - (now.getTime() - recent[recent.length - 1].createdAt.getTime()) : 0;
+      const remainingMs = Math.max(cooldownMs, hourlyMs);
+      if (remainingMs > 0) throw new OtpIssueRateLimited(Math.max(1, Math.ceil(remainingMs / 1000)));
       await tx.customerOtpChallenge.create({ data: {
         id, userId, purpose, recipientFingerprint,
         recipientEncrypted: encryptCustomerDestination(phone, this.encryptionKey),
