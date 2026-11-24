@@ -22,6 +22,7 @@ import { IdentityModule } from "./identity/identity.module";
 import { StaffManagementModule } from "./staff-management/staff-management.module";
 import { DatabaseModule } from "./database/database";
 import { HealthModule } from "./health/health.controller";
+import { AdminConfigurationModule } from "./admin-configuration/admin-configuration.controller";
 import { CmsModule } from "./cms/cms.module";
 import { AdminDashboardModule } from "./admin-dashboard/admin-dashboard.module";
 import { AdminCustomersModule } from "./admin-customers/admin-customers.module";
@@ -78,6 +79,7 @@ export async function createApplication(
       CatalogModule,
       CatalogAdminModule,
       CmsModule,
+      AdminConfigurationModule,
       AdminDashboardModule,
       AdminCustomersModule,
       ProductMediaModule,

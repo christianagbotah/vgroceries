@@ -134,6 +134,23 @@ export class DispatchCommandService {
       return { assignmentKind: "rider", riderProfileId: profile.id, providerKey: null, providerNameSnapshot: null, manualProviderReference: null } as const;
     }
     if (!input.manualProvider) rule("A rider or manual provider target is required.");
+    // Directory-managed partners have a reserved namespace. Lock the partner
+    // row so deactivation and a new assignment cannot race past each other.
+    const key = input.manualProvider.providerKey.trim();
+    if (key.startsWith("directory:")) {
+      const id = key.slice("directory:".length);
+      await tx.$queryRaw`SELECT id FROM "DeliveryPartner" WHERE id=${id} FOR UPDATE`;
+      const partner = await tx.deliveryPartner.findUnique({where:{id}});
+      if (!partner || !partner.active) rule("Select an active delivery provider from the directory.");
+      return {
+        assignmentKind: "manual_provider",
+        riderProfileId: null,
+        providerKey: key,
+        providerNameSnapshot: partner.name,
+        manualProviderReference: input.manualProvider.reference?.trim() ?? null,
+      } as const;
+    }
+    // Preserve the established ad-hoc manual booking contract for legacy clients.
     return {
       assignmentKind: "manual_provider",
       riderProfileId: null,
