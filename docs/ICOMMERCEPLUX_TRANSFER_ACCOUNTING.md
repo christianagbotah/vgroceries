@@ -135,3 +135,19 @@ rounded destination lot valuation. This difference is not revenue or profit;
 future accounting integration must reconcile it explicitly. Missing or
 damaged quantities remain outstanding until independently authorized
 resolution. The helper alone does not create receipts, stock or journals.
+
+## Read-only receipt reconciliation preview
+
+The pure receipt preview accepts persisted dispatch lot identities, original
+unit costs, exact carrying amounts and cumulative prior receipt evidence.
+A receiving proposal identifies only dispatch lots and positive quantities.
+The preview rejects unknown/duplicate lots, quantities beyond dispatch,
+fractional piece units and inconsistent prior carrying values. It returns
+the exact receipt and outstanding amounts, rounding differences and lot
+expiry quarantine requirements. A complete physical receipt proposes
+reconciliation, not automatic closure. Omitted lines remain in transit.
+
+This is a testable domain helper, not a live endpoint or inventory mutation.
+Database receipt integration, discrepancy authority, ledger posting and
+operator screens are still required. The unfinished migration and request
+schema are excluded from this commit.
