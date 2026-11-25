@@ -12,7 +12,7 @@ export function currentOrderSmsState(type:string,fulfilmentStatus:string,cancell
  if(cancelledAt||fulfilmentStatus==="cancelled")return false;
  if(type==="order.created")return fulfilmentStatus==="awaiting_confirmation";
  if(type==="fulfilment.confirmed")return fulfilmentStatus==="confirmed";
- if(type==="fulfilment.packed")return ["packed","ready_for_pickup","ready_for_dispatch"].includes(fulfilmentStatus);
+ if(type==="fulfilment.packed")return ["packed","ready_for_collection"].includes(fulfilmentStatus);
  return false;
 }
 

@@ -4,6 +4,7 @@ import type { INestApplication } from "@nestjs/common";
 import { createApplication } from "../src/bootstrap";
 import { Database } from "../src/database/database";
 import { NotificationService } from "../src/notifications/notification.service";
+import { dispatchOneOrderSms } from "../src/notifications/order-sms-dispatch";
 import { stageOrderSmsBatch } from "../src/notifications/order-sms-stage-batch";
 import { customerDestinationFingerprint } from "../src/notifications/customer-message-crypto";
 import { commerceTestPassword, seedCommerceFixtures } from "./commerce-fixtures";
@@ -335,4 +336,56 @@ test("SMS staging persists eligible events once and records skipped events witho
   assert.ok(queue[0].recipientEncrypted.startsWith("v1."));
   assert.ok(!JSON.stringify(queue).includes(phone));
   assert.equal(await db.notificationOutboxReceipt.count({where:{sourceEventId:{in:ids}}}),0);
+});
+
+test("staged SMS dispatch accepts once, suppresses revoked consent and never retries an ambiguous attempt", async () => {
+  const now = new Date();
+  const beforeEvent = new Date(now.getTime() - 10000);
+  const eventTime = new Date(now.getTime() - 5000);
+  const phone = "+233241111111";
+  await db.user.update({where:{id:"customer-a"},data:{phone,phoneVerifiedAt:beforeEvent}});
+  const sources: Awaited<ReturnType<typeof createOrder>>[] = [];
+  for (const suffix of ["accepted","unknown","revoked"]) {
+    const event = await createOrder("sms-dispatch-"+suffix,"customer-a","VG-DISPATCH"+suffix.toUpperCase());
+    await db.orderSmsConsent.create({data:{orderId:event.aggregateId,recipientFingerprint:customerDestinationFingerprint(phone),policyVersion:"order-sms-v1",recordedAt:beforeEvent}});
+    await db.outboxEvent.update({where:{id:event.id},data:{createdAt:eventTime}});
+    sources.push(event);
+  }
+  const keyHex = "49".repeat(32);
+  assert.equal((await stageOrderSmsBatch(db,{enabled:true,keyHex,now})).queued,3);
+  const [accepted,unknown,revoked] = sources;
+  // Assign deterministic queue order and isolate this test's synthetic events.
+  for (const [i,source] of sources.entries()) {
+    await db.customerMessageDelivery.updateMany({where:{sourceEventId:source.id},data:{createdAt:new Date(now.getTime()-3000+i*1000),nextAttemptAt:now}});
+  }
+  // Other test fixtures' old queue rows may remain, but their source events
+  // are no longer present. Dispatch must suppress them without network I/O.
+  await db.orderSmsConsent.update({where:{orderId:revoked.aggregateId},data:{revokedAt:now}});
+  const requests:string[]=[];
+  const config={endpoint:"https://sms.hubtel.com/v1/messages/send",clientId:"fixture",clientSecret:"fixture",senderId:"VARIETY"};
+  const fetcher:typeof fetch=async (_url,init)=>{
+    const payload=JSON.parse(String(init?.body));
+    assert.equal(payload.To,phone);
+    requests.push(payload.Content);
+    if(payload.Content.includes("VG-DISPATCHUNKNOWN"))throw Error("simulated lost response");
+    assert.ok(payload.Content.includes("VG-DISPATCHACCEPTED"));
+    return new Response(JSON.stringify({Status:"success",MessageId:"fixture-accepted"}),{status:200});
+  };
+  const options={enabled:true,keyHex,config,fetcher,now};
+  for(let n=0;n<20;n++){
+    const result=await dispatchOneOrderSms(db,options);
+    if(result.outcome==="empty")break;
+  }
+  assert.equal(requests.length,2);
+  assert.equal((await dispatchOneOrderSms(db,options)).outcome,"empty");
+  const rows=await db.customerMessageDelivery.findMany({where:{sourceEventId:{in:sources.map(s=>s.id)}}});
+  const bySource=new Map(rows.map(row=>[row.sourceEventId,row]));
+  assert.equal(bySource.get(accepted.id)?.lastErrorCode,"accepted_awaiting_delivery");
+  assert.equal(bySource.get(accepted.id)?.providerMessageId,"fixture-accepted");
+  assert.equal(bySource.get(accepted.id)?.status,"sending");
+  assert.equal(bySource.get(unknown.id)?.lastErrorCode,"provider_outcome_unknown");
+  assert.equal(bySource.get(unknown.id)?.attempts,1);
+  assert.equal(bySource.get(revoked.id)?.status,"suppressed");
+  assert.equal(bySource.get(revoked.id)?.attempts,0);
+  assert.ok(rows.every(row=>row.status!=="delivered"));
 });
