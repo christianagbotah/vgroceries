@@ -123,3 +123,15 @@ not a general-ledger journal. No supplier payable, revenue, or tax posting.
 No partial dispatch, receiver acceptance, discrepancy resolution, full GL,
 or operational UI yet. Deployment and migrations remain gated on complete
 integration testing and receipt/reconciliation readiness.
+
+## Exact allocation of dispatched value to receipts
+
+The receipt valuation helper allocates the immutable dispatch carrying value
+proportionally to cumulative accepted quantities, using integer arithmetic.
+Each receipt receives the difference of successive cumulative values, and
+the final accepted quantity clears the exact original dispatch value.
+The helper also records the difference between allocated value and nominal
+rounded destination lot valuation. This difference is not revenue or profit;
+future accounting integration must reconcile it explicitly. Missing or
+damaged quantities remain outstanding until independently authorized
+resolution. The helper alone does not create receipts, stock or journals.

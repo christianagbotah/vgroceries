@@ -69,3 +69,38 @@ test("dispatch value is the difference in rounded source lot carrying amounts",a
  assert.throws(()=>dispatchCarryingValue("1","1",2500));
  assert.throws(()=>dispatchCarryingValue("1","0",null));
 });
+
+test("receipt allocations conserve the exact dispatched carrying value",async()=>{
+ const {receiptCarryingValue}=await import("../src/transfers/transfer-valuation");
+ const first=receiptCarryingValue("100","0","98",250000n,2500);
+ assert.equal(first.valueMinor,245000n);
+ assert.equal(first.outstandingValueMinor,5000n);
+ assert.equal(first.roundingMinor,0n);
+ const second=receiptCarryingValue("100","98","2",250000n,2500);
+ assert.equal(second.valueMinor,5000n);
+ assert.equal(second.outstandingValueMinor,0n);
+});
+test("fractional receipts preserve dispatch value even when nominal lot rounding differs",async()=>{
+ const {receiptCarryingValue}=await import("../src/transfers/transfer-valuation");
+ let total=0n,rounding=0n;
+ for(const prior of ["0","0.001","0.002","0.003","0.004"]){
+  const receipt=receiptCarryingValue("0.005",prior,"0.001",2n,333);
+  total+=receipt.valueMinor;
+  rounding+=receipt.roundingMinor;
+  assert.equal(total+receipt.outstandingValueMinor,2n);
+ }
+ assert.equal(total,2n);
+ assert.equal(rounding,2n);
+ const exact=receiptCarryingValue("0.001","0","0.001",1n,333);
+ assert.equal(exact.valueMinor,1n);
+ assert.equal(exact.roundingMinor,1n);
+ assert.equal(exact.outstandingValueMinor,0n);
+});
+test("receipt calculation rejects zero, overreceipt, invalid cost and precision",async()=>{
+ const {receiptCarryingValue}=await import("../src/transfers/transfer-valuation");
+ assert.throws(()=>receiptCarryingValue("1","0.5","0.6",2500n,2500));
+ assert.throws(()=>receiptCarryingValue("1","0","0",2500n,2500));
+ assert.throws(()=>receiptCarryingValue("1","0","1",-1n,2500));
+ assert.throws(()=>receiptCarryingValue("1","0","1",2500n,-1));
+ assert.throws(()=>receiptCarryingValue("1","0","0.0001",2500n,2500));
+});

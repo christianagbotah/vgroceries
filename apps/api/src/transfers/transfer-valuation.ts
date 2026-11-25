@@ -56,3 +56,16 @@ export function dispatchCarryingValue(before:string,after:string,cost:number|nul
  if(a>=b)throw new Error("Dispatch must decrease lot quantity");
  return amount(b,cost)-amount(a,cost);
 }
+
+/** Allocate the immutable dispatched carrying value proportionally over
+ * cumulative accepted quantities. A final receipt clears the exact total,
+ * even when the source lot's fractional rounding differs from quantity * cost.
+ * roundingMinor records the difference versus the new destination lot's
+ * nominal rounded valuation; the eventual GL must reconcile this explicitly. */
+export function receiptCarryingValue(dispatchedQuantity:string,acceptedBefore:string,received:string,dispatchedValueMinor:bigint,unitCostMinor:number){
+ const dispatched=quantityMilli(dispatchedQuantity),before=quantityMilli(acceptedBefore),delta=quantityMilli(received),after=before+delta;
+ if(dispatched<=0n||delta<=0n||after>dispatched||dispatchedValueMinor<0n||dispatchedValueMinor>9223372036854775807n)throw new Error("Invalid receipt coverage");
+ const cumulative=(q:bigint)=>(2n*q*dispatchedValueMinor+dispatched)/(2n*dispatched);
+ const valueMinor=cumulative(after)-cumulative(before);
+ return {valueMinor,roundingMinor:valueMinor-amount(delta,unitCostMinor),outstandingValueMinor:dispatchedValueMinor-cumulative(after)};
+}
