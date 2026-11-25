@@ -90,3 +90,18 @@ events receive a receipt; events older than 24 hours are expired rather than
 queued for stale notifications. The batch has no provider transport and is
 not connected to the runtime staging command. Opt-out, dispatch-time
 validation, safe provider attempts and delivery evidence remain release gates.
+
+### Hubtel dispatch candidate (not activated)
+
+The single-message dispatch function claims a pending queue item durably
+before calling the existing Hubtel SMS adapter. It revalidates the source
+event, order consent, matching encrypted recipient, template revision,
+verified active customer phone and current fulfilment state. Guest orders
+remain excluded until a separate phone ownership proof is available.
+Provider acceptance remains `sending / accepted_awaiting_delivery`;
+uncertain outcomes remain `sending / provider_outcome_unknown`. Neither
+is delivered, and neither is automatically retried. A crashed attempt
+remains `sending / attempt_started` for investigation. The worker is not
+scheduled or activated. The remaining race between a committed claim and
+the outbound request needs a coordinated revocation design, and real
+delivery receipts and authorized activation remain prerequisites.
