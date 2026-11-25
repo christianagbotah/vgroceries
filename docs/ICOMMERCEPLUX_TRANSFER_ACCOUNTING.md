@@ -151,3 +151,21 @@ This is a testable domain helper, not a live endpoint or inventory mutation.
 Database receipt integration, discrepancy authority, ledger posting and
 operator screens are still required. The unfinished migration and request
 schema are excluded from this commit.
+
+## Independent discrepancy resolution preview
+
+Head-office review requires an independently reported discrepancy with a
+reason and evidence reference. The read-only domain helper distinguishes
+destination quarantine, physical return to source and confirmed loss.
+Proposed resolutions allocate only the outstanding original dispatch
+carrying value. Quantity and value are conserved across prior accepted
+receipts, previously resolved quantities and the new proposal. Zero-cost
+goods still require full quantity reconciliation.
+
+The initial staged design assumes ordinary accepted receipts precede
+discrepancy resolutions. A future receipt service must use combined receipt
+and resolution coverage before allowing further receipts after resolution.
+The preview is not authorization to change inventory, recognize loss, post
+financial journals or close the transfer; those actions require persisted
+evidence, transactional controls and integration verification. Independent
+reporter/reviewer is a proposed separation-of-duties rule.
