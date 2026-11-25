@@ -1221,7 +1221,7 @@ export function productionOpenApi(app: INestApplication): OpenAPIObject {
   doc.paths["/api/v1/admin/staff/{staffId}/actions"] = {
     post: {
       security,
-      description: "Administrator-only branch reassignment or suspension/reactivation of cashier (not other roles). Revokes the account's active sessions.",
+      description: "Administrator-only location reassignment for existing cashiers and inventory managers; suspension/reactivation remains cashier-only. Revokes the account's active sessions.",
       parameters: [
         { name: "staffId", in: "path", required: true, schema: { type: "string", minLength: 1 } },
         csrf,

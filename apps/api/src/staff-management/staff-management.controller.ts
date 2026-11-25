@@ -48,14 +48,14 @@ export class StaffManagementController {
   }
 
   @Post(":staffId/actions")
-  @ApiOperation({ summary: "Change cashier branches, activate/deactivate, or reset password (administrator)" })
+  @ApiOperation({ summary: "Assign cashier or inventory manager locations; activate/deactivate cashier (administrator)" })
   async action(
     @Req() request: AuthRequest, @Param("staffId") staffId: string, @Body() raw: unknown,
   ) {
     this.requireAdmin(request);
     const parsed = manageCashierSchema.safeParse(raw);
     if (!parsed.success)
-      throw new ApiProblem(400, "VALIDATION_FAILED", "Invalid cashier action.", parsed.error.issues);
+      throw new ApiProblem(400, "VALIDATION_FAILED", "Invalid staff action.", parsed.error.issues);
     return {
       ok: true,
       data: await this.service.manage(request.actor.id, request.requestId, staffId, parsed.data),

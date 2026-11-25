@@ -286,3 +286,27 @@ test("staff OpenAPI exposes only the four intended role-protected invitation rou
   assert.equal(JSON.stringify(doc.components?.schemas?.StaffRowEnvelope).includes("passwordHash"),false);
   assert.equal(JSON.stringify(doc.components?.schemas?.ManageCashierRequest).includes("reset_password"),false);
 });
+
+test("inventory manager can hold multiple locations, be reassigned, but cannot gain admin or cashier activation authority",async()=>{
+  const id="invitation-inventory";
+  const grant=(locationIds:string[],headers=adminAuth)=>request("/admin/staff/"+id+"/actions","POST",{action:"assign_locations",locationIds},headers);
+  const first=await grant(["loc_accra","loc_kumasi"]);
+  assert.equal(first.status,201,JSON.stringify(first.payload));
+  assert.deepEqual(first.payload.data.locationIds,["loc_accra","loc_kumasi"]);
+  const session=await login("invite-inventory@example.test",adminPassword);
+  assert.equal((await request("/inventory/overview?locationId=loc_accra","GET",undefined,session)).status,200);
+  assert.equal((await request("/inventory/overview?locationId=loc_kumasi","GET",undefined,session)).status,200);
+  assert.equal((await grant(["loc_accra"],session)).status,403);
+  assert.equal((await grant(["loc_disabled"])).status,400);
+  assert.equal((await grant(["loc_accra","loc_accra"])).status,400);
+  assert.equal((await request("/admin/staff/"+id+"/actions","POST",{action:"set_active",active:false},adminAuth)).status,404);
+  const change=await grant(["loc_kumasi"]);
+  assert.equal(change.status,201);
+  assert.deepEqual(change.payload.data.locationIds,["loc_kumasi"]);
+  assert.equal((await request("/auth/me","GET",undefined,session)).status,401);
+  const again=await login("invite-inventory@example.test",adminPassword);
+  assert.equal((await request("/inventory/overview?locationId=loc_accra","GET",undefined,again)).status,403);
+  assert.equal((await request("/inventory/overview?locationId=loc_kumasi","GET",undefined,again)).status,200);
+  assert.equal((await request("/admin/staff","GET",undefined,again)).status,403);
+  assert.equal(await db.auditEvent.count({where:{entityId:id,action:"staff.inventory_manager_assign_locations"}}),2);
+});
