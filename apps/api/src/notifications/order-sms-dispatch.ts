@@ -4,12 +4,15 @@ import {decryptCustomerDestination} from "./customer-message-crypto";
 import {planOrderSms} from "./order-sms-staging-policy";
 import {sendHubtelSms,validateHubtelSmsConfig,type HubtelSmsConfig} from "./hubtel-sms-provider";
 
+import {resolveSmsOrder} from "./order-sms-payment-evidence";
+
 const maxAge=24*60*60*1000;
 const safeReference=(value:unknown)=>typeof value==="string"&&/^[A-Za-z0-9._:-]{1,128}$/.test(value)?value:undefined;
 
 export function currentOrderSmsState(type:string,fulfilmentStatus:string,cancelledAt:Date|null){
  if(type==="order.cancelled")return !!cancelledAt&&fulfilmentStatus==="cancelled";
  if(cancelledAt||fulfilmentStatus==="cancelled")return false;
+ if(type==="payment.succeeded")return true; // Independently revalidated financial evidence required.
  if(type==="order.created")return fulfilmentStatus==="awaiting_confirmation";
  if(type==="fulfilment.confirmed")return fulfilmentStatus==="confirmed";
  if(type==="fulfilment.packed")return ["packed","ready_for_collection"].includes(fulfilmentStatus);
@@ -32,12 +35,12 @@ export async function dispatchOneOrderSms(db:PrismaClient,options:{
   if(!lock[0]?.locked)return {outcome:"busy" as const};
   const item=await tx.customerMessageDelivery.findFirst({where:{channel:"sms",status:"pending",attempts:0,nextAttemptAt:{lte:now}},orderBy:[{createdAt:"asc"},{id:"asc"}]});
   if(!item)return {outcome:"empty" as const};
-  const event=await tx.outboxEvent.findUnique({where:{id:item.sourceEventId},select:{id:true,type:true,aggregateId:true,createdAt:true,smsStageReceipt:true}});
+  const event=await tx.outboxEvent.findUnique({where:{id:item.sourceEventId},select:{id:true,type:true,aggregateId:true,createdAt:true,payload:true,smsStageReceipt:true}});
   let prepared:{recipient:string;content:string}|null=null;
   if(event&&event.smsStageReceipt?.outcome==="queued"&&now.getTime()-event.createdAt.getTime()<=maxAge){
-   await tx.$queryRaw`SELECT id FROM "Order" WHERE id=${event.aggregateId} FOR UPDATE`;
-   const order=await tx.order.findUnique({where:{id:event.aggregateId},select:{id:true,reference:true,customerPhone:true,smsConsent:true,fulfilmentStatus:true,cancelledAt:true,customerUser:{select:{phone:true,phoneVerifiedAt:true,active:true,role:true}}}});
-   const plan=order?planOrderSms({event,order,enabled:true,evaluatedAt:now}):null;
+   const resolved=await resolveSmsOrder(tx,event,now);
+   const order=resolved?await tx.order.findUnique({where:{id:resolved.orderId},select:{id:true,reference:true,customerPhone:true,smsConsent:true,fulfilmentStatus:true,cancelledAt:true,customerUser:{select:{phone:true,phoneVerifiedAt:true,active:true,role:true}}}}):null;
+   const plan=order&&resolved?planOrderSms({event:{...event,aggregateId:resolved.orderId},order,enabled:true,evaluatedAt:now,paymentConfirmed:resolved.paymentConfirmed}):null;
    // Initial sending scope is registered, active customers with a verified
    // matching phone. Guest SMS requires its own proof-of-possession flow.
    if(order&&plan&&order.customerUser?.active&&order.customerUser.role==="customer"&&

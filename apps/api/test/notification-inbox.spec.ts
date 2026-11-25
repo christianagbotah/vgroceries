@@ -323,7 +323,7 @@ test("SMS staging persists eligible events once and records skipped events witho
   const receipts = await db.orderSmsStageReceipt.findMany({where:{sourceEventId:{in:ids}}});
   assert.deepEqual(Object.fromEntries(receipts.map(r=>[r.sourceEventId,r.outcome])), {
     [noConsent.id]: "ineligible", [valid.id]: "queued", [revoked.id]: "ineligible",
-    [expired.id]: "expired", [wrongRecipient.id]: "ineligible",
+    [expired.id]: "expired", [wrongRecipient.id]: "ineligible", [unsupported.id]: "ineligible",
   });
   const queue = await db.customerMessageDelivery.findMany({where:{sourceEventId:{in:ids}}});
   assert.equal(queue.length, 1);
