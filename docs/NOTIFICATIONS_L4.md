@@ -67,3 +67,15 @@ This foundation is not an enabled delivery service. Customer-facing opt-in,
 revocation, consent-aware staging and provider dispatch/receipt handling are
 separate acceptance gates. Do not activate transactional messages based only
 on a global flag or possession of a phone number. OTP remains independent.
+
+### Order-scoped staging policy
+
+The pure order SMS planning function validates the event/order identity,
+recorded policy version, exact recipient fingerprint, event time and current
+revocation state. Initial candidates are order-created, fulfilment-confirmed,
+packed and cancelled. Financial and courier events remain excluded pending
+independent durable outcome checks. No destination or body is returned in
+the metadata plan. This policy does not enable the staging job or provider
+dispatch. The existing worker remains fail-closed; integration with durable
+queue processing, authenticated opt-out and dispatch-time revalidation is
+still required.
