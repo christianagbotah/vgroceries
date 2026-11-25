@@ -111,3 +111,36 @@ CREATE FUNCTION reject_transfer_dispatch_edit() RETURNS trigger AS $$
 BEGIN RAISE EXCEPTION 'Transfer dispatch ledger is append-only' USING ERRCODE='23514'; END; $$ LANGUAGE plpgsql;
 CREATE TRIGGER transfer_dispatch_append_only BEFORE UPDATE OR DELETE ON "InternalTransferDispatch" FOR EACH ROW EXECUTE FUNCTION reject_transfer_dispatch_edit();
 CREATE TRIGGER transfer_dispatch_lot_append_only BEFORE UPDATE OR DELETE ON "InternalTransferDispatchLot" FOR EACH ROW EXECUTE FUNCTION reject_transfer_dispatch_edit();
+
+-- This guard protects the currently implemented lifecycle. A subsequent
+-- receipt migration must extend the allowed transitions explicitly.
+CREATE FUNCTION guard_transfer_request_transition() RETURNS trigger AS $$
+BEGIN
+ IF TG_OP='DELETE' THEN RAISE EXCEPTION 'Transfer history cannot be deleted' USING ERRCODE='23514'; END IF;
+ IF (to_jsonb(NEW)-ARRAY['status','version','sourceId','decidedBy','decidedAt','decisionNote','reservedBy','reservedAt','reservationExpiresAt','cancelledBy','cancelledAt','cancellationNote'])
+ IS DISTINCT FROM
+ (to_jsonb(OLD)-ARRAY['status','version','sourceId','decidedBy','decidedAt','decisionNote','reservedBy','reservedAt','reservationExpiresAt','cancelledBy','cancelledAt','cancellationNote'])
+ THEN RAISE EXCEPTION 'Original requisition identity is immutable' USING ERRCODE='23514'; END IF;
+ IF NEW.version<>OLD.version+1 OR NOT (
+  (OLD.status='requested' AND NEW.status IN ('authorized','rejected'))
+  OR (OLD.status='authorized' AND NEW.status='reserved')
+  OR (OLD.status='reserved' AND NEW.status IN ('in_transit','cancelled'))
+ ) THEN RAISE EXCEPTION 'Invalid transfer lifecycle transition' USING ERRCODE='23514'; END IF;
+ IF OLD.status<>'requested' AND ROW(NEW."sourceId",NEW."decidedBy",NEW."decidedAt",NEW."decisionNote")
+ IS DISTINCT FROM ROW(OLD."sourceId",OLD."decidedBy",OLD."decidedAt",OLD."decisionNote")
+ THEN RAISE EXCEPTION 'Transfer authorization is immutable' USING ERRCODE='23514'; END IF;
+ IF OLD.status IN ('reserved','in_transit','cancelled') AND ROW(NEW."reservedBy",NEW."reservedAt",NEW."reservationExpiresAt")
+ IS DISTINCT FROM ROW(OLD."reservedBy",OLD."reservedAt",OLD."reservationExpiresAt")
+ THEN RAISE EXCEPTION 'Transfer reservation provenance is immutable' USING ERRCODE='23514'; END IF;
+ RETURN NEW;
+END; $$ LANGUAGE plpgsql;
+CREATE TRIGGER transfer_request_transition_guard BEFORE UPDATE OR DELETE ON "InternalTransferRequest" FOR EACH ROW EXECUTE FUNCTION guard_transfer_request_transition();
+
+CREATE FUNCTION guard_transfer_request_line_history() RETURNS trigger AS $$
+BEGIN
+ IF TG_OP<>'INSERT' THEN RAISE EXCEPTION 'Requested quantities are immutable' USING ERRCODE='23514'; END IF;
+ IF NOT EXISTS(SELECT 1 FROM "InternalTransferRequest" t WHERE t.id=NEW."requestId" AND t.status='requested')
+ THEN RAISE EXCEPTION 'Cannot append lines after authorization' USING ERRCODE='23514'; END IF;
+ RETURN NEW;
+END; $$ LANGUAGE plpgsql;
+CREATE TRIGGER transfer_request_line_history_guard BEFORE INSERT OR UPDATE OR DELETE ON "InternalTransferRequestLine" FOR EACH ROW EXECUTE FUNCTION guard_transfer_request_line_history();

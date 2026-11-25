@@ -156,3 +156,18 @@ test("transfer selection options respect current staff location scope and bound 
  assert.equal((await call(route+"/options?q="+("x".repeat(101)),"GET",undefined,a)).status,400);
  assert.equal((await call(route+"/options")).status,401);
 });
+
+test("database rejects backward transitions and alteration of authorized transfer history",async()=>{
+ const row=await db.internalTransferRequest.findFirstOrThrow({where:{status:"in_transit"},include:{lines:true}});
+ await assert.rejects(db.internalTransferRequest.update({where:{id:row.id},data:{note:"changed original requisition"}}));
+ await assert.rejects(db.internalTransferRequest.update({where:{id:row.id},data:{status:"reserved",version:3}}));
+ await assert.rejects(db.internalTransferRequest.update({where:{id:row.id},data:{sourceId:"loc_c"}}));
+ await assert.rejects(db.internalTransferRequestLine.update({where:{id:row.lines[0].id},data:{quantity:"999"}}));
+ await assert.rejects(db.internalTransferRequestLine.delete({where:{id:row.lines[0].id}}));
+ const after=await db.internalTransferRequest.findUniqueOrThrow({where:{id:row.id},include:{lines:true}});
+ assert.equal(after.status,"in_transit");
+ assert.equal(after.version,4);
+ assert.equal(after.note,row.note);
+ assert.equal(after.sourceId,row.sourceId);
+ assert.equal(after.lines[0].quantity.toString(),row.lines[0].quantity.toString());
+});

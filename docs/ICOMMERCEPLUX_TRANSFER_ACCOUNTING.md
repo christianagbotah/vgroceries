@@ -227,3 +227,14 @@ New requisition retries retain the same idempotency key and exact body
 while the form remains mounted; persistence across page reloads is not
 yet implemented. No receiving, discrepancy posting or GL posting
 action is exposed. Full hosted CI and deployment acceptance are required.
+
+## Database transition guard
+
+The not-yet-deployed dispatch migration now guards existing transfer state
+transitions, requires one version increment, preserves request identity,
+authorization and reservation history, and prohibits editing/deleting
+requisition lines or adding lines after authorization. The receiving
+migration must deliberately extend the allowed state machine and retain
+these provenance rules; a new status check alone is insufficient.
+Disposable database regression tests challenge backward transitions
+and direct mutations of dispatched requisitions.
