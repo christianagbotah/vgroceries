@@ -30,6 +30,10 @@ function project(user: StaffRecord) {
   };
 }
 
+export function canManageLocationAction(role: string, action: ManageCashierRequest["action"]): boolean {
+  return role === "cashier" || (role === "inventory_manager" && action === "assign_locations");
+}
+
 @Injectable()
 export class StaffManagementService {
   constructor(private readonly db: Database) {}
@@ -67,13 +71,13 @@ export class StaffManagementService {
   async manage(adminId: string, requestId: string, staffId: string, body: ManageCashierRequest) {
     if (staffId === adminId)
       throw new ApiProblem(403, "FORBIDDEN", "You cannot manage your own administrator account here.");
-    // No administrators, customers, managers or riders can be modified
-    // through the cashier-specific workflow.
+    // Location reassignment is allowed for existing cashiers and inventory
+    // managers. Activation remains cashier-specific; no role escalation.
     const current = await this.db.user.findUnique({
       where: { id: staffId }, select: { id: true, role: true, active: true },
     });
-    if (!current || current.role !== "cashier")
-      throw new ApiProblem(404, "NOT_FOUND", "Cashier account not found.");
+    if (!current || !canManageLocationAction(current.role, body.action))
+      throw new ApiProblem(404, "NOT_FOUND", "Eligible staff account not found.");
 
     return this.db.$transaction(async tx => {
       // Lock the row to serialize competing activation, branch and password
@@ -82,8 +86,9 @@ export class StaffManagementService {
         SELECT role::text AS role, active FROM "User"
         WHERE id=${staffId} FOR UPDATE
       `;
-      if (records[0]?.role !== "cashier")
-        throw new ApiProblem(404, "NOT_FOUND", "Cashier account not found.");
+      const lockedRole = records[0]?.role;
+      if (!lockedRole || !canManageLocationAction(lockedRole, body.action))
+        throw new ApiProblem(404, "NOT_FOUND", "Eligible staff account not found.");
 
       if (body.action === "set_active" && body.active) {
         const invitation = await tx.staffInvitation.findUnique({
@@ -128,7 +133,7 @@ export class StaffManagementService {
       });
       await tx.auditEvent.create({
         data: {
-          actorId: adminId, action: "staff.cashier_" + body.action,
+          actorId: adminId, action: "staff." + lockedRole + "_" + body.action,
           entityId: staffId, requestId,
           details: body.action === "assign_locations"
             ? { locationIds: body.locationIds }

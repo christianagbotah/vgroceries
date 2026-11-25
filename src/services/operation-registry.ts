@@ -47,6 +47,7 @@ export const operationMeta: Record<string, OperationMeta> = {
   "catalog.home": { tags: CAT },
   "catalog.by-variants": { tags: CAT },
   "content.homepage": { tags: CONF },
+  "content.business-identity": {},
   "content.business-contact": {},
   "content.page": { tags: CONF },
 

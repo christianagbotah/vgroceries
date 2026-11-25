@@ -95,6 +95,23 @@ class RuntimeVerification(unittest.TestCase):
             with self.assertRaises(ValueError):
                 v.validate(self.path, SHA, VERSION, h)
 
+    def test_private_data_and_credentials_rejected(self):
+        for path in ("api/customer.dump", "storefront/private.sqlite3",
+                     "api/production.sql.gz", "api/export.sql",
+                     "api/apps/api/.npmrc", "storefront/.ENV.PRODUCTION",
+                     "api/credentials.json", "api/signing.jks",
+                     "storefront/customer-exports/orders.csv",
+                     "api/production-backups/archive.zip"):
+            with self.subTest(path=path):
+                self.assertTrue(v.prohibited_private_path(path.split("/")))
+        self.assertFalse(v.prohibited_private_path(
+            "api/apps/api/prisma/migrations/20260101_init/migration.sql".split("/")))
+        self.assertFalse(v.prohibited_private_path(
+            "storefront/public/brand/variety-lockup.svg".split("/")))
+        h = self.package([("api/customer.dump", tarfile.REGTYPE, "")])
+        with self.assertRaisesRegex(ValueError, "private data"):
+            v.validate(self.path, SHA, VERSION, h)
+
     def test_missing_api(self):
         h = self.package(omit=["api/apps/api/dist/src/main.js"])
         with self.assertRaisesRegex(ValueError, "missing runtime file"):

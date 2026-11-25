@@ -26,6 +26,27 @@ REQUIRED_FILES = {
 REQUIRED_DIRS = {"storefront", "storefront/.next/static", "api", "api/apps/api/node_modules", "api/apps/api/prisma/migrations", "api/packages/contracts/dist"}
 
 
+def prohibited_private_path(parts):
+    """Conservative runtime-only filename gate; never emit sensitive values."""
+    for part in parts:
+        name = part.lower()
+        if name in {".git", ".env", ".npmrc", ".netrc", ".pgpass", "id_rsa",
+                    "id_ed25519", "credentials.json", "secrets.json",
+                    "customer-exports", "database-backups", "private-keys",
+                    "production-backups"} or name.startswith(".env."):
+            return True
+        if name.endswith((".pem", ".key", ".p12", ".pfx", ".jks", ".keystore",
+                          ".dump", ".backup", ".bak", ".sqlite", ".sqlite3",
+                          ".sql.gz", ".sql.bz2", ".sql.xz")):
+            return True
+    # SQL is allowed only as the intended first-party Prisma migrations.
+    if parts[-1].lower().endswith(".sql"):
+        return not (len(parts) == 7 and parts[:5] ==
+                    ["api", "apps", "api", "prisma", "migrations"]
+                    and parts[-1] == "migration.sql")
+    return False
+
+
 def require(condition, message):
     if not condition:
         raise ValueError(message)
@@ -76,7 +97,7 @@ def validate(directory, sha, version, archive_digest):
             require(len(members) < MAX_MEMBERS, "archive entry limit exceeded")
             require(member.isfile() or member.isdir() or member.issym(), "unsupported archive member type")
             require(not member.mode & 0o6000, "privileged archive mode")
-            require(not any(p in (".git", ".env") or p.startswith(".env.") or p.endswith((".pem", ".key", ".p12", ".pfx")) for p in parts), "credential-like archive path")
+            require(not prohibited_private_path(parts), "credential-like or private data archive path")
             total += member.size
             require(total <= MAX_BYTES, "expanded archive exceeds size limit")
             members[name] = member

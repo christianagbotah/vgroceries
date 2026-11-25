@@ -95,3 +95,19 @@ export async function getCmsContentPage(slug: CmsContentPageSlug): Promise<CmsCo
   return call<CmsContentPageView>("content.page", { query: { slug } });
 }
 
+
+
+/** The installation owns its public brand name; do not guess another
+ * merchant's identity when the real API is unreachable. */
+export async function getPublicBusinessIdentity() {
+  const { publicBusinessIdentitySchema } = await import("./contracts");
+  if (!process.env.API_BASE_URL && !process.env.NEXT_PUBLIC_API_BASE_URL) {
+    return {businessName:"Variety Groceries"};
+  }
+  try {
+    const value=await call<unknown>("content.business-identity");
+    return publicBusinessIdentitySchema.parse(value);
+  } catch {
+    return {businessName:"Storefront"};
+  }
+}
