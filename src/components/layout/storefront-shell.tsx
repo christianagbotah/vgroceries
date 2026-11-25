@@ -29,6 +29,7 @@ import {
   Store,
   UserRound,
 } from "lucide-react";
+import { useBusinessIdentity } from "@/features/business/business-identity";
 import { BusinessContact } from "@/features/business/public-contact";
 import { useCart } from "@/features/checkout/cart-store";
 import { MotionCartIcon } from "@/features/checkout/motion-cart-icon";
@@ -60,23 +61,24 @@ const NAV: NavItem[] = [
 ];
 
 function Brand({ compact = false, inverse = false }: { compact?: boolean; inverse?: boolean }) {
+  const {businessName}=useBusinessIdentity();
   return (
     <Link
       href="/"
-      aria-label="Variety Groceries home"
+      aria-label={businessName+" home"}
       className={cn(
         "flex shrink-0 items-center rounded-lg focus-visible:ring-2 focus-visible:ring-brand-amber",
         inverse && "bg-white px-2.5 py-1.5 shadow-sm",
       )}
     >
-      <Image
+      {businessName==="Variety Groceries" ? <Image
         src="/brand/variety-lockup.svg"
-        alt="Variety Groceries"
+        alt={businessName}
         width={240}
         height={91}
         priority
         className={cn("w-auto object-contain", compact ? "h-10" : "h-12 sm:h-14")}
-      />
+      /> : <span className="max-w-52 break-words text-lg font-bold leading-tight text-[#173d28]">{businessName}</span>}
     </Link>
   );
 }
@@ -215,6 +217,7 @@ export function StorefrontHeader() {
 }
 
 export function StorefrontMobileNav() {
+  const {businessName}=useBusinessIdentity();
   const pathname = usePathname();
   const router = useRouter();
   const [searchOpen, setSearchOpen] = useState(false);
@@ -244,7 +247,7 @@ export function StorefrontMobileNav() {
 
       <Sheet open={searchOpen} onOpenChange={setSearchOpen}>
         <SheetContent side="bottom" className="rounded-t-3xl px-4 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-5 md:hidden">
-          <SheetTitle className="text-lg">Search Variety Groceries</SheetTitle>
+          <SheetTitle className="text-lg">Search {businessName}</SheetTitle>
           <form onSubmit={mobileSearch} className="mt-3 flex h-12 overflow-hidden rounded-xl border bg-white shadow-sm">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
@@ -265,6 +268,7 @@ export function StorefrontMobileNav() {
 }
 
 export function StorefrontFooter() {
+  const {businessName}=useBusinessIdentity();
   return (
     <footer className="storefront-footer-rich mt-auto bg-[color:var(--brand-green-deep)] text-white">
       <div className="mx-auto grid max-w-[1500px] grid-cols-2 gap-x-4 gap-y-8 px-4 py-10 sm:gap-x-8 lg:grid-cols-[1.35fr_.8fr_.9fr_.8fr_1.3fr]">
@@ -299,7 +303,7 @@ export function StorefrontFooter() {
           <Button asChild className="h-11 min-w-0 w-full whitespace-nowrap bg-brand-amber px-3 text-sm text-[color:var(--brand-green-deep)] hover:bg-brand-amber/90"><Link href="/shop">Shop now</Link></Button>
         </div>
       </div>
-      <div className="border-t border-white/10"><div className="mx-auto flex max-w-[1500px] flex-wrap items-center justify-between gap-2 px-4 py-4 text-[11px] text-white/55"><p>© {new Date().getFullYear()} Variety Groceries · Ghana{!process.env.NEXT_PUBLIC_API_BASE_URL ? " · Demo storefront" : ""}</p><p>Mobile Money · Card · Bank transfer · Cash — provider connections remain clearly labelled in the checkout.</p></div></div>
+      <div className="border-t border-white/10"><div className="mx-auto flex max-w-[1500px] flex-wrap items-center justify-between gap-2 px-4 py-4 text-[11px] text-white/55"><p>© {new Date().getFullYear()} {businessName} · Ghana{!process.env.NEXT_PUBLIC_API_BASE_URL ? " · Demo storefront" : ""}</p><p>Mobile Money · Card · Bank transfer · Cash — provider connections remain clearly labelled in the checkout.</p></div></div>
     </footer>
   );
 }
