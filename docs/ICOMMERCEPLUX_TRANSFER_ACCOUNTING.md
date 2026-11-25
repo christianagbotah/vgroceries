@@ -169,3 +169,27 @@ The preview is not authorization to change inventory, recognize loss, post
 financial journals or close the transfer; those actions require persisted
 evidence, transactional controls and integration verification. Independent
 reporter/reviewer is a proposed separation-of-duties rule.
+
+## Transfer journal derivation and independent comparison
+
+The domain journal builder reconstructs the expected double-entry amounts
+from dispatch carrying-value snapshots and ordered settlement evidence.
+Dispatch debits inventory in transit and credits source inventory. Accepted
+receipts debit destination inventory; quarantine debits restricted destination
+inventory; physical return debits source inventory; confirmed loss debits an
+inventory loss account. Each settlement credits inventory in transit.
+
+Cumulative receipt and resolution allocation shares one exact original value
+per dispatched lot, even for interleaved fractional settlements. Duplicate
+event or evidence identities, invalid sequences, incorrect carrying values
+and over-settlement are rejected. Zero-value events retain quantity evidence
+without creating zero-value journal lines. Confirmed loss has no assigned
+branch until responsibility is independently determined. Account purposes
+are not chart-of-accounts IDs: the actual posting service must resolve them.
+
+A strict journal comparison detects differing amount, account purpose, branch,
+currency or event identity. The helper does not certify persisted postings,
+and matching arithmetic does not authorize closing a transfer. The actual
+posting service must verify physical evidence, authorization, account mapping,
+period controls, idempotency and inventory valuation, including rounding
+differences against nominal destination lot amounts.
