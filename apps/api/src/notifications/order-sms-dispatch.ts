@@ -4,6 +4,7 @@ import {decryptCustomerDestination} from "./customer-message-crypto";
 import {planOrderSms} from "./order-sms-staging-policy";
 import {sendHubtelSms,validateHubtelSmsConfig,type HubtelSmsConfig} from "./hubtel-sms-provider";
 
+import {outForDeliveryCopy,type DeliverySmsContact} from "./out-for-delivery-copy";
 import {resolveSmsOrder} from "./order-sms-payment-evidence";
 
 const maxAge=24*60*60*1000;
@@ -41,7 +42,7 @@ export async function dispatchOneOrderSms(db:PrismaClient,options:{
   let prepared:{recipient:string;content:string}|null=null;
   if(event&&event.smsStageReceipt?.outcome==="queued"&&now.getTime()-event.createdAt.getTime()<=maxAge){
    const resolved=await resolveSmsOrder(tx,event,now);
-   const order=resolved?await tx.order.findUnique({where:{id:resolved.orderId},select:{id:true,reference:true,customerPhone:true,smsConsent:true,fulfilmentStatus:true,cancelledAt:true,customerUser:{select:{phone:true,phoneVerifiedAt:true,active:true,role:true}}}}):null;
+   const order=resolved?await tx.order.findUnique({where:{id:resolved.orderId},select:{id:true,reference:true,customerPhone:true,smsConsent:true,fulfilmentStatus:true,cancelledAt:true,paymentMethod:true,paymentStatus:true,totalMinor:true,deliveryJob:{select:{assignmentKind:true,providerKey:true,providerNameSnapshot:true,riderProfile:{select:{phone:true,user:{select:{name:true,role:true,active:true}}}}}},customerUser:{select:{phone:true,phoneVerifiedAt:true,active:true,role:true}}}}):null;
    const plan=order&&resolved?planOrderSms({event:{...event,type:resolved.template??event.type,aggregateId:resolved.orderId},order,enabled:true,evaluatedAt:now,paymentConfirmed:resolved.paymentConfirmed,deliveryConfirmed:resolved.deliveryConfirmed}):null;
    // Initial sending scope is registered, active customers with a verified
    // matching phone. Guest SMS requires its own proof-of-possession flow.
@@ -53,7 +54,22 @@ export async function dispatchOneOrderSms(db:PrismaClient,options:{
       currentOrderSmsState(plan.templateKey,order.fulfilmentStatus,order.cancelledAt)){
     try{
      const recipient=decryptCustomerDestination(item.recipientEncrypted,options.keyHex);
-     if(recipient===order.customerPhone)prepared={recipient,content:customerMessage(plan.templateKey,order.reference).body};
+     if(recipient===order.customerPhone){
+      let content=customerMessage(plan.templateKey,order.reference).body;
+      if(plan.templateKey==="delivery.out_for_delivery"){
+       const job=order.deliveryJob;
+       let contact:DeliverySmsContact|null=null;
+       if(job?.assignmentKind==="rider"&&job.riderProfile?.user.active&&job.riderProfile.user.role==="rider"){
+        contact={kind:"rider",name:job.riderProfile.user.name,phone:job.riderProfile.phone};
+       }else if(job?.assignmentKind==="manual_provider"){
+        const id=job.providerKey?.startsWith("directory:")?job.providerKey.slice("directory:".length):null;
+        const partner=id?await tx.deliveryPartner.findUnique({where:{id},select:{contactPhone:true}}):null;
+        contact={kind:"courier",name:job.providerNameSnapshot??"",phone:partner?.contactPhone};
+       }
+       content=outForDeliveryCopy({reference:order.reference,contact,paymentMethod:order.paymentMethod,paymentStatus:order.paymentStatus,totalMinor:order.totalMinor});
+      }
+      prepared={recipient,content};
+     }
     }catch{/* Invalid ciphertext never reaches a provider. */}
    }
   }

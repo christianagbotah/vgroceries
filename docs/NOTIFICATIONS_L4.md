@@ -105,3 +105,12 @@ remains `sending / attempt_started` for investigation. The worker is not
 scheduled or activated. The remaining race between a committed claim and
 the outbound request needs a coordinated revocation design, and real
 delivery receipts and authorized activation remain prerequisites.
+
+Out-for-delivery copy resolves the current assigned rider profile and work
+phone, or the manual delivery partner snapshot and directory contact phone.
+Missing contact details are omitted rather than invented. The exact-change
+reminder applies only to unpaid cash-on-delivery orders and uses the stored
+order total in minor units. Fully paid orders explicitly require no payment
+at handover; uncertain payment statuses make neither claim. SMS currency
+uses GSM-compatible GHS; tracking remains included. Individual external
+courier driver details are not stored by the current manual booking model.
