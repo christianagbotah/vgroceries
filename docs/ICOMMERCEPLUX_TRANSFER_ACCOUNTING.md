@@ -193,3 +193,20 @@ and matching arithmetic does not authorize closing a transfer. The actual
 posting service must verify physical evidence, authorization, account mapping,
 period controls, idempotency and inventory valuation, including rounding
 differences against nominal destination lot amounts.
+
+## Verified staff transfer workspace
+
+The read-only Branch transfers screen is available in the candidate at
+/admin/inventory/transfers. It requires the explicit
+NEXT_PUBLIC_INTERNAL_TRANSFERS_UAT=1 build flag, a configured real API
+and authenticated staff. Demo sessions cannot load real transfer records.
+The existing server-side role and branch scopes remain authoritative.
+The REST list response is validated before rendering and is not cached
+by the browser service adapter. The page shows the latest scoped records,
+capped at 100, with status filters, search, requested lines, authorization,
+reservation evidence and original dispatch lot carrying values. Identifiers
+are shown as returned by the API; human-readable branch/product name
+enrichment remains pending. No receipt, write-off, journal or close action
+is exposed. A missing or incompatible API is an error, not mock data.
+Currency formatting preserves integer minor units without converting to
+floating-point. The feature is disabled in existing production builds.

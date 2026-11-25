@@ -131,6 +131,7 @@ export const operationMeta: Record<string, OperationMeta> = {
   "admin.inventory.adjustments": { tags: STOCK },
   "admin.inventory.adjustments.create": { invalidates: STOCK },
   "admin.inventory.adjustments.decide": { invalidates: [...STOCK, ...CAT] },
+  "inventory.verified.transfers": {}, // never cache branch-scoped evidence
   "inventory.verified.adjustments.lots": { tags: STOCK },
   "inventory.verified.adjustments.history": { tags: STOCK },
   "inventory.verified.adjustments.create": { invalidates: STOCK },

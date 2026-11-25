@@ -1,3 +1,4 @@
+import { isDemoStaffSessionActive } from "@/features/staff/staff-demo-session";
 /**
  * Typed client adapter — the browser-side half of the service boundary.
  *
@@ -16,7 +17,7 @@
 import { clearBrowserCsrfToken, resolveClientAdapter, setBrowserCsrfToken } from "./adapters/browser";
 import { withFreshGuestCheckoutRetry } from "./checkout-guest-csrf";
 import { normalizePaymentLedgerResponse, normalizePaymentLedgerPage, type PaymentLedgerFilters } from "./payment-ledger";
-import type { QueryValue, ServiceRequest } from "./adapters/types";
+import { ApiError, type QueryValue, type ServiceRequest } from "./adapters/types";
 import type {
   AccountCancelResponse,
   AccountOrderRow,
@@ -191,6 +192,14 @@ import type { CategoryRow, PublicOrder, SessionRow } from "./contracts";
 /* ------------------------------------------------------------------ */
 
 export const apiOps = {
+  internalTransfers: async () => {
+    if (!process.env.NEXT_PUBLIC_API_BASE_URL || isDemoStaffSessionActive())
+      throw new ApiError("FORBIDDEN", "A real staff session and transfer API are required.");
+    const {internalTransferListSchema} = await import("../../packages/contracts/src/internal-transfers");
+    const response = internalTransferListSchema.safeParse(await api("inventory.verified.transfers"));
+    if (!response.success) throw new ApiError("BAD_RESPONSE", "Transfer evidence could not be verified.");
+    return response.data;
+  },
   /* checkout payment readiness: a display hint, never paid-state proof */
   checkoutPaymentAvailability: () => api<{electronicAvailable:boolean;mode:"production"|"demo"}>("checkout.payment-availability"),
 
