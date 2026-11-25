@@ -79,3 +79,14 @@ the metadata plan. This policy does not enable the staging job or provider
 dispatch. The existing worker remains fail-closed; integration with durable
 queue processing, authenticated opt-out and dispatch-time revalidation is
 still required.
+
+### Durable order SMS queue preparation
+
+The bounded staging batch function uses a separate durable outbox receipt,
+a transaction-scoped advisory lock, order locks, encrypted destinations and
+existing delivery uniqueness constraints. Missing consent, invalid
+destinations and unsupported event types cannot stage messages. Ineligible
+events receive a receipt; events older than 24 hours are expired rather than
+queued for stale notifications. The batch has no provider transport and is
+not connected to the runtime staging command. Opt-out, dispatch-time
+validation, safe provider attempts and delivery evidence remain release gates.
