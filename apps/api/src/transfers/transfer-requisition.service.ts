@@ -4,6 +4,7 @@ import {Database} from "../database/database";
 import {ApiProblem} from "../http/errors";
 import type {AuthRequest} from "../identity/identity.service";
 import {tokenHash} from "../identity/crypto";
+import {AllocationService} from "../inventory/allocation.service";
 import {normalizeAllocationQuantity} from "../inventory/allocation.values";
 import {mayActOnTransfer,type TransferActor} from "./transfer-policy";
 import type {TransferRequestInput,TransferDecisionInput} from "./transfer-requisition.schemas";
@@ -12,16 +13,31 @@ const include={lines:{orderBy:{variantId:"asc" as const}}};
 const deny=()=>new ApiProblem(403,"FORBIDDEN","Transfer location or action not permitted.");
 const conflict=()=>new ApiProblem(409,"CONFLICT","Transfer request changed or conflicts with an earlier request.");
 const missing=()=>new ApiProblem(404,"NOT_FOUND","Transfer request not found.");
-const project=(r:Prisma.InternalTransferRequestGetPayload<{include:typeof include}>)=>({
+type TransferRow=Prisma.InternalTransferRequestGetPayload<{include:typeof include}>;
+const project=(r:TransferRow,covered=false,now=new Date())=>({
  id:r.id,destinationId:r.destinationId,sourceId:r.sourceId,status:r.status,version:r.version,
  requestedBy:r.requestedBy,note:r.note,decidedBy:r.decidedBy,decisionNote:r.decisionNote,
  createdAt:r.createdAt.toISOString(),decidedAt:r.decidedAt?.toISOString()??null,
  lines:r.lines.map(l=>({id:l.id,variantId:l.variantId,quantity:l.quantity.toString()})),
- stockReserved:false,stockMoved:false,financialPostingCreated:false,
+ reservedBy:r.reservedBy,reservedAt:r.reservedAt?.toISOString()??null,
+ reservationExpiresAt:r.reservationExpiresAt?.toISOString()??null,
+ cancelledBy:r.cancelledBy,cancelledAt:r.cancelledAt?.toISOString()??null,cancellationNote:r.cancellationNote,
+ reservationStatus:r.status==="cancelled"?"released":r.status!=="reserved"?"none":!r.reservationExpiresAt||r.reservationExpiresAt<=now?"expired":covered?"active":"inconsistent",
+ stockReserved:r.status==="reserved"&&covered&&!!r.reservationExpiresAt&&r.reservationExpiresAt>now,stockMoved:false,financialPostingCreated:false,
 });
 @Injectable()
 export class TransferRequisitionService{
- constructor(private readonly db:Database){}
+ constructor(private readonly db:Database,private readonly allocation:AllocationService){}
+ private async views(tx:Prisma.TransactionClient,rows:TransferRow[]){
+  const now=new Date();
+  const ids=rows.filter(r=>r.status==="reserved"&&r.reservationExpiresAt&&r.reservationExpiresAt>now).map(r=>r.id);
+  const holds=ids.length?await tx.reservation.findMany({where:{claimType:"internal_transfer",claimId:{in:ids},state:"active",expiresAt:{gt:now}},select:{claimId:true,claimLineId:true,quantity:true,expiresAt:true,position:{select:{locationId:true,variantId:true}}}}):[];
+  return rows.map(row=>{
+   const matching=holds.filter(h=>h.claimId===row.id);
+   const valid=row.lines.length>0&&matching.every(h=>h.position.locationId===row.sourceId&&h.expiresAt.getTime()===row.reservationExpiresAt?.getTime()&&row.lines.some(l=>l.id===h.claimLineId&&l.variantId===h.position.variantId))&&row.lines.every(l=>matching.filter(h=>h.claimLineId===l.id).reduce((sum,h)=>sum.plus(h.quantity),new Prisma.Decimal(0)).eq(l.quantity));
+   return project(row,valid,now);
+  });
+ }
  // The same user-row lock as staff reassignment serializes grant changes.
  private async actor(tx:Prisma.TransactionClient,req:AuthRequest):Promise<TransferActor>{
   await tx.$queryRaw<Array<{id:string}>>`SELECT id FROM "User" WHERE id=${req.actor.id} FOR UPDATE`;
@@ -36,7 +52,7 @@ export class TransferRequisitionService{
    const actor=await this.actor(tx,req);
    const where:Prisma.InternalTransferRequestWhereInput=actor.role==="admin"?{}:{OR:[{destinationId:{in:[...actor.locationIds]}},{sourceId:{in:[...actor.locationIds]}}]};
    const rows=await tx.internalTransferRequest.findMany({where,include,orderBy:[{createdAt:"desc"},{id:"desc"}],take:101});
-   return {items:rows.slice(0,100).map(project),capped:rows.length>100};
+   return {items:await this.views(tx,rows.slice(0,100)),capped:rows.length>100};
   });
  }
  async request(req:AuthRequest,input:TransferRequestInput,key:string){
@@ -47,7 +63,7 @@ export class TransferRequisitionService{
    const lines=input.lines.map(l=>({variantId:l.variantId,quantity:new Prisma.Decimal(l.quantity).toString()})).sort((a,b)=>a.variantId.localeCompare(b.variantId));
    const requestHash=tokenHash(JSON.stringify({destinationId:input.destinationId,note:input.note,lines}));
    const old=await tx.internalTransferRequest.findUnique({where:{requestedBy_requestKey:{requestedBy:actor.id,requestKey:key}},include});
-   if(old){if(old.requestHash!==requestHash)throw conflict();return project(old);}
+   if(old){if(old.requestHash!==requestHash)throw conflict();return (await this.views(tx,[old]))[0];}
    const variants=await tx.variant.findMany({where:{id:{in:lines.map(l=>l.variantId)},active:true},select:{id:true,unit:true}});
    for(const line of lines){
     const variant=variants.find(v=>v.id===line.variantId);
@@ -78,4 +94,43 @@ export class TransferRequisitionService{
    return project(updated);
   });
  }
+ async reserve(req:AuthRequest,id:string){
+  return this.db.$transaction(async tx=>{
+   const actor=await this.actor(tx,req);
+   await tx.$queryRaw<Array<{id:string}>>`SELECT id FROM "InternalTransferRequest" WHERE id=${id} FOR UPDATE`;
+   const row=await tx.internalTransferRequest.findUnique({where:{id},include});
+   if(!row||!row.sourceId||!row.decidedBy)throw missing();
+   if(actor.role!=="admin"&&!actor.locationIds.includes(row.sourceId))throw missing();
+   const [source,destination]=await Promise.all([tx.location.findUnique({where:{id:row.sourceId}}),tx.location.findUnique({where:{id:row.destinationId}})]);
+   if(!source?.active||!destination?.active)throw conflict();
+   if(row.status==="reserved"){
+    const view=(await this.views(tx,[row]))[0];
+    if(!view.stockReserved)throw new ApiProblem(409,"RESERVATION_LOST","Transfer hold expired or is incomplete. Head office must cancel and issue a new requisition.");
+    return view;
+   }
+   if(row.version!==2||row.status!=="authorized"||!mayActOnTransfer(actor,"reserve",{state:"authorized",destinationId:row.destinationId,sourceId:row.sourceId,destinationActive:true,sourceActive:true,authorizedBy:row.decidedBy,dispatchedBy:null,requestedBy:row.requestedBy}))throw conflict();
+   const now=new Date(),expiresAt=new Date(now.getTime()+24*60*60*1000);
+   // State and allocation commit together. Failed allocation rolls back both.
+   const updated=await tx.internalTransferRequest.update({where:{id},data:{status:"reserved",version:3,reservedBy:actor.id,reservedAt:now,reservationExpiresAt:expiresAt},include});
+   const allocations=await this.allocation.create(tx,{claimType:"internal_transfer",claimId:id,locationId:row.sourceId,expiresAt,actorId:actor.id,requestId:req.requestId,lines:row.lines.map(l=>({claimLineId:l.id,variantId:l.variantId,quantity:l.quantity.toString()}))});
+   await tx.auditEvent.create({data:{actorId:actor.id,requestId:req.requestId,action:"transfer.reserved",entityId:id,details:{sourceId:row.sourceId,expiresAt:expiresAt.toISOString(),reservationIds:allocations.map(a=>a.reservationId)}}});
+   return (await this.views(tx,[updated]))[0];
+  });
+ }
+ async cancelReservation(req:AuthRequest,id:string,note:string){
+  return this.db.$transaction(async tx=>{
+   const actor=await this.actor(tx,req);
+   if(actor.role!=="admin")throw deny();
+   await tx.$queryRaw<Array<{id:string}>>`SELECT id FROM "InternalTransferRequest" WHERE id=${id} FOR UPDATE`;
+   const row=await tx.internalTransferRequest.findUnique({where:{id},include});
+   if(!row)throw missing();
+   if(row.status==="cancelled"&&row.cancelledBy===actor.id&&row.cancellationNote===note)return project(row);
+   if(row.status!=="reserved"||row.version!==3)throw conflict();
+   const released=await this.allocation.release(tx,"internal_transfer",id,{actorId:actor.id,requestId:req.requestId});
+   const updated=await tx.internalTransferRequest.update({where:{id},data:{status:"cancelled",version:4,cancelledBy:actor.id,cancelledAt:new Date(),cancellationNote:note},include});
+   await tx.auditEvent.create({data:{actorId:actor.id,requestId:req.requestId,action:"transfer.cancelled",entityId:id,details:{releasedReservations:released,note}}});
+   return project(updated);
+  });
+ }
+
 }

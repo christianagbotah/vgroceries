@@ -4,7 +4,8 @@ import {AccessGuard} from "../identity/access.guard";
 import type {AuthRequest} from "../identity/identity.service";
 import {ApiProblem} from "../http/errors";
 import {TransferRequisitionService} from "./transfer-requisition.service";
-import {transferDecisionSchema,transferRequestSchema} from "./transfer-requisition.schemas";
+import {InventoryModule} from "../inventory/inventory.controller";
+import {transferDecisionSchema,transferRequestSchema,transferReserveSchema,transferCancelSchema} from "./transfer-requisition.schemas";
 
 @ApiExcludeController()
 @Controller("inventory/transfer-requisitions")
@@ -25,6 +26,18 @@ export class TransferRequisitionController{
   if(!parsed.success)throw new ApiProblem(400,"VALIDATION_FAILED","Valid head-office decision required.");
   return {ok:true,data:await this.service.decide(req,id,parsed.data)};
  }
+ @Post(":id/reserve") @HttpCode(200)
+ async reserve(@Req() req:AuthRequest,@Param("id") id:string,@Body() raw:unknown){
+  if(!transferReserveSchema.safeParse(raw).success)throw new ApiProblem(400,"VALIDATION_FAILED","Expected authorized transfer version 2.");
+  return {ok:true,data:await this.service.reserve(req,id)};
+ }
+ @Post(":id/cancel-reservation") @HttpCode(200)
+ async cancel(@Req() req:AuthRequest,@Param("id") id:string,@Body() raw:unknown){
+  const parsed=transferCancelSchema.safeParse(raw);
+  if(!parsed.success)throw new ApiProblem(400,"VALIDATION_FAILED","Cancellation reason and reserved version 3 required.");
+  return {ok:true,data:await this.service.cancelReservation(req,id,parsed.data.note)};
+ }
+
 }
-@Module({controllers:[TransferRequisitionController],providers:[TransferRequisitionService]})
+@Module({imports:[InventoryModule],controllers:[TransferRequisitionController],providers:[TransferRequisitionService]})
 export class TransferRequisitionModule{}

@@ -5,7 +5,7 @@ export interface AllocationLineInput {
 }
 
 export interface CreateAllocationInput {
-  claimType: "order" | "pos_draft";
+  claimType: "order" | "pos_draft" | "internal_transfer";
   claimId: string;
   locationId: string;
   expiresAt: Date;

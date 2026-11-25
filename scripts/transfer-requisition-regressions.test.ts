@@ -9,3 +9,11 @@ test("requests cannot specify source, cost, supplier, actor or approval",()=>{
  expect(transferDecisionSchema.safeParse({action:"authorize",version:1,sourceId:"branch-b",note:"approved"}).success).toBe(true);
  expect(transferDecisionSchema.safeParse({action:"reject",version:1,note:""}).success).toBe(false);
 });
+
+test("reservation commands cannot inject quantities, cost, expiry or source",async()=>{
+ const {transferReserveSchema,transferCancelSchema}=await import("../apps/api/src/transfers/transfer-requisition.schemas");
+ expect(transferReserveSchema.safeParse({version:2}).success).toBe(true);
+ for(const field of ["sourceId","quantity","unitCostMinor","expiresAt","actorId"])expect(transferReserveSchema.safeParse({version:2,[field]:"x"}).success).toBe(false);
+ expect(transferCancelSchema.safeParse({version:3,note:"Reallocate elsewhere"}).success).toBe(true);
+ expect(transferCancelSchema.safeParse({version:3,note:""}).success).toBe(false);
+});

@@ -77,3 +77,27 @@ mark stockReserved, stockMoved and financialPostingCreated false. No stock
 or accounting mutation is allowed by these endpoints. Partial approval,
 reservation, dispatch, receiving and accounting integration are next.
 The schema is additive and has not been applied to the live database.
+
+## Shared transfer reservation slice
+
+An authorized requisition can now be reserved by the source location's
+inventory manager or head-office administrator via POST
+/inventory/transfer-requisitions/:id/reserve (version 2). The existing shared
+allocator locks stock positions, observes POS and online order holds,
+preserves safety stock and uses FEFO lots. Internal transfer allocations
+are limited to lots with known nonnegative unit costs. Unknown cost is not
+treated as zero; such lots are excluded from transfer allocation.
+Authorization and successful reservation are distinct. The hold lasts 24
+hours (initial server-defined policy) and changes no physical quantity or
+financial balance. An expired or incomplete hold is reported as such and
+cannot silently be renewed. Head office may cancel via POST
+/inventory/transfer-requisitions/:id/cancel-reservation (version 3 and
+nonempty reason); cancellation releases only that transfer's holds and
+retains audit/history. A new requisition requires fresh authorization.
+Database constraints validate source, requested variant, cost presence,
+exact historical coverage and immutable reservation provenance. Transfer
+reservation consumption is deliberately blocked until the dispatch
+authority and accounting integration are implemented. The time limit,
+cancellation/reissue process and costing policy are provisional defaults.
+
+No migration is applied to a live database by this development change.

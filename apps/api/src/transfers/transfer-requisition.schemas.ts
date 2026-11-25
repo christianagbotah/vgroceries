@@ -13,3 +13,6 @@ export const transferDecisionSchema=z.discriminatedUnion("action",[
 ]);
 export type TransferRequestInput=z.infer<typeof transferRequestSchema>;
 export type TransferDecisionInput=z.infer<typeof transferDecisionSchema>;
+
+export const transferReserveSchema=z.strictObject({version:z.literal(2)});
+export const transferCancelSchema=z.strictObject({version:z.literal(3),note:note.refine(s=>s.length>0)});

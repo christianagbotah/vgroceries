@@ -1764,6 +1764,12 @@ model InternalTransferRequest {
   decisionNote String?
   decidedAt DateTime? @db.Timestamptz(3)
   createdAt DateTime @default(now()) @db.Timestamptz(3)
+  reservedBy String?
+  reservedAt DateTime? @db.Timestamptz(3)
+  reservationExpiresAt DateTime? @db.Timestamptz(3)
+  cancelledBy String?
+  cancelledAt DateTime? @db.Timestamptz(3)
+  cancellationNote String?
   lines InternalTransferRequestLine[]
   @@unique([requestedBy, requestKey])
   @@index([destinationId, status, createdAt])
