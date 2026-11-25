@@ -210,3 +210,20 @@ enrichment remains pending. No receipt, write-off, journal or close action
 is exposed. A missing or incompatible API is an error, not mock data.
 Currency formatting preserves integer minor units without converting to
 floating-point. The feature is disabled in existing production builds.
+
+## Transfer operations candidate
+
+The flagged staff workspace now connects to the existing requisition,
+head-office decision, reservation, cancellation and dispatch endpoints.
+An authenticated options endpoint returns active locations within the
+actor's current scope (all active locations for head office), and a
+bounded active variant search. Product and branch labels are enriched
+when available in these options; identifiers remain the fallback.
+Client controls derive from the server-returned role, transfer status
+and reservation evidence, not demo role selection. The server remains
+authoritative for every action. A physical handover reference is required
+before dispatch and confirmation dialogs explain the inventory effect.
+New requisition retries retain the same idempotency key and exact body
+while the form remains mounted; persistence across page reloads is not
+yet implemented. No receiving, discrepancy posting or GL posting
+action is exposed. Full hosted CI and deployment acceptance are required.

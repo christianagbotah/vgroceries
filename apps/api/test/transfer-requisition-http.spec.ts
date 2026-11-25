@@ -139,3 +139,20 @@ test("dispatch consumes exact authorized holds once and preserves original cost 
  assert.equal(await db.auditEvent.count({where:{entityId:id,action:"transfer.dispatched"}}),1);
  assert.equal((await db.reservation.findFirstOrThrow({where:{claimType:"order",claimId:"synthetic-existing-order"}})).state,"active");
 });
+
+test("transfer selection options respect current staff location scope and bound product search",async()=>{
+ const a=await login("requester"),admin=await login("admin-commerce");
+ const scoped=await call(route+"/options","GET",undefined,a);
+ assert.equal(scoped.status,200,JSON.stringify(scoped.payload));
+ assert.equal(scoped.payload.data.role,"inventory_manager");
+ assert.deepEqual(scoped.payload.data.locations.map((l:{id:string})=>l.id),["loc_accra"]);
+ const all=await call(route+"/options","GET",undefined,admin);
+ assert.equal(all.status,200);
+ assert.equal(all.payload.data.locations.some((l:{id:string})=>l.id==="loc_b"),true);
+ assert.equal(all.payload.data.locations.some((l:{id:string})=>l.id==="loc_inactive"),false);
+ const search=await call(route+"/options?q=rice","GET",undefined,a);
+ assert.equal(search.status,200);
+ assert.equal(search.payload.data.variants.some((v:{id:string})=>v.id==="var-rice"),true);
+ assert.equal((await call(route+"/options?q="+("x".repeat(101)),"GET",undefined,a)).status,400);
+ assert.equal((await call(route+"/options")).status,401);
+});

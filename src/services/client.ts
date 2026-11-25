@@ -192,6 +192,32 @@ import type { CategoryRow, PublicOrder, SessionRow } from "./contracts";
 /* ------------------------------------------------------------------ */
 
 export const apiOps = {
+  transferOptions: async (q="") => {
+    if (!process.env.NEXT_PUBLIC_API_BASE_URL || isDemoStaffSessionActive()) throw new ApiError("FORBIDDEN", "Real staff session required.");
+    const {transferOptionsSchema}=await import("../../packages/contracts/src/internal-transfers");
+    const parsed=transferOptionsSchema.safeParse(await api("inventory.verified.transfers.options",{query:{q}}));
+    if(!parsed.success)throw new ApiError("BAD_RESPONSE","Transfer options could not be verified.");
+    return parsed.data;
+  },
+  createInternalTransfer: async (raw:unknown,key:string) => {
+    if (!process.env.NEXT_PUBLIC_API_BASE_URL || isDemoStaffSessionActive()) throw new ApiError("FORBIDDEN", "Real staff session required.");
+    const {createTransferSchema,internalTransferListSchema}=await import("../../packages/contracts/src/internal-transfers");
+    const body=createTransferSchema.parse(raw);
+    const response=await api("inventory.verified.transfers.create",{body,idempotencyKey:key});
+    const parsed=internalTransferListSchema.safeParse({items:[response],capped:false});
+    if(!parsed.success)throw new ApiError("BAD_RESPONSE","Request outcome could not be verified. Refresh before retrying.");
+    return parsed.data.items[0];
+  },
+  actOnInternalTransfer: async (id:string,action:import("../../packages/contracts/src/internal-transfers").TransferAction,raw:unknown) => {
+    if (!process.env.NEXT_PUBLIC_API_BASE_URL || isDemoStaffSessionActive()) throw new ApiError("FORBIDDEN", "Real staff session required.");
+    const {transferActionSchemas,internalTransferListSchema}=await import("../../packages/contracts/src/internal-transfers");
+    const body=transferActionSchemas[action].parse(raw);
+    const op=action==="authorize"||action==="reject"?"decision":action;
+    const response=await api("inventory.verified.transfers."+op,{query:{id},body});
+    const parsed=internalTransferListSchema.safeParse({items:[response],capped:false});
+    if(!parsed.success)throw new ApiError("BAD_RESPONSE","Action outcome could not be verified. Refresh before retrying.");
+    return parsed.data.items[0];
+  },
   internalTransfers: async () => {
     if (!process.env.NEXT_PUBLIC_API_BASE_URL || isDemoStaffSessionActive())
       throw new ApiError("FORBIDDEN", "A real staff session and transfer API are required.");

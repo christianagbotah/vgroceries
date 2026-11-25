@@ -1,5 +1,5 @@
 import {describe,expect,test} from "bun:test";
-import {internalTransferListSchema,formatTransferMoney} from "../packages/contracts/src/internal-transfers";
+import {internalTransferListSchema,formatTransferMoney,availableTransferActions,createTransferSchema,transferActionSchemas,transferOptionsSchema} from "../packages/contracts/src/internal-transfers";
 import {restEndpoints} from "../packages/contracts/src/endpoints";
 import {operationMeta} from "../src/services/operation-registry";
 const time="2026-11-25T12:00:00.000Z";
@@ -26,4 +26,32 @@ describe("verified branch transfer workspace",()=>{
   expect(formatTransferMoney("250000")).toBe("₵2,500.00");
   expect(formatTransferMoney("9223372036854775807")).toBe("₵92,233,720,368,547,758.07");
  });
+});
+
+test("only permitted actor and current state expose transfer actions",()=>{
+ const admin=transferOptionsSchema.parse({role:"admin",locations:[{id:"a",name:"Branch A"},{id:"b",name:"Branch B"}],locationsCapped:false,variants:[],variantsCapped:false});
+ const source={...admin,role:"inventory_manager" as const,locations:[{id:"b",name:"Branch B"}]};
+ const destination={...source,locations:[{id:"a",name:"Branch A"}]};
+ const base=internalTransferListSchema.parse({items:[row],capped:false}).items[0];
+ const requested={...base,status:"requested" as const,version:1,dispatch:null,stockMoved:false};
+ const authorized={...requested,status:"authorized" as const,version:2};
+ const reserved={...authorized,status:"reserved" as const,version:3,stockReserved:true,reservationStatus:"active" as const};
+ expect(availableTransferActions(requested,admin)).toEqual(["authorize","reject"]);
+ expect(availableTransferActions(requested,source)).toEqual([]);
+ expect(availableTransferActions(authorized,source)).toEqual(["reserve"]);
+ expect(availableTransferActions(authorized,destination)).toEqual([]);
+ expect(availableTransferActions(reserved,admin)).toEqual(["dispatch","cancel"]);
+ expect(availableTransferActions(reserved,source)).toEqual(["dispatch"]);
+ expect(availableTransferActions({...reserved,stockReserved:false,reservationStatus:"expired"},source)).toEqual([]);
+ expect(availableTransferActions(base,admin)).toEqual([]);
+});
+test("action inputs reject untrusted actor, changed quantity and missing handover reference",()=>{
+ expect(createTransferSchema.safeParse({destinationId:"a",note:"",lines:[{variantId:"rice",quantity:"2.5"}]}).success).toBe(true);
+ expect(createTransferSchema.safeParse({destinationId:"a",note:"",lines:[{variantId:"rice",quantity:"1"},{variantId:"rice",quantity:"2"}]}).success).toBe(false);
+ expect(createTransferSchema.safeParse({destinationId:"a",note:"",lines:[{variantId:"rice",quantity:"0"}]}).success).toBe(false);
+ expect(transferActionSchemas.dispatch.safeParse({version:3,handoverReference:"TEST",quantity:"5"}).success).toBe(false);
+ expect(transferActionSchemas.dispatch.safeParse({version:3,handoverReference:""}).success).toBe(false);
+ expect(transferActionSchemas.authorize.safeParse({action:"authorize",version:1,sourceId:"b",note:"",actorId:"admin"}).success).toBe(false);
+ expect(transferActionSchemas.cancel.safeParse({version:3,note:""}).success).toBe(false);
+ expect(restEndpoints["inventory.verified.transfers.create"].replayTransport).toBe("headerOnly");
 });

@@ -34,3 +34,30 @@ export function formatTransferMoney(minorUnits:string):string{
  const value=minor.parse(minorUnits).padStart(3,"0");
  return "₵"+value.slice(0,-2).replace(/\B(?=(\d{3})+(?!\d))/g,",")+"."+value.slice(-2);
 }
+
+export const transferOptionsSchema=z.object({
+ role:z.enum(["admin","inventory_manager"]),
+ locations:z.array(z.object({id,name:z.string()})).max(100),
+ locationsCapped:z.boolean(),
+ variants:z.array(z.object({id,name:z.string(),productName:z.string(),sku:z.string(),unit:z.string()})).max(100),
+ variantsCapped:z.boolean(),
+});
+export type TransferOptions=z.infer<typeof transferOptionsSchema>;
+const boundedId=z.string().trim().min(1).max(128);
+const safeNote=z.string().trim().max(500).refine(s=>!/[\u0000-\u001f\u007f]/.test(s));
+export const createTransferSchema=z.strictObject({destinationId:boundedId,note:safeNote,lines:z.array(z.strictObject({variantId:boundedId,quantity:quantity.refine(s=>Number(s)>0)})).min(1).max(100).refine(rows=>new Set(rows.map(r=>r.variantId)).size===rows.length)});
+export const transferActionSchemas={
+ authorize:z.strictObject({action:z.literal("authorize"),version:z.literal(1),sourceId:boundedId,note:safeNote}),
+ reject:z.strictObject({action:z.literal("reject"),version:z.literal(1),note:safeNote.refine(s=>!!s)}),
+ reserve:z.strictObject({version:z.literal(2)}),
+ cancel:z.strictObject({version:z.literal(3),note:safeNote.refine(s=>!!s)}),
+ dispatch:z.strictObject({version:z.literal(3),handoverReference:boundedId.refine(s=>!/[\u0000-\u001f\u007f]/.test(s))}),
+};
+export type TransferAction=keyof typeof transferActionSchemas;
+export function availableTransferActions(row:InternalTransferRow,options:TransferOptions):TransferAction[]{
+ const admin=options.role==="admin",atSource=!!row.sourceId&&options.locations.some(l=>l.id===row.sourceId);
+ if(row.status==="requested"&&row.version===1&&admin)return ["authorize","reject"];
+ if(row.status==="authorized"&&row.version===2&&(admin||atSource))return ["reserve"];
+ if(row.status==="reserved"&&row.version===3)return [...((admin||atSource)&&row.stockReserved&&row.reservationStatus==="active"?["dispatch" as const]:[]),...(admin?["cancel" as const]:[])];
+ return [];
+}

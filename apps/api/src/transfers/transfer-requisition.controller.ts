@@ -1,4 +1,4 @@
-import {Body,Controller,Get,Headers,HttpCode,Module,Param,Post,Req,UseGuards} from "@nestjs/common";
+import {Body,Controller,Get,Headers,HttpCode,Module,Param,Post,Query,Req,UseGuards} from "@nestjs/common";
 import {ApiExcludeController} from "@nestjs/swagger";
 import {AccessGuard} from "../identity/access.guard";
 import type {AuthRequest} from "../identity/identity.service";
@@ -14,6 +14,11 @@ export class TransferRequisitionController{
  constructor(private readonly service:TransferRequisitionService){}
  @Get()
  async list(@Req() req:AuthRequest){return {ok:true,data:await this.service.list(req)};}
+ @Get("options")
+ async options(@Req() req:AuthRequest,@Query("q") q:unknown){
+  if(q!==undefined&&(typeof q!=="string"||q.length>100))throw new ApiProblem(400,"VALIDATION_FAILED","Search must be at most 100 characters.");
+  return {ok:true,data:await this.service.options(req,typeof q==="string"?q.trim():"")};
+ }
  @Post()
  async request(@Req() req:AuthRequest,@Body() raw:unknown,@Headers("idempotency-key") key?:string){
   const parsed=transferRequestSchema.safeParse(raw);

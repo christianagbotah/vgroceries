@@ -58,6 +58,16 @@ export class TransferRequisitionService{
    return {items:await this.views(tx,rows.slice(0,100)),capped:rows.length>100};
   });
  }
+ async options(req:AuthRequest,q:string){
+  return this.db.$transaction(async tx=>{
+   const actor=await this.actor(tx,req);
+   const [locations,variants]=await Promise.all([
+    tx.location.findMany({where:{active:true,...(actor.role==="admin"?{}:{id:{in:[...actor.locationIds]}})},select:{id:true,name:true},orderBy:[{name:"asc"},{id:"asc"}],take:101}),
+    tx.variant.findMany({where:{active:true,...(q?{OR:[{name:{contains:q,mode:"insensitive"}},{sku:{contains:q,mode:"insensitive"}},{product:{name:{contains:q,mode:"insensitive"}}}]}:{})},select:{id:true,name:true,sku:true,unit:true,product:{select:{name:true}}},orderBy:[{name:"asc"},{id:"asc"}],take:101}),
+   ]);
+   return {role:actor.role,locations:locations.slice(0,100),locationsCapped:locations.length>100,variants:variants.slice(0,100).map(v=>({id:v.id,name:v.name,sku:v.sku,unit:v.unit,productName:v.product.name})),variantsCapped:variants.length>100};
+  });
+ }
  async request(req:AuthRequest,input:TransferRequestInput,key:string){
   return this.db.$transaction(async tx=>{
    const actor=await this.actor(tx,req);
