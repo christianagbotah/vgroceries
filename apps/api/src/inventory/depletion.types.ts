@@ -34,7 +34,8 @@ export interface LockedClaimCoverage {
 export type StockDepletionKind =
   | "dispatch_handover"
   | "collection_handover"
-  | "pos_handover";
+  | "pos_handover"
+  | "transfer_dispatch";
 
 export interface ConsumeClaimInput extends LockExactClaimInput {
   kind: StockDepletionKind;

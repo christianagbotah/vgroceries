@@ -84,6 +84,7 @@ export class AllocationService {
         FROM "StockLot" l
         LEFT JOIN "Reservation" r ON r."lotId"=l.id
         WHERE l."positionId"=${position.id} AND l.kind='regular' AND NOT l.quarantined
+          AND (${input.claimType !== "internal_transfer"} OR (l."unitCostMinor" IS NOT NULL AND l."unitCostMinor">=0))
           AND l.quantity>0
           AND (l."expiryDate" IS NULL OR l."expiryDate">(now() AT TIME ZONE 'UTC')::date)
         GROUP BY l.id,l.quantity,l."expiryDate",l."createdAt"

@@ -86,6 +86,13 @@ export const restEndpoints: Record<string, RestEndpoint> = {
   "admin.inventory.adjustments.create": {"method": "POST", "path": "/inventory/adjustments/create"},
   "admin.inventory.adjustments.decide": {"method": "POST", "path": "/inventory/adjustments/decide"},
   // Real staff-only routes: separate from legacy demo correction shape.
+  "inventory.verified.transfers.options": {"method":"GET","path":"/inventory/transfer-requisitions/options"},
+  "inventory.verified.transfers.create": {"method":"POST","path":"/inventory/transfer-requisitions","replayTransport":"headerOnly"},
+  "inventory.verified.transfers.decision": {"method":"POST","path":"/inventory/transfer-requisitions/{id}/decision"},
+  "inventory.verified.transfers.reserve": {"method":"POST","path":"/inventory/transfer-requisitions/{id}/reserve"},
+  "inventory.verified.transfers.cancel": {"method":"POST","path":"/inventory/transfer-requisitions/{id}/cancel-reservation"},
+  "inventory.verified.transfers.dispatch": {"method":"POST","path":"/inventory/transfer-requisitions/{id}/dispatch"},
+  "inventory.verified.transfers": {"method": "GET", "path": "/inventory/transfer-requisitions"},
   "inventory.verified.adjustments.lots": {"method": "GET", "path": "/inventory/adjustments/lots"},
   "inventory.verified.adjustments.history": {"method": "GET", "path": "/inventory/adjustments"},
   "inventory.verified.adjustments.create": {"method": "POST", "path": "/inventory/adjustments/create", "replayTransport": "headerOnly"},
