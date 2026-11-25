@@ -1,3 +1,5 @@
+import { getPublicBusinessIdentity } from "@/services/server-data";
+import { BusinessIdentityProvider } from "@/features/business/business-identity";
 import { Suspense } from "react";
 import { StorefrontFooter, StorefrontHeader, StorefrontMobileNav } from "@/components/layout/storefront-shell";
 import { BasketPeekDock } from "@/features/checkout/basket-peek";
@@ -6,8 +8,10 @@ function HeaderFallback() {
   return <div className="h-[148px] border-b bg-white lg:h-[114px]" aria-hidden />;
 }
 
-export default function StorefrontLayout({ children }: { children: React.ReactNode }) {
+export default async function StorefrontLayout({ children }: { children: React.ReactNode }) {
+  const identity=await getPublicBusinessIdentity();
   return (
+    <BusinessIdentityProvider identity={identity}>
     <div className="flex min-h-screen flex-col pb-16 md:pb-0">
       <Suspense fallback={<HeaderFallback />}>
         <StorefrontHeader />
@@ -19,5 +23,6 @@ export default function StorefrontLayout({ children }: { children: React.ReactNo
       <StorefrontMobileNav />
       <BasketPeekDock />
     </div>
+    </BusinessIdentityProvider>
   );
 }

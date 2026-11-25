@@ -52,3 +52,5 @@ export * from "./physical-returns";
 
 export * from "./customer-return-claims";
 export * from "./business-contact";
+
+export * from "./business-identity";
