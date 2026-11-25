@@ -27,7 +27,7 @@ export default function VerifiedStaffPage() {
   const [invitation, setInvitation] = useState<IssuedCashierInvitation | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
   const [assigned, setAssigned] = useState<string[]>([]);
-  const current = staff?.staff.find(x => x.id === selected && x.role === "cashier");
+  const current = staff?.staff.find(x => x.id === selected && (x.role === "cashier" || x.role === "inventory_manager"));
   const available = staff?.locations.filter(x => x.active) ?? [];
 
   const refresh = useCallback(async () => {
@@ -77,8 +77,8 @@ export default function VerifiedStaffPage() {
   return <section className="mx-auto max-w-5xl space-y-5 pb-12">
     <div>
       <p className="text-sm font-semibold text-primary">Variety Groceries · Protected UAT</p>
-      <h1 className="font-serif text-3xl font-bold">Verified cashier onboarding</h1>
-      <p className="mt-2 text-sm leading-6 text-muted-foreground">Invite real cashier accounts and assign their active branches. Cashiers choose their own password. This page does not enable selling or move money.</p>
+      <h1 className="font-serif text-3xl font-bold">Verified staff &amp; location assignments</h1>
+      <p className="mt-2 text-sm leading-6 text-muted-foreground">Invite real cashier accounts and manage active locations for cashiers and inventory managers. Cashiers choose their own password. This page does not enable selling or move money.</p>
     </div>
     <p className="rounded-lg border p-4 text-sm">Private UAT accounts only. A one-time code is displayed once. Share it privately with the intended cashier; it is not sent automatically by email or SMS. Never put codes in public chats or screenshots.</p>
     {error ? <p role="alert" className="rounded-lg border border-destructive/50 p-4 text-sm text-destructive">{error}</p> : null}
@@ -127,7 +127,7 @@ export default function VerifiedStaffPage() {
             <p className="text-muted-foreground">{row.role} · {row.active ? "Active" : "Inactive"} · {row.invitationStatus}</p>
             <p className="text-muted-foreground">Branches: {row.locationIds.map(id => staff.locations.find(loc => loc.id === id)?.name ?? id).join(", ") || "none"}</p>
           </div>
-          {row.role === "cashier" ? <Button variant="outline" onClick={() => {setSelected(row.id); setAssigned([...row.locationIds]); setInvitation(null);}}>Manage cashier</Button> : null}
+          {(row.role === "cashier" || row.role === "inventory_manager") ? <Button variant="outline" onClick={() => {setSelected(row.id); setAssigned([...row.locationIds]); setInvitation(null);}}>Manage assignments</Button> : null}
         </article>)}
         {current ? <div className="space-y-4 rounded-lg border p-4">
           <h3 className="font-semibold">Manage {current.name}</h3>
@@ -135,13 +135,13 @@ export default function VerifiedStaffPage() {
           <div className="flex flex-wrap gap-2">
             <Button variant="outline" disabled={busy || !assigned.length} onClick={() => void act(async () => {
               await apiOps.staffManageCashier(current.id, {action:"assign_locations", locationIds:assigned});
-            }, "Branches changed and prior cashier sessions revoked.")}>Save assignments</Button>
-            <Button variant="outline" disabled={busy} onClick={() => void act(async () => {
+            }, "Locations changed and prior staff sessions revoked.")}>Save assignments</Button>
+            {current.role === "cashier" ? <Button variant="outline" disabled={busy} onClick={() => void act(async () => {
               await apiOps.staffManageCashier(current.id, {action:"set_active", active:!current.active});
-            }, "Cashier status changed and prior sessions revoked.")}>{current.active ? "Suspend cashier" : "Reactivate cashier"}</Button>
+            }, "Cashier status changed and prior sessions revoked.")}>{current.active ? "Suspend cashier" : "Reactivate cashier"}</Button> : null}
             <Button variant="ghost" onClick={() => setSelected(null)}>Close</Button>
           </div>
-          <p className="text-xs text-muted-foreground">Reactivating an unaccepted invitation is blocked. Reissue an invitation using the same email if the previous code expired.</p>
+          {current.role === "cashier" ? <p className="text-xs text-muted-foreground">Reactivating an unaccepted invitation is blocked. Reissue an invitation using the same email if the previous code expired.</p> : <p className="text-xs text-muted-foreground">Inventory permissions remain role-based. Location assignments limit location-aware inventory actions; they do not grant administrator access.</p>}
         </div> : null}
       </CardContent>
     </Card>
