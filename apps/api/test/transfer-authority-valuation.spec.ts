@@ -61,3 +61,11 @@ test("unknown costs, overreceipt, negative/reversed quantities and excess precis
  assert.throws(()=>quantityMilli("1000000000000"));
  assert.equal(quantityMilli("999999999999.999"),999999999999999n);
 });
+
+test("dispatch value is the difference in rounded source lot carrying amounts",async()=>{
+ const {dispatchCarryingValue}=await import("../src/transfers/transfer-valuation");
+ assert.equal(dispatchCarryingValue("100","2",2500),245000n);
+ assert.equal(dispatchCarryingValue("0.005","0.004",333)+dispatchCarryingValue("0.004","0",333),2n);
+ assert.throws(()=>dispatchCarryingValue("1","1",2500));
+ assert.throws(()=>dispatchCarryingValue("1","0",null));
+});

@@ -106,3 +106,36 @@ test("transfer holds share sale availability, reject unknown cost, replay once a
  assert.equal(await db.auditEvent.count({where:{entityId:id,action:"transfer.reserved"}}),1);
  assert.equal(await db.auditEvent.count({where:{entityId:id,action:"transfer.cancelled"}}),1);
 });
+
+test("dispatch consumes exact authorized holds once and preserves original cost in transit without destination receipt",async()=>{
+ const a=await login("requester"), b=await login("source"), admin=await login("admin-commerce");
+ const request=await call(route,"POST",{destinationId:"loc_accra",note:"Dispatch test",lines:[{variantId:"var-rice",quantity:"2.5"}]},a,"dispatch-request-1");
+ assert.equal(request.status,201);
+ const id=request.payload.data.id;
+ assert.equal((await call(route+"/"+id+"/decision","POST",{action:"authorize",version:1,sourceId:"loc_b",note:"Authorized"},admin)).status,200);
+ const dispatch=route+"/"+id+"/dispatch", body={version:3,handoverReference:"TEST-HANDOVER-1"};
+ assert.equal((await call(dispatch,"POST",body,b)).status,409);
+ assert.equal((await call(route+"/"+id+"/reserve","POST",{version:2},b)).status,200);
+ assert.equal((await call(dispatch,"POST",body,a)).status,404);
+ const dest=await db.stockLot.findUniqueOrThrow({where:{id:"lot-rice"}});
+ const sent=await call(dispatch,"POST",body,b);
+ assert.equal(sent.status,200,JSON.stringify(sent.payload));
+ const view=sent.payload.data;
+ assert.equal(view.status,"in_transit");
+ assert.equal(view.reservationStatus,"consumed");
+ assert.equal(view.stockMoved,true);
+ assert.equal(view.financialPostingCreated,false);
+ assert.equal(view.dispatch.totalValueMinor,"6250");
+ assert.equal(view.dispatch.lots[0].quantity,"2.5");
+ assert.equal(view.dispatch.lots[0].unitCostMinor,2500);
+ assert.equal(view.dispatch.lots[0].lotNumber,"B-RICE");
+ assert.equal((await db.stockLot.findUniqueOrThrow({where:{id:"branch-b-lot"}})).quantity.toString(),"7.5");
+ assert.equal((await db.stockLot.findUniqueOrThrow({where:{id:"lot-rice"}})).quantity.toString(),dest.quantity.toString());
+ assert.equal((await call(dispatch,"POST",body,b)).payload.data.dispatch.id,view.dispatch.id);
+ assert.equal((await call(dispatch,"POST",{...body,handoverReference:"DIFFERENT"},b)).status,409);
+ assert.equal((await call(route+"/"+id+"/cancel-reservation","POST",{version:3,note:"Cannot undo dispatch"},admin)).status,409);
+ assert.equal(await db.stockDepletion.count({where:{claimType:"internal_transfer",claimId:id}}),1);
+ assert.equal(await db.internalTransferDispatch.count({where:{transferId:id}}),1);
+ assert.equal(await db.auditEvent.count({where:{entityId:id,action:"transfer.dispatched"}}),1);
+ assert.equal((await db.reservation.findFirstOrThrow({where:{claimType:"order",claimId:"synthetic-existing-order"}})).state,"active");
+});

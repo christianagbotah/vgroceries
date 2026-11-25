@@ -17,3 +17,11 @@ test("reservation commands cannot inject quantities, cost, expiry or source",asy
  expect(transferCancelSchema.safeParse({version:3,note:"Reallocate elsewhere"}).success).toBe(true);
  expect(transferCancelSchema.safeParse({version:3,note:""}).success).toBe(false);
 });
+
+test("dispatch accepts handover evidence but cannot change source quantity or cost",async()=>{
+ const {transferDispatchSchema}=await import("../apps/api/src/transfers/transfer-requisition.schemas");
+ const input={version:3,handoverReference:"DN-001"};
+ expect(transferDispatchSchema.safeParse(input).success).toBe(true);
+ for(const field of ["quantity","unitCostMinor","sourceId","destinationId","actorId"])expect(transferDispatchSchema.safeParse({...input,[field]:"x"}).success).toBe(false);
+ expect(transferDispatchSchema.safeParse({...input,handoverReference:""}).success).toBe(false);
+});

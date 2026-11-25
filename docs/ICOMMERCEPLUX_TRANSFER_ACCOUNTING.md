@@ -101,3 +101,25 @@ authority and accounting integration are implemented. The time limit,
 cancellation/reissue process and costing policy are provisional defaults.
 
 No migration is applied to a live database by this development change.
+
+## Dispatch and immutable in-transit subledger
+
+POST /api/v1/inventory/transfer-requisitions/:id/dispatch accepts reserved
+version 3 and a physical handover reference. Source inventory manager
+or head office must hold current authorization; no browser-supplied
+quantity, source, destination or cost is accepted. Exact unexpired shared
+reservation coverage is consumed by StockDepletionService. A single
+transaction reduces the source lots, consumes the holds, records depletion
+lines, stores immutable dispatch header and lot cost snapshots and sets
+the transfer to in_transit, version 4. Repeating the same handover reference
+does not deplete twice. The destination has not received goods yet.
+Database deferred checks bind dispatch to the source, original reservations,
+depletion and cost snapshots. The source valuation is the difference
+between rounded before/after lot values, rather than rounding the dispatched
+quantity independently; later receipt must allocate the exact stored
+carrying value. GHS minor-unit values use integer arithmetic and are
+serialized as strings. This slice creates an inventory valuation subledger,
+not a general-ledger journal. No supplier payable, revenue, or tax posting.
+No partial dispatch, receiver acceptance, discrepancy resolution, full GL,
+or operational UI yet. Deployment and migrations remain gated on complete
+integration testing and receipt/reconciliation readiness.

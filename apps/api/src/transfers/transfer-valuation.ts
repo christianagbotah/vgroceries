@@ -47,3 +47,12 @@ export function transferLotValuation(input:TransferLotValueInput){
   fullyReceived:after===dispatched,
  };
 }
+
+/** Value removed from an existing lot, using rounded before/after carrying
+ * values. A later receipt must allocate this exact snapshot total, not
+ * independently round quantity times unit cost again. */
+export function dispatchCarryingValue(before:string,after:string,cost:number|null):bigint{
+ const b=quantityMilli(before),a=quantityMilli(after);
+ if(a>=b)throw new Error("Dispatch must decrease lot quantity");
+ return amount(b,cost)-amount(a,cost);
+}

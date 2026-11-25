@@ -16,3 +16,5 @@ export type TransferDecisionInput=z.infer<typeof transferDecisionSchema>;
 
 export const transferReserveSchema=z.strictObject({version:z.literal(2)});
 export const transferCancelSchema=z.strictObject({version:z.literal(3),note:note.refine(s=>s.length>0)});
+
+export const transferDispatchSchema=z.strictObject({version:z.literal(3),handoverReference:z.string().trim().min(1).max(128).refine(s=>!/[\u0000-\u001f\u007f]/.test(s))});

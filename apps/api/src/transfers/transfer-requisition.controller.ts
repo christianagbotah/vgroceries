@@ -5,7 +5,7 @@ import type {AuthRequest} from "../identity/identity.service";
 import {ApiProblem} from "../http/errors";
 import {TransferRequisitionService} from "./transfer-requisition.service";
 import {InventoryModule} from "../inventory/inventory.controller";
-import {transferDecisionSchema,transferRequestSchema,transferReserveSchema,transferCancelSchema} from "./transfer-requisition.schemas";
+import {transferDecisionSchema,transferRequestSchema,transferReserveSchema,transferCancelSchema,transferDispatchSchema} from "./transfer-requisition.schemas";
 
 @ApiExcludeController()
 @Controller("inventory/transfer-requisitions")
@@ -36,6 +36,13 @@ export class TransferRequisitionController{
   const parsed=transferCancelSchema.safeParse(raw);
   if(!parsed.success)throw new ApiProblem(400,"VALIDATION_FAILED","Cancellation reason and reserved version 3 required.");
   return {ok:true,data:await this.service.cancelReservation(req,id,parsed.data.note)};
+ }
+
+ @Post(":id/dispatch") @HttpCode(200)
+ async dispatch(@Req() req:AuthRequest,@Param("id") id:string,@Body() raw:unknown){
+  const parsed=transferDispatchSchema.safeParse(raw);
+  if(!parsed.success)throw new ApiProblem(400,"VALIDATION_FAILED","Handover reference and reserved version 3 required.");
+  return {ok:true,data:await this.service.dispatch(req,id,parsed.data.handoverReference)};
  }
 
 }

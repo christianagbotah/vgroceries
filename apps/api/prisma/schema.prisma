@@ -1043,6 +1043,7 @@ model StockDepletion {
   posCashSale PosCashSale?
   @@unique([claimType, claimId])
   @@index([locationId, createdAt])
+  transferDispatch InternalTransferDispatch?
 }
 
 model StockDepletionLine {
@@ -1061,6 +1062,7 @@ model StockDepletionLine {
   createdAt DateTime @default(now()) @db.Timestamptz(3)
   @@index([depletionId, id])
   @@index([lotId, createdAt])
+  transferDispatchLot InternalTransferDispatchLot?
 }
 
 
@@ -1774,6 +1776,7 @@ model InternalTransferRequest {
   @@unique([requestedBy, requestKey])
   @@index([destinationId, status, createdAt])
   @@index([sourceId, status, createdAt])
+  dispatch InternalTransferDispatch?
 }
 
 model InternalTransferRequestLine {
@@ -1784,4 +1787,32 @@ model InternalTransferRequestLine {
   variant Variant @relation(fields: [variantId], references: [id], onDelete: Restrict)
   quantity Decimal @db.Decimal(15, 3)
   @@unique([requestId, variantId])
+}
+
+// Immutable internal stock-in-transit subledger; not a supplier purchase or GL.
+model InternalTransferDispatch {
+  id String @id @default(uuid())
+  transferId String @unique
+  transfer InternalTransferRequest @relation(fields: [transferId], references: [id], onDelete: Restrict)
+  depletionId String @unique
+  depletion StockDepletion @relation(fields: [depletionId], references: [id], onDelete: Restrict)
+  dispatchedBy String
+  handoverReference String
+  dispatchedAt DateTime @default(now()) @db.Timestamptz(3)
+  currency String @default("GHS")
+  totalValueMinor BigInt
+  lots InternalTransferDispatchLot[]
+}
+
+model InternalTransferDispatchLot {
+  id String @id @default(uuid())
+  dispatchId String
+  dispatch InternalTransferDispatch @relation(fields: [dispatchId], references: [id], onDelete: Restrict)
+  depletionLineId String @unique
+  depletionLine StockDepletionLine @relation(fields: [depletionLineId], references: [id], onDelete: Restrict)
+  lotNumber String
+  expiryDate DateTime? @db.Date
+  unitCostMinor Int
+  valueMinor BigInt
+  @@index([dispatchId])
 }

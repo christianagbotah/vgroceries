@@ -4,12 +4,14 @@ import {Database} from "../database/database";
 import {ApiProblem} from "../http/errors";
 import type {AuthRequest} from "../identity/identity.service";
 import {tokenHash} from "../identity/crypto";
+import {StockDepletionService} from "../inventory/stock-depletion.service";
+import {dispatchCarryingValue} from "./transfer-valuation";
 import {AllocationService} from "../inventory/allocation.service";
 import {normalizeAllocationQuantity} from "../inventory/allocation.values";
 import {mayActOnTransfer,type TransferActor} from "./transfer-policy";
 import type {TransferRequestInput,TransferDecisionInput} from "./transfer-requisition.schemas";
 
-const include={lines:{orderBy:{variantId:"asc" as const}}};
+const include={lines:{orderBy:{variantId:"asc" as const}},dispatch:{include:{lots:{include:{depletionLine:true},orderBy:{id:"asc" as const}}}}};
 const deny=()=>new ApiProblem(403,"FORBIDDEN","Transfer location or action not permitted.");
 const conflict=()=>new ApiProblem(409,"CONFLICT","Transfer request changed or conflicts with an earlier request.");
 const missing=()=>new ApiProblem(404,"NOT_FOUND","Transfer request not found.");
@@ -22,12 +24,13 @@ const project=(r:TransferRow,covered=false,now=new Date())=>({
  reservedBy:r.reservedBy,reservedAt:r.reservedAt?.toISOString()??null,
  reservationExpiresAt:r.reservationExpiresAt?.toISOString()??null,
  cancelledBy:r.cancelledBy,cancelledAt:r.cancelledAt?.toISOString()??null,cancellationNote:r.cancellationNote,
- reservationStatus:r.status==="cancelled"?"released":r.status!=="reserved"?"none":!r.reservationExpiresAt||r.reservationExpiresAt<=now?"expired":covered?"active":"inconsistent",
- stockReserved:r.status==="reserved"&&covered&&!!r.reservationExpiresAt&&r.reservationExpiresAt>now,stockMoved:false,financialPostingCreated:false,
+ dispatch:r.dispatch?{id:r.dispatch.id,dispatchedAt:r.dispatch.dispatchedAt.toISOString(),dispatchedBy:r.dispatch.dispatchedBy,handoverReference:r.dispatch.handoverReference,currency:r.dispatch.currency,totalValueMinor:r.dispatch.totalValueMinor.toString(),lots:r.dispatch.lots.map(l=>({id:l.id,lotId:l.depletionLine.lotId,variantId:l.depletionLine.variantId,quantity:l.depletionLine.quantity.toString(),lotNumber:l.lotNumber,expiryDate:l.expiryDate?.toISOString().slice(0,10)??null,unitCostMinor:l.unitCostMinor,valueMinor:l.valueMinor.toString()}))}:null,
+ reservationStatus:r.status==="in_transit"?"consumed":r.status==="cancelled"?"released":r.status!=="reserved"?"none":!r.reservationExpiresAt||r.reservationExpiresAt<=now?"expired":covered?"active":"inconsistent",
+ stockReserved:r.status==="reserved"&&covered&&!!r.reservationExpiresAt&&r.reservationExpiresAt>now,stockMoved:r.status==="in_transit"&&!!r.dispatch,financialPostingCreated:false,
 });
 @Injectable()
 export class TransferRequisitionService{
- constructor(private readonly db:Database,private readonly allocation:AllocationService){}
+ constructor(private readonly db:Database,private readonly allocation:AllocationService,private readonly depletion:StockDepletionService){}
  private async views(tx:Prisma.TransactionClient,rows:TransferRow[]){
   const now=new Date();
   const ids=rows.filter(r=>r.status==="reserved"&&r.reservationExpiresAt&&r.reservationExpiresAt>now).map(r=>r.id);
@@ -129,6 +132,33 @@ export class TransferRequisitionService{
    const released=await this.allocation.release(tx,"internal_transfer",id,{actorId:actor.id,requestId:req.requestId});
    const updated=await tx.internalTransferRequest.update({where:{id},data:{status:"cancelled",version:4,cancelledBy:actor.id,cancelledAt:new Date(),cancellationNote:note},include});
    await tx.auditEvent.create({data:{actorId:actor.id,requestId:req.requestId,action:"transfer.cancelled",entityId:id,details:{releasedReservations:released,note}}});
+   return project(updated);
+  });
+ }
+
+ async dispatch(req:AuthRequest,id:string,handoverReference:string){
+  return this.db.$transaction(async tx=>{
+   const actor=await this.actor(tx,req);
+   await tx.$queryRaw<Array<{id:string}>>`SELECT id FROM "InternalTransferRequest" WHERE id=${id} FOR UPDATE`;
+   const row=await tx.internalTransferRequest.findUnique({where:{id},include});
+   if(!row||!row.sourceId||!row.decidedBy)throw missing();
+   if(actor.role!=="admin"&&!actor.locationIds.includes(row.sourceId))throw missing();
+   if(row.status==="in_transit"&&row.dispatch?.handoverReference===handoverReference)return project(row);
+   if(row.status!=="reserved"||row.version!==3||!row.reservationExpiresAt||row.reservationExpiresAt<=new Date())throw conflict();
+   const [source,destination]=await Promise.all([tx.location.findUnique({where:{id:row.sourceId}}),tx.location.findUnique({where:{id:row.destinationId}})]);
+   if(!mayActOnTransfer(actor,"dispatch",{state:"reserved",destinationId:row.destinationId,sourceId:row.sourceId,destinationActive:destination?.active===true,sourceActive:source?.active===true,authorizedBy:row.decidedBy,dispatchedBy:null,requestedBy:row.requestedBy}))throw conflict();
+   const result=await this.depletion.consumeClaim(tx,{claimType:"internal_transfer",claimId:id,locationId:row.sourceId,kind:"transfer_dispatch",actorId:actor.id,requestId:req.requestId,lines:row.lines.map(l=>({claimLineId:l.id,variantId:l.variantId,quantity:l.quantity.toString()}))});
+   const lines=await tx.stockDepletionLine.findMany({where:{depletionId:result.depletionId},include:{lot:true},orderBy:{id:"asc"}});
+   if(!lines.length||result.replayed)throw conflict();
+   const lots=lines.map(l=>{
+    if(l.lot.unitCostMinor===null||l.lot.unitCostMinor<0)throw new ApiProblem(409,"CONFLICT","Original lot cost must be known before dispatch.");
+    return {depletionLineId:l.id,lotNumber:l.lot.lotNumber,expiryDate:l.lot.expiryDate,unitCostMinor:l.lot.unitCostMinor,valueMinor:dispatchCarryingValue(l.lotQuantityBefore.toString(),l.lotQuantityAfter.toString(),l.lot.unitCostMinor)};
+   });
+   const totalValueMinor=lots.reduce((sum,l)=>sum+l.valueMinor,0n);
+   if(totalValueMinor>9223372036854775807n)throw new ApiProblem(409,"CONFLICT","Transfer value exceeds ledger capacity.");
+   await tx.internalTransferDispatch.create({data:{transferId:id,depletionId:result.depletionId,dispatchedBy:actor.id,handoverReference,totalValueMinor,lots:{create:lots}}});
+   const updated=await tx.internalTransferRequest.update({where:{id},data:{status:"in_transit",version:4},include});
+   await tx.auditEvent.create({data:{actorId:actor.id,requestId:req.requestId,action:"transfer.dispatched",entityId:id,details:{sourceId:row.sourceId,destinationId:row.destinationId,depletionId:result.depletionId,totalValueMinor:totalValueMinor.toString(),currency:"GHS"}}});
    return project(updated);
   });
  }
