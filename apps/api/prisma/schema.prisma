@@ -109,6 +109,8 @@ model Location {
   name String
   active Boolean @default(true)
   grants UserLocation[]
+  inboundTransferRequests InternalTransferRequest[] @relation("TransferDestination")
+  outboundTransferRequests InternalTransferRequest[] @relation("TransferSource")
   positions StockPosition[]
   physicalReturnReceipts PhysicalReturnReceipt[]
   logisticsNode LogisticsNode?
@@ -235,6 +237,7 @@ model Variant {
   // Existing UAT database relationships; no database change.
   posStockHoldLines   PosStockHoldLine[]
   posCashReceiptLines PosCashReceiptLine[]
+  transferRequestLines InternalTransferRequestLine[]
 }
 
 model StockPosition {
@@ -1740,4 +1743,39 @@ model IntegrationCredentialDraft {
   ciphertext String
   version Int @default(1)
   updatedAt DateTime @updatedAt @default(now()) @db.Timestamptz(3)
+}
+
+
+// Internal transfer requisitions are not supplier purchase orders or stock receipts.
+// Authorization alone does not reserve, dispatch or post inventory.
+model InternalTransferRequest {
+  id String @id @default(uuid())
+  destinationId String
+  destination Location @relation("TransferDestination", fields: [destinationId], references: [id], onDelete: Restrict)
+  sourceId String?
+  source Location? @relation("TransferSource", fields: [sourceId], references: [id], onDelete: Restrict)
+  requestedBy String
+  requestKey String
+  requestHash String
+  note String
+  status String @default("requested")
+  version Int @default(1)
+  decidedBy String?
+  decisionNote String?
+  decidedAt DateTime? @db.Timestamptz(3)
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  lines InternalTransferRequestLine[]
+  @@unique([requestedBy, requestKey])
+  @@index([destinationId, status, createdAt])
+  @@index([sourceId, status, createdAt])
+}
+
+model InternalTransferRequestLine {
+  id String @id @default(uuid())
+  requestId String
+  request InternalTransferRequest @relation(fields: [requestId], references: [id], onDelete: Restrict)
+  variantId String
+  variant Variant @relation(fields: [variantId], references: [id], onDelete: Restrict)
+  quantity Decimal @db.Decimal(15, 3)
+  @@unique([requestId, variantId])
 }

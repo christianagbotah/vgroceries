@@ -53,3 +53,27 @@ or discrepancy resolution, not cancellation or editing historical cost.
 No production stock, financial journal or database mutation is included in
 this foundation slice. Full transfer workflow, branch purchase system,
 ledger posting and integration tests remain outstanding.
+
+## Persistent requisition and head-office decision implementation
+
+The next slice adds InternalTransferRequest and InternalTransferRequestLine
+with location/variant foreign keys, positive quantity checks, one variant
+per requisition and a constrained requested/authorized/rejected lifecycle.
+Authenticated endpoints (development contract, not yet public OpenAPI):
+- GET /api/v1/inventory/transfer-requisitions: up to 100 newest requests,
+  head office sees all, inventory managers see their active granted source
+  or destination locations only.
+- POST same route: destination, note and requested variant/base quantities;
+  Idempotency-Key required, same normalized payload replays the record.
+- POST /api/v1/inventory/transfer-requisitions/:id/decision:
+  head-office admin selects a distinct active source and authorizes all
+  requested quantities, or rejects with a reason. Identical decision
+  retries replay; conflicting decisions fail. Actor and session are
+  refreshed while the user row is locked; decision locks the request.
+  Each new request or decision records an audit event in the transaction.
+
+Authorization is not availability certification. All responses explicitly
+mark stockReserved, stockMoved and financialPostingCreated false. No stock
+or accounting mutation is allowed by these endpoints. Partial approval,
+reservation, dispatch, receiving and accounting integration are next.
+The schema is additive and has not been applied to the live database.
