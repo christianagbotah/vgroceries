@@ -52,3 +52,18 @@ This slice does **not** send an email, WhatsApp message or SMS, and it is **not*
 a scheduled appointment reminder. Time-based reminders, consent, delivery
 provider receipts, no-show/late handling and opt-out controls remain tracked
 in GitHub issues #64 and #66.
+
+
+## Order-scoped SMS preference foundation (24 November 2026)
+
+The checkout request optionally carries an explicit boolean smsUpdatesOptIn.
+Only true creates an order-specific consent record, bound to the checkout
+phone fingerprint and a server-recorded policy version and timestamp.
+Creation is atomic with the order. Missing or false preserves the original
+checkout replay hash, while changing a committed opt-in conflicts with the
+original request. Existing orders are not backfilled.
+
+This foundation is not an enabled delivery service. Customer-facing opt-in,
+revocation, consent-aware staging and provider dispatch/receipt handling are
+separate acceptance gates. Do not activate transactional messages based only
+on a global flag or possession of a phone number. OTP remains independent.

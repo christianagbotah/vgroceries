@@ -56,3 +56,33 @@ test("checkout fails closed when the configured commerce stock location becomes 
   assert.equal(x.r.status,503); assert.equal(x.body.error.code,"UNAVAILABLE");
   assert.deepEqual(await Promise.all([db.order.count(),db.reservation.count(),db.idempotency.count()]),[0,0,0]);
 });
+
+
+test("order SMS opt-in is atomic, replay-safe and never inferred from a phone number", async () => {
+  const g = await guest();
+  const h = {cookie:g.cookie,"x-csrf-token":g.csrf};
+  const input = {...collectionBody(), smsUpdatesOptIn:true};
+  const result = await complete(input,"order-sms-optin-001",h);
+  assert.equal(result.r.status,201);
+  const id = result.body.data.orderId;
+  const consent = await db.orderSmsConsent.findUniqueOrThrow({where:{orderId:id}});
+  assert.equal(consent.policyVersion,"order-sms-v1");
+  assert.match(consent.recipientFingerprint,/^[0-9a-f]{64}$/);
+  assert.equal(consent.revokedAt,null);
+  const event = await db.outboxEvent.findFirstOrThrow({where:{aggregateId:id,type:"order.created"}});
+  assert.ok(consent.recordedAt.getTime() <= event.createdAt.getTime());
+  const replay = await complete(input,"order-sms-optin-001",h);
+  assert.equal(replay.r.status,201);
+  assert.deepEqual(replay.body.data,result.body.data);
+  const changed = await complete({...input,smsUpdatesOptIn:false},"order-sms-optin-001",h);
+  assert.equal(changed.r.status,409);
+  for (const [key,body] of [
+    ["order-sms-optout-001",{...collectionBody(),smsUpdatesOptIn:false}],
+    ["order-sms-absent-001",collectionBody()],
+  ] as const) {
+    const created = await complete(body,key,h);
+    assert.equal(created.r.status,201);
+    assert.equal(await db.orderSmsConsent.findUnique({where:{orderId:created.body.data.orderId}}),null);
+  }
+  assert.equal(await db.orderSmsConsent.count(),1);
+});
