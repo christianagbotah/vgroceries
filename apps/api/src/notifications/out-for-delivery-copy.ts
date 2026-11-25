@@ -10,13 +10,13 @@ export function outForDeliveryCopy(input:{
  if(contact){
   const name=contact.name.replace(/[\u0000-\u001f\u007f]/g," ").replace(/\s+/g," ").trim().slice(0,80);
   const phone=contact.phone?.replace(/[\s()-]/g,"")??"";
-  if(name)parts.push(`${contact.kind==="rider"?"Delivery rider":"Delivery partner"}: ${name}.`);
+  if(name)parts.push(`${contact.kind==="rider"?"Delivery agent":"Delivery partner"}: ${name}.`);
   if(/^(?:\+233[0-9]{9}|233[0-9]{9}|0[0-9]{9})$/.test(phone))parts.push(`Contact: ${phone}.`);
  }
  if(input.paymentMethod==="cash_on_delivery"&&input.paymentStatus==="unpaid"&&Number.isSafeInteger(input.totalMinor)&&input.totalMinor>0){
   const amount=new Intl.NumberFormat("en-GH",{minimumFractionDigits:2,maximumFractionDigits:2}).format(input.totalMinor/100);
   // Use GSM-friendly currency text to avoid unnecessary Unicode SMS segments.
-  parts.push(`Amount payable: GHS ${amount}. Kindly have the exact cash amount ready, as our rider may not have sufficient change.`);
+  parts.push(`Amount payable: GHS ${amount}. Kindly have the exact cash amount ready, as our delivery agent may not have sufficient change.`);
  }else if(input.paymentStatus==="succeeded"){
   parts.push("Fully paid. No payment is required upon delivery.");
  }
