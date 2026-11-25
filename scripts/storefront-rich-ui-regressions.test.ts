@@ -34,8 +34,7 @@ describe("rich storefront visual system", () => {
   test("hero headline and photography are visible before client hydration", () => {
     const hero = read("src/features/catalog/storefront-editorial-hero.tsx");
     // Both image and headline must render immediately, before hydration.
-    expect(hero).toContain("key={current.id}" + "\n          initial={false}");
-    expect(hero).toContain("key={current.id}" + "\n            initial={false}");
+    expect(hero.match(/key=\{current\.id\}\s+initial=\{false\}/g)).toHaveLength(2);
     expect(hero).toContain("alt={current.alt}");
     expect(hero).toContain('id="home-hero-title"');
   });
@@ -102,4 +101,11 @@ describe("rich storefront visual system", () => {
     expect(product).toContain("product-detail-photo");
     expect(product).not.toContain("Representative product art");
   });
+});
+
+test("FreshMarket hero keeps the real carousel, category navigation and accessible playback", () => {
+  const hero = read("src/features/catalog/storefront-editorial-hero.tsx");
+  expect(hero).toContain('data-storefront-template="freshmarket-001"');
+  for (const marker of ["storefrontHeroImage","storefrontProducePromoImage","storefrontPantryPromoImage","window.setInterval","document.visibilityState","onMouseEnter","onFocusCapture","ArrowLeft","ArrowRight","Pause featured slideshow","aria-current","useReducedMotion","href={current.ctaHref}","href={current.secondaryCtaHref}",'href="/track"',"md:grid-cols-4","md:grid-cols-[46%_54%]"]) expect(hero).toContain(marker);
+  for (const unsupported of ["100% Organic","12K Reviews","4.9/5","Same Day Delivery"]) expect(hero).not.toContain(unsupported);
 });
