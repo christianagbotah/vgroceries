@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { BusinessContact } from "@/features/business/public-contact";
 import { CmsInfoPage } from "@/components/shared/cms-info-page";
 import { getCmsContentPage } from "@/services/server-data";
 import type { CmsContentPageView } from "@/services/contracts";
@@ -23,6 +24,7 @@ export default async function HelpPage() {
   const page = await getCmsContentPage("help").catch(() => fallback);
   return (
     <CmsInfoPage page={page}>
+      <BusinessContact className="mb-4 space-y-2 rounded-xl border bg-card p-4 text-sm" />
       <div className="grid gap-3 sm:grid-cols-2">
         {[
           { href: "/manual", icon: Package, title: "Complete system manual", copy: "Searchable guide for customers and all staff roles" },

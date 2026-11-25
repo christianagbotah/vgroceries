@@ -7,6 +7,7 @@ import { Download, FileText, Printer, QrCode, ReceiptText, ShieldCheck } from "l
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import type { PublicOrder } from "@/services/contracts";
+import { usePublicBusinessContact } from "@/features/business/public-contact";
 import { formatMoney } from "@/lib/money";
 import {
   authenticatedOrderQrUrl,
@@ -33,6 +34,7 @@ export function OrderReceiptExperience({ order }: { order: PublicOrder }) {
   const [qrError, setQrError] = useState(false);
   const reducedMotion = useReducedMotion();
   const state = receiptStatus(order);
+  const contact = usePublicBusinessContact();
   const fileId = order.reference.replace(/[^a-z0-9_-]/gi, "_").slice(0, 75);
   const filePrefix = "Variety-" + fileId + (state.confirmed ? "-receipt" : "-order-summary");
 
@@ -73,7 +75,7 @@ export function OrderReceiptExperience({ order }: { order: PublicOrder }) {
     frame.style.opacity = "0";
     frame.style.pointerEvents = "none";
     frame.style.left = "-10000px";
-    frame.srcdoc = receiptDownloadHtml(order);
+    frame.srcdoc = receiptDownloadHtml(order, contact);
     const remove = () => { if (frame.isConnected) frame.remove(); };
     frame.onload = () => {
       try {
@@ -170,6 +172,7 @@ export function OrderReceiptExperience({ order }: { order: PublicOrder }) {
                 {state.confirmed ? "Payment state comes from the verified order record." :
                   "NOT PROOF OF PAYMENT. Payment has not been verified."}
                 <br />Not a tax invoice · Keep your order reference for enquiries.
+                {contact && (contact.supportPhone || contact.supportEmail || contact.receiptFooter) ? <><br />Current support information:<br />{[contact.supportPhone,contact.supportEmail,contact.receiptFooter].filter(Boolean).join(" · ")}</> : null}
               </p>
               <div aria-hidden className="absolute inset-x-0 bottom-0 h-2 bg-[linear-gradient(135deg,transparent_6px,#f0f1ea_0),linear-gradient(225deg,transparent_6px,#f0f1ea_0)] bg-[size:12px_12px] bg-repeat-x" />
             </motion.div>
@@ -179,11 +182,11 @@ export function OrderReceiptExperience({ order }: { order: PublicOrder }) {
               <Printer className="size-4" aria-hidden /> Print / Save as PDF
             </Button>
             <Button type="button" variant="outline" className="min-h-11 rounded-xl"
-              onClick={() => downloadFile(filePrefix + ".html", receiptDownloadHtml(order), "text/html;charset=utf-8")}>
+              onClick={() => downloadFile(filePrefix + ".html", receiptDownloadHtml(order, contact), "text/html;charset=utf-8")}>
               <Download className="size-4" aria-hidden /> Download full receipt
             </Button>
             <Button type="button" variant="outline" className="min-h-11 rounded-xl"
-              onClick={() => downloadFile(filePrefix + ".txt", receiptPlainText(order), "text/plain;charset=utf-8")}>
+              onClick={() => downloadFile(filePrefix + ".txt", receiptPlainText(order, contact), "text/plain;charset=utf-8")}>
               <FileText className="size-4" aria-hidden /> Download text
             </Button>
             <Button type="button" variant="outline" className="min-h-11 rounded-xl"

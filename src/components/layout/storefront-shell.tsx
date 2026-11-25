@@ -29,6 +29,7 @@ import {
   Store,
   UserRound,
 } from "lucide-react";
+import { BusinessContact } from "@/features/business/public-contact";
 import { useCart } from "@/features/checkout/cart-store";
 import { MotionCartIcon } from "@/features/checkout/motion-cart-icon";
 import { openBasketPeek } from "@/features/checkout/basket-peek-model";
@@ -286,7 +287,8 @@ export function StorefrontFooter() {
         </div>
         <div>
           <p className="text-sm font-bold">Stay connected</p>
-          <p className="mt-1 text-xs leading-relaxed text-white/65">Use your account for order history and repeat shopping. Public notification channels remain demo-only until launch configuration is complete.</p>
+          <p className="mt-1 text-xs leading-relaxed text-white/65">Use your account for order history and repeat shopping.</p>
+          <BusinessContact className="mt-3 space-y-1 text-xs text-white/80" />
           <div className="mt-4 hidden items-center gap-2 lg:flex">
             <Button asChild variant="secondary" className="h-10 whitespace-nowrap"><Link href="/account">My account</Link></Button>
             <Button asChild className="h-10 whitespace-nowrap bg-brand-amber text-[color:var(--brand-green-deep)] hover:bg-brand-amber/90"><Link href="/shop">Shop now</Link></Button>
@@ -297,7 +299,7 @@ export function StorefrontFooter() {
           <Button asChild className="h-11 min-w-0 w-full whitespace-nowrap bg-brand-amber px-3 text-sm text-[color:var(--brand-green-deep)] hover:bg-brand-amber/90"><Link href="/shop">Shop now</Link></Button>
         </div>
       </div>
-      <div className="border-t border-white/10"><div className="mx-auto flex max-w-[1500px] flex-wrap items-center justify-between gap-2 px-4 py-4 text-[11px] text-white/55"><p>© {new Date().getFullYear()} Variety Groceries · Ghana · Demo storefront</p><p>Mobile Money · Card · Bank transfer · Cash — provider connections remain clearly labelled in the checkout.</p></div></div>
+      <div className="border-t border-white/10"><div className="mx-auto flex max-w-[1500px] flex-wrap items-center justify-between gap-2 px-4 py-4 text-[11px] text-white/55"><p>© {new Date().getFullYear()} Variety Groceries · Ghana{!process.env.NEXT_PUBLIC_API_BASE_URL ? " · Demo storefront" : ""}</p><p>Mobile Money · Card · Bank transfer · Cash — provider connections remain clearly labelled in the checkout.</p></div></div>
     </footer>
   );
 }

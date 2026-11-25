@@ -1,23 +1,33 @@
 "use client";
-
+import {useState} from "react";
 import Link from "next/link";
-import { useStaff } from "@/features/staff/role-context";
-import { Badge } from "@/components/ui/badge";
-import { CreditCard, MessageSquareText, Truck, ShieldAlert } from "lucide-react";
-
-const channels = [
-  { name: "Payment gateways", icon: CreditCard, providers: ["Hubtel", "Paystack", "Flutterwave"], description: "Accept customer payments, verify transactions, reconcile settlements and handle refunds.", href: "/admin/payments", link: "View payment transactions", note: "Provider credentials and live routing are server-managed. This page cannot safely change them yet. Listing a gateway does not mean it is connected." },
-  { name: "SMS gateways", icon: MessageSquareText, providers: ["Hubtel", "Arkesel", "Nalo", "Twilio"], description: "Send order updates, account verification codes and operational alerts through approved senders.", href: "/admin/settings", link: "View business settings", note: "SMS credentials, sender identity and delivery routing are not editable in this dashboard yet. Do not enter API keys in general business settings." },
-  { name: "Delivery partners", icon: Truck, providers: ["In-house delivery", "External couriers"], description: "Manage manual delivery and future courier quoting, booking, status and proof-of-delivery integrations.", href: "/admin/providers", link: "View delivery providers", note: "External provider adapters are candidates until independently connected and verified. Existing provider cards are currently read-only." },
-];
-
-export default function IntegrationsPage() {
-  const { can } = useStaff();
-  if (!can("settings.manage")) return <main className="rounded-xl border p-6"><h1 className="text-xl font-semibold">Administrator access required</h1><p className="mt-2 text-sm text-muted-foreground">Only an authorised administrator may review integration configuration.</p></main>;
-  return <main className="mx-auto max-w-5xl space-y-5 pb-12">
-    <div><h1 className="font-serif text-2xl font-bold">Integrations &amp; providers</h1><p className="mt-1 text-sm text-muted-foreground">A single place to review payment, messaging and delivery integrations. Configuration and activation controls will appear here only after secure backend support and provider tests are ready.</p></div>
-    <div className="flex gap-3 rounded-xl border p-4 text-sm"><ShieldAlert className="mt-0.5 size-5 shrink-0 text-primary" aria-hidden /><div><strong>Security notice</strong><p className="mt-1 text-muted-foreground">No API keys, passwords or webhook secrets are displayed or accepted here. Payment and SMS routing cannot be switched from this screen yet. Never paste live credentials into support messages or ordinary forms.</p></div></div>
-    <div className="grid gap-4 lg:grid-cols-2">{channels.map(({name,icon:Icon,providers,description,href,link,note}) => <section key={name} className="space-y-3 rounded-xl border bg-card p-5"><div className="flex items-center gap-2"><Icon className="size-5 text-primary" aria-hidden /><h2 className="font-semibold">{name}</h2></div><p className="text-sm text-muted-foreground">{description}</p><div className="flex flex-wrap gap-2">{providers.map(provider => <Badge key={provider} variant="outline">{provider}</Badge>)}</div><p className="text-sm text-muted-foreground">{note}</p><Link className="inline-flex min-h-11 items-center font-semibold text-primary underline underline-offset-4" href={href}>{link}</Link></section>)}</div>
-    <section className="rounded-xl border bg-card p-5"><h2 className="font-semibold">Planned administrator controls</h2><p className="mt-2 text-sm leading-6 text-muted-foreground">Separate payment and SMS provider selection; encrypted secret storage; test/live mode; credential rotation; test connections; webhook verification; audit history; safe activation and rollback; courier configuration and coverage. Provider-specific features will only be enabled after their APIs have been integrated and verified.</p><Link className="mt-3 inline-flex min-h-11 items-center font-semibold text-primary underline" href="/admin/guides">Read staff operating guides</Link></section>
-  </main>;
+import {useApiData} from "@/features/staff/admin-data";
+import {configurationApi,type IntegrationId} from "@/features/staff/configuration/client";
+import {Button} from "@/components/ui/button";
+import {Input} from "@/components/ui/input";
+import {Label} from "@/components/ui/label";
+import {Dialog,DialogContent,DialogHeader,DialogTitle,DialogDescription} from "@/components/ui/dialog";
+import {LoadingState,ErrorState} from "@/components/shared/states";
+import {useToast} from "@/hooks/use-toast";
+import {ShieldCheck,KeyRound} from "lucide-react";
+const definitions:Record<IntegrationId,{name:string;fields:{key:string;label:string;secret:boolean}[]}>={
+ "hubtel-checkout":{name:"Hubtel Online Checkout",fields:[{key:"clientId",label:"Client ID",secret:true},{key:"clientSecret",label:"Client secret",secret:true},{key:"merchantAccountNumber",label:"Merchant account number",secret:false}]},
+ "hubtel-sms":{name:"Hubtel SMS",fields:[{key:"clientId",label:"Client ID",secret:true},{key:"clientSecret",label:"Client secret",secret:true},{key:"senderId",label:"Sender ID",secret:false}]},
+ "paystack-payment":{name:"Paystack",fields:[{key:"secretKey",label:"Secret key",secret:true}]},
+};
+export default function IntegrationsPage(){
+ const {data,loading,error,reload}=useApiData(configurationApi.credentials,[]);
+ const {toast}=useToast();
+ const [selected,setSelected]=useState<{id:IntegrationId;version:number}|null>(null);
+ const [values,setValues]=useState<Record<string,string>>({});
+ const [busy,setBusy]=useState(false);
+ function close(){setSelected(null);setValues({});}
+ async function save(e:React.FormEvent){e.preventDefault();if(!selected||busy||!data?.vaultReady)return;setBusy(true);try{await configurationApi.saveDraft(selected.id,selected.version,values);close();toast({title:"Encrypted credential draft saved",description:"The active integration has not changed."});await reload();}catch{setValues({});toast({title:"Credential draft could not be saved",description:"Reload the status and re-enter the credentials. No active integration was changed.",variant:"destructive"});}finally{setBusy(false);}}
+ return <main className="mx-auto max-w-5xl space-y-5 pb-12">
+ <header><h1 className="font-serif text-2xl font-bold">Integrations &amp; providers</h1><p className="text-sm text-muted-foreground">Manage encrypted credential candidates separately from active provider configuration.</p></header>
+ <div className="flex gap-3 rounded-xl border p-4"><ShieldCheck className="mt-1 size-5 shrink-0 text-primary"/><div><h2 className="font-semibold">Secure credential vault</h2><p className="text-sm text-muted-foreground">Credentials are never displayed after saving. Drafts do not switch payment providers or activate SMS. Connection testing and controlled activation are not available yet.</p></div></div>
+ {loading?<LoadingState/>:error?<ErrorState message={error} onRetry={reload}/>:data?<><p className="text-sm" role="status">{data.vaultReady?"Credential vault provisioned.":"Credential vault is not provisioned. Entry is disabled until an authorized deployment configures the encryption key."}</p><div className="grid gap-4 lg:grid-cols-2">{data.providers.map(p=><article key={p.id} className="space-y-3 rounded-xl border bg-card p-5"><h2 className="font-semibold">{definitions[p.id].name}</h2><p className="text-sm">Runtime configuration: {p.runtimeConfigured?"Present (not a connection test)":"Not configured"}</p><p className="text-sm text-muted-foreground">{p.draft?"Encrypted draft saved · revision "+p.draft.version:"No draft saved"}</p><Button disabled={!data.vaultReady||busy} variant="outline" onClick={()=>{setValues({});setSelected({id:p.id,version:p.draft?.version??0});}}><KeyRound className="size-4"/>{p.draft?"Replace credential draft":"Enter credentials"}</Button></article>)}</div></>:null}
+ <section className="rounded-xl border bg-card p-4"><h2 className="font-semibold">Delivery partners</h2><Link href="/admin/providers" className="text-sm font-medium text-primary underline">Manage delivery providers</Link></section>
+ <Dialog open={!!selected} onOpenChange={v=>{if(!v&&!busy)close();}}><DialogContent><DialogHeader><DialogTitle>{selected?definitions[selected.id].name:"Integration credentials"}</DialogTitle><DialogDescription>Enter all required values. Saving creates an encrypted draft only; current live settings remain unchanged.</DialogDescription></DialogHeader>{selected&&<form onSubmit={save} autoComplete="off" className="space-y-4">{definitions[selected.id].fields.map(f=><div key={f.key} className="space-y-1"><Label htmlFor={"credential-"+f.key}>{f.label}</Label><Input id={"credential-"+f.key} type={f.secret?"password":"text"} autoComplete="off" spellCheck={false} required disabled={busy} value={values[f.key]??""} onChange={e=>setValues({...values,[f.key]:e.target.value})}/></div>)}<Button type="submit" className="w-full" disabled={busy||!data?.vaultReady}>{busy?"Encrypting and saving…":"Save encrypted draft"}</Button></form>}</DialogContent></Dialog>
+ </main>;
 }

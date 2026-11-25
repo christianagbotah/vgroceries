@@ -8,6 +8,8 @@
  */
 
 import Link from "next/link";
+import { isDemoStaffSessionActive } from "@/features/staff/staff-demo-session";
+import { VerifiedDispatch } from "@/features/staff/configuration/verified-dispatch";
 import { useEffect, useState } from "react";
 import { apiOps, ApiError } from "@/services/client";
 import { useApiData } from "@/features/staff/admin-data";
@@ -34,6 +36,19 @@ type ProviderRow = Queue["providers"][number];
 const REASSIGNABLE = ["unassigned", "rescheduled", "failed"];
 
 export default function AdminDispatchPage() {
+  const [demo, setDemo] = useState<boolean | null>(null);
+  // Resolve sessionStorage after hydration, following AdminAuthGate.
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setDemo(isDemoStaffSessionActive() || !process.env.NEXT_PUBLIC_API_BASE_URL);
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, []);
+  if (demo === null) return <LoadingState label="Loading dispatch workspace" />;
+  return demo ? <DemoDispatchPage /> : <VerifiedDispatch />;
+}
+
+function DemoDispatchPage() {
   const { user, can } = useStaff();
   const { toast } = useToast();
   const { data, loading, error, reload } = useApiData(() => apiOps.dispatchQueue(), []);
@@ -134,6 +149,7 @@ export default function AdminDispatchPage() {
             manually. Failed deliveries can be rescheduled, reassigned or returned to store.
           </p>
         </div>
+        <Button asChild variant="outline" className="h-10"><Link href="/admin/dispatch/providers">Manual courier dispatch</Link></Button>
         <Button variant="outline" className="h-10" onClick={reload}>
           <RotateCw className="size-4" aria-hidden /> Refresh
         </Button>
