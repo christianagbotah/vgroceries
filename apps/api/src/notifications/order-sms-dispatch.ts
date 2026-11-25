@@ -13,6 +13,8 @@ export function currentOrderSmsState(type:string,fulfilmentStatus:string,cancell
  if(type==="order.cancelled")return !!cancelledAt&&fulfilmentStatus==="cancelled";
  if(cancelledAt||fulfilmentStatus==="cancelled")return false;
  if(type==="payment.succeeded")return true; // Independently revalidated financial evidence required.
+ if(type==="delivery.out_for_delivery")return fulfilmentStatus==="dispatched";
+ if(type==="delivery.delivered")return fulfilmentStatus==="delivered";
  if(type==="order.created")return fulfilmentStatus==="awaiting_confirmation";
  if(type==="fulfilment.confirmed")return fulfilmentStatus==="confirmed";
  if(type==="fulfilment.packed")return ["packed","ready_for_collection"].includes(fulfilmentStatus);
@@ -40,7 +42,7 @@ export async function dispatchOneOrderSms(db:PrismaClient,options:{
   if(event&&event.smsStageReceipt?.outcome==="queued"&&now.getTime()-event.createdAt.getTime()<=maxAge){
    const resolved=await resolveSmsOrder(tx,event,now);
    const order=resolved?await tx.order.findUnique({where:{id:resolved.orderId},select:{id:true,reference:true,customerPhone:true,smsConsent:true,fulfilmentStatus:true,cancelledAt:true,customerUser:{select:{phone:true,phoneVerifiedAt:true,active:true,role:true}}}}):null;
-   const plan=order&&resolved?planOrderSms({event:{...event,aggregateId:resolved.orderId},order,enabled:true,evaluatedAt:now,paymentConfirmed:resolved.paymentConfirmed}):null;
+   const plan=order&&resolved?planOrderSms({event:{...event,type:resolved.template??event.type,aggregateId:resolved.orderId},order,enabled:true,evaluatedAt:now,paymentConfirmed:resolved.paymentConfirmed,deliveryConfirmed:resolved.deliveryConfirmed}):null;
    // Initial sending scope is registered, active customers with a verified
    // matching phone. Guest SMS requires its own proof-of-possession flow.
    if(order&&plan&&order.customerUser?.active&&order.customerUser.role==="customer"&&
@@ -48,7 +50,7 @@ export async function dispatchOneOrderSms(db:PrismaClient,options:{
       order.customerUser.phone===order.customerPhone&&
       plan.recipientFingerprint===item.recipientFingerprint&&plan.templateKey===item.templateKey&&
       item.templateVersion===1&&item.consentRecordedAt?.getTime()===plan.consentRecordedAt.getTime()&&
-      currentOrderSmsState(event.type,order.fulfilmentStatus,order.cancelledAt)){
+      currentOrderSmsState(plan.templateKey,order.fulfilmentStatus,order.cancelledAt)){
     try{
      const recipient=decryptCustomerDestination(item.recipientEncrypted,options.keyHex);
      if(recipient===order.customerPhone)prepared={recipient,content:customerMessage(plan.templateKey,order.reference).body};
