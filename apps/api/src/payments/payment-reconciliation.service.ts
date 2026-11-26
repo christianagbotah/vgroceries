@@ -4,6 +4,7 @@ import { API_CONFIG, type ApiConfig } from "../config";
 import { Database } from "../database/database";
 import { ApiProblem } from "../http/errors";
 import type { PaymentProviderObservation } from "./payment-provider";
+import { isHostedRecoveryCandidate, isVerifiedHostedRecovery } from "./hosted-payment-recovery";
 import { PaymentOutcomeService } from "./payment-outcome.service";
 import { PaymentProviderRegistry } from "./payment-provider.registry";
 
@@ -94,6 +95,10 @@ export class PaymentReconciliationService {
     requestId: string,
   ) {
     const snapshot = await this.snapshot(attemptId);
+    // The bounded worker only checks accepted, unsettled hosted attempts.
+    // It must not race a webhook or alter an already terminal payment.
+    if (trigger === "worker" && !isHostedRecoveryCandidate(snapshot))
+      return { attemptId, result: "deferred" as const };
     const adapter = this.registry.requireConfigured();
     if (adapter.id !== snapshot.provider)
       throw new ApiProblem(409, "CONFLICT", "The payment attempt provider is not currently authoritative.");
@@ -128,6 +133,11 @@ export class PaymentReconciliationService {
         current.providerRef !== snapshot.providerRef ||
         current.amountMinor !== snapshot.amountMinor ||
         current.currency !== snapshot.currency;
+      if (stale && trigger === "worker") {
+        // A callback or staff reconciliation may have won the race. Never
+        // change an otherwise successful order to review on a stale worker read.
+        return { attemptId, result: "deferred" as const };
+      }
       if (stale) {
         await this.forceException(tx, current, actorId, requestId, "stale_reconciliation_snapshot");
         await tx.paymentReconciliation.create({
@@ -136,6 +146,16 @@ export class PaymentReconciliationService {
         return { attemptId, result: "exception" as const };
       }
 
+      if (trigger === "worker" && !isVerifiedHostedRecovery(current, observation)) {
+        // Keep the order pending on provider delay, transport errors or an
+        // unverified result. Record the check for cooldown and operator review.
+        await tx.paymentReconciliation.create({
+          data: this.reconciliationData(attemptId, snapshot.provider, trigger, observation,
+            observation.state === "unknown" ? "no_record" : observation.state === "succeeded" ? "mismatch" : "state_changed",
+            requestId, "Automatic hosted recovery deferred; no verified matching payment."),
+        });
+        return { attemptId, result: "deferred" as const };
+      }
       if (observation.state === "unknown") {
         await this.forceException(tx, current, actorId, requestId, "provider_lookup_no_record");
         await tx.paymentReconciliation.create({
