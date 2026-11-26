@@ -19,5 +19,5 @@ export function registeredOrderSmsPhoneVerified(
 export function orderCreatedPaymentInstruction(method: string, status: string): string {
   const electronic = ["electronic", "mobile_money", "card_hosted", "bank_transfer"].includes(method);
   return electronic && ["pending", "unpaid"].includes(status)
-    ? " Complete your secure payment using your existing order." : "";
+    ? " If not already paid, follow the secure payment instructions for your existing order. Do not pay twice." : "";
 }
