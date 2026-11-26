@@ -108,6 +108,7 @@ export const operationMeta: Record<string, OperationMeta> = {
   "cashier.pos.customers": {},
   "pos.verified.tills": {},
   "pos.verified.quote": {},
+  "pos.verified.reconciliation": {},
   "admin.pos.search": { tags: [...CAT, ...STOCK] },
   "admin.pos.complete": { invalidates: [...CAT, ...STOCK, ...ORD, ...PAY, ...SESS] },
   "admin.pos.hold": { invalidates: STOCK },
