@@ -1282,5 +1282,11 @@ export function productionOpenApi(app: INestApplication): OpenAPIObject {
       responses: authorityResponses("StockAdjustmentOutcomeEnvelope"),
     },
   };
+  doc.paths["/api/v1/orders/{orderId}"].post = {
+    security: [{ cookieAuth: [] }, { bearerAuth: [] }, { guestAuth: [] }],
+    description: "Owner-scoped Hubtel status refresh for the existing pending payment attempt. Requires customer or owning guest credentials, CSRF for cookie mutations, and server-side provider evidence. Rate-limited; never initiates a new payment.",
+    parameters: [orderId, csrf],
+    responses: authorityResponses("PublicOrderEnvelope"),
+  };
   return doc;
 }
