@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { OrderSmsVerification } from "@/features/checkout/order-sms-verification";
+import { OrderEmailVerification } from "@/features/checkout/order-email-verification";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { apiOps, ApiError, type PublicOrder } from "@/services/client";
@@ -234,6 +235,7 @@ export default function CheckoutStatusPage() {
         <div className="mt-4"><OrderReceiptExperience order={order} /></div>
       </div>
 
+      {process.env.NEXT_PUBLIC_ORDER_EMAIL_OPT_IN_ENABLED === "1" && process.env.NEXT_PUBLIC_API_BASE_URL ? <div className="mt-4"><OrderEmailVerification key={order.id} orderId={order.id} /></div> : null}
       {order.smsPhoneVerificationRequired ? <div className="mt-4"><OrderSmsVerification key={order.id} reference={order.reference} onVerified={() => void load()} /></div> : null}
 
       {needsAction ? (
