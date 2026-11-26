@@ -19,11 +19,12 @@ export function OrderSmsVerification({ reference, onVerified }: {
   const [resendUntil, setResendUntil] = useState(0);
   const [clock, setClock] = useState(0);
   const waitSeconds = Math.max(0, Math.ceil((resendUntil - clock) / 1000));
+  const coolingDown = waitSeconds > 0;
   useEffect(() => {
-    if (waitSeconds === 0) return;
+    if (!coolingDown) return;
     const timer = window.setInterval(() => setClock(Date.now()), 1000);
     return () => window.clearInterval(timer);
-  }, [waitSeconds === 0]);
+  }, [coolingDown]);
 
   async function requestCode() {
     if (lock.current || verified || Date.now() < resendUntil) return;
