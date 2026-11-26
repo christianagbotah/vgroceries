@@ -22,8 +22,9 @@ const depletionKinds = new Set([
   "dispatch_handover",
   "collection_handover",
   "pos_handover",
+  "transfer_dispatch",
 ]);
-const claimTypes = new Set(["order", "pos_draft"]);
+const claimTypes = new Set(["order", "pos_draft", "internal_transfer"]);
 
 function conflict(message: string): never {
   throw new ApiProblem(409, "CONFLICT", message);
@@ -40,6 +41,7 @@ function outOfStock(message: string): never {
 function validateInput(input: ConsumeClaimInput) {
   if (
     !claimTypes.has(input.claimType) ||
+    (input.claimType === "internal_transfer") !== (input.kind === "transfer_dispatch") ||
     !input.claimId?.trim() ||
     !input.locationId?.trim() ||
     !depletionKinds.has(input.kind) ||

@@ -55,6 +55,9 @@ const GROUPS: NavGroup[] = [
       { href: "/admin/products", label: "Products", permission: "catalog.view", icon: Boxes },
       { href: "/admin/categories", label: "Categories", permission: "catalog.view", icon: ClipboardList },
       { href: "/admin/inventory", label: "Stock overview", permission: "inventory.view", icon: Warehouse },
+      ...(process.env.NEXT_PUBLIC_INTERNAL_TRANSFERS_UAT === "1" ? [
+        { href: "/admin/inventory/transfers", label: "Branch transfers", permission: "inventory.view" as const, icon: Truck },
+      ] : []),
       { href: "/admin/inventory/receiving", label: "Goods receiving", permission: "inventory.receive", icon: ClipboardCheck },
       { href: "/admin/inventory/adjustments", label: "Adjustments", permission: "inventory.view", icon: TriangleAlert },
       { href: "/admin/inventory/stocktakes", label: "Stocktakes", permission: "inventory.view", icon: ClipboardList },
