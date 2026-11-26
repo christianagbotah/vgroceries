@@ -136,9 +136,10 @@ P0 = release-critical; P1 = operational completeness; P2 = enhancements. Each ch
 - [ ] BUY-01 Verify supplier records, PO drafts/approval and receiving match.
 - [ ] BUY-02 Verify partial receipt, costs, discrepancy and supplier return.
 - [ ] XFER-01 Audit transfer authorization and location grants (#204).
-  - [x] XFER-01a Port #204 current-main candidate as #223 (head d36ac6f009b92e49955c383bdb0b0262d9c10e64) preserving notification/POS schema and contracts, add independent default-off API authority and private GETs; prior branch CI passed but fresh CI required.
-  - [ ] XFER-01b Verify exact-head frontend/API CI, review migration and access constraints, document complete OpenAPI, wire independent release flag and test disabled gates. No live transfer activation.
-  - [ ] XFER-01c Finish destination receipt, partial receipt and discrepancy authority (current candidate previews only); run stock conservation and accounting boundary tests before enabling dispatch.
+  - [x] XFER-01a Port #204 current-main candidate as #223 (head d36ac6f009b92e49955c383bdb0b0262d9c10e64) preserving notification/POS schema and contracts, add independent default-off API authority and private GETs; fresh [CI](https://github.com/christianagbotah/vgroceries/actions/runs/45889130957) and [API](https://github.com/christianagbotah/vgroceries/actions/runs/45889130950) passed; merged 1bb04acc9da72ca776f85cebdd573caf3f0602af.
+  - [ ] XFER-01b #223 CI/API passed and merged; complete OpenAPI, independent release flag and live migration/permission acceptance remain outstanding. No live transfer activation.
+  - [x] XFER-01c Submit #224 destination receipt ledger and independently default-off write API, original lot stock movement, cumulative exact carrying value and idempotent retries; head a8d0dedb1538afb783d45c8a6066c0b8a22a3968. Fresh CI pending.
+  - [ ] XFER-01d Verify #224 CI and review; complete receipt status/remaining stock projection, reconciliation/close transitions, quarantine and discrepancy authority, complete OpenAPI and staff receipt UI. No activation until stock conservation and accounting boundary UAT pass.
 - [ ] XFER-02 Verify exact cost/quantity valuation and immutable movement links.
 - [ ] XFER-03 Verify dispatch/receipt/in-transit quantities, partial receipt and discrepancies.
 - [ ] XFER-04 Test concurrency, cross-location denial, reconciliation and staff UI.
