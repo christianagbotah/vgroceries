@@ -352,3 +352,11 @@ export interface TrackRequest {
   reference: string;
   code: string;
 }
+
+/** Owner-only order email preference; no destination or verification secret exposed. */
+export interface OrderEmailUpdatesStatus {
+  state: "not_requested" | "verification_required" | "verified" | "revoked";
+  verificationAvailable: boolean;
+}
+export type OrderEmailUpdatesAction = {action:"request"|"revoke"} | {action:"verify";challengeId:string;code:string};
+export type OrderEmailUpdatesResult = {verified:true} | {verified:false;challengeId:string;expiresAt:string} | {revoked:true};
