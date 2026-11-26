@@ -389,3 +389,40 @@ test("staged SMS dispatch accepts once, suppresses revoked consent and never ret
   assert.equal(bySource.get(revoked.id)?.attempts,0);
   assert.ok(rows.every(row=>row.status!=="delivered"));
 });
+
+
+test("guest SMS defers until the matching order phone OTP is consumed and sends only once", async () => {
+  const now=new Date(), before=new Date(now.getTime()-10000), eventTime=new Date(now.getTime()-5000);
+  const phone="+233241111111", fingerprint=customerDestinationFingerprint(phone);
+  const source=await createOrder("sms-guest-proof",null,"VG-GUESTSMS001");
+  await db.orderSmsConsent.create({data:{orderId:source.aggregateId,recipientFingerprint:fingerprint,policyVersion:"order-sms-v1",recordedAt:before}});
+  await db.outboxEvent.update({where:{id:source.id},data:{createdAt:eventTime}});
+  const keyHex="48".repeat(32);
+  assert.equal((await stageOrderSmsBatch(db,{enabled:true,keyHex,now})).queued,1);
+  let calls=0;
+  const config={endpoint:"https://sms.hubtel.com/v1/messages/send",clientId:"fixture",clientSecret:"fixture",senderId:"VARIETY"};
+  const fetcher:typeof fetch=async (_url,init)=>{
+    calls++;
+    const payload=JSON.parse(String(init?.body));
+    assert.equal(payload.To,phone);
+    assert.match(payload.Content,/VG-GUESTSMS001/);
+    return new Response(JSON.stringify({Status:"success",MessageId:"fixture-guest-accepted"}),{status:200});
+  };
+  const options={enabled:true,keyHex,config,fetcher,guestProofEnabled:true,now};
+  await db.customerMessageDelivery.updateMany({where:{sourceEventId:source.id},data:{nextAttemptAt:now}});
+  assert.equal((await dispatchOneOrderSms(db,options)).outcome,"deferred");
+  assert.equal(calls,0);
+  const proof={userId:source.aggregateId,purpose:"sensitive_action",recipientFingerprint:fingerprint,
+    recipientEncrypted:"synthetic-proof-not-used-by-dispatch",codeDigest:"a".repeat(64),status:"consumed",
+    consumedAt:now,createdAt:eventTime,expiresAt:new Date(now.getTime()+300000)};
+  // A consumed OTP for another destination cannot authorize these messages.
+  await db.customerOtpChallenge.create({data:{...proof,recipientFingerprint:"wrong-fingerprint"}});
+  await db.customerMessageDelivery.updateMany({where:{sourceEventId:source.id},data:{nextAttemptAt:now}});
+  assert.equal((await dispatchOneOrderSms(db,options)).outcome,"deferred");
+  assert.equal(calls,0);
+  await db.customerOtpChallenge.create({data:proof});
+  await db.customerMessageDelivery.updateMany({where:{sourceEventId:source.id},data:{nextAttemptAt:now}});
+  assert.equal((await dispatchOneOrderSms(db,options)).outcome,"accepted");
+  assert.equal((await dispatchOneOrderSms(db,options)).outcome,"empty");
+  assert.equal(calls,1);
+});
