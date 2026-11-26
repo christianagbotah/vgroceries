@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { OrderSmsPreference } from "@/features/checkout/order-sms-preference";
 import { OrderSmsVerification } from "@/features/checkout/order-sms-verification";
 import { OrderEmailVerification } from "@/features/checkout/order-email-verification";
 import Link from "next/link";
@@ -236,6 +237,7 @@ export default function CheckoutStatusPage() {
       </div>
 
       {process.env.NEXT_PUBLIC_ORDER_EMAIL_OPT_IN_ENABLED === "1" && process.env.NEXT_PUBLIC_API_BASE_URL ? <div className="mt-4"><OrderEmailVerification key={order.id} orderId={order.id} /></div> : null}
+      {process.env.NEXT_PUBLIC_API_BASE_URL ? <div className="mt-4"><OrderSmsPreference key={order.id} orderId={order.id} onRevoked={() => void load()} /></div> : null}
       {order.smsPhoneVerificationRequired ? <div className="mt-4"><OrderSmsVerification key={order.id} reference={order.reference} onVerified={() => void load()} /></div> : null}
 
       {needsAction ? (
