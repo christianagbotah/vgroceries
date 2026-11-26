@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { apiOps, ApiError } from "@/services/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,17 +16,26 @@ export function OrderSmsVerification({ reference, onVerified }: {
   const [verified, setVerified] = useState(false);
   const [error, setError] = useState("");
   const lock = useRef(false);
-  const nextRequest = useRef(0);
+  const [resendUntil, setResendUntil] = useState(0);
+  const [clock, setClock] = useState(0);
+  const waitSeconds = Math.max(0, Math.ceil((resendUntil - clock) / 1000));
+  useEffect(() => {
+    if (waitSeconds === 0) return;
+    const timer = window.setInterval(() => setClock(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, [waitSeconds === 0]);
 
   async function requestCode() {
-    if (lock.current || verified || Date.now() < nextRequest.current) return;
+    if (lock.current || verified || Date.now() < resendUntil) return;
     lock.current = true;
     setBusy(true);
     setError("");
     try {
       setChallenge(await apiOps.requestOrderOtp(reference));
       setCode("");
-      nextRequest.current = Date.now() + 60_000;
+      const now = Date.now();
+      setClock(now);
+      setResendUntil(now + 60_000);
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "Could not send the verification code.");
     } finally { lock.current = false; setBusy(false); }
@@ -59,8 +68,8 @@ export function OrderSmsVerification({ reference, onVerified }: {
         <p className="text-sm text-muted-foreground">You requested SMS updates. Verify the number supplied with this order. You can continue checkout without completing this optional step.</p>
       </div>
       {error ? <p role="alert" className="text-sm text-destructive">{error}</p> : null}
-      <Button type="button" variant="outline" disabled={busy} onClick={() => void requestCode()}>
-        {busy ? "Please wait…" : challenge ? "Resend verification code (after 1 minute)" : "Send verification code"}
+      <Button type="button" variant="outline" disabled={busy || waitSeconds > 0} onClick={() => void requestCode()}>
+        {busy ? "Please wait…" : waitSeconds > 0 ? `Resend in ${waitSeconds}s` : challenge ? "Resend verification code" : "Send verification code"}
       </Button>
       {challenge ? <div className="space-y-2">
         <Label htmlFor="checkout-sms-code">SMS verification code</Label>
