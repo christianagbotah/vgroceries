@@ -1288,5 +1288,194 @@ export function productionOpenApi(app: INestApplication): OpenAPIObject {
     parameters: [orderId, csrf],
     responses: authorityResponses("PublicOrderEnvelope"),
   };
+  Object.assign(schemas, {
+  "OrderEmailUpdatesAction": {
+    "oneOf": [
+      {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "action"
+        ],
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": [
+              "request"
+            ]
+          }
+        }
+      },
+      {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "action",
+          "challengeId",
+          "code"
+        ],
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": [
+              "verify"
+            ]
+          },
+          "challengeId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "code": {
+            "type": "string",
+            "pattern": "^\\d{6}$"
+          }
+        }
+      },
+      {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "action"
+        ],
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": [
+              "revoke"
+            ]
+          }
+        }
+      }
+    ]
+  },
+  "OrderEmailUpdatesStatusEnvelope": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "ok",
+      "data"
+    ],
+    "properties": {
+      "ok": {
+        "type": "boolean",
+        "enum": [
+          true
+        ]
+      },
+      "data": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "state",
+          "verificationAvailable"
+        ],
+        "properties": {
+          "state": {
+            "type": "string",
+            "enum": [
+              "not_requested",
+              "verification_required",
+              "verified",
+              "revoked"
+            ]
+          },
+          "verificationAvailable": {
+            "type": "boolean"
+          }
+        }
+      }
+    }
+  },
+  "OrderEmailUpdatesResultEnvelope": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "ok",
+      "data"
+    ],
+    "properties": {
+      "ok": {
+        "type": "boolean",
+        "enum": [
+          true
+        ]
+      },
+      "data": {
+        "oneOf": [
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "verified"
+            ],
+            "properties": {
+              "verified": {
+                "type": "boolean",
+                "enum": [
+                  true
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "verified",
+              "challengeId",
+              "expiresAt"
+            ],
+            "properties": {
+              "verified": {
+                "type": "boolean",
+                "enum": [
+                  false
+                ]
+              },
+              "challengeId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "expiresAt": {
+                "type": "string",
+                "format": "date-time"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "revoked"
+            ],
+            "properties": {
+              "revoked": {
+                "type": "boolean",
+                "enum": [
+                  true
+                ]
+              }
+            }
+          }
+        ]
+      }
+    }
+  }
+});
+  doc.paths["/api/v1/orders/{orderId}/email-updates"] = {
+    get: {
+      security: [{ cookieAuth: [] }, { bearerAuth: [] }, { guestAuth: [] }],
+      description: "Owner-only order email preference status. Does not expose the mailbox or verification secret.",
+      parameters: [orderId],
+      responses: authorityResponses("OrderEmailUpdatesStatusEnvelope"),
+    },
+    post: {
+      security: [{ cookieAuth: [] }, { bearerAuth: [] }, { guestAuth: [] }],
+      description: "Owner-only email verification request, code verification or consent revocation. Uses the order contact snapshot; no caller-supplied destination. Requires CSRF for cookie mutations.",
+      parameters: [orderId, csrf],
+      requestBody: { required: true, content: { "application/json": { schema: ref("OrderEmailUpdatesAction") } } },
+      responses: authorityResponses("OrderEmailUpdatesResultEnvelope"),
+    },
+  };
   return doc;
 }
