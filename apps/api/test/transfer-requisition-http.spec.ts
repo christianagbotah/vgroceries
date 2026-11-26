@@ -186,3 +186,35 @@ test("disabled transfer authority refuses reads and writes even for administrato
   assert.equal(await db.internalTransferRequest.count(),before);
  }finally{process.env.INTERNAL_TRANSFERS_ENABLED="true";}
 });
+
+test("destination receipts are scoped, idempotent, partial and conserve original dispatched value",async()=>{
+ const a=await login("requester"),b=await login("source");
+ const row=await db.internalTransferRequest.findFirstOrThrow({where:{status:"in_transit"},include:{dispatch:{include:{lots:true}}}});
+ const lot=row.dispatch!.lots[0],url=route+"/"+row.id+"/receive";
+ const first={receiptReference:"RECEIPT-1",lines:[{dispatchLotId:lot.id,quantity:"1"}]};
+ const old=process.env.INTERNAL_TRANSFER_RECEIPTS_ENABLED;
+ process.env.INTERNAL_TRANSFER_RECEIPTS_ENABLED="false";
+ try{
+  assert.equal((await call(url,"POST",first,a,"receive-1")).status,503);
+  process.env.INTERNAL_TRANSFER_RECEIPTS_ENABLED="true";
+  assert.equal((await call(url,"POST",first,b,"receive-1")).status,404);
+  assert.equal((await call(url,"POST",{...first,lines:[{...first.lines[0],unitCostMinor:1}]},a,"receive-1")).status,400);
+  const one=await call(url,"POST",first,a,"receive-1");
+  assert.equal(one.status,200,JSON.stringify(one.payload));
+  assert.equal(one.payload.data.lines[0].valueMinor,"2500");
+  assert.equal((await call(url,"POST",first,a,"receive-1")).payload.data.id,one.payload.data.id);
+  assert.equal((await call(url,"POST",{...first,receiptReference:"DIFFERENT"},a,"receive-1")).status,409);
+  assert.equal((await call(url,"POST",{receiptReference:"OVER",lines:[{dispatchLotId:lot.id,quantity:"2"}]},a,"receive-over")).status,409);
+  const final=await Promise.all([call(url,"POST",{receiptReference:"FINAL",lines:[{dispatchLotId:lot.id,quantity:"1.5"}]},a,"receive-2"),call(url,"POST",{receiptReference:"FINAL",lines:[{dispatchLotId:lot.id,quantity:"1.5"}]},a,"receive-2")]);
+  assert.ok(final.every(r=>r.status===200),JSON.stringify(final));
+  assert.equal(final[0].payload.data.id,final[1].payload.data.id);
+  const ledger=await db.internalTransferReceiptLine.findMany({where:{dispatchLotId:lot.id},include:{destinationLot:{include:{position:true}}}});
+  assert.equal(ledger.length,2);
+  assert.equal(ledger.reduce((sum,l)=>sum+l.valueMinor,0n),6250n);
+  assert.equal(ledger.reduce((sum,l)=>sum+Number(l.quantity),0),2.5);
+  assert.ok(ledger.every(l=>l.destinationLot.position.locationId==="loc_accra"&&l.destinationLot.lotNumber==="B-RICE"&&l.destinationLot.unitCostMinor===2500));
+  assert.equal((await db.stockLot.findUniqueOrThrow({where:{id:"branch-b-lot"}})).quantity.toString(),"7.5");
+  assert.equal(await db.stockMovement.count({where:{reason:"internal_transfer_receipt"}}),2);
+  await assert.rejects(db.internalTransferReceiptLine.update({where:{id:ledger[0].id},data:{valueMinor:0n}}));
+ }finally{if(old===undefined)delete process.env.INTERNAL_TRANSFER_RECEIPTS_ENABLED;else process.env.INTERNAL_TRANSFER_RECEIPTS_ENABLED=old;}
+});
