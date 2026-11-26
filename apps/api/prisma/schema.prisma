@@ -383,6 +383,7 @@ model OutboxEvent {
   createdAt DateTime @default(now()) @db.Timestamptz(3)
   publishedAt DateTime? @db.Timestamptz(3)
   notificationReceipt NotificationOutboxReceipt?
+  smsStageReceipt OrderSmsStageReceipt?
   notification Notification?
   @@index([publishedAt, createdAt])
 }
@@ -1740,4 +1741,13 @@ model IntegrationCredentialDraft {
   ciphertext String
   version Int @default(1)
   updatedAt DateTime @updatedAt @default(now()) @db.Timestamptz(3)
+}
+
+
+/// Durable staging decision, independent of the in-app notification projector.
+model OrderSmsStageReceipt {
+  sourceEventId String @id
+  sourceEvent OutboxEvent @relation(fields: [sourceEventId], references: [id])
+  outcome String
+  processedAt DateTime @default(now()) @db.Timestamptz(3)
 }

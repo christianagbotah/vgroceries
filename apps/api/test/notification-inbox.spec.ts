@@ -4,6 +4,9 @@ import type { INestApplication } from "@nestjs/common";
 import { createApplication } from "../src/bootstrap";
 import { Database } from "../src/database/database";
 import { NotificationService } from "../src/notifications/notification.service";
+import { dispatchOneOrderSms } from "../src/notifications/order-sms-dispatch";
+import { stageOrderSmsBatch } from "../src/notifications/order-sms-stage-batch";
+import { customerDestinationFingerprint } from "../src/notifications/customer-message-crypto";
 import { commerceTestPassword, seedCommerceFixtures } from "./commerce-fixtures";
 
 let app: INestApplication, db: Database, inbox: NotificationService, base: string;
@@ -278,4 +281,111 @@ test("pickup confirmation source cannot be redirected to another customer by a d
   const projected=await inbox.projectBatch();
   assert.equal(projected.created,2);
   assert.equal(await db.notification.count({where:{recipientUserId:"customer-b"}}),0);
+});
+
+test("SMS staging persists eligible events once and records skipped events without blocking subsequent orders", async () => {
+  const now = new Date();
+  const at = (ms: number) => new Date(now.getTime() - ms);
+  const phone = "+233241111111";
+  const fingerprint = customerDestinationFingerprint(phone);
+  const consent = { recipientFingerprint: fingerprint, policyVersion: "order-sms-v1", recordedAt: at(9000) };
+  const noConsent = await createOrder("sms-stage-no-consent", "customer-a", "VG-STAGE000001");
+  const valid = await createOrder("sms-stage-valid", "customer-a", "VG-STAGE000002");
+  const revoked = await createOrder("sms-stage-revoked", "customer-a", "VG-STAGE000003");
+  const expired = await createOrder("sms-stage-expired", "customer-a", "VG-STAGE000004");
+  const wrongRecipient = await createOrder("sms-stage-wrong-phone", "customer-a", "VG-STAGE000005");
+  const unsupported = await createOrder("sms-stage-unsupported", "customer-a", "VG-STAGE000006");
+  await db.orderSmsConsent.createMany({ data: [
+    { orderId: valid.aggregateId, ...consent },
+    { orderId: revoked.aggregateId, ...consent, revokedAt: at(1000) },
+    { orderId: expired.aggregateId, ...consent, recordedAt: at(48 * 3600000) },
+    { orderId: wrongRecipient.aggregateId, ...consent, recipientFingerprint: customerDestinationFingerprint("+233242222222") },
+    { orderId: unsupported.aggregateId, ...consent },
+  ] });
+  await db.outboxEvent.update({ where: { id: noConsent.id }, data: { createdAt: at(8000) } });
+  await db.outboxEvent.update({ where: { id: valid.id }, data: { createdAt: at(7000) } });
+  await db.outboxEvent.update({ where: { id: revoked.id }, data: { createdAt: at(6000) } });
+  await db.outboxEvent.update({ where: { id: expired.id }, data: { createdAt: at(25 * 3600000) } });
+  await db.outboxEvent.update({ where: { id: wrongRecipient.id }, data: { createdAt: at(5000) } });
+  await db.outboxEvent.update({ where: { id: unsupported.id }, data: { createdAt: at(4000), type: "payment.succeeded" } });
+  const ids = [noConsent.id, valid.id, revoked.id, expired.id, wrongRecipient.id, unsupported.id];
+  const options = { enabled: true, keyHex: "47".repeat(32), take: 2, now };
+  assert.deepEqual(await stageOrderSmsBatch(db, { ...options, enabled: false }), {disabled:true,scanned:0,queued:0,busy:false});
+  assert.equal(await db.orderSmsStageReceipt.count({ where: { sourceEventId: { in: ids } } }), 0);
+  const first = await stageOrderSmsBatch(db, options);
+  assert.equal(first.scanned, 2);
+  assert.equal(first.queued, 0);
+  const next = await Promise.all([stageOrderSmsBatch(db, options), stageOrderSmsBatch(db, options)]);
+  assert.equal(next.reduce((sum, batch) => sum + batch.queued, 0), 1);
+  await stageOrderSmsBatch(db, options);
+  const done = await stageOrderSmsBatch(db, options);
+  assert.equal(done.scanned, 0);
+  const receipts = await db.orderSmsStageReceipt.findMany({where:{sourceEventId:{in:ids}}});
+  assert.deepEqual(Object.fromEntries(receipts.map(r=>[r.sourceEventId,r.outcome])), {
+    [noConsent.id]: "ineligible", [valid.id]: "queued", [revoked.id]: "ineligible",
+    [expired.id]: "expired", [wrongRecipient.id]: "ineligible", [unsupported.id]: "ineligible",
+  });
+  const queue = await db.customerMessageDelivery.findMany({where:{sourceEventId:{in:ids}}});
+  assert.equal(queue.length, 1);
+  assert.equal(queue[0].sourceEventId, valid.id);
+  assert.equal(queue[0].channel, "sms");
+  assert.equal(queue[0].status, "pending");
+  assert.equal(queue[0].attempts, 0);
+  assert.equal(queue[0].recipientFingerprint, fingerprint);
+  assert.equal(queue[0].consentRecordedAt?.toISOString(), consent.recordedAt.toISOString());
+  assert.ok(queue[0].recipientEncrypted.startsWith("v1."));
+  assert.ok(!JSON.stringify(queue).includes(phone));
+  assert.equal(await db.notificationOutboxReceipt.count({where:{sourceEventId:{in:ids}}}),0);
+});
+
+test("staged SMS dispatch accepts once, suppresses revoked consent and never retries an ambiguous attempt", async () => {
+  const now = new Date();
+  const beforeEvent = new Date(now.getTime() - 10000);
+  const eventTime = new Date(now.getTime() - 5000);
+  const phone = "+233241111111";
+  await db.user.update({where:{id:"customer-a"},data:{phone,phoneVerifiedAt:beforeEvent}});
+  const sources: Awaited<ReturnType<typeof createOrder>>[] = [];
+  for (const suffix of ["accepted","unknown","revoked"]) {
+    const event = await createOrder("sms-dispatch-"+suffix,"customer-a","VG-DISPATCH"+suffix.toUpperCase());
+    await db.orderSmsConsent.create({data:{orderId:event.aggregateId,recipientFingerprint:customerDestinationFingerprint(phone),policyVersion:"order-sms-v1",recordedAt:beforeEvent}});
+    await db.outboxEvent.update({where:{id:event.id},data:{createdAt:eventTime}});
+    sources.push(event);
+  }
+  const keyHex = "49".repeat(32);
+  assert.equal((await stageOrderSmsBatch(db,{enabled:true,keyHex,now})).queued,3);
+  const [accepted,unknown,revoked] = sources;
+  // Assign deterministic queue order and isolate this test's synthetic events.
+  for (const [i,source] of sources.entries()) {
+    await db.customerMessageDelivery.updateMany({where:{sourceEventId:source.id},data:{createdAt:new Date(now.getTime()-3000+i*1000),nextAttemptAt:now}});
+  }
+  // Other test fixtures' old queue rows may remain, but their source events
+  // are no longer present. Dispatch must suppress them without network I/O.
+  await db.orderSmsConsent.update({where:{orderId:revoked.aggregateId},data:{revokedAt:now}});
+  const requests:string[]=[];
+  const config={endpoint:"https://sms.hubtel.com/v1/messages/send",clientId:"fixture",clientSecret:"fixture",senderId:"VARIETY"};
+  const fetcher:typeof fetch=async (_url,init)=>{
+    const payload=JSON.parse(String(init?.body));
+    assert.equal(payload.To,phone);
+    requests.push(payload.Content);
+    if(payload.Content.includes("VG-DISPATCHUNKNOWN"))throw Error("simulated lost response");
+    assert.ok(payload.Content.includes("VG-DISPATCHACCEPTED"));
+    return new Response(JSON.stringify({Status:"success",MessageId:"fixture-accepted"}),{status:200});
+  };
+  const options={enabled:true,keyHex,config,fetcher,now};
+  for(let n=0;n<20;n++){
+    const result=await dispatchOneOrderSms(db,options);
+    if(result.outcome==="empty")break;
+  }
+  assert.equal(requests.length,2);
+  assert.equal((await dispatchOneOrderSms(db,options)).outcome,"empty");
+  const rows=await db.customerMessageDelivery.findMany({where:{sourceEventId:{in:sources.map(s=>s.id)}}});
+  const bySource=new Map(rows.map(row=>[row.sourceEventId,row]));
+  assert.equal(bySource.get(accepted.id)?.lastErrorCode,"accepted_awaiting_delivery");
+  assert.equal(bySource.get(accepted.id)?.providerMessageId,"fixture-accepted");
+  assert.equal(bySource.get(accepted.id)?.status,"sending");
+  assert.equal(bySource.get(unknown.id)?.lastErrorCode,"provider_outcome_unknown");
+  assert.equal(bySource.get(unknown.id)?.attempts,1);
+  assert.equal(bySource.get(revoked.id)?.status,"suppressed");
+  assert.equal(bySource.get(revoked.id)?.attempts,0);
+  assert.ok(rows.every(row=>row.status!=="delivered"));
 });

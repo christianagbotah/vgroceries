@@ -67,3 +67,50 @@ This foundation is not an enabled delivery service. Customer-facing opt-in,
 revocation, consent-aware staging and provider dispatch/receipt handling are
 separate acceptance gates. Do not activate transactional messages based only
 on a global flag or possession of a phone number. OTP remains independent.
+
+### Order-scoped staging policy
+
+The pure order SMS planning function validates the event/order identity,
+recorded policy version, exact recipient fingerprint, event time and current
+revocation state. Initial candidates are order-created, fulfilment-confirmed,
+packed and cancelled. Financial and courier events remain excluded pending
+independent durable outcome checks. No destination or body is returned in
+the metadata plan. This policy does not enable the staging job or provider
+dispatch. The existing worker remains fail-closed; integration with durable
+queue processing, authenticated opt-out and dispatch-time revalidation is
+still required.
+
+### Durable order SMS queue preparation
+
+The bounded staging batch function uses a separate durable outbox receipt,
+a transaction-scoped advisory lock, order locks, encrypted destinations and
+existing delivery uniqueness constraints. Missing consent, invalid
+destinations and unsupported event types cannot stage messages. Ineligible
+events receive a receipt; events older than 24 hours are expired rather than
+queued for stale notifications. The batch has no provider transport and is
+not connected to the runtime staging command. Opt-out, dispatch-time
+validation, safe provider attempts and delivery evidence remain release gates.
+
+### Hubtel dispatch candidate (not activated)
+
+The single-message dispatch function claims a pending queue item durably
+before calling the existing Hubtel SMS adapter. It revalidates the source
+event, order consent, matching encrypted recipient, template revision,
+verified active customer phone and current fulfilment state. Guest orders
+remain excluded until a separate phone ownership proof is available.
+Provider acceptance remains `sending / accepted_awaiting_delivery`;
+uncertain outcomes remain `sending / provider_outcome_unknown`. Neither
+is delivered, and neither is automatically retried. A crashed attempt
+remains `sending / attempt_started` for investigation. The worker is not
+scheduled or activated. The remaining race between a committed claim and
+the outbound request needs a coordinated revocation design, and real
+delivery receipts and authorized activation remain prerequisites.
+
+Out-for-delivery copy resolves the current assigned rider profile and work
+phone, or the manual delivery partner snapshot and directory contact phone.
+Missing contact details are omitted rather than invented. The exact-change
+reminder applies only to unpaid cash-on-delivery orders and uses the stored
+order total in minor units. Fully paid orders explicitly require no payment
+at handover; uncertain payment statuses make neither claim. SMS currency
+uses GSM-compatible GHS; tracking remains included. Individual external
+courier driver details are not stored by the current manual booking model.
