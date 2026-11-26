@@ -6,6 +6,7 @@ import {sendHubtelSms,validateHubtelSmsConfig,type HubtelSmsConfig} from "./hubt
 
 import {outForDeliveryCopy,type DeliverySmsContact} from "./out-for-delivery-copy";
 import {resolveSmsOrder} from "./order-sms-payment-evidence";
+import {guestOrderSmsProofWhere, registeredOrderSmsPhoneVerified, orderCreatedPaymentInstruction} from "./order-sms-recipient-policy";
 
 const maxAge=24*60*60*1000;
 const safeReference=(value:unknown)=>typeof value==="string"&&/^[A-Za-z0-9._:-]{1,128}$/.test(value)?value:undefined;
@@ -16,7 +17,7 @@ export function currentOrderSmsState(type:string,fulfilmentStatus:string,cancell
  if(type==="payment.succeeded")return true; // Independently revalidated financial evidence required.
  if(type==="delivery.out_for_delivery")return fulfilmentStatus==="dispatched";
  if(type==="delivery.delivered")return fulfilmentStatus==="delivered";
- if(type==="order.created")return fulfilmentStatus==="awaiting_confirmation";
+ if(type==="order.created")return true; // Historical creation is true even after preparation starts.
  if(type==="fulfilment.confirmed")return fulfilmentStatus==="confirmed";
  if(type==="fulfilment.packed")return ["packed","ready_for_collection"].includes(fulfilmentStatus);
  return false;
@@ -26,7 +27,7 @@ export function currentOrderSmsState(type:string,fulfilmentStatus:string,cancell
  * ambiguous result remains sending, never automatically eligible again.
  * Gateway acceptance is not a handset delivery receipt. */
 export async function dispatchOneOrderSms(db:PrismaClient,options:{
- enabled:boolean;keyHex:string;config:HubtelSmsConfig;fetcher?:typeof fetch;now?:Date;
+ enabled:boolean;keyHex:string;config:HubtelSmsConfig;fetcher?:typeof fetch;now?:Date;guestProofEnabled?:boolean;
 }){
  if(!options.enabled)return {outcome:"disabled" as const};
  validateHubtelSmsConfig(options.config);
@@ -42,20 +43,38 @@ export async function dispatchOneOrderSms(db:PrismaClient,options:{
   let prepared:{recipient:string;content:string}|null=null;
   if(event&&event.smsStageReceipt?.outcome==="queued"&&now.getTime()-event.createdAt.getTime()<=maxAge){
    const resolved=await resolveSmsOrder(tx,event,now);
-   const order=resolved?await tx.order.findUnique({where:{id:resolved.orderId},select:{id:true,reference:true,customerPhone:true,smsConsent:true,fulfilmentStatus:true,cancelledAt:true,paymentMethod:true,paymentStatus:true,totalMinor:true,deliveryJob:{select:{assignmentKind:true,providerKey:true,providerNameSnapshot:true,riderProfile:{select:{phone:true,user:{select:{name:true,role:true,active:true}}}}}},customerUser:{select:{phone:true,phoneVerifiedAt:true,active:true,role:true}}}}):null;
+   const order=resolved?await tx.order.findUnique({where:{id:resolved.orderId},select:{id:true,reference:true,customerPhone:true,customerUserId:true,guestSessionId:true,smsConsent:true,fulfilmentStatus:true,cancelledAt:true,paymentMethod:true,paymentStatus:true,totalMinor:true,deliveryJob:{select:{assignmentKind:true,providerKey:true,providerNameSnapshot:true,riderProfile:{select:{phone:true,user:{select:{name:true,role:true,active:true}}}}}},customerUser:{select:{phone:true,phoneVerifiedAt:true,active:true,role:true}}}}):null;
    const plan=order&&resolved?planOrderSms({event:{...event,type:resolved.template??event.type,aggregateId:resolved.orderId},order,enabled:true,evaluatedAt:now,paymentConfirmed:resolved.paymentConfirmed,deliveryConfirmed:resolved.deliveryConfirmed}):null;
-   // Initial sending scope is registered, active customers with a verified
-   // matching phone. Guest SMS requires its own proof-of-possession flow.
-   if(order&&plan&&order.customerUser?.active&&order.customerUser.role==="customer"&&
-      order.customerUser.phoneVerifiedAt&&order.customerUser.phoneVerifiedAt.getTime()<=now.getTime()&&
-      order.customerUser.phone===order.customerPhone&&
+   // Revalidate immutable queue identity and current consent before reading
+   // phone proof. A guest who has not yet verified may finish the OTP flow
+   // within the existing 24-hour event window, without losing the queued event.
+   const valid = order && plan &&
       plan.recipientFingerprint===item.recipientFingerprint&&plan.templateKey===item.templateKey&&
       item.templateVersion===1&&item.consentRecordedAt?.getTime()===plan.consentRecordedAt.getTime()&&
-      currentOrderSmsState(plan.templateKey,order.fulfilmentStatus,order.cancelledAt)){
+      currentOrderSmsState(plan.templateKey,order.fulfilmentStatus,order.cancelledAt);
+   let recipientVerified = false;
+   if(valid && order && plan){
+    recipientVerified=registeredOrderSmsPhoneVerified(order.customerUser,order.customerPhone,now);
+    if(options.guestProofEnabled===true&&!order.customerUserId&&order.guestSessionId){
+     const proof=await tx.customerOtpChallenge.findFirst({
+      where:guestOrderSmsProofWhere(order.id,plan.recipientFingerprint,plan.consentRecordedAt,now),
+      select:{id:true},
+     });
+     recipientVerified=!!proof;
+     if(!recipientVerified){
+      await tx.customerMessageDelivery.updateMany({where:{id:item.id,status:"pending",attempts:0},
+       data:{nextAttemptAt:new Date(now.getTime()+120000),lastErrorCode:"awaiting_guest_phone_verification"}});
+      return {outcome:"deferred" as const};
+     }
+    }
+   }
+   if(valid&&order&&plan&&recipientVerified){
     try{
      const recipient=decryptCustomerDestination(item.recipientEncrypted,options.keyHex);
      if(recipient===order.customerPhone){
-      let content=customerMessage(plan.templateKey,order.reference).body;
+      let content=customerMessage(plan.templateKey,order.reference,plan.templateKey==="payment.succeeded"?order.totalMinor:undefined).body;
+      if(plan.templateKey==="order.created")
+       content+=orderCreatedPaymentInstruction(order.paymentMethod,order.paymentStatus);
       if(plan.templateKey==="delivery.out_for_delivery"){
        const job=order.deliveryJob;
        let contact:DeliverySmsContact|null=null;
