@@ -78,3 +78,15 @@ test("expired code and changed mailbox cannot establish consent proof",async()=>
  await db.order.update({where:{id:"email-order"},data:{customerEmail:"changed@example.test"}});
  await assert.rejects(()=>proof.verify(owner,"email-order",id,code,t),/Email updates are not available/);
 });
+
+
+test("database accepts the three explicit OTP purposes and rejects arbitrary purpose values",async()=>{
+ const {id}=await issued();
+ const row=await db.customerOtpChallenge.findUniqueOrThrow({where:{id}});
+ assert.equal(row.purpose,"order_email_verification");
+ for(const purpose of ["phone_verification","sensitive_action"]){
+  await db.customerOtpChallenge.update({where:{id},data:{purpose}});
+ }
+ await assert.rejects(()=>db.customerOtpChallenge.update({where:{id},data:{purpose:"unapproved_purpose"}}));
+ assert.equal((await db.customerOtpChallenge.findUniqueOrThrow({where:{id}})).purpose,"sensitive_action");
+});
