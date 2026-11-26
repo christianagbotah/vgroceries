@@ -143,6 +143,21 @@ test("one counted cash sale atomically depletes reserved goods and updates till 
   const receipt=await api("GET",`/admin/pos/cash-sales/${sale.id}`,admin);
   assert.equal(receipt.status,200);
   assert.equal(receipt.payload.data.reference,sale.reference);
+  // Authenticated cash and till records must not enter shared/browser caches.
+  for(const path of [
+    "/admin/pos/cash-sales",
+    `/admin/pos/cash-sales/${sale.id}`,
+    "/admin/pos/tills",
+    `/admin/pos/tills/${till.id}`,
+    `/admin/pos/tills/${till.id}/reconciliation`,
+  ]){
+    const privateResponse=await fetch(base+"/api/v1"+path,{
+      headers:{authorization:"Bearer "+admin},
+    });
+    assert.equal(privateResponse.status,200,path);
+    assert.match(privateResponse.headers.get("cache-control")??"",/private/i,path);
+    assert.match(privateResponse.headers.get("cache-control")??"",/no-store/i,path);
+  }
   const printResponse=await fetch(
     base+`/api/v1/admin/pos/cash-sales/${sale.id}/print`,{
       headers:{authorization:"Bearer "+admin},
