@@ -4,6 +4,8 @@ import { Database } from "../database/database";
 import { ApiProblem } from "../http/errors";
 import { ShipmentCustomerTrackingService } from "../logistics/shipment-customer-tracking.service";
 import { legacyOrderTrackingJourney } from "./legacy-order-tracking";
+import { guestOrderSmsProofWhere } from "../notifications/order-sms-recipient-policy";
+import { customerDestinationFingerprint } from "../notifications/customer-message-crypto";
 
 const money = (minor: number) => `₵${(minor / 100).toFixed(2)}`;
 const refundSourceLabel = (source: RefundSourceType) => {
@@ -28,11 +30,25 @@ export class OrderProjectionService {
         slot: true,
         pickupSnapshot: true,
         pickupAppointment: true,
+        smsConsent: true,
         paymentAttempts: { orderBy: [{ createdAt: "asc" }, { id: "asc" }] },
         refunds: { orderBy: [{ createdAt: "asc" }, { id: "asc" }] },
       },
     });
     if (!o) throw new ApiProblem(404, "NOT_FOUND", "Order not found.");
+
+    const now = new Date();
+    const consent = o.smsConsent;
+    const needsGuestSmsProof = process.env.CUSTOMER_GUEST_ORDER_SMS_ENABLED === "true" &&
+      !o.customerUserId && !!o.guestSessionId && o.fulfilmentStatus !== "cancelled" &&
+      !!consent && !consent.revokedAt && consent.policyVersion === "order-sms-v1" &&
+      consent.recordedAt.getTime() <= now.getTime() &&
+      consent.recipientFingerprint === customerDestinationFingerprint(o.customerPhone);
+    const smsPhoneVerificationRequired = needsGuestSmsProof && consent ?
+      !(await this.db.customerOtpChallenge.findFirst({
+        where: guestOrderSmsProofWhere(o.id, consent.recipientFingerprint, consent.recordedAt, now),
+        select: { id: true },
+      })) : false;
 
     // Cancellation is authoritative before handover; its planned Shipment is
     // retained for history and must not advertise an active future journey.
@@ -58,6 +74,7 @@ export class OrderProjectionService {
       channel: o.channel as "online" | "pos",
       customerName: o.customerName,
       customerPhone: o.customerPhone,
+      ...(smsPhoneVerificationRequired ? { smsPhoneVerificationRequired: true } : {}),
       fulfilment: o.fulfilment as PublicOrder["fulfilment"],
       ...(o.pickupSnapshot?.transportWindowStart && o.pickupSnapshot.transportWindowEnd ? {
         slotLabel: `${o.pickupSnapshot.transportWindowStart.toISOString().slice(0, 10)} ${o.pickupSnapshot.transportWindowStart.toISOString().slice(11, 16)}–${o.pickupSnapshot.transportWindowEnd.toISOString().slice(11, 16)}`,
