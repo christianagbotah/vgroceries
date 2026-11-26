@@ -272,7 +272,7 @@ test("staff onboarding remains OFF on a default-configured API",async()=>{
 
 test("staff OpenAPI exposes only the four intended role-protected invitation routes",()=>{
   const doc=productionOpenApi(app);
-  assert.equal(Object.keys(doc.paths).length,165);
+  assert.equal(Object.keys(doc.paths).length,166);
   const list=doc.paths["/api/v1/admin/staff"];
   assert.ok(list.get);
   assert.equal(list.post,undefined);
