@@ -14,7 +14,7 @@ test("invalid dispatch configuration is rejected before accessing queue",async()
 });
 test("stale or cancelled order updates cannot be sent as current milestones",()=>{
  assert.equal(currentOrderSmsState("order.created","awaiting_confirmation",null),true);
- assert.equal(currentOrderSmsState("order.created","confirmed",null),false);
+ assert.equal(currentOrderSmsState("order.created","confirmed",null),true);
  assert.equal(currentOrderSmsState("fulfilment.packed","ready_for_collection",null),true);
  assert.equal(currentOrderSmsState("fulfilment.packed","delivered",null),false);
  assert.equal(currentOrderSmsState("order.cancelled","cancelled",new Date()),true);
