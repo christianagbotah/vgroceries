@@ -19,7 +19,7 @@ P0 = release-critical; P1 = operational completeness; P2 = enhancements. Each ch
   - [x] VG-A07c Submit #219 bounded cash-sale history, private admin route, receipt review, UI and regression tests, selectively ported from #175 to current main; head 11b9558a099e3d83a499eb9ff48e4e65514298b4.
   - [x] VG-A07d #219 exact-head [CI](https://github.com/christianagbotah/vgroceries/actions/runs/45878802833) and [API](https://github.com/christianagbotah/vgroceries/actions/runs/45878802913) passed; merged a6b1c4b96213c112d1cc53b2e550259b9c52cbcc. Live read-only admin UAT remains outstanding.
 - [x] VG-A07e Submit #222 explicit independent default-off POS cash history and till reconciliation release build gates, regression tests and rollout documentation (head c9f9496192cd43e7a5f83aa63d46a100c9ffba7b).
-- [ ] VG-A07f Verify #222 CI/API, review/merge, then include read-only POS screens in a compatible release and complete administrator UAT.
+- [x] VG-A07f #222 exact-head [CI](https://github.com/christianagbotah/vgroceries/actions/runs/45882744277) and [API](https://github.com/christianagbotah/vgroceries/actions/runs/45882744143) passed; merged 798a85fe36d6f5d0759c04711285c49549d5b814. Compatible release and live administrator UAT outstanding.
 - [ ] VG-A08 Establish one compatible web/API release lineage, compare current runtime provenance privately. Component release markers match RC4; current main directly descends from that source. Verify artifacts rather than relying solely on markers; root-level historical markers are stale. Preserve rollback and verify migrated DB, correct worker runtime, and live POS/storefront route parity.
 - Next action: INC-03/INC-04 and INC-06c–09 take priority over VG-A07d; continue independent POS work while payment/notification gates run. #207 ([CI](https://github.com/christianagbotah/vgroceries/actions/runs/45799999170), [API](https://github.com/christianagbotah/vgroceries/actions/runs/45799999150)) and #208 ([CI](https://github.com/christianagbotah/vgroceries/actions/runs/45800003211), [API](https://github.com/christianagbotah/vgroceries/actions/runs/45800003177)) passed and merged. #209 exact-head CI passed and merged; reconciliation uses existing GET endpoints, independent default-off UI flag, no new routes on API, no migrations or financial writes. Preserve prior release roadmap. No deployment.
 
@@ -136,6 +136,9 @@ P0 = release-critical; P1 = operational completeness; P2 = enhancements. Each ch
 - [ ] BUY-01 Verify supplier records, PO drafts/approval and receiving match.
 - [ ] BUY-02 Verify partial receipt, costs, discrepancy and supplier return.
 - [ ] XFER-01 Audit transfer authorization and location grants (#204).
+  - [x] XFER-01a Port #204 current-main candidate as #223 (head d36ac6f009b92e49955c383bdb0b0262d9c10e64) preserving notification/POS schema and contracts, add independent default-off API authority and private GETs; prior branch CI passed but fresh CI required.
+  - [ ] XFER-01b Verify exact-head frontend/API CI, review migration and access constraints, document complete OpenAPI, wire independent release flag and test disabled gates. No live transfer activation.
+  - [ ] XFER-01c Finish destination receipt, partial receipt and discrepancy authority (current candidate previews only); run stock conservation and accounting boundary tests before enabling dispatch.
 - [ ] XFER-02 Verify exact cost/quantity valuation and immutable movement links.
 - [ ] XFER-03 Verify dispatch/receipt/in-transit quantities, partial receipt and discrepancies.
 - [ ] XFER-04 Test concurrency, cross-location denial, reconciliation and staff UI.
