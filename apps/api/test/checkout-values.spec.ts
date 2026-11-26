@@ -146,3 +146,14 @@ test("checkout contact and address boundaries reject whitespace and malformed Gh
   ]) expectValidation(() => validateCheckoutContact(bad));
   assert.doesNotThrow(() => validateCheckoutContact(request()));
 });
+
+
+test("email preference is explicit, independent and bound to a valid checkout address",()=>{
+  const base=request();
+  assert.equal(checkoutRequestHash(base),checkoutRequestHash(request({emailUpdatesOptIn:false})));
+  assert.notEqual(checkoutRequestHash(base),checkoutRequestHash(request({emailUpdatesOptIn:true})));
+  assert.notEqual(checkoutRequestHash(request({emailUpdatesOptIn:true})),checkoutRequestHash(request({emailUpdatesOptIn:true,customerEmail:"another@example.test"})));
+  assert.notEqual(checkoutRequestHash(request({emailUpdatesOptIn:true})),checkoutRequestHash(request({smsUpdatesOptIn:true})));
+  assert.doesNotThrow(()=>validateCheckoutContact(request({emailUpdatesOptIn:true})));
+  for(const customerEmail of [undefined,"","bad@example.test,other@example.test","bad@example.test\r\nBcc: other@example.test"])expectValidation(()=>validateCheckoutContact(request({emailUpdatesOptIn:true,customerEmail})));
+});
