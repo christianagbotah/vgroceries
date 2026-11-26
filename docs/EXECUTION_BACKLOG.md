@@ -21,10 +21,11 @@ P0 = release-critical; P1 = operational completeness; P2 = enhancements. Each ch
 
 ## P0 — storefront customer payment and notification acceptance (priority override)
 - [x] INC-01 Verify existing hosted-checkout recovery against independent provider evidence and existing reconciliation service; restricted operational evidence retained outside public repo.
-- [x] INC-02 Submit #210 bounded default-off hosted reconciliation worker and checkout refresh UX; exact-head CI/API in progress.
-- [ ] INC-03 Verify #210 CI, review worker selection/cooldown/concurrent callback cases, verify canonical web/API lineage, deploy verified artifacts and activate only on approved runtime.
+- [x] INC-02 Submit #210 bounded default-off hosted reconciliation worker and checkout refresh UX; exact-head [CI](https://github.com/christianagbotah/vgroceries/actions/runs/45803866842) and [API](https://github.com/christianagbotah/vgroceries/actions/runs/45803866870) passed; merged as 0d3f4c139e61a77f9c1283ccb88ba70d2262e96f.
+- [ ] INC-03 Verify integrated release and worker selection/cooldown/concurrent callback cases, verify canonical web/API lineage, deploy verified artifacts and activate only on approved runtime. #210 exact-head CI passed and merged; activation remains outstanding.
 - [ ] INC-04 Verify hosted callback delivery and ingress against approved provider configuration; demonstrate automatic recovery when callback is absent, without new charge.
-- [x] INC-05 Submit #211 gated explicit order-only SMS consent UX; exact-head CI/API pending.
+- [x] INC-05 Submit #211 gated explicit order-only SMS consent UX; exact-head [CI](https://github.com/christianagbotah/vgroceries/actions/runs/45804023965) and [API](https://github.com/christianagbotah/vgroceries/actions/runs/45804023499) passed; merged as 426363c56b03737f80d91ffc3c799dbd4eac4918.
+- [x] INC-05a Authorized single-message Hubtel SMS transport UAT: gateway acceptance and recipient-confirmed handset receipt on 2026-11-26. No personal identifiers or provider references recorded here. Automated order-event dispatch remains unverified.
 - [ ] INC-06 Reconcile #200 (historical CI/API passed) staging/dispatch migration and runner; preserve order-scoped consent, verified recipient, durable attempt claim and ambiguous-response safety.
 - [ ] INC-07 Verify guest checkout phone ownership and order-specific consent; send order-created/payment-confirmed/fulfilment messages after committed evidence; no duplicate or retrospective opt-in.
 - [ ] INC-08 Configure approved email transport and verified recipient policy, receipt/deduplication queue and delivery failure handling; test email and SMS separately.
