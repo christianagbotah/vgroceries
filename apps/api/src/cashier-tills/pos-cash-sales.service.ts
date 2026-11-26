@@ -2,7 +2,7 @@ import {Inject,Injectable} from "@nestjs/common";
 import {createHash,randomUUID} from "node:crypto";
 import {Prisma} from "@prisma/client";
 import {
-  posCashSaleListSchema,posCashSaleViewSchema,
+  posCashSaleListSchema,posCashSaleViewSchema,posCashSaleHistoryPageSchema,
   type PosCashSaleComplete,
 } from "@variety/contracts";
 import {API_CONFIG,type ApiConfig} from "../config";
@@ -10,6 +10,7 @@ import {Database} from "../database/database";
 import {ApiProblem} from "../http/errors";
 import {StockDepletionService} from "../inventory/stock-depletion.service";
 import {renderPosCashReceiptHtml} from "./pos-receipt-html";
+import {decodePosCashHistoryCursor,encodePosCashHistoryCursor} from "./pos-cash-history-cursor";
 
 type Tx=Prisma.TransactionClient;
 const hash=(x:unknown)=>createHash("sha256").update(JSON.stringify(x)).digest("hex");
@@ -34,12 +35,9 @@ export class PosCashSalesService {
       throw new ApiProblem(503,"UNAVAILABLE",
         "Commerce inventory configuration is unavailable.");
   }
-  private async view(tx:Tx,id:string){
-    const row=await tx.posCashSale.findUnique({
-      where:{id},
-      include:{hold:{include:{lines:{orderBy:[{variantId:"asc"},{id:"asc"}]}}}},
-    });
-    if(!row)throw new ApiProblem(404,"NOT_FOUND","Counter cash sale not found.");
+  private viewFromRow(row:Prisma.PosCashSaleGetPayload<{
+    include:{hold:{include:{lines:true}}};
+  }>){
     return posCashSaleViewSchema.parse({
       id:row.id,reference:row.reference,holdId:row.holdId,
       tillSessionId:row.tillSessionId,locationId:row.locationId,
@@ -57,6 +55,14 @@ export class PosCashSalesService {
         unitPriceMinor:l.unitPriceMinor,lineTotalMinor:l.lineTotalMinor,
       })),
     });
+  }
+  private async view(tx:Tx,id:string){
+    const row=await tx.posCashSale.findUnique({
+      where:{id},
+      include:{hold:{include:{lines:{orderBy:[{variantId:"asc"},{id:"asc"}]}}}},
+    });
+    if(!row)throw new ApiProblem(404,"NOT_FOUND","Counter cash sale not found.");
+    return this.viewFromRow(row);
   }
   async detail(id:string){this.ensureOn();return this.view(this.db as Tx,id);}
   async printReceipt(id:string){
@@ -86,12 +92,45 @@ export class PosCashSalesService {
   }
   async list(){
     this.ensureOn();
+    // A bounded nested read replaces the former N+1 fetch (one select for
+    // IDs and as many as 50 individual view queries). Keep each sale's hold
+    // lines and their original prices together in the returned snapshot.
     const rows=await this.db.posCashSale.findMany({
       orderBy:[{createdAt:"desc"},{id:"desc"}],
-      take:50,select:{id:true},
+      take:50,
+      include:{hold:{include:{lines:{orderBy:[{variantId:"asc"},{id:"asc"}]}}}},
     });
     return posCashSaleListSchema.parse({
-      enabled:true,sales:await Promise.all(rows.map(x=>this.view(this.db as Tx,x.id))),
+      enabled:true,sales:rows.map(row=>this.viewFromRow(row)),
+    });
+  }
+  /** Stable, bounded keyset paging for cash-only administrator investigations.
+   * No offset scan, sale mutation, settlement claim or unbounded export.
+   */
+  async listPage(cursor?:string,limit=25){
+    this.ensureOn();
+    if(!Number.isSafeInteger(limit)||limit<1||limit>50)
+      throw new ApiProblem(400,"VALIDATION_FAILED",
+        "Cash sale history page size must be between 1 and 50.");
+    const position=decodePosCashHistoryCursor(cursor);
+    const rows=await this.db.posCashSale.findMany({
+      ...(position?{where:{OR:[
+        {createdAt:{lt:position.createdAt}},
+        {createdAt:position.createdAt,id:{lt:position.id}},
+      ]}}:{}),
+      orderBy:[{createdAt:"desc"},{id:"desc"}],
+      take:limit+1,
+      include:{hold:{include:{lines:{orderBy:[{variantId:"asc"},{id:"asc"}]}}}},
+    });
+    const hasMore=rows.length>limit;
+    const page=rows.slice(0,limit);
+    const last=page.at(-1);
+    return posCashSaleHistoryPageSchema.parse({
+      enabled:true,
+      sales:page.map(row=>this.viewFromRow(row)),
+      hasMore,
+      nextCursor:hasMore&&last
+        ?encodePosCashHistoryCursor({createdAt:last.createdAt,id:last.id}):null,
     });
   }
   async complete(actorId:string,key:string,requestId:string,input:PosCashSaleComplete){
