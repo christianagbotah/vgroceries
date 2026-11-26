@@ -11,6 +11,14 @@ on:
         description: "Exact fully tested main commit SHA"
         required: true
         type: string
+      enable_order_sms:
+        description: "Expose order-only SMS opt-in in storefront (requires separately verified API and worker)"
+        type: boolean
+        default: false
+      enable_hubtel_refresh:
+        description: "Expose active hosted payment refresh (requires matching enabled API)"
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -53,6 +61,8 @@ jobs:
         env:
           API_BASE_URL: http://127.0.0.1:3049/api/v1
           NEXT_PUBLIC_API_BASE_URL: https://portal.varietygroceries.com/api/v1
+          NEXT_PUBLIC_ORDER_SMS_OPT_IN_ENABLED: ${{ inputs.enable_order_sms && '1' || '0' }}
+          NEXT_PUBLIC_HUBTEL_CUSTOMER_PAYMENT_REFRESH_ENABLED: ${{ inputs.enable_hubtel_refresh && '1' || '0' }}
           NEXT_TELEMETRY_DISABLED: '1'
           NEXT_TURBOPACK_EXPERIMENTAL_USE_SYSTEM_TLS_CERTS: '1'
         run: |
@@ -73,6 +83,8 @@ jobs:
           npm run --prefix apps/api prisma:client:check
           npm run --prefix apps/api build
           test -f apps/api/dist/src/main.js
+          test -f apps/api/dist/scripts/run-order-sms.js
+          test -f apps/api/dist/scripts/recover-hosted-payments.js
       - name: Assemble and inspect source-light runtime
         env:
           VERSION: ${{ inputs.version }}
@@ -101,6 +113,8 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           VERSION: ${{ inputs.version }}
+          ENABLE_ORDER_SMS: ${{ inputs.enable_order_sms }}
+          ENABLE_HUBTEL_REFRESH: ${{ inputs.enable_hubtel_refresh }}
         run: |
           set -euo pipefail
           [[ "$VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]
@@ -116,4 +130,4 @@ jobs:
             echo "Tag already exists; never move an existing version."
             exit 1
           fi
-          gh release create "$VERSION" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --draft --title "Variety Groceries $VERSION" --notes "GitHub-built candidate for exact source $GITHUB_SHA. Not deployed. Review runtime smoke, configuration parity, migration compatibility and acceptance evidence before publication or VPS installation." runtime.tar.gz SHA256SUMS source-sha.txt version.txt format.txt
+          gh release create "$VERSION" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --draft --title "Variety Groceries $VERSION" --notes "GitHub-built candidate for exact source $GITHUB_SHA. Storefront build flags: order SMS=$ENABLE_ORDER_SMS; active Hubtel refresh=$ENABLE_HUBTEL_REFRESH. Not deployed. Review runtime smoke, configuration parity, migration compatibility and acceptance evidence before publication or VPS installation." runtime.tar.gz SHA256SUMS source-sha.txt version.txt format.txt
