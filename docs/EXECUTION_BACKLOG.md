@@ -17,7 +17,18 @@ P0 = release-critical; P1 = operational completeness; P2 = enhancements. Each ch
   - [x] VG-A07a Submit isolated till-reconciliation UI, no-store headers and tests in #209 (head 2e88d8fde5ff0e7c4de81f62a38689f3df307287).
   - [ ] VG-A07b Verify #209 CI and merge; integrate separately paginated history and receipt UI, preserve admin access boundary.
 - [ ] VG-A08 Establish one compatible web/API release lineage, compare current runtime provenance privately.
-- Next action: VG-A07b and VG-A08. #207 ([CI](https://github.com/christianagbotah/vgroceries/actions/runs/45799999170), [API](https://github.com/christianagbotah/vgroceries/actions/runs/45799999150)) and #208 ([CI](https://github.com/christianagbotah/vgroceries/actions/runs/45800003211), [API](https://github.com/christianagbotah/vgroceries/actions/runs/45800003177)) passed and merged. #209 exact-head CI pending; reconciliation uses existing GET endpoints, independent default-off UI flag, no new routes on API, no migrations or financial writes. Preserve prior release roadmap. No deployment.
+- Next action: INC-03/INC-04 and INC-06–09 take priority over VG-A07b; continue independent POS work while payment/notification gates run. #207 ([CI](https://github.com/christianagbotah/vgroceries/actions/runs/45799999170), [API](https://github.com/christianagbotah/vgroceries/actions/runs/45799999150)) and #208 ([CI](https://github.com/christianagbotah/vgroceries/actions/runs/45800003211), [API](https://github.com/christianagbotah/vgroceries/actions/runs/45800003177)) passed and merged. #209 exact-head CI pending; reconciliation uses existing GET endpoints, independent default-off UI flag, no new routes on API, no migrations or financial writes. Preserve prior release roadmap. No deployment.
+
+## P0 — storefront customer payment and notification acceptance (priority override)
+- [x] INC-01 Verify existing hosted-checkout recovery against independent provider evidence and existing reconciliation service; restricted operational evidence retained outside public repo.
+- [x] INC-02 Submit #210 bounded default-off hosted reconciliation worker and checkout refresh UX; exact-head CI/API in progress.
+- [ ] INC-03 Verify #210 CI, review worker selection/cooldown/concurrent callback cases, verify canonical web/API lineage, deploy verified artifacts and activate only on approved runtime.
+- [ ] INC-04 Verify hosted callback delivery and ingress against approved provider configuration; demonstrate automatic recovery when callback is absent, without new charge.
+- [x] INC-05 Submit #211 gated explicit order-only SMS consent UX; exact-head CI/API pending.
+- [ ] INC-06 Reconcile #200 (historical CI/API passed) staging/dispatch migration and runner; preserve order-scoped consent, verified recipient, durable attempt claim and ambiguous-response safety.
+- [ ] INC-07 Verify guest checkout phone ownership and order-specific consent; send order-created/payment-confirmed/fulfilment messages after committed evidence; no duplicate or retrospective opt-in.
+- [ ] INC-08 Configure approved email transport and verified recipient policy, receipt/deduplication queue and delivery failure handling; test email and SMS separately.
+- [ ] INC-09 Authorized end-to-end UAT: order created, payment pending, provider success, automatic confirmation, receipt/notifications, fulfilment and delivery; record only public-safe outcomes.
 
 ## P0 — identity and security
 - [ ] AUTH-01 Inventory customer/staff/rider authentication routes and remove production demo entry points.
