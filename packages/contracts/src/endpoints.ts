@@ -26,6 +26,7 @@ export const restEndpoints: Record<string, RestEndpoint> = {
   "payments.initiate": {"method": "POST", "path": "/orders/{orderId}/payment-attempts", "replayTransport": "headerOnly"},
   "checkout.payment-outcome": {"method": "POST", "path": "/orders/{orderId}/payment-outcome"},
   "checkout.status": {"method": "GET", "path": "/orders/{orderId}"},
+  "checkout.payment-refresh": {"method": "POST", "path": "/orders/{orderId}"},
   "orders.detail": {"method": "GET", "path": "/orders/{orderId}"},
   "orders.track-public": {"method": "POST", "path": "/orders/track-public"},
   "orders.track": {"method": "POST", "path": "/orders/track"},
