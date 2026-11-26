@@ -35,16 +35,31 @@ export default function CheckoutStatusPage() {
   // Polling should never erase a payment-initiation error before the customer reads it.
   const [initiationError, setInitiationError] = useState<string | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const activeLoad = useRef<{ id: string; token: symbol } | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+  const [lastChecked, setLastChecked] = useState<string | null>(null);
 
   const load = useCallback(async () => {
+    // Poll and manual refresh share one in-flight request per order.
+    if (activeLoad.current?.id === id) return;
+    const token = Symbol("order-status");
+    activeLoad.current = { id, token };
+    setRefreshing(true);
     try {
       const o = await apiOps.orderStatus(id);
+      if (activeLoad.current?.token !== token) return;
       setOrder(o);
       setError(null);
+      setLastChecked(new Date().toISOString());
     } catch (e) {
+      if (activeLoad.current?.token !== token) return;
       setError(e instanceof ApiError ? e.message : "Could not load the order status.");
     } finally {
-      setLoading(false);
+      if (activeLoad.current?.token === token) {
+        activeLoad.current = null;
+        setRefreshing(false);
+        setLoading(false);
+      }
     }
   }, [id]);
 
@@ -161,7 +176,7 @@ export default function CheckoutStatusPage() {
             icon={<PartyPopper className="size-8 text-success" aria-hidden />}
             title="Thank you — payment confirmed!"
             tone="success"
-            copy={`Order ${order.reference} is confirmed and moving to our fulfilment team. ${order.fulfilment === "delivery" ? "Watch your delivery slot — we will pack and dispatch your groceries." : "We will pack your order and hold it for collection."}`}
+            copy={`Payment for order ${order.reference} has been verified. ${order.fulfilmentStatus === "awaiting_confirmation" ? "Our team will confirm your order before preparation." : "View the order progress below for the latest fulfilment update."}`}
           />
         ) : order.paymentStatus === "failed" ? (
           <StatusHead
@@ -180,7 +195,7 @@ export default function CheckoutStatusPage() {
         ) : needsAction ? (
           <StatusHead
             icon={<PhoneCall className="size-8 animate-pulse text-primary" aria-hidden />}
-            title="Complete your secure payment"
+            title="Order created — complete your secure payment"
             tone="warning"
             copy={
               order.paymentMethod === "electronic"
@@ -236,8 +251,10 @@ export default function CheckoutStatusPage() {
             Do not start another payment or approve a second prompt for this order. A pending transaction is not proof of payment, and a provider access error is not proof of failure.
           </p>
           {paymentMessage ? <p role="status" className="mt-3 text-sm">{paymentMessage}</p> : null}
+          {error ? <p role="alert" className="mt-2 text-sm text-destructive">Unable to refresh: {error}. Do not pay again.</p> : null}
+          <p role="status" aria-live="polite" className="mt-2 text-xs text-muted-foreground">{refreshing ? "Checking our verified order status…" : lastChecked ? `Last checked ${formatDateTime(lastChecked)} UTC. Awaiting verified provider evidence.` : "Awaiting verified provider evidence."}</p>
           <div className="mt-3 grid grid-cols-2 gap-2">
-            <Button type="button" variant="outline" className="w-full min-w-0 px-2 text-xs sm:text-sm" onClick={() => void load()}>Refresh payment status</Button>
+            <Button type="button" variant="outline" className="w-full min-w-0 px-2 text-xs sm:text-sm" disabled={refreshing} onClick={() => void load()}>{refreshing ? <><Loader2 className="size-4 animate-spin" aria-hidden /> Checking…</> : "Refresh payment status"}</Button>
             <Button asChild variant="outline" className="w-full min-w-0 px-2 text-xs sm:text-sm"><Link href="/support">Contact support</Link></Button>
           </div>
         </div>
