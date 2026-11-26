@@ -46,6 +46,19 @@ export class OrderEmailProofService {
   return {email,consent};
  }
 
+ async status(principal:CheckoutPrincipal,orderId:string,now=new Date()){
+  const ownership=principal.kind==="customer"?{customerUserId:principal.userId}:{guestSessionId:principal.guestSessionId};
+  const order=await this.db.order.findFirst({where:{id:orderId,...ownership},select:{id:true,customerEmail:true,emailConsent:true,cancelledAt:true,fulfilmentStatus:true}});
+  if(!order)throw new ApiProblem(404,"NOT_FOUND","Order not found.");
+  if(!order.emailConsent)return {state:"not_requested" as const,verificationAvailable:false};
+  if(order.emailConsent.revokedAt)return {state:"revoked" as const,verificationAvailable:false};
+  if(order.cancelledAt||order.fulfilmentStatus==="cancelled")return {state:"not_requested" as const,verificationAvailable:false};
+  const {consent}=this.eligible(order,now);
+  let verificationAvailable=false;
+  try{this.settings();verificationAvailable=true;}catch{/* Feature unavailable; revocation remains available. */}
+  return {state:hasOrderEmailProof(consent,now)?"verified" as const:"verification_required" as const,verificationAvailable};
+ }
+
  async request(principal:CheckoutPrincipal,orderId:string,now=new Date()){
   const {secret,key,config}=this.settings();
   const id=randomUUID(),code=generateCustomerOtp(),expiresAt=new Date(now.getTime()+OTP_TTL_MS);
