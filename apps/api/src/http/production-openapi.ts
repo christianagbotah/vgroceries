@@ -99,7 +99,7 @@ import {
   posTillReconciliationViewSchema,
   posQuoteRequestSchema,posQuoteViewSchema,
   posHoldCreateSchema,posHoldReleaseSchema,posHoldViewSchema,posHoldListSchema,
-  posCashSaleCompleteSchema,posCashSaleViewSchema,posCashSaleListSchema,
+  posCashSaleCompleteSchema,posCashSaleViewSchema,posCashSaleListSchema,posCashSaleHistoryPageSchema,
   shipmentStatusSchema,
   shipmentListItemSchema,
   shipmentDetailViewSchema,
@@ -427,6 +427,7 @@ export function productionOpenApi(app: INestApplication): OpenAPIObject {
     PosCashSaleComplete:json(posCashSaleCompleteSchema),
     PosCashSaleView:json(posCashSaleViewSchema),
     PosCashSaleList:json(posCashSaleListSchema),
+    PosCashSaleHistoryPage:json(posCashSaleHistoryPageSchema),
     ShipmentListResponse: json(z.object({ items: z.array(shipmentListItemSchema), page: z.number().int().positive(), perPage: z.number().int().positive().max(100), total: z.number().int().nonnegative() }).strict()),
     ShipmentDetailView: json(shipmentDetailViewSchema),
     ShipmentActionResponse: json(shipmentActionResponseSchema),
@@ -502,7 +503,7 @@ export function productionOpenApi(app: INestApplication): OpenAPIObject {
     "CustomerReturnClaimView","CustomerReturnClaimsList",
     "CustomerReturnClaimEligibility",
     "CashierTillSessionView","CashierTillList","CashierWorkspace","PosCustomerSearchResult","PosTillReconciliationView","PosQuoteView",
-    "PosHoldView","PosHoldList","PosCashSaleView","PosCashSaleList",
+    "PosHoldView","PosHoldList","PosCashSaleView","PosCashSaleList","PosCashSaleHistoryPage",
     "CmsHomepage", "CmsHomepageAdminView", "CmsContentPage", "CmsContentPageAdminView", "CmsOverviewView",
   ])
     schemas[name + "Envelope"] = {
@@ -901,6 +902,16 @@ export function productionOpenApi(app: INestApplication): OpenAPIObject {
     post:physicalReturnMutation(
       "One-time, cash-counted sale and physical handover of a reserved POS cart. Requires cash count and handover attestation; no MoMo/card claim or tax invoice.",
       "PosCashSaleComplete","PosCashSaleViewEnvelope"),
+  };
+  doc.paths["/api/v1/admin/pos/cash-sales/history"]={
+    get:readOperation(
+      "Administrator-only read-only history of physical cash sales, bounded to 50 records per keyset page. Cursor encodes timestamp and sale ID; no settlement, refund, tax invoice, mutation or unbounded export.",
+      "PosCashSaleHistoryPageEnvelope",[
+        {name:"cursor",in:"query",required:false,
+          schema:{type:"string",minLength:1,maxLength:256,pattern:"^[A-Za-z0-9_-]+$"}},
+        {name:"limit",in:"query",required:false,
+          schema:{type:"integer",minimum:1,maximum:50,default:25}},
+      ]),
   };
   doc.paths["/api/v1/admin/pos/cash-sales/{saleId}"]={
     get:readOperation("Administrator-only cash sale receipt facts, original server price snapshots and stock depletion reference.",
