@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { verifiedPosTillReconciliationUatEnabled } from "./verified-pos-till-reconciliation-client";
 import Link from "next/link";
 import type {
   AdminProductRow,
@@ -308,6 +309,7 @@ export function VerifiedPosQuoteUat() {
             scopeNote="Administrators may search active registered accounts across Variety Groceries. Phone numbers are masked." /> : null}
         </>
       ) : null}
+      {verifiedPosTillReconciliationUatEnabled ? <Button asChild variant="outline"><Link href="/admin/pos/verified-uat/reconciliation">Cash drawer reconciliation</Link></Button> : null}
       <Button asChild variant="outline"><Link href="/admin/pos">Back to POS overview</Link></Button>
     </main>
   );
