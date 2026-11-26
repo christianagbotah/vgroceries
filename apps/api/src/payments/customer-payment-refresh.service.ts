@@ -4,6 +4,7 @@ import type { CheckoutPrincipal } from "../commerce-identity/checkout-principal.
 import { Database } from "../database/database";
 import { ApiProblem } from "../http/errors";
 import { isHostedRecoveryCandidate } from "./hosted-payment-recovery";
+import { lookupStartActions } from "./hosted-recovery-queue";
 import { PaymentReconciliationService } from "./payment-reconciliation.service";
 
 @Injectable()
@@ -34,7 +35,7 @@ export class CustomerPaymentRefreshService {
         orderBy: [{ createdAt: "desc" }, { id: "desc" }] });
       if (!attempt || !isHostedRecoveryCandidate(attempt)) return null;
       const recent = await tx.auditEvent.findFirst({ where: { entityId: attempt.id,
-        action: "payment.customer_lookup_started", createdAt: { gte: new Date(Date.now() - cooldown) } },
+        action: { in: lookupStartActions }, createdAt: { gte: new Date(Date.now() - cooldown) } },
         select: { id: true } });
       if (recent) return null;
       await tx.auditEvent.create({ data: { actorId: principal.actorId, entityId: attempt.id,
