@@ -134,9 +134,9 @@ export class PaymentReconciliationService {
         current.providerRef !== snapshot.providerRef ||
         current.amountMinor !== snapshot.amountMinor ||
         current.currency !== snapshot.currency;
-      if (stale && trigger === "worker") {
+      if (stale && automatic) {
         // A callback or staff reconciliation may have won the race. Never
-        // change an otherwise successful order to review on a stale worker read.
+        // change an otherwise successful order to review on a stale automatic lookup.
         return { attemptId, result: "deferred" as const };
       }
       if (stale) {
