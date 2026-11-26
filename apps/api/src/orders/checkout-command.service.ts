@@ -13,6 +13,7 @@ import { ShipmentPlanningService } from "../logistics/shipment-planning.service"
 import { checkoutRequestHash, roundLineTotalMinor, validateCheckoutContact, validateCheckoutLines } from "./checkout.values";
 import { VerificationCodeService } from "./verification-code.service";
 import { customerDestinationFingerprint } from "../notifications/customer-message-crypto";
+import { normalizeOrderEmail } from "../notifications/order-email-policy";
 
 const electronic = new Set(["electronic","mobile_money","card_hosted","bank_transfer"]);
 @Injectable()
@@ -27,6 +28,8 @@ export class CheckoutCommandService {
   }
   async complete(req:ApiRequest,principal:CheckoutPrincipal,input:CompleteOrderRequest,key:string):Promise<CompleteOrderResponse>{
     const commerce=this.commerce(); validateCheckoutContact(input);
+    if(input.emailUpdatesOptIn===true && process.env.CUSTOMER_ORDER_EMAIL_CONSENT_ENABLED!=="true")
+      throw new ApiProblem(503,"FEATURE_DISABLED","Order email updates are not available yet.");
     const destinationKind = input.destinationKind ?? "doorstep";
     if (input.fulfilment === "collection" && (input.destinationKind || input.finalPickupNodeId))
       throw new ApiProblem(400, "VALIDATION_FAILED", "Source collection cannot specify a remote pickup destination.");
@@ -111,6 +114,11 @@ export class CheckoutCommandService {
       let customerEmail=input.customerEmail?.trim().toLowerCase();
       if(!customerEmail&&principal.kind==="customer"){const owner=await tx.user.findUnique({where:{id:principal.userId},select:{email:true}}); customerEmail=owner?.email?.trim().toLowerCase()??undefined;}
       await tx.order.create({data:{id:orderId,reference,customerUserId:principal.kind==="customer"?principal.userId:null,guestSessionId:principal.kind==="guest"?principal.guestSessionId:null,customerName:input.customerName.trim(),customerPhone:input.customerPhone.replace(/[\s-]/g,""),customerEmail,fulfilment:input.fulfilment,zoneId:zone?.id,slotId:input.slotId,paymentMethod:input.paymentMethod,paymentStatus:paymentRequired?"pending":"unpaid",fulfilmentStatus:"awaiting_confirmation",deliveryStatus:"unassigned",subtotalMinor,discountMinor:0,deliveryFeeMinor,totalMinor:subtotalMinor+deliveryFeeMinor,verificationKeyVersion:keyVersion,verificationCodeHash:codeHash,note:input.note?.trim()||null,lines:{create:lines.map(l=>({...l,id:l.id}))}}});
+      if(input.emailUpdatesOptIn===true){
+        const destination=normalizeOrderEmail(input.customerEmail);
+        if(!destination||destination!==customerEmail)throw new ApiProblem(400,"VALIDATION_FAILED","Email preference requires the exact checkout address.");
+        await tx.orderEmailConsent.create({data:{orderId,recipientFingerprint:customerDestinationFingerprint(destination),policyVersion:"order-email-v1"}});
+      }
       if (input.smsUpdatesOptIn === true) await tx.orderSmsConsent.create({data:{orderId,recipientFingerprint:customerDestinationFingerprint(input.customerPhone.replace(/[\s-]/g,"")),policyVersion:"order-sms-v1"}});
       if(address)await tx.orderDeliveryAddress.create({data:{orderId,label:address.label?.trim()||"Delivery",recipientName:address.recipientName.trim(),phone:address.phone.replace(/[\s-]/g,""),locality:address.locality.trim(),street:address.street.trim(),landmark:address.landmark?.trim()||null,ghanaPostGps:address.ghanaPostGps?.trim().toUpperCase()||null}});
       if(this.config.shipmentExecutionEnabled && input.fulfilment==="delivery") await this.shipmentPlanning.planInTransaction(
