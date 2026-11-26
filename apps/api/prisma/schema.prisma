@@ -273,6 +273,7 @@ model StockLot {
   originalPhysicalReturnCustodies PhysicalReturnCustody[] @relation("PhysicalReturnOriginalLot")
   quarantinedPhysicalReturnCustody PhysicalReturnCustody? @relation("PhysicalReturnQuarantineLot")
   physicalReturnResaleReview PhysicalReturnResaleReview?
+  transferReceiptLine InternalTransferReceiptLine?
   @@unique([id, positionId])
   @@index([positionId, kind, quarantined, expiryDate])
 }
@@ -330,6 +331,7 @@ model StockReceipt {
   movements StockMovement[]
   physicalReturnCustodies PhysicalReturnCustody[]
   physicalReturnResaleReviews PhysicalReturnResaleReview[]
+  internalTransferReceipt InternalTransferReceipt?
 }
 
 model StockMovement {
@@ -1810,6 +1812,7 @@ model InternalTransferRequest {
   @@index([destinationId, status, createdAt])
   @@index([sourceId, status, createdAt])
   dispatch InternalTransferDispatch?
+  receipts InternalTransferReceipt[]
 }
 
 model InternalTransferRequestLine {
@@ -1847,5 +1850,36 @@ model InternalTransferDispatchLot {
   expiryDate DateTime? @db.Date
   unitCostMinor Int
   valueMinor BigInt
+  receiptLines InternalTransferReceiptLine[]
   @@index([dispatchId])
+}
+
+model InternalTransferReceipt {
+  id String @id @default(uuid())
+  transferId String
+  transfer InternalTransferRequest @relation(fields: [transferId], references: [id], onDelete: Restrict)
+  stockReceiptId String @unique
+  stockReceipt StockReceipt @relation(fields: [stockReceiptId], references: [id], onDelete: Restrict)
+  receivedBy String
+  requestKey String
+  requestHash String
+  receiptReference String
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  lines InternalTransferReceiptLine[]
+  @@unique([transferId, requestKey])
+}
+
+model InternalTransferReceiptLine {
+  id String @id @default(uuid())
+  receiptId String
+  receipt InternalTransferReceipt @relation(fields: [receiptId], references: [id], onDelete: Restrict)
+  dispatchLotId String
+  dispatchLot InternalTransferDispatchLot @relation(fields: [dispatchLotId], references: [id], onDelete: Restrict)
+  destinationLotId String @unique
+  destinationLot StockLot @relation(fields: [destinationLotId], references: [id], onDelete: Restrict)
+  quantity Decimal @db.Decimal(15, 3)
+  valueMinor BigInt
+  roundingMinor BigInt
+  @@unique([receiptId, dispatchLotId])
+  @@index([dispatchLotId])
 }
