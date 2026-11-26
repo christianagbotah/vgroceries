@@ -40,6 +40,7 @@ are client components over the same mock API.
 | `/admin/orders/[id]` | Full order detail: customer, lines, allocations (FEFO), payment attempts, holds, history, notes; actions: confirm, pick, pack, ready/collect, dispatch, substitute (with permission + recalculation), cancel (guarded), review resolution |
 | `/admin/fulfilment` | First-class fulfilment workspace: awaiting-confirmation / ready-to-pick / picking / exceptions / packed-handover / collection queues, picker + progress + allocated-vs-ordered + shortage + substitution on lines, packing checklist, handover boundary notice, event trails, backend-driven `allowedActions` | Picking and packing never deduct stock; the single depletion event happens at handover/collection |
 | `/admin/pos` | Counter sales: barcode/search, tiles, cart, discounts (permission-gated), cash/MoMo/card, change, held drafts (with expiry), receipt print, transaction lookup, return entry |
+| `/admin/pos/verified-uat/history` | Default-off administrator-only cash-sale history, bounded cursor pagination and authenticated receipt printing; read-only |
 | `/admin/pos/verified-uat/reconciliation` | Default-off administrator-only real-API cash-drawer report, expected/recorded cash, variance and authenticated CSV; no mutation or provider settlement |
 | `/admin/cashier-sessions` | Opening float, movements, expected vs counted, close & reconcile |
 | `/admin/products` | Products, variants, prices, availability, publication |
