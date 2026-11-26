@@ -1488,5 +1488,101 @@ export function productionOpenApi(app: INestApplication): OpenAPIObject {
       responses: authorityResponses("OrderEmailUpdatesResultEnvelope"),
     },
   };
+  Object.assign(schemas, {
+  "OrderSmsUpdatesAction": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "action"
+    ],
+    "properties": {
+      "action": {
+        "type": "string",
+        "enum": [
+          "revoke"
+        ]
+      }
+    }
+  },
+  "OrderSmsUpdatesStatusEnvelope": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "ok",
+      "data"
+    ],
+    "properties": {
+      "ok": {
+        "type": "boolean",
+        "enum": [
+          true
+        ]
+      },
+      "data": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "state"
+        ],
+        "properties": {
+          "state": {
+            "type": "string",
+            "enum": [
+              "not_requested",
+              "requested",
+              "revoked"
+            ]
+          }
+        }
+      }
+    }
+  },
+  "OrderSmsUpdatesResultEnvelope": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "ok",
+      "data"
+    ],
+    "properties": {
+      "ok": {
+        "type": "boolean",
+        "enum": [
+          true
+        ]
+      },
+      "data": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "revoked"
+        ],
+        "properties": {
+          "revoked": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          }
+        }
+      }
+    }
+  }
+});
+  doc.paths["/api/v1/orders/{orderId}/sms-updates"] = {
+    get: {
+      security: [{ cookieAuth: [] }, { bearerAuth: [] }, { guestAuth: [] }],
+      description: "Owner-only order SMS preference status without recipient information.",
+      parameters: [orderId],
+      responses: authorityResponses("OrderSmsUpdatesStatusEnvelope"),
+    },
+    post: {
+      security: [{ cookieAuth: [] }, { bearerAuth: [] }, { guestAuth: [] }],
+      description: "Owner-only, idempotent SMS consent revocation; requires CSRF for cookie mutations. Does not change payment or fulfilment.",
+      parameters: [orderId, csrf],
+      requestBody: { required: true, content: { "application/json": { schema: ref("OrderSmsUpdatesAction") } } },
+      responses: authorityResponses("OrderSmsUpdatesResultEnvelope"),
+    },
+  };
   return doc;
 }
