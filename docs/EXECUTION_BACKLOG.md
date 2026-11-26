@@ -11,10 +11,11 @@ P0 = release-critical; P1 = operational completeness; P2 = enhancements. Each ch
 - [x] VG-A03 Compare divergent checkout/POS release branches.
 - [x] VG-A04 Inspect checkout retry and packaging source.
 - [x] VG-A05 Owner confirmed public-repository exception.
-- [ ] VG-A06 Publish focused checkout and packaging PR(s), verify exact-head CI and review.
+- [x] VG-A06a Publish focused checkout and packaging PRs: #207 and #208 (26 Nov 2026).
+- [ ] VG-A06b Verify exact-head CI, review and merge #207 and #208.
 - [ ] VG-A07 Reconcile POS cash history and receipt work on current baseline.
 - [ ] VG-A08 Establish one compatible web/API release lineage, compare current runtime provenance privately.
-- Next action: VG-A06, then VG-A07. Previous source baseline: 0df455f69a57d838b552fa25e703c541c12d72ca. Prior PRs #174, #181, #184, #188, #190 and #175 are references, not blanket merge instructions. Historical evidence is not fresh release certification.
+- Next action: VG-A06b and VG-A07 in parallel. #207 head 9f4489438c6e88a72b71defb9469377dd51e24d6 (API workflow queued at inspection); #208 head 460a5af001c647421389a7b0c0badd74214935cd (runs not yet returned). No deployment. Previous source baseline: 0df455f69a57d838b552fa25e703c541c12d72ca. Prior PRs #174, #181, #184, #188, #190 and #175 are references, not blanket merge instructions. Historical evidence is not fresh release certification.
 
 ## P0 — identity and security
 - [ ] AUTH-01 Inventory customer/staff/rider authentication routes and remove production demo entry points.
@@ -40,7 +41,7 @@ P0 = release-critical; P1 = operational completeness; P2 = enhancements. Each ch
 - [ ] WEB-01 Audit public storefront, shop, categories, product details, cart and all account routes.
 - [ ] WEB-02 Verify server pricing, discounts, fees and stale cart/price/stock rejection.
 - [ ] WEB-03 Verify guest and account checkout, Ghana address/phone, collection/delivery and slots.
-- [ ] WEB-04 Verify persistent retry identity, definite rejection recovery and ambiguous retry handling (#174).
+- [ ] WEB-04 Verify persistent retry identity, definite rejection recovery and ambiguous retry handling (#174; focused current-main port #207 submitted; fresh CI pending).
 - [ ] WEB-05 Verify payment availability preflight and truthful pending/failure/review status.
 - [ ] WEB-06 Verify secure guest tracking, customer-owned history, saved addresses/lists and returns.
 - [ ] WEB-07 Verify empty/error/loading states, browser navigation and mobile checkout end-to-end.
@@ -63,7 +64,7 @@ P0 = release-critical; P1 = operational completeness; P2 = enhancements. Each ch
 - [ ] POS-03 Verify barcode search, customer/walk-in selection, variants, quantities and price quotes.
 - [ ] POS-04 Verify cash tender/change, electronic tender evidence, discounts and suspended drafts.
 - [ ] POS-05 Verify exactly-once handover, retry and concurrent inventory conflict.
-- [ ] POS-06 Integrate paginated read-only cash-sale history, original receipts and scoped query tests (#175).
+- [ ] POS-06 Integrate paginated read-only cash-sale history, original receipts and scoped query tests (#175). Current main already has admin-only list/detail/immutable receipt print; the draft adds keyset paging and contracts. Older draft CI passed, but merge conflict and current-baseline tests remain. Preserve admin-only authorization until separate scoped cashier access is verified.
 - [ ] POS-07 Verify till cash-in/out, closing count, reconciliation, variance and approval.
 - [ ] POS-08 Verify POS returns/exchanges, receipt print, transaction lookup and reversal reporting.
 - [ ] POS-09 Offline drafts only until authoritative stock/payment can be verified.
@@ -142,7 +143,7 @@ P0 = release-critical; P1 = operational completeness; P2 = enhancements. Each ch
 
 ## P0 — GitHub-first releases and operations
 - [ ] REL-01 Audit divergent branches and exact-head CI; avoid wholesale stale branch merge.
-- [ ] REL-02 Verify standalone runtime asset copy and packaging without redundant nesting.
+- [ ] REL-02 Verify standalone runtime asset copy and packaging without redundant nesting (#208 submitted; actual CI copy-block regression added; fresh CI pending).
 - [ ] REL-03 Verify checksum, source SHA, archive safety, dependency tracing and extracted runtime smoke.
 - [ ] REL-04 Package compatible API/web runtime pair from immutable GitHub source with migration manifest.
 - [ ] REL-05 Verify GitHub CI lint/type/build, unit, integration, isolated PostgreSQL migration, OpenAPI and browser checks.
