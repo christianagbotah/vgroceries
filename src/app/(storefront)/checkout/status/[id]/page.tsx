@@ -50,7 +50,15 @@ export default function CheckoutStatusPage() {
       const o = await apiOps.orderStatus(id);
       if (activeLoad.current?.token !== token) return;
       setOrder(o);
+      setLoading(false);
       setError(null);
+      if (process.env.NEXT_PUBLIC_API_BASE_URL &&
+          process.env.NEXT_PUBLIC_HUBTEL_CUSTOMER_PAYMENT_REFRESH_ENABLED === "1" &&
+          electronicPaymentPhase(o) === "verifying") {
+        const verified = await apiOps.refreshHostedPayment(id);
+        if (activeLoad.current?.token !== token) return;
+        setOrder(verified);
+      }
       setLastChecked(new Date().toISOString());
     } catch (e) {
       if (activeLoad.current?.token !== token) return;

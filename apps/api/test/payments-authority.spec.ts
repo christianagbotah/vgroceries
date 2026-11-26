@@ -97,3 +97,12 @@ test("production payment schemas contain no card secrets, provider credentials o
     '"rawbody"', '"rawbodyhash"', '"safemetadata"', '"merchantreference"',
   ]) assert.equal(paymentSurface.includes(forbidden), false, `forbidden OpenAPI field ${forbidden}`);
 });
+
+test("customer payment refresh uses the existing owner status path with protected POST and no money inputs",()=>{
+ const op=document.paths["/api/v1/orders/{orderId}"].post;
+ assert.deepEqual(op.security,[{cookieAuth:[]},{bearerAuth:[]},{guestAuth:[]}]);
+ assert.ok(op.parameters.some((p:any)=>p.name==="X-CSRF-Token"));
+ assert.ok(op.parameters.some((p:any)=>p.name==="orderId"));
+ assert.equal(op.requestBody,undefined);
+ assert.ok(op.responses["200"]);
+});

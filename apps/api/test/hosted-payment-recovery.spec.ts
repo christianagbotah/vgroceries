@@ -69,3 +69,12 @@ test("stale worker snapshot cannot overwrite a webhook-confirmed payment",async 
   assert.equal((await f.service.reconcile("attempt-id","worker","worker","request-id")).result,"deferred");
   assert.deepEqual(f.counts(),{evidence:0,writes:0,lookups:1});
 });
+
+test("customer retry preserves uncertain and stale outcomes just like the bounded worker",async () => {
+  const f=fixture(new Error("timeout"));
+  assert.equal((await f.service.reconcile("attempt-id","customer_retry","guest","request-id")).result,"deferred");
+  assert.deepEqual(f.counts(),{evidence:1,writes:0,lookups:1});
+  const stale=fixture(paid,true);
+  assert.equal((await stale.service.reconcile("attempt-id","customer_retry","guest","request-id")).result,"deferred");
+  assert.deepEqual(stale.counts(),{evidence:0,writes:0,lookups:1});
+});

@@ -16,7 +16,7 @@ function controller(codeAccepted: boolean) {
     registerFailedTracking: async () => { failed++; },
     verifiedOrderDetails: async () => ({ reference:"VG-ABCDEF123456", verified:true }),
   };
-  const orders = new OrdersController({} as never,query as never,db as never);
+  const orders = new OrdersController({} as never,query as never,db as never,{} as never);
   // Stub provider / DB repo: never send an SMS or touch real order records.
   (orders as unknown as {otpRepo:()=>unknown}).otpRepo=()=>({verify:async()=>codeAccepted});
   return {orders, metrics:()=>({lookedUp,failed})};

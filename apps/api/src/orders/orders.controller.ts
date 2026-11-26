@@ -2,14 +2,16 @@ import { randomUUID } from "node:crypto";
 import { Database } from "../database/database";
 import { CustomerOtpRepository, OtpIssueRateLimited } from "../notifications/customer-otp-repository";
 import { sendHubtelSms } from "../notifications/hubtel-sms-provider";
-import { Body,Controller,Get,HttpCode,Param,Post,Req } from "@nestjs/common";
+import { Body,Controller,Get,Header,HttpCode,Param,Post,Req,Res } from "@nestjs/common";
+import type { Response } from "express";
+import { CustomerPaymentRefreshService } from "../payments/customer-payment-refresh.service";
 import { ApiExcludeEndpoint, ApiTags } from "@nestjs/swagger";
 import { trackRequestSchema,trackPublicRequestSchema } from "@variety/contracts";
 import { CheckoutPrincipalService } from "../commerce-identity/checkout-principal.service";
 import { ApiProblem,ApiRequest } from "../http/errors";
 import { OrderQueryService } from "./order-query.service";
 @ApiTags("orders") @Controller("orders")
-export class OrdersController {constructor(private readonly principals:CheckoutPrincipalService,private readonly orders:OrderQueryService,private readonly db:Database){}
+export class OrdersController {constructor(private readonly principals:CheckoutPrincipalService,private readonly orders:OrderQueryService,private readonly db:Database,private readonly paymentRefresh:CustomerPaymentRefreshService){}
  private otpRepo(){const secret=process.env.CUSTOMER_OTP_HMAC_KEY, key=process.env.CUSTOMER_MESSAGE_ENCRYPTION_KEY;
  if(process.env.CUSTOMER_OTP_ENABLED!=="true"||!secret||!key||!(/^[a-f0-9]{64}$/i.test(secret)&&/^[a-f0-9]{64}$/i.test(key)))throw new ApiProblem(503,"FEATURE_DISABLED","SMS verification unavailable.");
  return new CustomerOtpRepository(this.db,secret,key);}
@@ -46,11 +48,16 @@ export class OrdersController {constructor(private readonly principals:CheckoutP
  }
  return {ok:true,data:await this.orders.verifiedOrderDetails(order!.id)};
  }
- @Get(":orderId") async status(@Param("orderId") id:string,@Req() req:ApiRequest){const p=await this.principals.forRead(req);return{ok:true,data:await this.orders.status(p,id)};}
+ @Get(":orderId") @Header("Cache-Control","private, no-store") async status(@Param("orderId") id:string,@Req() req:ApiRequest){const p=await this.principals.forRead(req);return{ok:true,data:await this.orders.status(p,id)};}
  @ApiExcludeEndpoint() @Post("track-public") @HttpCode(200) async trackPublic(@Body() body:unknown,@Req() req:ApiRequest){
   const parsed=trackPublicRequestSchema.safeParse(body);
   if(!parsed.success)throw new ApiProblem(400,"VALIDATION_FAILED","Enter a valid order number.");
   return {ok:true,data:await this.orders.trackPublic(parsed.data.reference,req.ip||req.socket.remoteAddress||"unknown")};
  }
  @Post("track") @HttpCode(200) async track(@Body() body:unknown,@Req() req:ApiRequest){const p=trackRequestSchema.safeParse(body);if(!p.success)throw new ApiProblem(400,"VALIDATION_FAILED","Invalid tracking request.");const clientKey=req.ip||req.socket.remoteAddress||"unknown";return{ok:true,data:await this.orders.track(p.data.reference,p.data.code,clientKey,req.requestId)};}
+ @ApiExcludeEndpoint() @Post(":orderId") @HttpCode(200) @Header("Cache-Control","private, no-store") async refreshPayment(@Param("orderId") id:string,@Req() req:ApiRequest,@Res({passthrough:true}) res:Response){
+  const principal=await this.principals.forMutation(req,res);
+  await this.paymentRefresh.refresh(principal,id,req.requestId);
+  return {ok:true,data:await this.orders.status(principal,id)};
+ }
 }

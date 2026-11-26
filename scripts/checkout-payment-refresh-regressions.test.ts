@@ -20,3 +20,13 @@ describe("checkout status refresh and provider proof", () => {
     expect(page).not.toContain("Order ${order.reference} is confirmed and moving");
   });
 });
+
+test("active refresh only verifies existing payments and never initiates a new charge",()=>{
+ const page=readFileSync("src/app/(storefront)/checkout/status/[id]/page.tsx","utf8");
+ expect(page).toContain('NEXT_PUBLIC_HUBTEL_CUSTOMER_PAYMENT_REFRESH_ENABLED === "1"');
+ expect(page).toContain('electronicPaymentPhase(o) === "verifying"');
+ expect(page).toContain("await apiOps.refreshHostedPayment(id)");
+ expect(page).toContain("setOrder(verified)");
+ const client=readFileSync("src/services/client.ts","utf8");
+ expect(client).toContain('api<PublicOrder>("checkout.payment-refresh", { query: { orderId }, body: {} })');
+});

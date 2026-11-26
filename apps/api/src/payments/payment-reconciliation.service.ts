@@ -95,9 +95,10 @@ export class PaymentReconciliationService {
     requestId: string,
   ) {
     const snapshot = await this.snapshot(attemptId);
+    const automatic = trigger === "worker" || trigger === "customer_retry";
     // The bounded worker only checks accepted, unsettled hosted attempts.
     // It must not race a webhook or alter an already terminal payment.
-    if (trigger === "worker" && !isHostedRecoveryCandidate(snapshot))
+    if (automatic && !isHostedRecoveryCandidate(snapshot))
       return { attemptId, result: "deferred" as const };
     const adapter = this.registry.requireConfigured();
     if (adapter.id !== snapshot.provider)
@@ -133,9 +134,9 @@ export class PaymentReconciliationService {
         current.providerRef !== snapshot.providerRef ||
         current.amountMinor !== snapshot.amountMinor ||
         current.currency !== snapshot.currency;
-      if (stale && trigger === "worker") {
+      if (stale && automatic) {
         // A callback or staff reconciliation may have won the race. Never
-        // change an otherwise successful order to review on a stale worker read.
+        // change an otherwise successful order to review on a stale automatic lookup.
         return { attemptId, result: "deferred" as const };
       }
       if (stale) {
@@ -146,7 +147,7 @@ export class PaymentReconciliationService {
         return { attemptId, result: "exception" as const };
       }
 
-      if (trigger === "worker" && !isVerifiedHostedRecovery(current, observation)) {
+      if (automatic && !isVerifiedHostedRecovery(current, observation)) {
         // Keep the order pending on provider delay, transport errors or an
         // unverified result. Record the check for cooldown and operator review.
         await tx.paymentReconciliation.create({

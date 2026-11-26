@@ -221,6 +221,7 @@ export const apiOps = {
     }),
   paymentOutcome: (orderId: string, outcome: "succeeded" | "failed" | "pending") =>
     api<PaymentOutcomeResponse>("checkout.payment-outcome", { body: { orderId, outcome } }),
+  refreshHostedPayment: (orderId: string) => api<PublicOrder>("checkout.payment-refresh", { query: { orderId }, body: {} }),
   orderStatus: (orderId: string) => api<PublicOrder>("checkout.status", { query: { orderId } }),
   trackPublic: (reference: string) => api<{reference:string;paymentStatus:string;fulfilmentStatus:string;deliveryStatus:string;fulfilment:string;createdAt:string}>("orders.track-public", { body: { reference } }),
   requestOrderOtp: (reference: string) => api<{challengeId:string;expiresAt:string}>("orders.track-otp.request", { body: { reference } }),
