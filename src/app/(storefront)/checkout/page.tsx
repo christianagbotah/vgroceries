@@ -51,6 +51,8 @@ export default function CheckoutPage() {
   const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
   const [customerEmail, setCustomerEmail] = useState("");
+  const [emailUpdatesOptIn, setEmailUpdatesOptIn] = useState(false);
+  const emailUpdatesEnabled = process.env.NEXT_PUBLIC_ORDER_EMAIL_OPT_IN_ENABLED === "1";
   const [smsUpdatesOptIn, setSmsUpdatesOptIn] = useState(false);
   const smsUpdatesEnabled = process.env.NEXT_PUBLIC_ORDER_SMS_OPT_IN_ENABLED === "1";
   const [note, setNote] = useState("");
@@ -246,6 +248,7 @@ export default function CheckoutPage() {
         customerName: customerName.trim(),
         customerPhone: customerPhone.replace(/[\s-]/g, ""),
         customerEmail: customerEmail.trim() || undefined,
+        ...(emailUpdatesEnabled && emailUpdatesOptIn ? { emailUpdatesOptIn: true } : {}),
         ...(smsUpdatesEnabled && smsUpdatesOptIn ? { smsUpdatesOptIn: true } : {}),
         fulfilment,
         zoneId: fulfilment === "delivery" ? zoneId : undefined,
@@ -441,9 +444,21 @@ export default function CheckoutPage() {
               </div>
               <div className="sm:col-span-2">
                 <Label htmlFor="co-email">Email (optional)</Label>
-                <Input id="co-email" className="h-11" value={customerEmail} onChange={(e) => setCustomerEmail(e.target.value)} placeholder="you@example.com" autoComplete="email" inputMode="email" />
+                <Input id="co-email" className="h-11" value={customerEmail} onChange={(e) => { setCustomerEmail(e.target.value); setEmailUpdatesOptIn(false); }} placeholder="you@example.com" autoComplete="email" inputMode="email" />
                 {field("customerEmail")}
               </div>
+              {emailUpdatesEnabled && customerEmail.trim() ? (
+                <label className="flex cursor-pointer items-start gap-3 rounded-lg border bg-muted/20 p-3 sm:col-span-2">
+                  <input type="checkbox" className="mt-1 size-4 accent-primary" checked={emailUpdatesOptIn}
+                    onChange={event => setEmailUpdatesOptIn(event.target.checked)} />
+                  <span className="min-w-0 text-sm">
+                    <span className="block font-medium">Send me email updates about this order</span>
+                    <span className="mt-1 block text-xs leading-5 text-muted-foreground">
+                      Order and payment updates only, not marketing. Verify your email address to receive these messages.
+                    </span>
+                  </span>
+                </label>
+              ) : null}
               {smsUpdatesEnabled ? (
                 <label className="flex cursor-pointer items-start gap-3 rounded-lg border bg-muted/20 p-3 sm:col-span-2">
                   <input type="checkbox" className="mt-1 size-4 accent-primary" checked={smsUpdatesOptIn}

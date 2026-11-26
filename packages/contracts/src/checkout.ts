@@ -119,6 +119,8 @@ export interface GuestAddressInput {
 export interface CompleteOrderRequest {
   /** Explicit opt-in to transactional SMS for this order only. */
   smsUpdatesOptIn?: boolean;
+  /** Explicit order-only email preference; does not establish mailbox ownership. */
+  emailUpdatesOptIn?: boolean;
   lines: CartLineInput[];
   customerName: string;
   customerPhone: string;

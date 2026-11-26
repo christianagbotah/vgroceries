@@ -2,6 +2,7 @@ import { Prisma } from "@prisma/client";
 import type { CartLineInput, CompleteOrderRequest } from "@variety/contracts";
 import { createHash } from "node:crypto";
 import { ApiProblem } from "../http/errors";
+import { normalizeOrderEmail } from "../notifications/order-email-policy";
 
 const validation = (message: string) =>
   new ApiProblem(400, "VALIDATION_FAILED", message);
@@ -53,6 +54,8 @@ export function validateCheckoutContact(input: CompleteOrderRequest): void {
     throw validation("A valid Ghana customer phone is required.");
   if (input.customerEmail && !email.test(input.customerEmail.trim()))
     throw validation("Customer email is invalid.");
+  if (input.emailUpdatesOptIn === true && !normalizeOrderEmail(input.customerEmail))
+    throw validation("Enter a valid email address to receive order emails.");
   const a = input.guestAddress;
   if (a) {
     if (![a.recipientName, a.locality, a.street].every((v) => v?.trim()))
@@ -88,6 +91,7 @@ export function canonicalCheckoutRequest(input: CompleteOrderRequest): Record<st
     customerEmail: input.customerEmail?.trim().toLowerCase(),
     // Missing or false retains the existing checkout hash for safe retries.
     smsUpdatesOptIn: input.smsUpdatesOptIn === true ? true : undefined,
+    emailUpdatesOptIn: input.emailUpdatesOptIn === true ? true : undefined,
     addressId: input.addressId,
     guestAddress: input.guestAddress
       ? {
