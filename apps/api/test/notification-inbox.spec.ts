@@ -414,6 +414,10 @@ test("guest SMS defers until the matching order phone OTP is consumed and sends 
   await db.customerMessageDelivery.updateMany({where:{sourceEventId:source.id},data:{nextAttemptAt:now}});
   assert.equal((await dispatchOneOrderSms(db,options)).outcome,"deferred");
   assert.equal(calls,0);
+  await db.customerMessageDelivery.updateMany({where:{sourceEventId:source.id},data:{nextAttemptAt:now}});
+  assert.equal((await dispatchOneOrderSms(db,{...options,guestProofEnabled:false})).outcome,"deferred");
+  assert.equal((await db.customerMessageDelivery.findFirstOrThrow({where:{sourceEventId:source.id}})).attempts,0);
+  assert.equal(calls,0);
   const proof={userId:source.aggregateId,purpose:"sensitive_action",recipientFingerprint:fingerprint,
     recipientEncrypted:"synthetic-proof-not-used-by-dispatch",codeDigest:"a".repeat(64),status:"consumed",
     consumedAt:now,createdAt:eventTime,expiresAt:new Date(now.getTime()+300000)};
@@ -464,4 +468,35 @@ test("order email is independently staged, defers without mailbox proof, suppres
  await db.customerMessageDelivery.updateMany({where:{sourceEventId:revoked.id},data:{nextAttemptAt:now}});
  assert.equal((await dispatchOneOrderEmail(db,options)).outcome,"suppressed");
  assert.equal(calls,1);
+});
+
+
+test("SMS opt-out is owner-only, idempotent and independent of email and payment",async()=>{
+ const now=new Date(),before=new Date(now.getTime()-10000),eventTime=new Date(now.getTime()-5000);
+ const source=await createOrder("sms-opt-out","customer-a","VG-SMSOPTOUT001");
+ const phone="+233241111111",keyHex="49".repeat(32);
+ await db.user.update({where:{id:"customer-a"},data:{phone,phoneVerifiedAt:before}});
+ await db.orderSmsConsent.create({data:{orderId:source.aggregateId,recipientFingerprint:customerDestinationFingerprint(phone),policyVersion:"order-sms-v1",recordedAt:before}});
+ await db.outboxEvent.update({where:{id:source.id},data:{createdAt:eventTime}});
+ assert.equal((await stageOrderSmsBatch(db,{enabled:true,keyHex,now})).queued,1);
+ const owner=await token("customer-a@example.test"),other=await token("customer-b@example.test");
+ const path="/orders/"+source.aggregateId+"/sms-updates";
+ async function revoke(bearer:string,body:unknown={action:"revoke"}){
+  return fetch(base+"/api/v1"+path,{method:"POST",headers:{authorization:"Bearer "+bearer,"content-type":"application/json"},body:JSON.stringify(body)});
+ }
+ assert.equal((await request(path,other)).status,404);
+ assert.equal((await revoke(other)).status,404);
+ assert.equal((await revoke(owner,{action:"revoke",recipient:"fixture"})).status,400);
+ assert.equal((await request(path,owner)).body.data.state,"requested");
+ assert.equal((await revoke(owner)).status,200);
+ assert.equal((await revoke(owner)).status,200);
+ assert.equal((await request(path,owner)).body.data.state,"revoked");
+ assert.equal(await db.auditEvent.count({where:{action:"order.sms_updates_revoked",entityId:source.aggregateId}}),1);
+ assert.equal((await db.order.findUniqueOrThrow({where:{id:source.aggregateId}})).paymentStatus,"unpaid");
+ assert.equal(await db.orderEmailConsent.count({where:{orderId:source.aggregateId}}),0);
+ const dispatchNow=new Date(Date.now()+1000);
+ await db.customerMessageDelivery.updateMany({where:{sourceEventId:source.id},data:{nextAttemptAt:dispatchNow}});
+ let calls=0;
+ const result=await dispatchOneOrderSms(db,{enabled:true,keyHex,now:dispatchNow,config:{endpoint:"https://sms.hubtel.com/v1/messages/send",clientId:"fixture",clientSecret:"fixture",senderId:"VARIETY"},fetcher:async()=>{calls++;throw Error("unexpected send");}});
+ assert.equal(result.outcome,"suppressed");assert.equal(calls,0);
 });
