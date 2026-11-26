@@ -179,7 +179,7 @@ test("COD declaration blocked for incomplete or electronically-paid deliveries a
 test("OpenAPI documents COD declaration as rider-only, feature gated, replay-protected, never a payment-settlement endpoint",async()=>{
   const r=await fetch(base+"/api/v1/openapi.json"); assert.equal(r.status,200);
   const doc=await r.json();
-  assert.equal(Object.keys(doc.paths).length,166);
+  assert.equal(Object.keys(doc.paths).length,167);
   const op=doc.paths["/api/v1/rider/jobs/{jobId}/cod-cash-declaration"]?.post;
   assert.ok(op);
   assert.deepEqual(op.security,[{cookieAuth:[]},{bearerAuth:[]}]);
