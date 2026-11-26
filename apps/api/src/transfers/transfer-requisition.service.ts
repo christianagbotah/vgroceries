@@ -9,7 +9,8 @@ import {dispatchCarryingValue} from "./transfer-valuation";
 import {AllocationService} from "../inventory/allocation.service";
 import {normalizeAllocationQuantity} from "../inventory/allocation.values";
 import {mayActOnTransfer,type TransferActor} from "./transfer-policy";
-import type {TransferRequestInput,TransferDecisionInput} from "./transfer-requisition.schemas";
+import {previewTransferReceipt} from "./transfer-receipt-preview";
+import type {TransferRequestInput,TransferDecisionInput,TransferReceiptInput} from "./transfer-requisition.schemas";
 
 const include={lines:{orderBy:{variantId:"asc" as const}},dispatch:{include:{lots:{include:{depletionLine:true},orderBy:{id:"asc" as const}}}}};
 const deny=()=>new ApiProblem(403,"FORBIDDEN","Transfer location or action not permitted.");
@@ -174,4 +175,56 @@ export class TransferRequisitionService{
   });
  }
 
+
+ /** Accept inspected, unexpired goods at the authorized destination. The
+  * transfer remains in_transit until the independent close workflow exists. */
+ async receive(req:AuthRequest,id:string,input:TransferReceiptInput,key:string){
+  if(process.env.INTERNAL_TRANSFER_RECEIPTS_ENABLED!=="true")throw new ApiProblem(503,"FEATURE_DISABLED","Transfer receipts are not enabled.");
+  return this.db.$transaction(async tx=>{
+   const actor=await this.actor(tx,req);
+   await tx.$queryRaw`SELECT id FROM "InternalTransferRequest" WHERE id=${id} FOR UPDATE`;
+   const row=await tx.internalTransferRequest.findUnique({where:{id},include});
+   if(!row||!row.dispatch||!row.sourceId||!row.decidedBy)throw missing();
+   if(actor.role!=="admin"&&!actor.locationIds.includes(row.destinationId))throw missing();
+   const [source,destination]=await Promise.all([tx.location.findUnique({where:{id:row.sourceId}}),tx.location.findUnique({where:{id:row.destinationId}})]);
+   if(!mayActOnTransfer(actor,"receive",{state:row.status==="in_transit"?"in_transit":null,destinationId:row.destinationId,sourceId:row.sourceId,destinationActive:destination?.active===true,sourceActive:source?.active===true,authorizedBy:row.decidedBy,dispatchedBy:row.dispatch.dispatchedBy,requestedBy:row.requestedBy}))throw conflict();
+   const lines=input.lines.map(l=>({dispatchLotId:l.dispatchLotId,quantity:new Prisma.Decimal(l.quantity).toString()})).sort((a,b)=>a.dispatchLotId.localeCompare(b.dispatchLotId));
+   const requestHash=tokenHash(JSON.stringify({receiptReference:input.receiptReference,lines}));
+   const projectReceipt=(r:{id:string;receiptReference:string;receivedBy:string;createdAt:Date;lines:Array<{dispatchLotId:string;destinationLotId:string;quantity:Prisma.Decimal;valueMinor:bigint;roundingMinor:bigint}>})=>({
+    id:r.id,transferId:id,receiptReference:r.receiptReference,receivedBy:r.receivedBy,createdAt:r.createdAt.toISOString(),lines:r.lines.map(l=>({dispatchLotId:l.dispatchLotId,destinationLotId:l.destinationLotId,quantity:l.quantity.toString(),valueMinor:l.valueMinor.toString(),roundingMinor:l.roundingMinor.toString()})),financialPostingCreated:false,
+   });
+   const old=await tx.internalTransferReceipt.findUnique({where:{transferId_requestKey:{transferId:id,requestKey:key}},include:{lines:{orderBy:{dispatchLotId:"asc"}}}});
+   if(old){if(old.requestHash!==requestHash||old.receivedBy!==actor.id)throw conflict();return projectReceipt(old);}
+   const variantIds=[...new Set(row.dispatch.lots.map(l=>l.depletionLine.variantId))].sort();
+   const variants=await tx.variant.findMany({where:{id:{in:variantIds}},select:{id:true,unit:true,active:true}});
+   const prior=await tx.internalTransferReceiptLine.groupBy({by:["dispatchLotId"],where:{dispatchLotId:{in:row.dispatch.lots.map(l=>l.id)}},_sum:{quantity:true,valueMinor:true}});
+   const facts=row.dispatch.lots.map(l=>{
+    const v=variants.find(v=>v.id===l.depletionLine.variantId);
+    if(!v)throw conflict();
+    const p=prior.find(p=>p.dispatchLotId===l.id);
+    return {id:l.id,variantId:v.id,unit:v.unit,lotNumber:l.lotNumber,expiryDate:l.expiryDate?.toISOString().slice(0,10)??null,dispatchedQuantity:l.depletionLine.quantity.toString(),dispatchedValueMinor:l.valueMinor.toString(),unitCostMinor:l.unitCostMinor,previouslyAcceptedQuantity:p?._sum.quantity?.toString()??"0",previouslyAcceptedValueMinor:p?._sum.valueMinor?.toString()??"0"};
+   });
+   let preview;
+   try{preview=previewTransferReceipt(facts,lines,new Date().toISOString().slice(0,10));}catch{throw new ApiProblem(409,"CONFLICT","Receipt quantities or original valuation do not reconcile.");}
+   const accepted=preview.items.filter(l=>l.receiptQuantity!=="0");
+   if(accepted.some(l=>l.requiresExpiryQuarantine||!variants.find(v=>v.id===l.variantId)?.active))throw new ApiProblem(409,"CONFLICT","Expired or inactive goods require a separate quarantine or discrepancy workflow.");
+   // Stable destination position lock order, compatible with allocation.
+   const positions=new Map<string,string>();
+   for(const variantId of [...new Set(accepted.map(l=>l.variantId))].sort()){
+    const p=await tx.stockPosition.upsert({where:{variantId_locationId:{variantId,locationId:row.destinationId}},update:{},create:{variantId,locationId:row.destinationId}});
+    await tx.$queryRaw`SELECT id FROM "StockPosition" WHERE id=${p.id} FOR UPDATE`;
+    positions.set(variantId,p.id);
+   }
+   const stockReceipt=await tx.stockReceipt.create({data:{receivedBy:actor.id,note:"Internal transfer receipt; not supplier purchase."}});
+   const receipt=await tx.internalTransferReceipt.create({data:{transferId:id,stockReceiptId:stockReceipt.id,receivedBy:actor.id,requestKey:key,requestHash,receiptReference:input.receiptReference}});
+   for(const l of accepted){
+    const lot=await tx.stockLot.create({data:{positionId:positions.get(l.variantId)!,receiptId:stockReceipt.id,lotNumber:l.lotNumber,expiryDate:l.expiryDate?new Date(l.expiryDate+"T00:00:00.000Z"):null,quantity:l.receiptQuantity,unitCostMinor:l.unitCostMinor,kind:"regular",quarantined:false}});
+    await tx.stockMovement.create({data:{lotId:lot.id,receiptId:stockReceipt.id,delta:l.receiptQuantity,resultingQty:l.receiptQuantity,actorId:actor.id,reason:"internal_transfer_receipt"}});
+    await tx.internalTransferReceiptLine.create({data:{receiptId:receipt.id,dispatchLotId:l.dispatchLotId,destinationLotId:lot.id,quantity:l.receiptQuantity,valueMinor:BigInt(l.receiptValueMinor),roundingMinor:BigInt(l.roundingMinor)}});
+   }
+   await tx.auditEvent.create({data:{actorId:actor.id,requestId:req.requestId,action:"transfer.received",entityId:id,details:{receiptId:receipt.id,receiptValueMinor:preview.receiptValueMinor,outstandingValueMinor:preview.outstandingValueMinor}}});
+   const saved=await tx.internalTransferReceipt.findUniqueOrThrow({where:{id:receipt.id},include:{lines:{orderBy:{dispatchLotId:"asc"}}}});
+   return projectReceipt(saved);
+  },{timeout:20000});
+ }
 }
