@@ -21,7 +21,7 @@ test("customer payment refresh authorizes exact owner and throttles repeated pro
     }};
     const tx={
       $queryRaw:async()=>[{locked}], order, paymentAttempt:{findFirst:async()=>attempt},
-      auditEvent:{findFirst:async()=>claims?{id:"previous"}:null,create:async()=>{claims++;}},
+      auditEvent:{findFirst:async(args:any)=>{assert.deepEqual(args.where.action.in,["payment.customer_lookup_started","payment.worker_lookup_started"]);return claims?{id:"previous"}:null;},create:async()=>{claims++;}},
     };
     const db={order,$transaction:async(fn:(t:typeof tx)=>Promise<unknown>)=>fn(tx)};
     const service=new CustomerPaymentRefreshService(db as unknown as Database,
