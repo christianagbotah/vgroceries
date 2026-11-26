@@ -51,6 +51,8 @@ export default function CheckoutPage() {
   const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
   const [customerEmail, setCustomerEmail] = useState("");
+  const [smsUpdatesOptIn, setSmsUpdatesOptIn] = useState(false);
+  const smsUpdatesEnabled = process.env.NEXT_PUBLIC_ORDER_SMS_OPT_IN_ENABLED === "1";
   const [note, setNote] = useState("");
 
   const [addressId, setAddressId] = useState<string>("new");
@@ -244,6 +246,7 @@ export default function CheckoutPage() {
         customerName: customerName.trim(),
         customerPhone: customerPhone.replace(/[\s-]/g, ""),
         customerEmail: customerEmail.trim() || undefined,
+        ...(smsUpdatesEnabled && smsUpdatesOptIn ? { smsUpdatesOptIn: true } : {}),
         fulfilment,
         zoneId: fulfilment === "delivery" ? zoneId : undefined,
         destinationKind: fulfilment === "delivery" ? destinationKind : undefined,
@@ -433,7 +436,7 @@ export default function CheckoutPage() {
               </div>
               <div>
                 <Label htmlFor="co-phone">Phone (Ghana)</Label>
-                <Input id="co-phone" className="h-11" value={customerPhone} onChange={(e) => setCustomerPhone(e.target.value)} placeholder="+233 24 123 4567" autoComplete="tel" inputMode="tel" />
+                <Input id="co-phone" className="h-11" value={customerPhone} onChange={(e) => { setCustomerPhone(e.target.value); setSmsUpdatesOptIn(false); }} placeholder="+233 24 123 4567" autoComplete="tel" inputMode="tel" />
                 {field("customerPhone")}
               </div>
               <div className="sm:col-span-2">
@@ -441,6 +444,19 @@ export default function CheckoutPage() {
                 <Input id="co-email" className="h-11" value={customerEmail} onChange={(e) => setCustomerEmail(e.target.value)} placeholder="you@example.com" autoComplete="email" inputMode="email" />
                 {field("customerEmail")}
               </div>
+              {smsUpdatesEnabled ? (
+                <label className="flex cursor-pointer items-start gap-3 rounded-lg border bg-muted/20 p-3 sm:col-span-2">
+                  <input type="checkbox" className="mt-1 size-4 accent-primary" checked={smsUpdatesOptIn}
+                    onChange={event => setSmsUpdatesOptIn(event.target.checked)} />
+                  <span className="min-w-0 text-sm">
+                    <span className="block font-medium">Send me SMS updates about this order</span>
+                    <span className="mt-1 block text-xs leading-5 text-muted-foreground">
+                      Order creation, verified payment and fulfilment updates to the phone number above.
+                      This is optional, not marketing consent; delivery depends on phone verification and service availability.
+                    </span>
+                  </span>
+                </label>
+              ) : null}
             </div>
           </section>
 
