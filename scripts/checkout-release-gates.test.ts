@@ -23,3 +23,15 @@ test("email checkout release gate remains independently default-off and packages
   expect(workflow).toContain("order email=$ENABLE_ORDER_EMAIL");
   expect(workflow).toContain("test -f apps/api/dist/scripts/run-order-email.js");
 });
+
+test("POS history and reconciliation remain independent read-only default-off release choices",()=>{
+  for(const [name,flag,receipt] of [
+    ["enable_pos_cash_history","NEXT_PUBLIC_VERIFIED_POS_CASH_HISTORY_UAT","POS cash history=$ENABLE_POS_CASH_HISTORY"],
+    ["enable_pos_till_reconciliation","NEXT_PUBLIC_VERIFIED_POS_TILL_RECONCILIATION_UAT","POS till reconciliation=$ENABLE_POS_TILL_RECONCILIATION"],
+  ]){
+    expect(workflow).toMatch(new RegExp(name+":\\s*description:[^\\n]+\\s*type: boolean\\s*default: false"));
+    expect(workflow).toContain(flag+": ${{ inputs."+name+" && '1' || '0' }}");
+    expect(workflow).toContain(receipt);
+  }
+  expect(workflow).not.toContain("NEXT_PUBLIC_VERIFIED_POS_QUOTE_UAT:");
+});

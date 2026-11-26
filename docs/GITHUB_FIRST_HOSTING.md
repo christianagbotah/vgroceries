@@ -55,9 +55,14 @@ any apply operation. Never touch another project's paths.
 
 ## Checkout feature activation
 
-The versioned-release workflow accepts two explicit, default-off build inputs:
+The versioned-release workflow accepts explicit, default-off build inputs:
 
 - `enable_order_sms`: compile the order-only SMS preference into the storefront. Activate only after verifying the API schema, customer consent/phone proof, notification staging and dispatch, and delivery monitoring.
+- `enable_order_email`: expose order-only email consent and proof only after approved sender, mailbox delivery and independent email queue activation are verified.
+- `enable_pos_cash_history`: expose read-only administrator cash history, bounded pagination and receipt review; verify the matching API permissions.
+- `enable_pos_till_reconciliation`: expose read-only administrator till reconciliation and authenticated CSV; verify the matching API permissions.
 - `enable_hubtel_refresh`: compile active provider refresh into the storefront. Activate only with the matching owner-scoped API endpoint and its separately enabled server feature gate.
 
 These inputs are public build configuration, not credentials or server authorization. The release notes record the choices. An enabled storefront flag does not start an API worker or authorize a payment or message. Use the same immutable source SHA for both runtime components; verify migration compatibility and deploy backend first before switching the storefront. Never copy another project's credentials. Keep the worker gates disabled during migration and smoke testing, then enable only the approved workflow with bounded scheduling and observe delivery/settlement evidence.
+
+The read-only POS flags do not enable the separate quote, tender, till mutation or stock-depletion capabilities. Each is independently selected at build time, and API role checks and runtime gates remain authoritative. Record actual administrator UAT before production activation.
