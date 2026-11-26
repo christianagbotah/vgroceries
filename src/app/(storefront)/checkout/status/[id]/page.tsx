@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { OrderSmsVerification } from "@/features/checkout/order-sms-verification";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { apiOps, ApiError, type PublicOrder } from "@/services/client";
@@ -224,6 +225,8 @@ export default function CheckoutStatusPage() {
         </div>
         <div className="mt-4"><OrderReceiptExperience order={order} /></div>
       </div>
+
+      {order.smsPhoneVerificationRequired ? <div className="mt-4"><OrderSmsVerification key={order.id} reference={order.reference} onVerified={() => void load()} /></div> : null}
 
       {needsAction ? (
         <div className="mt-4 rounded-2xl border border-warning/40 bg-warning/10 p-4 sm:p-5">
