@@ -15,7 +15,7 @@ P0 = release-critical; P1 = operational completeness; P2 = enhancements. Each ch
 - [ ] VG-A06b Verify exact-head CI, review and merge #207 and #208.
 - [ ] VG-A07 Reconcile POS cash history and receipt work on current baseline.
 - [ ] VG-A08 Establish one compatible web/API release lineage, compare current runtime provenance privately.
-- Next action: VG-A06b and VG-A07 in parallel. #207 head 9f4489438c6e88a72b71defb9469377dd51e24d6 (API workflow queued at inspection); #208 head 460a5af001c647421389a7b0c0badd74214935cd (runs not yet returned). No deployment. Previous source baseline: 0df455f69a57d838b552fa25e703c541c12d72ca. Prior PRs #174, #181, #184, #188, #190 and #175 are references, not blanket merge instructions. Historical evidence is not fresh release certification.
+- Next action: VG-A06b and VG-A07 in parallel. #207 head 9f4489438c6e88a72b71defb9469377dd51e24d6 ([CI](https://github.com/christianagbotah/vgroceries/actions/runs/45799999170), [API](https://github.com/christianagbotah/vgroceries/actions/runs/45799999150)); #208 head 460a5af001c647421389a7b0c0badd74214935cd ([CI](https://github.com/christianagbotah/vgroceries/actions/runs/45800003211), [API](https://github.com/christianagbotah/vgroceries/actions/runs/45800003177)). All four workflows in progress at inspection; recheck exact-head results and mergeability before merge. No deployment. Previous source baseline: 0df455f69a57d838b552fa25e703c541c12d72ca. Prior PRs #174, #181, #184, #188, #190 and #175 are references, not blanket merge instructions. Historical evidence is not fresh release certification.
 
 ## P0 — identity and security
 - [ ] AUTH-01 Inventory customer/staff/rider authentication routes and remove production demo entry points.
@@ -64,7 +64,7 @@ P0 = release-critical; P1 = operational completeness; P2 = enhancements. Each ch
 - [ ] POS-03 Verify barcode search, customer/walk-in selection, variants, quantities and price quotes.
 - [ ] POS-04 Verify cash tender/change, electronic tender evidence, discounts and suspended drafts.
 - [ ] POS-05 Verify exactly-once handover, retry and concurrent inventory conflict.
-- [ ] POS-06 Integrate paginated read-only cash-sale history, original receipts and scoped query tests (#175). Current main already has admin-only list/detail/immutable receipt print; the draft adds keyset paging and contracts. Older draft CI passed, but merge conflict and current-baseline tests remain. Preserve admin-only authorization until separate scoped cashier access is verified.
+- [ ] POS-06 Integrate paginated read-only cash-sale history, original receipts and scoped query tests (#175). Current main already has admin-only list/detail/immutable receipt print; the draft adds keyset paging and contracts. Older draft CI passed, but merge conflict and current-baseline tests remain. GitHub comparison identified 40 branch files, of which 21 overlap main changes; integrate the non-overlapping read paths first and reconcile API registry, OpenAPI and route-count assertions without replacing current contracts. Verify full route and permission parity before release. Preserve admin-only authorization until separate scoped cashier access is verified.
 - [ ] POS-07 Verify till cash-in/out, closing count, reconciliation, variance and approval.
 - [ ] POS-08 Verify POS returns/exchanges, receipt print, transaction lookup and reversal reporting.
 - [ ] POS-09 Offline drafts only until authoritative stock/payment can be verified.
