@@ -6,6 +6,8 @@ import { Database } from "../src/database/database";
 import { NotificationService } from "../src/notifications/notification.service";
 import { dispatchOneOrderSms } from "../src/notifications/order-sms-dispatch";
 import { stageOrderSmsBatch } from "../src/notifications/order-sms-stage-batch";
+import { stageOrderEmailBatch } from "../src/notifications/order-email-stage-batch";
+import { dispatchOneOrderEmail } from "../src/notifications/order-email-dispatch";
 import { customerDestinationFingerprint } from "../src/notifications/customer-message-crypto";
 import { commerceTestPassword, seedCommerceFixtures } from "./commerce-fixtures";
 
@@ -425,4 +427,41 @@ test("guest SMS defers until the matching order phone OTP is consumed and sends 
   assert.equal((await dispatchOneOrderSms(db,options)).outcome,"accepted");
   assert.equal((await dispatchOneOrderSms(db,options)).outcome,"empty");
   assert.equal(calls,1);
+});
+
+
+test("order email is independently staged, defers without mailbox proof, suppresses revocation and claims once",async()=>{
+ const now=new Date(), before=new Date(now.getTime()-10000),eventTime=new Date(now.getTime()-5000);
+ const email="fixture@example.test",keyHex="52".repeat(32);
+ const source=await createOrder("email-proof","customer-a","VG-EMAILPROOF001");
+ await db.order.update({where:{id:source.aggregateId},data:{customerEmail:email}});
+ await db.orderEmailConsent.create({data:{orderId:source.aggregateId,recipientFingerprint:customerDestinationFingerprint(email),policyVersion:"order-email-v1",recordedAt:before}});
+ await db.outboxEvent.update({where:{id:source.id},data:{createdAt:eventTime}});
+ assert.equal((await stageOrderEmailBatch(db,{enabled:true,keyHex,now})).queued,1);
+ assert.equal((await stageOrderEmailBatch(db,{enabled:true,keyHex,now})).queued,0);
+ assert.equal(await db.orderSmsStageReceipt.count({where:{sourceEventId:source.id}}),0);
+ await db.customerMessageDelivery.updateMany({where:{sourceEventId:source.id},data:{nextAttemptAt:now}});
+ let calls=0;
+ const options={enabled:true,keyHex,now,config:{enabled:true,from:"orders@example.test",sendmailPath:"/usr/sbin/sendmail"},sender:async (_config:unknown,message:{recipient:string;body:string})=>{
+  calls++;assert.equal(message.recipient,email);assert.match(message.body,/VG-EMAILPROOF001/);return {accepted:true as const};
+ }};
+ assert.equal((await dispatchOneOrderEmail(db,options)).outcome,"deferred");
+ assert.equal(calls,0);
+ await db.orderEmailConsent.update({where:{orderId:source.aggregateId},data:{verifiedAt:now}});
+ await db.customerMessageDelivery.updateMany({where:{sourceEventId:source.id},data:{nextAttemptAt:now}});
+ assert.equal((await dispatchOneOrderEmail(db,options)).outcome,"accepted");
+ assert.equal((await dispatchOneOrderEmail(db,options)).outcome,"empty");
+ assert.equal(calls,1);
+ const accepted=await db.customerMessageDelivery.findFirstOrThrow({where:{sourceEventId:source.id,channel:"email"}});
+ assert.equal(accepted.attempts,1);assert.equal(accepted.status,"sending");
+ assert.equal(accepted.lastErrorCode,"accepted_awaiting_delivery");
+ const revoked=await createOrder("email-revoked","customer-a","VG-EMAILREVOKE001");
+ await db.order.update({where:{id:revoked.aggregateId},data:{customerEmail:email}});
+ await db.orderEmailConsent.create({data:{orderId:revoked.aggregateId,recipientFingerprint:customerDestinationFingerprint(email),policyVersion:"order-email-v1",recordedAt:before,verifiedAt:now}});
+ await db.outboxEvent.update({where:{id:revoked.id},data:{createdAt:eventTime}});
+ assert.equal((await stageOrderEmailBatch(db,{enabled:true,keyHex,now})).queued,1);
+ await db.orderEmailConsent.update({where:{orderId:revoked.aggregateId},data:{revokedAt:now}});
+ await db.customerMessageDelivery.updateMany({where:{sourceEventId:revoked.id},data:{nextAttemptAt:now}});
+ assert.equal((await dispatchOneOrderEmail(db,options)).outcome,"suppressed");
+ assert.equal(calls,1);
 });
