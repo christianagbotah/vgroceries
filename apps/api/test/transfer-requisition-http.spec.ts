@@ -8,6 +8,7 @@ import {Database} from "../src/database/database";
 import {hashPassword} from "../src/identity/crypto";
 import {seedCommerceFixtures,commerceTestPassword} from "./commerce-fixtures";
 let app:INestApplication, db:Database, base:string;
+const oldTransferFlag=process.env.INTERNAL_TRANSFERS_ENABLED;
 const route="/inventory/transfer-requisitions";
 async function call(path:string, method="GET", body?:unknown, token?:string, key?:string){
  const r=await fetch(base+"/api/v1"+path,{method,headers:{...(body===undefined?{}:{"content-type":"application/json"}),...(token?{authorization:"Bearer "+token}:{}),...(key?{"idempotency-key":key}:{})},...(body===undefined?{}:{body:JSON.stringify(body)})});
@@ -19,6 +20,7 @@ async function login(id:string){
 }
 before(async()=>{
  if(new URL(process.env.DATABASE_URL!).pathname!=="/variety_foundation_test")throw Error("Requires disposable foundation database");
+ process.env.INTERNAL_TRANSFERS_ENABLED="true";
  app=await createApplication(readConfig({DATABASE_URL:process.env.DATABASE_URL!,WEB_ORIGINS:"http://localhost:3000",API_STOCK_LOCATION_ID:"loc_accra",API_INSECURE_COOKIES:"true"}));
  await app.listen(0,"127.0.0.1");base=await app.getUrl();db=app.get(Database);
  await seedCommerceFixtures(db);
@@ -28,7 +30,7 @@ before(async()=>{
   await db.user.create({data:{id,email:id+"@example.test",name:id,role:"inventory_manager",passwordHash,locations:{create:{locationId}}}});
  }
 });
-after(async()=>{await app?.close();});
+after(async()=>{await app?.close();if(oldTransferFlag===undefined)delete process.env.INTERNAL_TRANSFERS_ENABLED;else process.env.INTERNAL_TRANSFERS_ENABLED=oldTransferFlag;});
 test("head office selects source; requests and decisions are durable, scoped and stock-neutral",async()=>{
  const a=await login("requester"), b=await login("source"), c=await login("other"), admin=await login("admin-commerce");
  const input={destinationId:"loc_accra",note:"Replenish stock",lines:[{variantId:"var-rice",quantity:"2.500"}]};
@@ -170,4 +172,17 @@ test("database rejects backward transitions and alteration of authorized transfe
  assert.equal(after.note,row.note);
  assert.equal(after.sourceId,row.sourceId);
  assert.equal(after.lines[0].quantity.toString(),row.lines[0].quantity.toString());
+});
+
+
+test("disabled transfer authority refuses reads and writes even for administrators",async()=>{
+ const admin=await login("admin-commerce");
+ const before=await db.internalTransferRequest.count();
+ process.env.INTERNAL_TRANSFERS_ENABLED="false";
+ try{
+  assert.equal((await call(route,"GET",undefined,admin)).status,503);
+  assert.equal((await call(route+"/options","GET",undefined,admin)).status,503);
+  assert.equal((await call(route,"POST",{destinationId:"loc_accra",note:"Fixture",lines:[{variantId:"var-rice",quantity:"1"}]},admin,"disabled-fixture")).status,503);
+  assert.equal(await db.internalTransferRequest.count(),before);
+ }finally{process.env.INTERNAL_TRANSFERS_ENABLED="true";}
 });

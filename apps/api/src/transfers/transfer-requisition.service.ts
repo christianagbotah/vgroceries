@@ -43,6 +43,7 @@ export class TransferRequisitionService{
  }
  // The same user-row lock as staff reassignment serializes grant changes.
  private async actor(tx:Prisma.TransactionClient,req:AuthRequest):Promise<TransferActor>{
+  if(process.env.INTERNAL_TRANSFERS_ENABLED!=="true")throw new ApiProblem(503,"FEATURE_DISABLED","Branch transfers are not enabled.");
   await tx.$queryRaw<Array<{id:string}>>`SELECT id FROM "User" WHERE id=${req.actor.id} FOR UPDATE`;
   const user=await tx.user.findUnique({where:{id:req.actor.id},select:{id:true,role:true,active:true,locations:{where:{location:{active:true}},select:{locationId:true}}}});
   const session=await tx.session.findUnique({where:{id:req.sessionId},select:{userId:true,revokedAt:true,expiresAt:true,accessExpiresAt:true}});

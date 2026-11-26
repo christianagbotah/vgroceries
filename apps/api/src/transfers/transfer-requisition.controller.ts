@@ -1,4 +1,4 @@
-import {Body,Controller,Get,Headers,HttpCode,Module,Param,Post,Query,Req,UseGuards} from "@nestjs/common";
+import {Body,Controller,Get,Header,Headers,HttpCode,Module,Param,Post,Query,Req,UseGuards} from "@nestjs/common";
 import {ApiExcludeController} from "@nestjs/swagger";
 import {AccessGuard} from "../identity/access.guard";
 import type {AuthRequest} from "../identity/identity.service";
@@ -12,9 +12,9 @@ import {transferDecisionSchema,transferRequestSchema,transferReserveSchema,trans
 @UseGuards(AccessGuard)
 export class TransferRequisitionController{
  constructor(private readonly service:TransferRequisitionService){}
- @Get()
+ @Get() @Header("Cache-Control","private, no-store")
  async list(@Req() req:AuthRequest){return {ok:true,data:await this.service.list(req)};}
- @Get("options")
+ @Get("options") @Header("Cache-Control","private, no-store")
  async options(@Req() req:AuthRequest,@Query("q") q:unknown){
   if(q!==undefined&&(typeof q!=="string"||q.length>100))throw new ApiProblem(400,"VALIDATION_FAILED","Search must be at most 100 characters.");
   return {ok:true,data:await this.service.options(req,typeof q==="string"?q.trim():"")};

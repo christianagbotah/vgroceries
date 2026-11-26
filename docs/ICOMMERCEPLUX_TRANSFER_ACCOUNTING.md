@@ -238,3 +238,7 @@ migration must deliberately extend the allowed state machine and retain
 these provenance rules; a new status check alone is insufficient.
 Disposable database regression tests challenge backward transitions
 and direct mutations of dispatched requisitions.
+
+### Current-main integration and activation boundary
+
+The transfer API requires INTERNAL_TRANSFERS_ENABLED=true; absent or false blocks reads and writes, including administrators. The workspace independently requires NEXT_PUBLIC_INTERNAL_TRANSFERS_UAT=1. Keep both disabled until isolated stock and permission acceptance, migration restore rehearsal, complete OpenAPI integration, and approved release. This candidate covers requisition through physical dispatch only. Receipt and discrepancy calculations are previews, not destination inventory or financial journal authority.
