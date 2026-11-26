@@ -311,6 +311,8 @@ export interface CustomerPickupSnapshotView {
 }
 
 export interface PublicOrder {
+  /** Guest with order-scoped SMS consent still needs phone ownership proof. */
+  smsPhoneVerificationRequired?: boolean;
   id: string;
   reference: string;
   channel: "online" | "pos";
