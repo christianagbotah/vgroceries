@@ -24,6 +24,9 @@ jobs:
       - name: Runtime archive security regressions
         run: PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s scripts/ops -p test_verify_github_runtime.py -v
 
+      - name: Standalone asset packaging regressions
+        run: PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s scripts/ops -p test_candidate_asset_copy.py -v
+
       - name: Bounded cache retention regressions
         run: PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s scripts/ops -p test_prune_reviewed_source_caches.py -v
 
@@ -101,8 +104,14 @@ jobs:
           test -d .next/static
           mkdir -p candidate/payload/.next candidate/evidence
           cp -a .next/standalone/. candidate/payload/
-          cp -a .next/static candidate/payload/.next/static
-          if [ -d public ]; then cp -a public candidate/payload/public; fi
+          # The standalone build already includes these directories. Copy their
+          # contents, not the directory itself, to avoid static/static or public/public.
+          mkdir -p candidate/payload/.next/static
+          cp -a .next/static/. candidate/payload/.next/static/
+          if [ -d public ]; then
+            mkdir -p candidate/payload/public
+            cp -a public/. candidate/payload/public/
+          fi
           # Fail closed if an unexpected secret file was copied by standalone tracing.
           if find candidate/payload -type f \( -name '.env' -o -name '.env.*' -o -name '*.pem' -o -name '*.key' \) | grep -q .; then
             echo 'Candidate contains a prohibited credential-like file' >&2
