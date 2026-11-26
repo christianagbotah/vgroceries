@@ -44,7 +44,7 @@ async function issued(){
  const body=Buffer.from(mime.split("\r\n\r\n")[1],"base64").toString("utf8");
  const match=body.match(/code is (\d{6})\./);
  assert.ok(match);
- assert.ok(!JSON.stringify(r).includes(match[1]));
+ assert.deepEqual(Object.keys(r).sort(),["challengeId","expiresAt","verified"]);
  return {id:r.challengeId,code:match[1]};
 }
 test("mailbox proof is order-owner scoped, single-use and rate limited; no code persisted or returned",async()=>{
