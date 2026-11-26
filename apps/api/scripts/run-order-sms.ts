@@ -30,7 +30,7 @@ async function main() {
       // Hard cap on chargeable provider requests per invocation; never retry
       // an ambiguous outbound request. Scheduler must serialize invocations.
       for (let i = 0; i < 10; i++) {
-        const result = await dispatchOneOrderSms(db, { enabled: true, keyHex, config });
+        const result = await dispatchOneOrderSms(db, { enabled: true, keyHex, config, guestProofEnabled: process.env.CUSTOMER_GUEST_ORDER_SMS_ENABLED === "true" });
         counts[result.outcome] = (counts[result.outcome] ?? 0) + 1;
         if (["busy", "empty", "unknown"].includes(result.outcome)) break;
       }
