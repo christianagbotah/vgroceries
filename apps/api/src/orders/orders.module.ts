@@ -11,6 +11,8 @@ import { CheckoutQuoteService } from "./checkout-quote.service";
 import { CheckoutCommandService } from "./checkout-command.service";
 import { CheckoutController } from "./checkout.controller";
 import { OrdersController } from "./orders.controller";
+import { OrderEmailUpdatesController } from "./order-email-updates.controller";
+import { OrderEmailProofService } from "../notifications/order-email-proof.service";
 import { AccountOrdersController } from "./account-orders.controller";
 import { AccountController } from "./account.controller";
 import { AccountProfileService } from "./account-profile.service";
@@ -25,8 +27,8 @@ import { AdminOrderQueryService } from "./admin-order-query.service";
 
 @Module({
   imports: [InventoryModule, DeliveryConfigModule, CommerceIdentityModule, PaymentsModule, RefundsModule, LogisticsModule],
-  controllers: [CheckoutController, OrdersController, AccountController, AccountOrdersController, AdminOrderActionsController, AdminOrdersController],
-  providers: [CustomerPaymentRefreshService, VerificationCodeService, CheckoutQuoteService, CheckoutCommandService, OrderProjectionService, OrderQueryService, TrackingThrottleService, OrderCancellationService, OrderFinancialActionService, AccountProfileService, AdminOrderQueryService],
+  controllers: [CheckoutController, OrdersController, OrderEmailUpdatesController, AccountController, AccountOrdersController, AdminOrderActionsController, AdminOrdersController],
+  providers: [OrderEmailProofService, CustomerPaymentRefreshService, VerificationCodeService, CheckoutQuoteService, CheckoutCommandService, OrderProjectionService, OrderQueryService, TrackingThrottleService, OrderCancellationService, OrderFinancialActionService, AccountProfileService, AdminOrderQueryService],
   exports: [VerificationCodeService, CheckoutQuoteService, CheckoutCommandService, OrderProjectionService, OrderQueryService, TrackingThrottleService, OrderCancellationService, OrderFinancialActionService],
 })
 export class OrdersModule {}

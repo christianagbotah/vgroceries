@@ -228,5 +228,5 @@ test("OpenAPI exposes gated count observation without a merchant collection, rem
   assert.equal(op.responses["200"].content["application/json"].schema.$ref,"#/components/schemas/CodSupervisorCountViewEnvelope");
   assert.equal(doc.paths["/api/v1/cod/collections"],undefined);
   assert.equal(doc.paths["/api/v1/cod/remittances"],undefined);
-  assert.equal(Object.keys(doc.paths).length,164);
+  assert.equal(Object.keys(doc.paths).length,165);
 });

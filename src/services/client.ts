@@ -45,6 +45,7 @@ import type {
   BusinessQuestionResponse,
   ByVariantsResponse,
   CompleteOrderRequest,
+  OrderEmailUpdatesStatus, OrderEmailUpdatesAction, OrderEmailUpdatesResult,
   CheckoutPickupOptionsResponse,
   PickupAppointmentOptions, PickupAppointmentMutationResponse,
   PickupAppointmentPolicyInput, PickupAppointmentPolicyView,
@@ -222,6 +223,8 @@ export const apiOps = {
   paymentOutcome: (orderId: string, outcome: "succeeded" | "failed" | "pending") =>
     api<PaymentOutcomeResponse>("checkout.payment-outcome", { body: { orderId, outcome } }),
   refreshHostedPayment: (orderId: string) => api<PublicOrder>("checkout.payment-refresh", { query: { orderId }, body: {} }),
+  orderEmailUpdatesStatus: (orderId: string) => api<OrderEmailUpdatesStatus>("checkout.email-updates.status", { query: { orderId } }),
+  orderEmailUpdatesAction: (orderId: string, body: OrderEmailUpdatesAction) => api<OrderEmailUpdatesResult>("checkout.email-updates.action", { query: { orderId }, body }),
   orderStatus: (orderId: string) => api<PublicOrder>("checkout.status", { query: { orderId } }),
   trackPublic: (reference: string) => api<{reference:string;paymentStatus:string;fulfilmentStatus:string;deliveryStatus:string;fulfilment:string;createdAt:string}>("orders.track-public", { body: { reference } }),
   requestOrderOtp: (reference: string) => api<{challengeId:string;expiresAt:string}>("orders.track-otp.request", { body: { reference } }),

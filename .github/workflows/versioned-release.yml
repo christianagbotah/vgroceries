@@ -15,6 +15,10 @@ on:
         description: "Expose order-only SMS opt-in in storefront (requires separately verified API and worker)"
         type: boolean
         default: false
+      enable_order_email:
+        description: "Expose order-only email opt-in and verification (requires verified API, sender and workers)"
+        type: boolean
+        default: false
       enable_hubtel_refresh:
         description: "Expose active hosted payment refresh (requires matching enabled API)"
         type: boolean
@@ -61,6 +65,7 @@ jobs:
         env:
           API_BASE_URL: http://127.0.0.1:3049/api/v1
           NEXT_PUBLIC_API_BASE_URL: https://portal.varietygroceries.com/api/v1
+          NEXT_PUBLIC_ORDER_EMAIL_OPT_IN_ENABLED: ${{ inputs.enable_order_email && '1' || '0' }}
           NEXT_PUBLIC_ORDER_SMS_OPT_IN_ENABLED: ${{ inputs.enable_order_sms && '1' || '0' }}
           NEXT_PUBLIC_HUBTEL_CUSTOMER_PAYMENT_REFRESH_ENABLED: ${{ inputs.enable_hubtel_refresh && '1' || '0' }}
           NEXT_TELEMETRY_DISABLED: '1'
@@ -84,6 +89,7 @@ jobs:
           npm run --prefix apps/api build
           test -f apps/api/dist/src/main.js
           test -f apps/api/dist/scripts/run-order-sms.js
+          test -f apps/api/dist/scripts/run-order-email.js
           test -f apps/api/dist/scripts/recover-hosted-payments.js
       - name: Assemble and inspect source-light runtime
         env:
@@ -113,6 +119,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           VERSION: ${{ inputs.version }}
+          ENABLE_ORDER_EMAIL: ${{ inputs.enable_order_email }}
           ENABLE_ORDER_SMS: ${{ inputs.enable_order_sms }}
           ENABLE_HUBTEL_REFRESH: ${{ inputs.enable_hubtel_refresh }}
         run: |
@@ -130,4 +137,4 @@ jobs:
             echo "Tag already exists; never move an existing version."
             exit 1
           fi
-          gh release create "$VERSION" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --draft --title "Variety Groceries $VERSION" --notes "GitHub-built candidate for exact source $GITHUB_SHA. Storefront build flags: order SMS=$ENABLE_ORDER_SMS; active Hubtel refresh=$ENABLE_HUBTEL_REFRESH. Not deployed. Review runtime smoke, configuration parity, migration compatibility and acceptance evidence before publication or VPS installation." runtime.tar.gz SHA256SUMS source-sha.txt version.txt format.txt
+          gh release create "$VERSION" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --draft --title "Variety Groceries $VERSION" --notes "GitHub-built candidate for exact source $GITHUB_SHA. Storefront build flags: order SMS=$ENABLE_ORDER_SMS; active Hubtel refresh=$ENABLE_HUBTEL_REFRESH; order email=$ENABLE_ORDER_EMAIL. Not deployed. Review runtime smoke, configuration parity, migration compatibility and acceptance evidence before publication or VPS installation." runtime.tar.gz SHA256SUMS source-sha.txt version.txt format.txt
