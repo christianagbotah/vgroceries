@@ -223,6 +223,8 @@ export const apiOps = {
   paymentOutcome: (orderId: string, outcome: "succeeded" | "failed" | "pending") =>
     api<PaymentOutcomeResponse>("checkout.payment-outcome", { body: { orderId, outcome } }),
   refreshHostedPayment: (orderId: string) => api<PublicOrder>("checkout.payment-refresh", { query: { orderId }, body: {} }),
+  orderSmsUpdatesStatus: (orderId: string) => api<{state:"requested"|"revoked"|"not_requested"}>("checkout.sms-updates.status", { query: { orderId } }),
+  revokeOrderSmsUpdates: (orderId: string) => api<{revoked:true}>("checkout.sms-updates.revoke", { query: { orderId }, body: {action:"revoke"} }),
   orderEmailUpdatesStatus: (orderId: string) => api<OrderEmailUpdatesStatus>("checkout.email-updates.status", { query: { orderId } }),
   orderEmailUpdatesAction: (orderId: string, body: OrderEmailUpdatesAction) => api<OrderEmailUpdatesResult>("checkout.email-updates.action", { query: { orderId }, body }),
   orderStatus: (orderId: string) => api<PublicOrder>("checkout.status", { query: { orderId } }),

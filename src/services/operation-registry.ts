@@ -60,6 +60,8 @@ export const operationMeta: Record<string, OperationMeta> = {
   "checkout.payment-refresh": { invalidates: [...ORD, ...PAY] },
   "checkout.payment-outcome": { invalidates: [...ORD, ...PAY] },
   "checkout.status": {},
+  "checkout.sms-updates.status": {},
+  "checkout.sms-updates.revoke": { invalidates: ORD },
   "checkout.email-updates.status": {},
   "checkout.email-updates.action": { invalidates: ORD },
   "checkout.zones": { tags: CONF },

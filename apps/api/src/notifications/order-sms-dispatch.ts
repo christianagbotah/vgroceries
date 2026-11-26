@@ -55,7 +55,11 @@ export async function dispatchOneOrderSms(db:PrismaClient,options:{
    let recipientVerified = false;
    if(valid && order && plan){
     recipientVerified=registeredOrderSmsPhoneVerified(order.customerUser,order.customerPhone,now);
-    if(options.guestProofEnabled===true&&!order.customerUserId&&order.guestSessionId){
+    if(!order.customerUserId&&order.guestSessionId){
+     if(options.guestProofEnabled!==true){
+      await tx.customerMessageDelivery.updateMany({where:{id:item.id,status:"pending",attempts:0},data:{nextAttemptAt:new Date(now.getTime()+120000),lastErrorCode:"guest_sms_temporarily_disabled"}});
+      return {outcome:"deferred" as const};
+     }
      const proof=await tx.customerOtpChallenge.findFirst({
       where:guestOrderSmsProofWhere(order.id,plan.recipientFingerprint,plan.consentRecordedAt,now),
       select:{id:true},
