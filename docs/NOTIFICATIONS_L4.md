@@ -114,3 +114,8 @@ order total in minor units. Fully paid orders explicitly require no payment
 at handover; uncertain payment statuses make neither claim. SMS currency
 uses GSM-compatible GHS; tracking remains included. Individual external
 courier driver details are not stored by the current manual booking model.
+
+
+### Integrated order SMS worker candidate
+
+`npm run notifications:order-sms` is a bounded worker, independently gated by `CUSTOMER_ORDER_SMS_STAGING_ENABLED` and `CUSTOMER_ORDER_SMS_DISPATCH_ENABLED`. Both default off; dispatch requires configured encryption and Hubtel transport. Provider acceptance is not handset delivery. Ambiguous attempts are never resent automatically. A separate `CUSTOMER_GUEST_ORDER_SMS_ENABLED` gate allows a guest with previously recorded order-specific consent to verify the exact phone through the existing order OTP endpoints. A matching consumed OTP after consent is required, and an unverified guest's queued messages defer until proof or expiry. Checkout provides an optional verification step and does not block payment. Order creation and verified payment have distinct messages; creation never requests a second charge. No email dispatch, production activation, or delivery receipt handling is claimed here. Before activation, verify migrations, generated client parity, CI, serialized scheduling, revocation controls, bounded cost, monitoring, guest/registered UAT, and delivery receipt reconciliation.
