@@ -384,6 +384,7 @@ model OutboxEvent {
   publishedAt DateTime? @db.Timestamptz(3)
   notificationReceipt NotificationOutboxReceipt?
   smsStageReceipt OrderSmsStageReceipt?
+  emailStageReceipt OrderEmailStageReceipt?
   notification Notification?
   @@index([publishedAt, createdAt])
 }
@@ -545,6 +546,7 @@ model Order {
   customerReturnClaims CustomerReturnClaim[]
   notifications Notification[]
   smsConsent OrderSmsConsent?
+  emailConsent OrderEmailConsent?
   @@index([customerUserId, createdAt])
   @@index([guestSessionId, createdAt])
   @@index([zoneId, createdAt])
@@ -1746,6 +1748,27 @@ model IntegrationCredentialDraft {
 
 /// Durable staging decision, independent of the in-app notification projector.
 model OrderSmsStageReceipt {
+  sourceEventId String @id
+  sourceEvent OutboxEvent @relation(fields: [sourceEventId], references: [id])
+  outcome String
+  processedAt DateTime @default(now()) @db.Timestamptz(3)
+}
+
+
+/// Independent order email preference; mailbox verification is order-bound.
+/// Never backfill consent or verification from a supplied checkout address.
+model OrderEmailConsent {
+  orderId String @id
+  order Order @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  recipientFingerprint String
+  policyVersion String
+  recordedAt DateTime @default(now()) @db.Timestamptz(3)
+  verifiedAt DateTime? @db.Timestamptz(3)
+  revokedAt DateTime? @db.Timestamptz(3)
+}
+
+/// Email decisions do not consume or modify SMS and in-app decisions.
+model OrderEmailStageReceipt {
   sourceEventId String @id
   sourceEvent OutboxEvent @relation(fields: [sourceEventId], references: [id])
   outcome String
