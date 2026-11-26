@@ -28,8 +28,6 @@ export class CheckoutCommandService {
   }
   async complete(req:ApiRequest,principal:CheckoutPrincipal,input:CompleteOrderRequest,key:string):Promise<CompleteOrderResponse>{
     const commerce=this.commerce(); validateCheckoutContact(input);
-    if(input.emailUpdatesOptIn===true && process.env.CUSTOMER_ORDER_EMAIL_CONSENT_ENABLED!=="true")
-      throw new ApiProblem(503,"FEATURE_DISABLED","Order email updates are not available yet.");
     const destinationKind = input.destinationKind ?? "doorstep";
     if (input.fulfilment === "collection" && (input.destinationKind || input.finalPickupNodeId))
       throw new ApiProblem(400, "VALIDATION_FAILED", "Source collection cannot specify a remote pickup destination.");
@@ -45,6 +43,8 @@ export class CheckoutCommandService {
     return this.db.$transaction(async tx=>{
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${JSON.stringify([principal.actorScope,"checkout.complete",key])},0))`;
       const replay=await this.replay(tx,principal.actorScope,key,hash); if(replay)return replay;
+      if(input.emailUpdatesOptIn===true && process.env.CUSTOMER_ORDER_EMAIL_CONSENT_ENABLED!=="true")
+        throw new ApiProblem(503,"FEATURE_DISABLED","Order email updates are not available yet.");
       const location=await tx.location.findUnique({where:{id:commerce.locationId},select:{active:true}});
       if(!location?.active) throw new ApiProblem(503,"UNAVAILABLE","Commerce stock location is unavailable.");
       const ids=[...new Set(input.lines.map(x=>x.variantId))];
