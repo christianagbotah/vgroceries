@@ -146,6 +146,7 @@ test("one counted cash sale atomically depletes reserved goods and updates till 
   // Authenticated cash and till records must not enter shared/browser caches.
   for(const path of [
     "/admin/pos/cash-sales",
+    "/admin/pos/cash-sales/history?limit=25",
     `/admin/pos/cash-sales/${sale.id}`,
     "/admin/pos/tills",
     `/admin/pos/tills/${till.id}`,
@@ -173,6 +174,19 @@ test("one counted cash sale atomically depletes reserved goods and updates till 
   assert.match(html,/₵0\.77/);
   assert.match(html,/NOT A TAX INVOICE/);
   assert.equal((await api("GET","/admin/pos/cash-sales",admin)).status,200);
+  const historyRoute="/admin/pos/cash-sales/history";
+  const beforeHistory=await db.stockDepletion.count();
+  const history=await api("GET",historyRoute+"?limit=1",admin);
+  assert.equal(history.status,200);
+  assert.equal(history.payload.data.sales[0].id,sale.id);
+  assert.equal(history.payload.data.hasMore,false);
+  assert.equal(history.payload.data.nextCursor,null);
+  assert.equal((await api("GET",historyRoute)).status,401);
+  const historyCustomer=await token("customer-a@example.test");
+  assert.equal((await api("GET",historyRoute,historyCustomer)).status,403);
+  for(const query of ["?limit=51","?limit=0","?unexpected=foo","?cursor=invalid!"])
+    assert.equal((await api("GET",historyRoute+query,admin)).status,400);
+  assert.equal(await db.stockDepletion.count(),beforeHistory);
   const movement=await tills.move("admin-commerce",till.id,
     "cash-sale-drop-001","drop",{
       kind:"drop",amountMinor:100,note:"Verified cash drop to the safe",
