@@ -27,6 +27,10 @@ on:
         description: "Expose administrator-only read-only POS cash history and receipt review"
         type: boolean
         default: false
+      enable_pos_till_commands:
+        description: "Expose verified administrator till commands after isolated acceptance"
+        type: boolean
+        default: false
       enable_pos_till_reconciliation:
         description: "Expose administrator-only read-only till reconciliation and CSV"
         type: boolean
@@ -82,6 +86,7 @@ jobs:
           NEXT_PUBLIC_ORDER_SMS_OPT_IN_ENABLED: ${{ inputs.enable_order_sms && '1' || '0' }}
           NEXT_PUBLIC_HUBTEL_CUSTOMER_PAYMENT_REFRESH_ENABLED: ${{ inputs.enable_hubtel_refresh && '1' || '0' }}
           NEXT_PUBLIC_VERIFIED_POS_CASH_HISTORY_UAT: ${{ inputs.enable_pos_cash_history && '1' || '0' }}
+          NEXT_PUBLIC_VERIFIED_POS_TILL_COMMANDS_UAT: ${{ inputs.enable_pos_till_commands && '1' || '0' }}
           NEXT_PUBLIC_VERIFIED_POS_TILL_RECONCILIATION_UAT: ${{ inputs.enable_pos_till_reconciliation && '1' || '0' }}
           NEXT_TELEMETRY_DISABLED: '1'
           NEXT_TURBOPACK_EXPERIMENTAL_USE_SYSTEM_TLS_CERTS: '1'
@@ -138,6 +143,7 @@ jobs:
           ENABLE_ORDER_EMAIL: ${{ inputs.enable_order_email }}
           ENABLE_ORDER_SMS: ${{ inputs.enable_order_sms }}
           ENABLE_POS_CASH_HISTORY: ${{ inputs.enable_pos_cash_history }}
+          ENABLE_POS_TILL_COMMANDS: ${{ inputs.enable_pos_till_commands }}
           ENABLE_POS_TILL_RECONCILIATION: ${{ inputs.enable_pos_till_reconciliation }}
           ENABLE_HUBTEL_REFRESH: ${{ inputs.enable_hubtel_refresh }}
         run: |
@@ -155,4 +161,4 @@ jobs:
             echo "Tag already exists; never move an existing version."
             exit 1
           fi
-          gh release create "$VERSION" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --draft --title "Variety Groceries $VERSION" --notes "GitHub-built candidate for exact source $GITHUB_SHA. Storefront build flags: password recovery=$ENABLE_PASSWORD_RECOVERY; order SMS=$ENABLE_ORDER_SMS; active Hubtel refresh=$ENABLE_HUBTEL_REFRESH; order email=$ENABLE_ORDER_EMAIL; POS cash history=$ENABLE_POS_CASH_HISTORY; POS till reconciliation=$ENABLE_POS_TILL_RECONCILIATION. Not deployed. Review runtime smoke, configuration parity, migration compatibility and acceptance evidence before publication or VPS installation." runtime.tar.gz SHA256SUMS source-sha.txt version.txt format.txt
+          gh release create "$VERSION" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --draft --title "Variety Groceries $VERSION" --notes "GitHub-built candidate for exact source $GITHUB_SHA. Storefront build flags: password recovery=$ENABLE_PASSWORD_RECOVERY; order SMS=$ENABLE_ORDER_SMS; active Hubtel refresh=$ENABLE_HUBTEL_REFRESH; order email=$ENABLE_ORDER_EMAIL; POS cash history=$ENABLE_POS_CASH_HISTORY; POS till reconciliation=$ENABLE_POS_TILL_RECONCILIATION; POS till commands=$ENABLE_POS_TILL_COMMANDS. Not deployed. Review runtime smoke, configuration parity, migration compatibility and acceptance evidence before publication or VPS installation." runtime.tar.gz SHA256SUMS source-sha.txt version.txt format.txt
