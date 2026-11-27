@@ -24,7 +24,7 @@ export async function dispatchOneOrderEmail(db:PrismaClient,options:{
   if(event&&event.emailStageReceipt?.outcome==="queued"&&now.getTime()-event.createdAt.getTime()<=orderEmailMaxAgeMs){
    const resolved=await resolveSmsOrder(tx,event,now);
    const order=resolved?await tx.order.findUnique({where:{id:resolved.orderId},select:{id:true,reference:true,customerEmail:true,emailConsent:true,fulfilmentStatus:true,cancelledAt:true,paymentStatus:true,paymentMethod:true,totalMinor:true}}):null;
-   const plan=order&&resolved?planOrderEmail({event:{...event,type:resolved.template??event.type,aggregateId:resolved.orderId},order,enabled:true,evaluatedAt:now,paymentConfirmed:resolved.paymentConfirmed,deliveryConfirmed:resolved.deliveryConfirmed}):null;
+   const plan=order&&resolved?planOrderEmail({event:{...event,type:resolved.template??event.type,aggregateId:resolved.orderId},order,enabled:true,evaluatedAt:now,paymentConfirmed:resolved.paymentConfirmed,deliveryConfirmed:resolved.deliveryConfirmed,refundAmountMinor:resolved.refundAmountMinor}):null;
    if(order?.emailConsent&&plan&&plan.recipientFingerprint===item.recipientFingerprint&&plan.templateKey===item.templateKey&&item.templateVersion===1&&item.consentRecordedAt?.getTime()===plan.consentRecordedAt.getTime()&&currentOrderSmsState(plan.templateKey,order.fulfilmentStatus,order.cancelledAt)){
     if(!hasOrderEmailProof(order.emailConsent,now)){
      await tx.customerMessageDelivery.updateMany({where:{id:item.id,status:"pending",attempts:0},data:{nextAttemptAt:new Date(now.getTime()+120000),lastErrorCode:"awaiting_email_verification"}});
@@ -32,7 +32,7 @@ export async function dispatchOneOrderEmail(db:PrismaClient,options:{
     }
     try{
      const recipient=decryptCustomerDestination(item.recipientEncrypted,options.keyHex);
-     if(recipient===normalizeOrderEmail(order.customerEmail))message={recipient,...orderEmailCopy(plan.templateKey,order)};
+     if(recipient===normalizeOrderEmail(order.customerEmail))message={recipient,...orderEmailCopy(plan.templateKey,order,resolved?.refundAmountMinor)};
     }catch{/* Suppress invalid ciphertext or copy. */}
    }
   }
