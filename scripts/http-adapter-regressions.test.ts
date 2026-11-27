@@ -222,6 +222,18 @@ describe("production HTTP contract", () => {
     reply = () => Response.json(value);
     await expect(new HttpServiceAdapter(`${base}/api/v1`).request({ op: "catalog.list" })).rejects.toMatchObject({ code: "BAD_RESPONSE" });
   });
+  test("verified fulfilment pick sends exact PUT, strict body and header-only replay key",async()=>{
+   const http=new HttpServiceAdapter(base+"/api/v1");
+   const op="admin.verified.fulfilment.pick";
+   await http.request({op,query:{orderId:"ord-1",reservationId:"lot-hold-1"},body:{pickedQuantity:"1.25",note:"Counted"},idempotencyKey:"fulfilment-pick-test-1"});
+   expect(calls.at(-1)?.method).toBe("PUT");
+   expect(calls.at(-1)?.path).toBe("/api/v1/admin/fulfilment/orders/ord-1/picks/lot-hold-1");
+   expect(calls.at(-1)?.key).toBe("fulfilment-pick-test-1");
+   expect(calls.at(-1)?.body).toEqual({pickedQuantity:"1.25",note:"Counted"});
+   await expect(http.request({op,query:{orderId:"ord-1",reservationId:"lot-hold-1"},body:{pickedQuantity:"-1"},idempotencyKey:"fulfilment-pick-test-2"})).rejects.toMatchObject({code:"VALIDATION_FAILED"});
+   expect(calls).toHaveLength(1);
+  });
+
   test("the timeout covers a stalled body after headers arrive", async () => {
     reply = (req) => new Response(new ReadableStream({ start(controller) {
       controller.enqueue(new TextEncoder().encode("{"));
@@ -246,17 +258,4 @@ describe("customer return boundary", () => {
     expect(ret.requestedBy).toBe("customer");
     expect(ret.evidenceNote).toBe("Customer evidence");
   });
-});
-
-
-test("verified fulfilment pick sends exact PUT, strict body and header-only replay key",async()=>{
- const http=new HttpServiceAdapter(base+"/api/v1");
- const op="admin.verified.fulfilment.pick";
- await http.request({op,query:{orderId:"ord-1",reservationId:"lot-hold-1"},body:{pickedQuantity:"1.25",note:"Counted"},idempotencyKey:"fulfilment-pick-test-1"});
- expect(calls.at(-1)?.method).toBe("PUT");
- expect(calls.at(-1)?.path).toBe("/api/v1/admin/fulfilment/orders/ord-1/picks/lot-hold-1");
- expect(calls.at(-1)?.key).toBe("fulfilment-pick-test-1");
- expect(calls.at(-1)?.body).toEqual({pickedQuantity:"1.25",note:"Counted"});
- await expect(http.request({op,query:{orderId:"ord-1",reservationId:"lot-hold-1"},body:{pickedQuantity:"-1"},idempotencyKey:"fulfilment-pick-test-2"})).rejects.toMatchObject({code:"VALIDATION_FAILED"});
- expect(calls).toHaveLength(1);
 });
