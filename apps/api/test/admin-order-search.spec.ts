@@ -13,7 +13,7 @@ before(async()=>{
  ["search-one","VG-SEARCH000001","Fixture Shopper","Golden Rice","Family Pack","succeeded"],
  ["search-two","VG-SEARCH000002","Other Shopper","Salt","Small Pack","pending"],
  ]){
- await db.order.create({data:{id,reference,customerName,customerPhone:"+233241111111",fulfilment:"collection",paymentMethod:"electronic",paymentStatus,fulfilmentStatus:"awaiting_confirmation",deliveryStatus:"unassigned",subtotalMinor:100,totalMinor:100,verificationKeyVersion:1,verificationCodeHash:"a".repeat(64),lines:{create:{variantId:"var-rice",productId:"product-rice",productName,variantName,unit:"piece",quantity:1,unitPriceMinor:100,lineTotalMinor:100}}}});
+ await db.order.create({data:{id,reference,customerUserId:"customer-a",customerName,customerPhone:"+233241111111",fulfilment:"collection",paymentMethod:"electronic",paymentStatus,fulfilmentStatus:"awaiting_confirmation",deliveryStatus:"unassigned",subtotalMinor:100,totalMinor:100,verificationKeyVersion:1,verificationCodeHash:"a".repeat(64),lines:{create:{variantId:"var-rice",productId:"product-rice",productName,variantName,unit:"piece",quantity:1,unitPriceMinor:100,lineTotalMinor:100}}}});
  }
 });
 after(async()=>{await app?.close();});
