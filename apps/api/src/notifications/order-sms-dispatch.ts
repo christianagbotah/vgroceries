@@ -22,10 +22,10 @@ export function currentOrderSmsState(type:string,fulfilmentStatus:string,cancell
  if(type==="delivery.out_for_delivery")return fulfilmentStatus==="dispatched";
  if(type==="delivery.delivered")return fulfilmentStatus==="delivered";
  if(type==="order.created")return true; // Historical creation is true even after preparation starts.
- if(type==="fulfilment.confirmed")return fulfilmentStatus==="confirmed";
- if(type==="fulfilment.picking_started")return fulfilmentStatus==="picking";
+ if(type==="fulfilment.confirmed")return ["confirmed","picking","packed","ready_for_collection","dispatched","delivered","collected"].includes(fulfilmentStatus);
+ if(type==="fulfilment.picking_started")return ["picking","packed","ready_for_collection","dispatched","delivered","collected"].includes(fulfilmentStatus);
  if(type==="fulfilment.handed_over")return fulfilmentStatus==="collected";
- if(type==="fulfilment.packed")return ["packed","ready_for_collection"].includes(fulfilmentStatus);
+ if(type==="fulfilment.packed")return ["packed","ready_for_collection","dispatched","delivered","collected"].includes(fulfilmentStatus);
  return false;
 }
 

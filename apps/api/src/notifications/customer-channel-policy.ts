@@ -52,11 +52,13 @@ export function customerMessage(
     case "payment.failed": return { subject: "Variety Groceries - Payment unsuccessful", body: `Variety Groceries: Payment for ${reference} was unsuccessful. Check your existing order. If debited, contact support before retrying.${tracking}` };
     case "payment.expired": return { subject: "Variety Groceries - Payment expired", body: `Variety Groceries: Payment request for ${reference} expired. Check your existing order before retrying. If debited, contact support.${tracking}` };
     case "payment.requires_review": return { subject: "Variety Groceries - Payment under review", body: `Variety Groceries: Payment for ${reference} is under review. Do not pay again until the issue is resolved.${tracking}` };
-    case "fulfilment.confirmed": return { subject: "Variety Groceries - Order confirmed", body: `Variety Groceries: Order ${reference} is confirmed for preparation.${tracking}` };
-    case "fulfilment.picking_started": return { subject: "Variety Groceries - Preparing your order", body: `Variety Groceries: We are preparing order ${reference}.${tracking}` };
+    case "fulfilment.confirmed": return { subject: "Variety Groceries - Order confirmed", body: `Variety Groceries: Order ${reference} was confirmed for preparation.${tracking}` };
+    case "fulfilment.picking_started": return fulfilmentStatus && fulfilmentStatus !== "picking"
+      ? { subject: "Variety Groceries - Preparation started", body: `Variety Groceries: Preparation started for order ${reference}. Check tracking for the latest status.${tracking}` }
+      : { subject: "Variety Groceries - Preparing your order", body: `Variety Groceries: We are preparing order ${reference}.${tracking}` };
     case "fulfilment.packed": return fulfilmentStatus === "ready_for_collection"
       ? { subject: "Variety Groceries - Ready for collection", body: `Variety Groceries: Order ${reference} is ready for collection.${tracking}` }
-      : { subject: "Variety Groceries - Order packed", body: `Variety Groceries: Order ${reference} is packed.${tracking}` };
+      : { subject: "Variety Groceries - Order packed", body: `Variety Groceries: Order ${reference} was packed.${tracking}` };
     case "fulfilment.handed_over": return { subject: "Variety Groceries - Order collected", body: `Variety Groceries: Order ${reference} has been collected. Thank you for shopping with us.${tracking}` };
     case "delivery.out_for_delivery": return { subject: "Variety Groceries - Out for delivery", body: `Variety Groceries: Order ${reference} is out for delivery.${tracking}` };
     case "delivery.delivered": return { subject: "Variety Groceries - Delivered", body: `Variety Groceries: Order ${reference} has been delivered.${tracking}` };
