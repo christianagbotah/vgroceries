@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Get,
+  Header,
   HttpCode,
   Param,
   Post,
@@ -82,6 +83,7 @@ export class FulfilmentController {
   }
 
   @Get()
+  @Header("Cache-Control", "private, no-store")
   async list(@Req() req: AuthRequest, @Query() query: unknown) {
     this.requireAdmin(req);
     const input = this.parse<FulfilmentListQuery>(
@@ -93,6 +95,7 @@ export class FulfilmentController {
   }
 
   @Get("orders/:orderId")
+  @Header("Cache-Control", "private, no-store")
   async detail(@Req() req: AuthRequest, @Param("orderId") orderId: string) {
     this.requireAdmin(req);
     return { ok: true, data: await this.queries.detail(orderId) };

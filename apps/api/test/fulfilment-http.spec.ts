@@ -118,6 +118,7 @@ test("administrator fulfilment reads are authenticated, role-restricted and boun
 
   const list = await request("GET", "/admin/fulfilment?page=1&perPage=1&status=awaiting_confirmation", { token: admin });
   assert.equal(list.response.status, 200);
+  assert.equal(list.response.headers.get("cache-control"), "private, no-store");
   assert.equal(list.body.data.page, 1);
   assert.equal(list.body.data.perPage, 1);
   assert.equal(list.body.data.total, 1);
@@ -230,6 +231,7 @@ test("administrator can drive the exact seven-route fulfilment workflow with str
 
   const detail = await request("GET", `/admin/fulfilment/orders/${fixture.order.id}`, { token: admin });
   assert.equal(detail.response.status, 200);
+  assert.equal(detail.response.headers.get("cache-control"), "private, no-store");
   assert.equal(detail.body.data.lines[0].reservations[0].lotNumber, "RICE");
   assert.deepEqual(detail.body.data.allowedActions, []);
   const encoded = JSON.stringify(detail.body.data);

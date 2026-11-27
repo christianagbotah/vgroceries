@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { ExternalLink, RefreshCw, Search, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -31,6 +31,7 @@ export function VerifiedPosCashHistoryUat() {
   const [previousCursors, setPreviousCursors] = useState<Array<string | null>>([]);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [pageLoading, setPageLoading] = useState(false);
+  const pageRequest = useRef(false);
   const selected = useMemo(() => {
     const needle = filter.trim().toLocaleLowerCase();
     return sales.filter(sale => !needle ||
@@ -87,7 +88,8 @@ export function VerifiedPosCashHistoryUat() {
   }, [revision]);
 
   const navigatePage = async (cursor: string | null, older: boolean) => {
-    if (loading || pageLoading || !admin) return;
+    if (loading || pageLoading || pageRequest.current || !admin) return;
+    pageRequest.current = true;
     setPageLoading(true);
     setError("");
     try {
@@ -105,6 +107,7 @@ export function VerifiedPosCashHistoryUat() {
         setAdmin("");
         setSales([]);
         setNextCursor(null);
+        setCurrentCursor(null);
         setPreviousCursors([]);
       }
       setError(cause instanceof ApiError &&
@@ -113,6 +116,7 @@ export function VerifiedPosCashHistoryUat() {
           : cause instanceof ApiError ? cause.message
             : "Could not verify another page of cash sales.");
     } finally {
+      pageRequest.current = false;
       setPageLoading(false);
     }
   };

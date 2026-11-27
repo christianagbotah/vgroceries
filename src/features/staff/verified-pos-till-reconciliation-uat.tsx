@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { ExternalLink, RefreshCw, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -34,6 +34,7 @@ export function VerifiedPosTillReconciliationUat() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [revision, setRevision] = useState(0);
+  const activeReview = useRef(false);
 
   useEffect(() => {
     if (!verifiedPosTillReconciliationUatEnabled) return;
@@ -72,7 +73,8 @@ export function VerifiedPosTillReconciliationUat() {
   }, [revision]);
 
   const review = async () => {
-    if (!tillId || busy || loading || !tills.some(t => t.id === tillId)) return;
+    if (!tillId || !adminName || activeReview.current || busy || loading || !tills.some(t => t.id === tillId)) return;
+    activeReview.current = true;
     const requested = tillId;
     setBusy(true);
     setReport(null);
@@ -83,8 +85,11 @@ export function VerifiedPosTillReconciliationUat() {
       // not render another till's cash details under the new selection.
       setReport(current);
     } catch (cause) {
+      if (cause instanceof ApiError && ["UNAUTHENTICATED", "FORBIDDEN"].includes(cause.code)) {
+        setAdminName(""); setTills([]); setTillId(""); setReport(null);
+      }
       setError(cause instanceof ApiError ? cause.message : "The till report could not be verified.");
-    } finally { setBusy(false); }
+    } finally { activeReview.current = false; setBusy(false); }
   };
 
   if (!verifiedPosTillReconciliationUatEnabled) return <main className="mx-auto max-w-3xl rounded-xl border p-6">
@@ -144,7 +149,7 @@ export function VerifiedPosTillReconciliationUat() {
       <Button className="min-h-12" disabled={!tillId || loading || busy}
         onClick={() => void review()}>{busy ? "Verifying drawer…" : "Review server cash ledger"}</Button>
     </section> : null}
-    {report && report.tillSessionId === tillId ? <section className="space-y-4 rounded-xl border bg-card p-4 sm:p-5">
+    {adminName && !error && report && report.tillSessionId === tillId ? <section className="space-y-4 rounded-xl border bg-card p-4 sm:p-5">
       <header className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h2 className="text-xl font-bold">Till {report.tillCode}</h2>
