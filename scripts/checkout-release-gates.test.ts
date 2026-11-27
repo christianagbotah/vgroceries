@@ -35,3 +35,11 @@ test("POS history and reconciliation remain independent read-only default-off re
   }
   expect(workflow).not.toContain("NEXT_PUBLIC_VERIFIED_POS_QUOTE_UAT:");
 });
+
+
+test("secure password recovery requires its own default-off release gate",()=>{
+  expect(workflow).toMatch(/enable_password_recovery:\s*description:[^\n]+\s*type: boolean\s*default: false/);
+  expect(workflow).toContain("NEXT_PUBLIC_PASSWORD_RECOVERY_UAT: ${{ inputs.enable_password_recovery && '1' || '0' }}");
+  expect(workflow).toContain("password recovery=$ENABLE_PASSWORD_RECOVERY");
+  expect(workflow).not.toContain("PASSWORD_RECOVERY_ENABLED:");
+});
