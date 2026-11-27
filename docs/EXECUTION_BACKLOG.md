@@ -282,3 +282,8 @@ Reference: [existing release roadmap](RELEASE_COMPLETION_ROADMAP.md). Preserve h
 - [x] Host-local retention command implemented and exercised in apply mode with exclusive shared lock, default non-destructive mode, exact active/rollback marker checks, checksum-verified recovery, byte comparison, reference/mount exclusions, per-removal health and audit evidence.
 - [ ] Finish remaining independently verified obsolete snapshots, staged candidates and legacy source preservation; add reusable retention integration and tests to GitHub-controlled deployment workflow. Host-local command alone is not complete automated post-deployment retention. Full consolidation remains open.
 
+### 2026-11-27 — retention retry second batch
+- [x] Independently recovered RC13 and RC12 GitHub artifacts, validated their archive digests and safe archive structures, and compared all local runtime files against their packages. Zero mismatches and zero unrecognized extras. Removed both complete superseded snapshots under shared lock with service/mount/process reference checks and successful post-removal public, portal, admin and database readiness checks. Source commits: `d9f3cff889fb488d9439cda07aec5f8e516b3df7`, `52c9298487384718be08640dc7b7652a266c6d74`.
+- [x] Retry total: 4 obsolete release snapshots removed; 2,666,340,352 allocated bytes removed; measured per-removal filesystem free-space increases total 2,661,867,520 bytes. RC17 live and RC16 rollback retained, no data or backups removed.
+- [ ] Remaining superseded snapshots, staging candidates and legacy directories still require independent review. Continue the host retention command using the shared lock and record evidence; complete automated GitHub-controlled post-deployment retention integration.
+
