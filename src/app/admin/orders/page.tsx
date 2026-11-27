@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { apiOps } from "@/services/client";
 import { useApiData } from "@/features/staff/admin-data";
 import { LoadingState, ErrorState, EmptyState } from "@/components/shared/states";
@@ -20,6 +20,10 @@ export default function AdminOrdersPage() {
   const [payment, setPayment] = useState("all");
   const [q, setQ] = useState("");
   const [searchInput, setSearchInput] = useState("");
+  useEffect(() => {
+    const timer = window.setTimeout(() => setQ(searchInput.trim()), 300);
+    return () => window.clearTimeout(timer);
+  }, [searchInput]);
 
   const { data, loading, error, reload, lastUpdated } = useApiData(
     () => apiOps.orders({ channel: channel === "all" ? undefined : channel, status: status === "all" ? undefined : status, payment: payment === "all" ? undefined : payment, q: q || undefined }),
@@ -27,7 +31,7 @@ export default function AdminOrdersPage() {
   );
 
   const rows = useMemo(() => data ?? [], [data]);
-  const filtering = channel !== "all" || status !== "all" || payment !== "all" || !!q;
+  const filtering = channel !== "all" || status !== "all" || payment !== "all" || !!searchInput.trim();
 
   return (
     <div className="space-y-4">
@@ -54,7 +58,7 @@ export default function AdminOrdersPage() {
           <Input
             type="search"
             className="h-11 pl-9 pr-20"
-            placeholder="Reference, customer or phone…"
+            placeholder="Order reference, customer, phone or product…"
             value={searchInput}
             onChange={(e) => { setSearchInput(e.target.value); if (!e.target.value.trim()) setQ(""); }}
             aria-label="Search orders"

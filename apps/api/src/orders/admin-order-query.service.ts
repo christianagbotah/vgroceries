@@ -26,6 +26,7 @@ export class AdminOrderQueryService {
               { reference: { contains: search, mode: "insensitive" } },
               { customerName: { contains: search, mode: "insensitive" } },
               { customerPhone: { contains: search, mode: "insensitive" } },
+              { lines: { some: { OR: [{ productName: { contains: search, mode: "insensitive" } }, { variantName: { contains: search, mode: "insensitive" } }] } } },
             ],
           }
         : {}),
