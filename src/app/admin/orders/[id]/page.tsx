@@ -16,6 +16,8 @@ import { Label } from "@/components/ui/label";
 import { formatMoney } from "@/lib/money";
 import { formatPlacedDateTime } from "@/lib/format";
 import { OrderItemThumbnail } from "@/components/orders/order-line-preview";
+import { isDemoStaffSessionActive } from "@/features/staff/staff-demo-session";
+import { VerifiedFulfilmentDetail } from "@/features/staff/verified-fulfilment-workspace";
 import { PAYMENT_METHOD_LABELS, DELIVERY_LABELS } from "@/types/domain";
 import { useToast } from "@/hooks/use-toast";
 import { Ban, Check, CircleDashed, MapPin, MessageSquarePlus, Package, Phone, Repeat2, Send, ShieldQuestion, Store, Truck, Undo2 } from "lucide-react";
@@ -32,6 +34,11 @@ export default function AdminOrderDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
+  const [liveSession, setLiveSession] = useState<boolean | null>(null);
+  useEffect(() => {
+    const timer=window.setTimeout(()=>setLiveSession(Boolean(process.env.NEXT_PUBLIC_API_BASE_URL)&&!isDemoStaffSessionActive()),0);
+    return ()=>window.clearTimeout(timer);
+  },[]);
 
   // dialogs
   const [noteText, setNoteText] = useState("");
@@ -73,19 +80,21 @@ export default function AdminOrderDetailPage() {
     }
   };
 
-  if (loading) return <LoadingState rows={6} label="Loading order" />;
+  if (loading || liveSession===null) return <LoadingState rows={6} label="Loading order" />;
   if (error) return <ErrorState message={error} onRetry={load} />;
   if (!order || !internal) return null;
 
   const isDelivery = order.fulfilment === "delivery";
   const fStatus = order.fulfilmentStatus;
 
-  const canConfirm = can("orders.confirm") && fStatus === "awaiting_confirmation";
-  const canPick = can("orders.fulfil") && fStatus === "confirmed";
-  const canPack = can("orders.fulfil") && fStatus === "picking";
-  const canReady = can("orders.fulfil") && fStatus === "packed" && !isDelivery;
-  const canCollect = can("orders.fulfil") && fStatus === "ready_for_collection";
-  const canDispatch = can("dispatch.assign") && fStatus === "packed" && isDelivery;
+  const verifiedOnline = liveSession && order.channel==="online";
+  const legacyActions = !liveSession;
+  const canConfirm = legacyActions && can("orders.confirm") && fStatus === "awaiting_confirmation";
+  const canPick = legacyActions && can("orders.fulfil") && fStatus === "confirmed";
+  const canPack = legacyActions && can("orders.fulfil") && fStatus === "picking";
+  const canReady = legacyActions && can("orders.fulfil") && fStatus === "packed" && !isDelivery;
+  const canCollect = legacyActions && can("orders.fulfil") && fStatus === "ready_for_collection";
+  const canDispatch = legacyActions && can("dispatch.assign") && fStatus === "packed" && isDelivery;
   const canCancel = can("orders.cancel") && !["delivered", "collected", "cancelled", "dispatched"].includes(fStatus);
   const canSubstitute = can("orders.substitute") && ["confirmed", "picking"].includes(fStatus);
   const needsReview = order.paymentStatus === "requires_review";
@@ -338,6 +347,8 @@ export default function AdminOrderDetailPage() {
         </div>
       </div>
 
+      {verifiedOnline && <VerifiedFulfilmentDetail key={id} orderId={id} embedded onChange={()=>void load()}/>}
+
       {/* actions */}
       <section aria-labelledby="actions-heading" className="space-y-3 rounded-xl border bg-card p-4">
         <h2 id="actions-heading" className="font-semibold">Actions</h2>
@@ -503,7 +514,7 @@ export default function AdminOrderDetailPage() {
             </Dialog>
           ) : null}
         </div>
-        {!canConfirm && !canPick && !canPack && !canCollect && !canDispatch && !canCancel ? (
+        {!verifiedOnline && !canConfirm && !canPick && !canPack && !canCollect && !canDispatch && !canCancel ? (
           <p className="text-sm text-muted-foreground">
             No actions available for this order in its current state, or your demo role lacks the
             permission.
