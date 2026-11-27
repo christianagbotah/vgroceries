@@ -467,7 +467,7 @@ export default function CheckoutPage() {
                     <span className="block font-medium">Send me SMS updates about this order</span>
                     <span className="mt-1 block text-xs leading-5 text-muted-foreground">
                       Order creation, verified payment and fulfilment updates to the phone number above.
-                      This is optional, not marketing consent; delivery depends on phone verification and service availability.
+                      This is optional, not marketing consent; delivery depends on phone verification and service availability. After placing your order, select Send verification code and verify your phone to activate the requested SMS updates.
                     </span>
                   </span>
                 </label>

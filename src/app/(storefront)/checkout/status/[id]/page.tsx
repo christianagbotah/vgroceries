@@ -235,12 +235,12 @@ export default function CheckoutStatusPage() {
           {order.fulfilment === "delivery" ? <StatusBadge kind="delivery" status={order.deliveryStatus} /> : null}
           <span className="text-muted-foreground">Placed {formatDateTime(order.createdAt)} UTC</span>
         </div>
+        {order.smsPhoneVerificationRequired ? <div className="mt-4"><OrderSmsVerification key={order.id} reference={order.reference} onVerified={() => void load()} /></div> : null}
         <div className="mt-4"><OrderReceiptExperience order={order} /></div>
       </div>
 
       {process.env.NEXT_PUBLIC_ORDER_EMAIL_OPT_IN_ENABLED === "1" && process.env.NEXT_PUBLIC_API_BASE_URL ? <div className="mt-4"><OrderEmailVerification key={order.id} orderId={order.id} /></div> : null}
       {process.env.NEXT_PUBLIC_API_BASE_URL ? <div className="mt-4"><OrderSmsPreference key={order.id} orderId={order.id} onRevoked={() => void load()} /></div> : null}
-      {order.smsPhoneVerificationRequired ? <div className="mt-4"><OrderSmsVerification key={order.id} reference={order.reference} onVerified={() => void load()} /></div> : null}
 
       {needsAction ? (
         <div className="mt-4 rounded-2xl border border-warning/40 bg-warning/10 p-4 sm:p-5">

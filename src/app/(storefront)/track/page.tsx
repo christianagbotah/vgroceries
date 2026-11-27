@@ -157,8 +157,8 @@ function TrackFormContent({ orderId, initialReference, initialCode }: {
             <Button asChild className="w-full"><Link href="/account/orders">View order details and items</Link></Button>
             <p className="text-xs text-muted-foreground">Sign in to the purchasing account to see product names, quantities, prices and receipts. An order number alone cannot unlock private purchases.</p>
             <div className="space-y-3 border-t pt-3" aria-label="Recover guest order by SMS">
-              <p className="font-semibold">Forgot your private order code?</p>
-              <p className="text-xs text-muted-foreground">Receive a six-digit verification code on the phone number used when placing this order. We never display the full number.</p>
+              <p className="font-semibold">Verify your phone or recover your private order code</p>
+              <p className="text-xs text-muted-foreground">Receive a six-digit verification code on the phone number used when placing this order. This also verifies ownership of the number for requested guest order SMS updates. We never display the full number.</p>
               {otpError?<p role="alert" className="text-xs text-destructive">{otpError}{trackingWait>0?` Retry in ${formatRetryCountdown(trackingWait)}.`:resendWait>0?` Available in ${formatRetryCountdown(resendWait)}.`:""}</p>:null}
               <Button type="button" className="w-full" disabled={otpBusy||resendWait>0||trackingWait>0} onClick={()=>void requestOrderOtp()}>
                 {otpBusy?"Please wait…":trackingWait>0?`Tracking available in ${formatRetryCountdown(trackingWait)}`:resendWait>0?`SMS available in ${formatRetryCountdown(resendWait)}`:otpChallenge?"Resend SMS code":"Verify with SMS OTP"}
