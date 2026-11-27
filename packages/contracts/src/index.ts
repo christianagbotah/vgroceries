@@ -54,3 +54,5 @@ export * from "./customer-return-claims";
 export * from "./business-contact";
 
 export * from "./business-identity";
+
+export * from "./order-notes";

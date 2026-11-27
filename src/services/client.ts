@@ -400,6 +400,15 @@ export const apiOps = {
   orders: (f: { channel?: string; status?: string; payment?: string; q?: string }) =>
     api<AdminOrderRow[]>("admin.orders", { query: f as Record<string, QueryValue> }),
   order: (orderId: string) => api<AdminOrderDetail>("admin.order", { query: { orderId } }),
+  addVerifiedOrderNote: async (orderId:string,raw:unknown,key:string) => {
+    if(!process.env.NEXT_PUBLIC_API_BASE_URL||isDemoStaffSessionActive())throw new ApiError("FORBIDDEN","A real administrator session is required.");
+    const {orderNoteRequestSchema,orderNoteOutcomeSchema,replayKeySchema}=await import("./contracts");
+    const body=orderNoteRequestSchema.parse(raw);
+    replayKeySchema.parse(key);
+    const result=orderNoteOutcomeSchema.safeParse(await api("admin.verified.order.note",{query:{orderId},body,idempotencyKey:key}));
+    if(!result.success||result.data.orderId!==orderId||result.data.internalOnly!==body.internalOnly)throw new ApiError("BAD_RESPONSE","Note outcome could not be verified. Retry the same note.");
+    return result.data;
+  },
   orderAction: async (body: Record<string, unknown>): Promise<PublicOrder> => {
     if (!process.env.NEXT_PUBLIC_API_BASE_URL || isDemoStaffSessionActive())
       return api<PublicOrder>("admin.order.action", { body });

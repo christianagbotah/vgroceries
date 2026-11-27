@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+import { orderNoteOutcomeSchema, type OrderNoteRequest } from "@variety/contracts";
 import { Injectable } from "@nestjs/common";
 import type { Prisma } from "@prisma/client";
 import type { AdminOrderDetail, AdminOrderFilters, AdminOrderRow } from "@variety/contracts";
@@ -52,12 +54,33 @@ export class AdminOrderQueryService {
     }));
   }
 
+  async addNote(orderId:string,actorId:string,requestId:string,key:string,input:OrderNoteRequest){
+    const operation="orders.admin.note",hash=createHash("sha256").update(JSON.stringify([orderId,input.note,input.internalOnly])).digest("hex");
+    return this.db.$transaction(async tx=>{
+      await tx.$queryRaw`SELECT id FROM "Order" WHERE id=${orderId} FOR UPDATE`;
+      if(!await tx.order.findUnique({where:{id:orderId},select:{id:true}}))throw new ApiProblem(404,"NOT_FOUND","Order not found.");
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${JSON.stringify([actorId,operation,key])},0))`;
+      const where={actorId_operation_key:{actorId,operation,key}};
+      const previous=await tx.idempotency.findUnique({where});
+      if(previous){
+        if(previous.requestHash!==hash)throw new ApiProblem(409,"IDEMPOTENCY_CONFLICT","This request identity belongs to a different note.");
+        return orderNoteOutcomeSchema.parse(previous.outcome);
+      }
+      const row=await tx.orderEvent.create({data:{orderId,actorKind:"staff",actorId,action:"order.note_added",note:input.note,customerSafe:!input.internalOnly}});
+      const outcome={orderId,noteId:row.id,internalOnly:input.internalOnly};
+      await tx.auditEvent.create({data:{actorId,requestId,entityId:orderId,action:"order.note_added",details:{noteId:row.id,internalOnly:input.internalOnly}}});
+      await tx.idempotency.create({data:{actorId,operation,key,requestHash:hash,outcome}});
+      return outcome;
+    });
+  }
+
   async detail(orderId: string): Promise<AdminOrderDetail> {
     const order = await this.db.order.findUnique({
       where: { id: orderId },
       include: {
         deliveryAddress: true,
         zone: true,
+        events: {where:{action:"order.note_added"},orderBy:[{createdAt:"asc"},{id:"asc"}]},
         refunds: { include: { execution: true }, orderBy: [{ createdAt: "asc" }, { id: "asc" }] },
       },
     });
@@ -86,6 +109,8 @@ export class AdminOrderQueryService {
       ...(refund.failureReason ? { note: refund.failureReason } : {}),
     }));
 
+    const authors=await this.db.user.findMany({where:{id:{in:[...new Set(order.events.flatMap(e=>e.actorId?[e.actorId]:[]))]}},select:{id:true,name:true}});
+    const names=new Map(authors.map(a=>[a.id,a.name]));
     return {
       order: await this.projection.publicOrder(orderId),
       internal: {
@@ -105,7 +130,7 @@ export class AdminOrderQueryService {
           : {}),
         ...(order.zone ? { zone: { id: order.zone.id, name: order.zone.name } } : {}),
         ...(order.customerUserId ? { customerId: order.customerUserId } : {}),
-        customerNotes: [],
+        customerNotes: order.events.filter(e=>e.note).map(e=>({at:e.createdAt.toISOString(),by:names.get(e.actorId??"")??"Staff",text:e.note!,internalOnly:!e.customerSafe})),
         reservations: reservations.map((reservation) => ({
           id: reservation.id,
           quantity: reservation.quantity.toString(),

@@ -140,3 +140,26 @@ test("production OpenAPI publishes both admin order read routes", () => {
   assert.ok(document.paths["/api/v1/admin/orders"]?.get);
   assert.ok(document.paths["/api/v1/admin/orders/{orderId}"]?.get);
 });
+
+ test("verified notes are replay safe and internal notes never enter customer projection",async()=>{
+ const headers=await login("orders-admin@example.test");
+ const customer=await login("orders-customer@example.test");
+ const path="/api/v1/admin/orders/order-online-1/notes";
+ const send=async(h:Record<string,string>,body:unknown,key:string)=>{const response=await fetch(base+path,{method:"POST",headers:{...h,"content-type":"application/json","idempotency-key":key},body:JSON.stringify(body)});return {status:response.status,body:await response.json()};};
+ const internal={note:"Internal test note",internalOnly:true},shared={note:"Shared test note",internalOnly:false};
+ assert.equal((await send({},internal,"note-unauth")).status,401);
+ assert.equal((await send(customer,internal,"note-denied")).status,403);
+ assert.equal((await send(headers,{...internal,extra:true},"note-invalid")).status,400);
+ const one=await send(headers,internal,"note-test-001");assert.equal(one.status,200,JSON.stringify(one.body));
+ const repeat=await send(headers,internal,"note-test-001");assert.deepEqual(repeat.body.data,one.body.data);
+ assert.equal((await send(headers,shared,"note-test-001")).status,409);
+ assert.equal((await send(headers,shared,"note-test-002")).status,200);
+ const detail=await request("/admin/orders/order-online-1",headers);
+ assert.equal(detail.body.data.internal.customerNotes.length,2);
+ assert.ok(detail.body.data.internal.customerNotes.some((n:any)=>n.text===internal.note&&n.internalOnly===true));
+ assert.ok(detail.body.data.internal.customerNotes.some((n:any)=>n.text===shared.note&&n.internalOnly===false));
+ assert.equal(JSON.stringify(detail.body.data.order).includes(internal.note),false);
+ assert.equal(JSON.stringify(detail.body.data.order).includes(shared.note),true);
+ assert.equal(await db.orderEvent.count({where:{orderId:"order-online-1",action:"order.note_added"}}),2);
+ assert.equal((await db.order.findUniqueOrThrow({where:{id:"order-online-1"}})).fulfilmentStatus,"awaiting_confirmation");
+ });

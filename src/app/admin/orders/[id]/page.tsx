@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { apiOps, ApiError, type PublicOrder } from "@/services/client";
@@ -42,6 +42,10 @@ export default function AdminOrderDetailPage() {
 
   // dialogs
   const [noteText, setNoteText] = useState("");
+  const [noteError,setNoteError]=useState("");
+  const [noteOpen,setNoteOpen]=useState(false);
+  const noteLock=useRef(false);
+  const noteIntent=useRef<{signature:string;key:string}|null>(null);
   const [noteInternalOnly, setNoteInternalOnly] = useState(true);
   const [cancelReason, setCancelReason] = useState("");
   const [subLineId, setSubLineId] = useState("");
@@ -78,6 +82,23 @@ export default function AdminOrderDetailPage() {
     } finally {
       setBusy(null);
     }
+  };
+
+  const saveNote=async()=>{
+    if(noteLock.current||!noteText.trim()||noteText.trim().length>1000)return;
+    noteLock.current=true;setBusy("note");setNoteError("");
+    const body={note:noteText.trim(),internalOnly:noteInternalOnly};
+    const signature=JSON.stringify([id,body]);
+    try{
+      if(liveSession){
+        if(noteIntent.current?.signature!==signature)noteIntent.current={signature,key:"note:"+crypto.randomUUID()};
+        await apiOps.addVerifiedOrderNote(id,body,noteIntent.current.key);
+      }else await apiOps.orderAction({orderId:id,action:"note",actor:user.id,...body});
+      noteIntent.current=null;setNoteText("");setNoteOpen(false);setNoteInternalOnly(true);
+      toast({title:"Note saved"});
+      await load();
+    }catch(e){setNoteError(e instanceof ApiError?e.message:"Note could not be saved. Retry the same text.");}
+    finally{noteLock.current=false;setBusy(null);}
   };
 
   if (loading || liveSession===null) return <LoadingState rows={6} label="Loading order" />;
@@ -386,7 +407,7 @@ export default function AdminOrderDetailPage() {
 
           {/* note dialog */}
           {can("orders.view") ? (
-            <Dialog>
+            <Dialog open={noteOpen} onOpenChange={open=>{if(!noteLock.current){setNoteOpen(open);setNoteError("");}}}>
               <DialogTrigger asChild>
                 <Button variant="outline" className="h-11">
                   <MessageSquarePlus className="size-4" aria-hidden /> Add note
@@ -399,21 +420,19 @@ export default function AdminOrderDetailPage() {
                 </DialogHeader>
                 <div className="space-y-2">
                   <Label htmlFor="note-text">Note</Label>
-                  <Textarea id="note-text" rows={3} value={noteText} onChange={(e) => setNoteText(e.target.value)} />
+                  <Textarea id="note-text" rows={3} maxLength={1000} disabled={busy==="note"} value={noteText} onChange={(e) => setNoteText(e.target.value)} />
+                  {noteError?<p role="alert" className="rounded-md border p-2 text-sm text-destructive">{noteError}</p>:null}
                   <label className="flex items-center gap-2 text-sm">
-                    <input type="checkbox" checked={noteInternalOnly} onChange={(e) => setNoteInternalOnly(e.target.checked)} className="size-4 accent-[color:var(--primary)]" />
+                    <input type="checkbox" disabled={busy==="note"} checked={noteInternalOnly} onChange={(e) => setNoteInternalOnly(e.target.checked)} className="size-4 accent-[color:var(--primary)]" />
                     Internal only
                   </label>
                 </div>
                 <DialogFooter>
                   <Button
                     disabled={busy !== null || !noteText.trim()}
-                    onClick={async () => {
-                      await act("note", { note: noteText, internalOnly: noteInternalOnly }, "Note added");
-                      setNoteText("");
-                    }}
+                    onClick={()=>void saveNote()}
                   >
-                    Save note
+                    {busy==="note"?"Saving…":"Save note"}
                   </Button>
                 </DialogFooter>
               </DialogContent>

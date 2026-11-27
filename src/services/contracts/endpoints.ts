@@ -13,6 +13,7 @@ import {
  */
 export const restEndpoints: Record<string, RestEndpoint> = {
   ...sharedRestEndpoints,
+  "admin.verified.order.note": {method:"POST",path:"/admin/orders/{orderId}/notes",replayTransport:"headerOnly"},
   "admin.verified.fulfilment.queue": {method:"GET",path:"/admin/fulfilment"},
   "admin.verified.fulfilment.detail": {method:"GET",path:"/admin/fulfilment/orders/{orderId}"},
   "admin.verified.fulfilment.pick": {method:"PUT",path:"/admin/fulfilment/orders/{orderId}/picks/{reservationId}",replayTransport:"headerOnly"},
