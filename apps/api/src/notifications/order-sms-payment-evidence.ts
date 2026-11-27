@@ -1,5 +1,6 @@
 import type {Prisma} from "@prisma/client";
 import {deliverySmsEvents,resolveSmsDelivery} from "./order-sms-delivery-evidence";
+import {resolveSmsRefund} from "./order-sms-refund-evidence";
 
 type PaymentEvent={type:string;aggregateId:string;payload:unknown;createdAt:Date};
 type Attempt={id:string;orderId:string;status:string;initiationState:string;settlementState:string;currency:string;amountMinor:number;resolvedAt:Date|null};
@@ -19,8 +20,10 @@ export function confirmedSmsPayment(event:PaymentEvent,attempt:Attempt|null,orde
 /** Resolve attempt-owned payment events via persisted relations, not a
  * customer identifier from the payload. Preserve the order-first lock
  * sequence used by PaymentOutcomeService. */
-export async function resolveSmsOrder(tx:Prisma.TransactionClient,event:PaymentEvent,evaluatedAt:Date):Promise<{orderId:string;paymentConfirmed?:true;deliveryConfirmed?:true;template?:"delivery.delivered"|"delivery.out_for_delivery"}|null>{
+export async function resolveSmsOrder(tx:Prisma.TransactionClient,event:PaymentEvent,evaluatedAt:Date):Promise<{orderId:string;paymentConfirmed?:true;deliveryConfirmed?:true;refundAmountMinor?:number;template?:"delivery.delivered"|"delivery.out_for_delivery"}|null>{
  if(deliverySmsEvents.includes(event.type as typeof deliverySmsEvents[number]))return resolveSmsDelivery(tx,event,evaluatedAt);
+ if(event.type==="refund.succeeded")return resolveSmsRefund(tx,event,evaluatedAt);
+ if(event.type==="fulfilment.handed_over"&&(!event.payload||typeof event.payload!=="object"||Array.isArray(event.payload)||(event.payload as Record<string,unknown>).toStatus!=="collected"))return null;
  if(event.type!=="payment.succeeded"){
   await tx.$queryRaw`SELECT id FROM "Order" WHERE id=${event.aggregateId} FOR UPDATE`;
   return {orderId:event.aggregateId};

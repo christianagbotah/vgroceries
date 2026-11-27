@@ -5,22 +5,23 @@ import {customerMessage} from "./customer-channel-policy";
 
 /** Pure planning step, not a sender or a database writer. Order-owned events and separately resolved payment evidence only;
  * refund and courier events require independent outcome checks. */
-export const orderSmsStageEvents = ["order.created","fulfilment.confirmed","fulfilment.packed","order.cancelled"] as const;
-export const smsStageEvents = [...orderSmsStageEvents,"payment.succeeded",...deliverySmsEvents] as const;
-const smsTemplateEvents=[...orderSmsStageEvents,"payment.succeeded","delivery.delivered","delivery.out_for_delivery"] as const;
+export const orderSmsStageEvents = ["order.created","fulfilment.confirmed","fulfilment.picking_started","fulfilment.packed","fulfilment.handed_over","order.cancelled"] as const;
+export const smsStageEvents = [...orderSmsStageEvents,"payment.succeeded","refund.succeeded",...deliverySmsEvents] as const;
+const smsTemplateEvents=[...orderSmsStageEvents,"payment.succeeded","refund.succeeded","delivery.delivered","delivery.out_for_delivery"] as const;
 type EventType=typeof smsTemplateEvents[number];
 type Consent={orderId:string;recipientFingerprint:string;policyVersion:string;recordedAt:Date;revokedAt:Date|null};
 export function planOrderSms(input:{
  event:{id:string;type:string;aggregateId:string;createdAt:Date};
  order:{id:string;reference:string;customerPhone:string;smsConsent:Consent|null};
  enabled:boolean;evaluatedAt:Date;
- paymentConfirmed?:boolean;deliveryConfirmed?:boolean;
+ paymentConfirmed?:boolean;deliveryConfirmed?:boolean;refundAmountMinor?:number;
 }){
  const {event,order,enabled,evaluatedAt}=input;
  const consent=order.smsConsent;
  if(!consent||consent.orderId!==order.id||event.aggregateId!==order.id||consent.policyVersion!=="order-sms-v1")return null;
  if(!smsTemplateEvents.includes(event.type as EventType))return null;
  if(event.type==="payment.succeeded"&&input.paymentConfirmed!==true)return null;
+ if(event.type==="refund.succeeded"&&(!Number.isSafeInteger(input.refundAmountMinor)||(input.refundAmountMinor??0)<=0))return null;
  if(event.type.startsWith("delivery.")&&input.deliveryConfirmed!==true)return null;
  if(!/^\+233[0-9]{9}$/.test(order.customerPhone))return null;
  const fingerprint=customerDestinationFingerprint(order.customerPhone);
