@@ -1,6 +1,7 @@
 import {test,expect} from "bun:test";
 import {readFileSync} from "node:fs";
 import {createTillIntent,assertTillActor} from "../src/features/staff/verified-till-command-client";
+import {readTillRecovery,saveTillRecovery,clearTillRecovery,TILL_RECOVERY_KEY} from "../src/features/staff/till-intent-recovery";
 import {restEndpoints} from "../src/services/contracts/endpoints";
 import {validateRequest} from "../src/services/contracts/validation";
 const id="00000000-0000-4000-8000-000000000001",key="till:test-001";
@@ -33,4 +34,22 @@ test("drawer action replay requires the original administrator and valid session
  expect(ui).toContain("intentActor.current=actorId");
  expect(ui).toContain("executeTillIntent(intent,intentActor.current)");
  expect(ui).toContain("Choose an active branch");
+});
+
+test("same-tab recovery preserves exact replay identity across reload and refuses cross-account recovery",()=>{
+ const data=new Map<string,string>();
+ const store={getItem:(k:string)=>data.get(k)??null,setItem:(k:string,v:string)=>{data.set(k,v);},removeItem:(k:string)=>{data.delete(k);}};
+ const intent=createTillIntent("move",id,{kind:"drop",amountMinor:1200,note:"Counted safe deposit"},key);
+ expect(readTillRecovery(store,"admin-a")).toBeNull();
+ saveTillRecovery(store,"admin-a",intent);
+ expect(readTillRecovery(store,"admin-a")).toEqual(intent);
+ expect(()=>readTillRecovery(store,"admin-b")).toThrow();
+ expect(()=>saveTillRecovery(store,"admin-a",{...intent,key:"till:other-key"})).toThrow();
+ expect(()=>clearTillRecovery(store,"admin-b",intent)).toThrow();
+ expect(readTillRecovery(store,"admin-a")).toEqual(intent);
+ clearTillRecovery(store,"admin-a",intent);
+ expect(readTillRecovery(store,"admin-a")).toBeNull();
+ data.set(TILL_RECOVERY_KEY,"not json");
+ expect(()=>readTillRecovery(store,"admin-a")).toThrow();
+ expect(()=>saveTillRecovery(store,"admin-a",intent)).toThrow();
 });
