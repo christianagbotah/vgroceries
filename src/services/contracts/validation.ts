@@ -24,7 +24,9 @@ const verifiedPosQuotePreviewSchema = posQuoteRequestSchema.superRefine((value, 
   }
 });
 
+import {orderNoteRequestSchema} from "../../../packages/contracts/src/order-notes";
 const fulfilmentSchemas = {
+  "admin.verified.order.note":orderNoteRequestSchema,
   "pos.verified.till.open":cashierTillOpenSchema,
   "pos.verified.till.move":cashierTillMoveSchema,
   "pos.verified.till.close":cashierTillCloseSchema,

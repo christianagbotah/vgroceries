@@ -118,6 +118,7 @@ export const operationMeta: Record<string, OperationMeta> = {
   /* staff: POS */
   // Private identity lookup must never be cached across staff sessions.
   "cashier.pos.customers": {},
+  "admin.verified.order.note": {},
   "pos.verified.tills": {},
   "pos.verified.till.open": {invalidates:SESS},
   "pos.verified.till.move": {invalidates:SESS},
