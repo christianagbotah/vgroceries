@@ -1,3 +1,5 @@
+import { orderFulfilmentRequest } from "./order-fulfilment-action";
+import { fulfilmentActionResponseSchema } from "../../packages/contracts/src/fulfilment";
 import { isDemoStaffSessionActive } from "@/features/staff/staff-demo-session";
 /**
  * Typed client adapter — the browser-side half of the service boundary.
@@ -398,7 +400,16 @@ export const apiOps = {
   orders: (f: { channel?: string; status?: string; payment?: string; q?: string }) =>
     api<AdminOrderRow[]>("admin.orders", { query: f as Record<string, QueryValue> }),
   order: (orderId: string) => api<AdminOrderDetail>("admin.order", { query: { orderId } }),
-  orderAction: (body: Record<string, unknown>) => api<PublicOrder>("admin.order.action", { body }),
+  orderAction: async (body: Record<string, unknown>): Promise<PublicOrder> => {
+    if (!process.env.NEXT_PUBLIC_API_BASE_URL || isDemoStaffSessionActive())
+      return api<PublicOrder>("admin.order.action", { body });
+    const request = orderFulfilmentRequest(body);
+    if (!request) throw new ApiError("RULE_VIOLATION", "This action requires a dedicated verified workflow; no change was made.");
+    const outcome = fulfilmentActionResponseSchema.safeParse(await api(request.op, request));
+    if (!outcome.success || outcome.data.orderId !== request.query.orderId)
+      throw new ApiError("BAD_RESPONSE", "Order action outcome could not be verified. Refresh before retrying.");
+    return (await api<AdminOrderDetail>("admin.order", { query: request.query })).order;
+  },
   fulfilment: () => api<FulfilmentQueues>("admin.fulfilment"),
 
   /* Real cashier — read-only, server-scoped UAT workspace. */

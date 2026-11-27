@@ -13,6 +13,10 @@ import {
  */
 export const restEndpoints: Record<string, RestEndpoint> = {
   ...sharedRestEndpoints,
+  "admin.verified.fulfilment.confirm": {method:"POST",path:"/admin/fulfilment/orders/{orderId}/confirm",replayTransport:"headerOnly"},
+  "admin.verified.fulfilment.start-picking": {method:"POST",path:"/admin/fulfilment/orders/{orderId}/start-picking",replayTransport:"headerOnly"},
+  "admin.verified.fulfilment.pack": {method:"POST",path:"/admin/fulfilment/orders/{orderId}/pack",replayTransport:"headerOnly"},
+  "admin.verified.fulfilment.handover": {method:"POST",path:"/admin/fulfilment/orders/{orderId}/handover",replayTransport:"headerOnly"},
   "admin.verified.dispatch.fleet": {method:"GET",path:"/admin/riders"},
   "admin.verified.dispatch.unassign": {method:"POST",path:"/admin/dispatch/jobs/{jobId}/unassign",replayTransport:"headerOnly"},
   "admin.verified.dispatch.reschedule": {method:"POST",path:"/admin/dispatch/jobs/{jobId}/reschedule",replayTransport:"headerOnly"},

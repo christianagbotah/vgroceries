@@ -10,6 +10,7 @@ import { StatusBadge } from "@/components/shared/status-badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
+import { formatPlacedDateTime } from "@/lib/format";
 import {
   allows,
   EventTrail,
@@ -134,7 +135,7 @@ export default function AdminFulfilmentPage() {
                           <StatusBadge kind="payment" status={o.paymentStatus} />
                           <span className="ml-1.5 text-xs text-muted-foreground">{o.paymentMethod.replace(/_/g, " ")}</span>
                         </td>
-                        <td className="p-3 text-muted-foreground">{o.createdAtLabel}</td>
+                        <td className="p-3 text-muted-foreground">{formatPlacedDateTime(o.createdAtLabel)}</td>
                         <td className="p-3 text-right">
                           {can("orders.confirm") ? (
                             <Button size="sm" className="h-10" disabled={busy !== null} onClick={() => act(o.id, "confirm")}>

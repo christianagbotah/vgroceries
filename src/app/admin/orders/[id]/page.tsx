@@ -14,7 +14,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { formatMoney } from "@/lib/money";
-import { formatDateTime } from "@/lib/format";
+import { formatPlacedDateTime } from "@/lib/format";
+import { OrderItemThumbnail } from "@/components/orders/order-line-preview";
 import { PAYMENT_METHOD_LABELS, DELIVERY_LABELS } from "@/types/domain";
 import { useToast } from "@/hooks/use-toast";
 import { Ban, Check, CircleDashed, MapPin, MessageSquarePlus, Package, Phone, Repeat2, Send, ShieldQuestion, Store, Truck, Undo2 } from "lucide-react";
@@ -62,8 +63,7 @@ export default function AdminOrderDetailPage() {
   const act = async (action: string, extra: Record<string, unknown> = {}, successNote?: string) => {
     setBusy(action);
     try {
-      const updated = await apiOps.orderAction({ orderId: id, action, actor: user.id, ...extra });
-      setOrder(updated);
+      await apiOps.orderAction({ orderId: id, action, actor: user.id, ...extra });
       await load();
       toast({ title: successNote ?? "Order updated" });
     } catch (e) {
@@ -108,7 +108,7 @@ export default function AdminOrderDetailPage() {
             {order.posReceiptNo ? <StatusBadge kind="generic" status="receipt" label={`Receipt ${order.posReceiptNo}`} /> : null}
           </div>
         </div>
-        <p className="text-sm text-muted-foreground">Placed {formatDateTime(order.createdAt)} UTC</p>
+        <p className="text-sm text-muted-foreground">Placed {formatPlacedDateTime(order.createdAt)}</p>
       </div>
 
       {needsReview ? (
@@ -160,11 +160,16 @@ export default function AdminOrderDetailPage() {
                   {order.lines.map((l) => (
                     <tr key={l.id} className="border-t align-top">
                       <td className="p-3">
+                        <div className="flex min-w-[140px] items-center gap-3">
+                          <OrderItemThumbnail url={l.imageUrl} />
+                          <div className="min-w-0 break-words">
                         <Link href={`/admin/products/${l.productId}`} className="font-medium hover:underline focus-visible:underline">
                           {l.productName}
                         </Link>
                         <p className="text-xs text-muted-foreground">{l.variantName}</p>
                         {l.substitutionOfLineId ? <p className="text-xs italic text-muted-foreground">substitution</p> : null}
+                          </div>
+                        </div>
                       </td>
                       <td className="p-3 tabular-nums">{l.quantity}</td>
                       <td className="p-3 text-right tabular-nums">{l.unitPriceLabel}</td>
@@ -213,7 +218,7 @@ export default function AdminOrderDetailPage() {
                   <div>
                     <p className="font-medium">{e.action}</p>
                     <p className="text-xs text-muted-foreground">
-                      {e.atLabel} UTC · {e.actor}
+                      {formatPlacedDateTime(e.at || e.atLabel)} · {e.actor}
                       {e.note ? ` · ${e.note}` : ""}
                     </p>
                   </div>
@@ -228,7 +233,7 @@ export default function AdminOrderDetailPage() {
                     <li key={i} className="rounded-lg bg-muted/50 p-2.5">
                       <p>{n.text}</p>
                       <p className="mt-0.5 text-xs text-muted-foreground">
-                        {formatDateTime(n.at)} UTC · {n.by}{n.internalOnly ? " · internal" : ""}
+                        {formatPlacedDateTime(n.at)} · {n.by}{n.internalOnly ? " · internal" : ""}
                       </p>
                     </li>
                   ))}
@@ -309,7 +314,7 @@ export default function AdminOrderDetailPage() {
               </div>
             ) : null}
             <p className="text-xs text-muted-foreground">
-              {order.stockConsumedAt ? `Stock consumed ${formatDateTime(order.stockConsumedAt)} UTC (single depletion event).` : "Stock still on hold — consumed at dispatch handover or collection."}
+              {order.stockConsumedAt ? `Stock consumed ${formatPlacedDateTime(order.stockConsumedAt)} (single depletion event).` : "Stock still on hold — consumed at dispatch handover or collection."}
             </p>
           </section>
 
@@ -323,7 +328,7 @@ export default function AdminOrderDetailPage() {
                     <span className="font-mono">{r.variantId.replace("var_", "")}</span>
                     <span>
                       {r.quantity} ·{" "}
-                      {r.consumedAt ? "consumed" : r.releasedAt ? `released (${r.releasedReason})` : `expires ${formatDateTime(r.expiresAt)}`}
+                      {r.consumedAt ? "consumed" : r.releasedAt ? `released (${r.releasedReason})` : `expires ${formatPlacedDateTime(r.expiresAt)}`}
                     </span>
                   </li>
                 ))}

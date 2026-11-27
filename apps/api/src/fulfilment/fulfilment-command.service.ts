@@ -1,4 +1,6 @@
-import { Injectable, Optional } from "@nestjs/common";
+import { Inject, Injectable, Optional } from "@nestjs/common";
+import { API_CONFIG, type ApiConfig } from "../config";
+import { AllocationService } from "../inventory/allocation.service";
 import {
   fulfilmentActionResponseSchema,
   type FulfilmentActionResponse,
@@ -60,6 +62,8 @@ export class FulfilmentCommandService {
     paymentCapture?: PaymentCaptureService,
     stockDepletion?: StockDepletionService,
     @Optional() private readonly shipmentExecution?: ShipmentExecutionService,
+    @Optional() private readonly allocation?: AllocationService,
+    @Optional() @Inject(API_CONFIG) private readonly config?: ApiConfig,
   ) {
     this.paymentCapture = paymentCapture ?? new PaymentCaptureService();
     this.stockDepletion = stockDepletion ?? new StockDepletionService(coverage);
@@ -319,6 +323,39 @@ export class FulfilmentCommandService {
     });
   }
 
+  /** Reacquire a fully expired hold only for independently verified paid orders.
+   * Never replace partial live coverage or change the original stock location. */
+  private async confirmationCoverage(tx: Prisma.TransactionClient, order: LockedOrder, context: FulfilmentCommandContext): Promise<string> {
+    const rows = await tx.reservation.findMany({
+      where: { claimType: "order", claimId: order.id },
+      select: { state: true, expiresAt: true, position: { select: { locationId: true } } },
+    });
+    const now = new Date();
+    if (rows.some(r => r.state === "active" && r.expiresAt > now) || !rows.length || !this.allocation || !this.config?.payments || !this.config.commerce)
+      return (await this.lockCoverage(tx, order)).locationId;
+    if (rows.some(r => !["active","expired"].includes(r.state)) || order.paymentStatus !== "succeeded")
+      reservationLost("Order stock hold expired. Verified payment and stock recovery are required.");
+    const locations = [...new Set(rows.map(r => r.position.locationId))];
+    if (locations.length !== 1 || locations[0] !== this.config.commerce.locationId)
+      reservationLost("Expired reservation location could not be safely verified.");
+    const money = await this.paymentCapture.lockForOrder(tx, order.id);
+    const capture = money.successfulCaptures[0];
+    if (money.liveAttempts.length || money.successfulCaptures.length !== 1 || !capture ||
+        capture.currency !== "GHS" || capture.amountMinor !== order.totalMinor || capture.amountMinor <= 0 ||
+        capture.initiationState !== "accepted" || !["unsettled","reconciled","settled"].includes(capture.settlementState) ||
+        !capture.resolvedAt || capture.resolvedAt > now || money.attempts.some(a => a.settlementState === "exception" || a.initiationState === "uncertain"))
+      reservationLost("Expired stock hold requires verified payment reconciliation.");
+    if (await tx.refund.count({ where: { orderId: order.id } }))
+      reservationLost("Refund activity requires review before stock can be reserved again.");
+    const locationId = locations[0]!;
+    await this.allocation.ensureClaimCoverage(tx, {
+      claimType: "order", claimId: order.id, locationId,
+      expiresAt: new Date(now.getTime() + this.config.payments.confirmedHoldMinutes * 60_000),
+      actorId: context.actorId, requestId: context.requestId, lines: this.expectedLines(order),
+    });
+    return (await this.lockCoverage(tx, order, locationId)).locationId;
+  }
+
   async confirm(
     orderId: string,
     context: FulfilmentCommandContext,
@@ -327,7 +364,7 @@ export class FulfilmentCommandService {
       if (order.fulfilmentStatus !== "awaiting_confirmation")
         conflict("Order is not awaiting fulfilment confirmation.");
 
-      const { locationId } = await this.lockCoverage(tx, order);
+      const locationId = await this.confirmationCoverage(tx, order, context);
       const existing = await tx.fulfilmentRun.findUnique({ where: { orderId } });
       if (existing)
         conflict("Fulfilment run already exists for an unconfirmed order.");

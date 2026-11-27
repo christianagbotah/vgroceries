@@ -106,6 +106,10 @@ export const operationMeta: Record<string, OperationMeta> = {
   "admin.orders": {}, // Live payment and fulfilment reads must never use browser TTL cache.
   "admin.order": {}, // Private order detail must reflect durable server state.
   "admin.order.action": { invalidates: [...ORD, ...STOCK, ...CAT, ...DEL, ...PAY] },
+  "admin.verified.fulfilment.confirm": { invalidates: [...ORD, ...STOCK, ...CAT] },
+  "admin.verified.fulfilment.start-picking": { invalidates: [...ORD, ...STOCK] },
+  "admin.verified.fulfilment.pack": { invalidates: [...ORD, ...STOCK] },
+  "admin.verified.fulfilment.handover": { invalidates: [...ORD, ...STOCK, ...CAT, ...DEL, ...PAY] },
   "admin.fulfilment": { tags: [...ORD, ...STOCK] },
 
   /* staff: POS */
