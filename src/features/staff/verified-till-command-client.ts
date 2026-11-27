@@ -9,14 +9,17 @@ export type TillIntent={kind:TillCommandKind;sessionId?:string;body:Record<strin
 export function createTillIntent(kind:TillCommandKind,sessionId:string|undefined,raw:unknown,key="till:"+crypto.randomUUID()):TillIntent{
  const parsed=schemas[kind].safeParse(raw);
  if(!parsed.success||!replayKeySchema.safeParse(key).success||
-  (kind==="open"?sessionId!==undefined:!sessionId||!/^[-a-f0-9]{36}$/i.test(sessionId)))
+  (kind==="open"?sessionId!==undefined:!sessionId||!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(sessionId)))
   throw new ApiError("VALIDATION_FAILED","Enter valid till details, cash amount and required reason.");
  return {kind,sessionId,body:parsed.data as Record<string,unknown>,key};
 }
-export async function executeTillIntent(intent:TillIntent):Promise<CashierTillSessionView>{
+export function assertTillActor(expectedActorId:string,actor:{id:string;role:string}){
+ if(!expectedActorId||actor.role!=="admin"||actor.id!==expectedActorId)throw new ApiError("FORBIDDEN","The original administrator must resolve this drawer action.");
+}
+export async function executeTillIntent(intent:TillIntent,expectedActorId:string):Promise<CashierTillSessionView>{
  assertVerifiedPosQuoteUat({enabled:verifiedTillCommandsEnabled,demo:isDemoStaffSessionActive(),apiBase:process.env.NEXT_PUBLIC_API_BASE_URL});
  const {api,apiOps}=await import("@/services/client");
- if((await apiOps.staffSession()).actor.role!=="admin")throw new ApiError("FORBIDDEN","Administrator access is required.");
+ assertTillActor(expectedActorId,(await apiOps.staffSession()).actor);
  const checked=createTillIntent(intent.kind,intent.sessionId,intent.body,intent.key);
  const raw=await api<unknown>("pos.verified.till."+checked.kind,{query:checked.sessionId?{sessionId:checked.sessionId}:undefined,body:checked.body,idempotencyKey:checked.key});
  const result=cashierTillSessionViewSchema.safeParse(raw);

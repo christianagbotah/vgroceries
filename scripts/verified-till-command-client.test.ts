@@ -1,6 +1,6 @@
 import {test,expect} from "bun:test";
 import {readFileSync} from "node:fs";
-import {createTillIntent} from "../src/features/staff/verified-till-command-client";
+import {createTillIntent,assertTillActor} from "../src/features/staff/verified-till-command-client";
 import {restEndpoints} from "../src/services/contracts/endpoints";
 import {validateRequest} from "../src/services/contracts/validation";
 const id="00000000-0000-4000-8000-000000000001",key="till:test-001";
@@ -20,4 +20,17 @@ test("verified till actions use strict REST contracts and replay headers",()=>{
  expect(ui).toContain("intentRef.current=intent");
  expect(ui).toContain("Retry identical action");
  expect(ui).toContain("verifiedTillCommandsEnabled");
+});
+
+test("drawer action replay requires the original administrator and valid session identity",()=>{
+ expect(()=>assertTillActor("admin-a",{id:"admin-a",role:"admin"})).not.toThrow();
+ expect(()=>assertTillActor("admin-a",{id:"admin-b",role:"admin"})).toThrow();
+ expect(()=>assertTillActor("admin-a",{id:"admin-a",role:"cashier"})).toThrow();
+ expect(()=>createTillIntent("move","------------------------------------",{kind:"drop",amountMinor:100,note:"Physical cash drop"},key)).toThrow();
+ const ui=readFileSync("src/features/staff/verified-till-commands.tsx","utf8");
+ expect(ui).toContain("apiOps.transferOptions()");
+ expect(ui).toContain("options.locationsCapped");
+ expect(ui).toContain("intentActor.current=actorId");
+ expect(ui).toContain("executeTillIntent(intent,intentActor.current)");
+ expect(ui).toContain("Choose an active branch");
 });
