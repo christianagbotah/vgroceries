@@ -67,7 +67,7 @@ export function OrderSmsVerification({ reference, onVerified }: {
       <div>
         <p className="text-xs font-semibold uppercase tracking-wide">SMS updates waiting for verification</p>
         <h2 className="font-semibold">Verify your phone for order updates</h2>
-        <p className="text-sm text-muted-foreground">You requested SMS updates. Tap Send verification code and enter the six-digit code received on your phone. Order messages cannot be sent until you verify your number; unverified queued messages expire after 24 hours. This does not affect your payment or order.</p>
+        <p className="text-sm text-muted-foreground">You requested SMS updates. Tap Send verification code and enter the six-digit code received on your phone. Order messages cannot be sent until you verify your number; unverified queued messages expire after 24 hours. You can continue checkout without verifying. This does not affect your payment or order.</p>
       </div>
       {error ? <p role="alert" className="text-sm text-destructive">{error}</p> : null}
       <Button type="button" className="w-full sm:w-auto" disabled={busy || waitSeconds > 0} onClick={() => void requestCode()}>

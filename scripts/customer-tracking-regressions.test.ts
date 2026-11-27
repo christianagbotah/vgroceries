@@ -45,3 +45,18 @@ test("journey times are only shown for committed, non-planned milestones", () =>
   expect(component).toContain("Confirmed updates use recorded times");
   expect(component).toContain('aria-label="Refresh order journey"');
 });
+
+test("guest SMS verification has a separate form and is bound to its issued reference",()=>{
+ const page=read("src/app/(storefront)/track/page.tsx");
+ const publicForm=page.indexOf('aria-label="Track order by number"');
+ const smsForm=page.indexOf('aria-label="Verify guest SMS code"');
+ expect(publicForm).toBeGreaterThan(0);
+ expect(page.indexOf("</form>",publicForm)).toBeLessThan(smsForm);
+ expect(page).toContain("onSubmit={verifyOrderOtp}");
+ expect(page).toContain("e?.preventDefault()");
+ expect(page).toContain("otpChallenge.reference!==publicResult.reference");
+ expect(page).toContain("apiOps.verifyOrderOtp(challenge.reference,challenge.challengeId,otpCode)");
+ expect(page).toContain("guestLock.current=true");
+ expect(page).toContain("setOtpCode(\"\")");
+ expect(page).toContain("Verify SMS code and view order");
+});
