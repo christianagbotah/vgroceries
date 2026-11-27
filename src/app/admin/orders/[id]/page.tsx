@@ -218,7 +218,7 @@ export default function AdminOrderDetailPage() {
                   <div>
                     <p className="font-medium">{e.action}</p>
                     <p className="text-xs text-muted-foreground">
-                      {formatPlacedDateTime(e.at || e.createdAt || e.atLabel)} · {e.actor}
+                      {formatPlacedDateTime(e.at || e.atLabel)} · {e.actor}
                       {e.note ? ` · ${e.note}` : ""}
                     </p>
                   </div>
