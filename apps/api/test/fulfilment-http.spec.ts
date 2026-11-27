@@ -3,6 +3,8 @@ import assert from "node:assert/strict";
 import type { INestApplication } from "@nestjs/common";
 import { createApplication } from "../src/bootstrap";
 import { Database } from "../src/database/database";
+import { readConfig } from "../src/config";
+import { FakePaymentProvider } from "./fake-payment-provider";
 import { commerceTestPassword, seedCommerceFixtures } from "./commerce-fixtures";
 
 let app: INestApplication;
@@ -86,7 +88,13 @@ async function createOrder(id: string) {
 }
 
 before(async () => {
-  app = await createApplication();
+  if (!new URL(process.env.DATABASE_URL!).pathname.endsWith("variety_foundation_test"))
+    throw Error("Fulfilment HTTP tests require the isolated foundation test database");
+  app = await createApplication(readConfig({
+    ...process.env, PAYMENT_PROVIDER_ID: "fake", PAYMENT_ENABLED_METHODS: "mobile_money",
+    PAYMENT_CONFIRMED_HOLD_MINUTES: "60", PAYMENT_PROVIDER_TIMEOUT_MS: "5000",
+    PAYMENT_RECONCILE_AFTER_SECONDS: "120", PAYMENT_HOSTED_DOMAINS: "pay.example.test",
+  }), [new FakePaymentProvider()]);
   await app.listen(0, "127.0.0.1");
   base = await app.getUrl();
   db = app.get(Database);
@@ -250,4 +258,19 @@ test("expired hold without matching successful capture cannot confirm", async ()
   const result=await request("POST",`/admin/fulfilment/orders/${fixture.order.id}/confirm`,{token:admin,key:"expired-unverified-confirm-key",body:{}});
   assert.equal(result.response.status,409);
   assert.equal((await db.order.findUniqueOrThrow({where:{id:fixture.order.id}})).fulfilmentStatus,"awaiting_confirmation");
+});
+
+test("paid order cannot reacquire an expired hold when another order owns the stock", async () => {
+  const fixture=await createOrder("fulfilment-http-expired-shortage");
+  const other=await createOrder("fulfilment-http-other-stock");
+  const admin=await native("admin-commerce@example.test");
+  await db.reservation.update({where:{id:fixture.reservation.id},data:{expiresAt:new Date(Date.now()-60000)}});
+  await db.reservation.update({where:{id:other.reservation.id},data:{quantity:"20"}});
+  await db.paymentAttempt.create({data:{id:"expired-shortage-capture",orderId:fixture.order.id,provider:"fake",method:"mobile_money",currency:"GHS",amountMinor:1000,merchantReference:"EXPIRED-SHORTAGE-CAPTURE",status:"succeeded",initiationState:"accepted",settlementState:"reconciled",resolvedAt:new Date(Date.now()-120000)}});
+  const before=(await db.stockLot.findUniqueOrThrow({where:{id:"lot-rice"}})).quantity.toString();
+  const result=await request("POST",`/admin/fulfilment/orders/${fixture.order.id}/confirm`,{token:admin,key:"expired-shortage-confirm-key",body:{}});
+  assert.equal(result.response.status,409,JSON.stringify(result.body));
+  assert.equal((await db.order.findUniqueOrThrow({where:{id:fixture.order.id}})).fulfilmentStatus,"awaiting_confirmation");
+  assert.equal(await db.fulfilmentRun.count({where:{orderId:fixture.order.id}}),0);
+  assert.equal((await db.stockLot.findUniqueOrThrow({where:{id:"lot-rice"}})).quantity.toString(),before);
 });
