@@ -6,6 +6,7 @@ import { ShipmentCustomerTrackingService } from "../logistics/shipment-customer-
 import { legacyOrderTrackingJourney } from "./legacy-order-tracking";
 import { guestOrderSmsProofWhere } from "../notifications/order-sms-recipient-policy";
 import { customerDestinationFingerprint } from "../notifications/customer-message-crypto";
+import { orderLineImage } from "./order-line-image";
 
 const money = (minor: number) => `₵${(minor / 100).toFixed(2)}`;
 const refundSourceLabel = (source: RefundSourceType) => {
@@ -36,6 +37,12 @@ export class OrderProjectionService {
       },
     });
     if (!o) throw new ApiProblem(404, "NOT_FOUND", "Order not found.");
+
+    const products = o.lines.length ? await this.db.product.findMany({
+      where: { id: { in: [...new Set(o.lines.map(line => line.productId))] }, published: true },
+      select: { id: true, published: true, featuredMedia: { select: { publicUrl: true, status: true, archivedAt: true } } },
+    }) : [];
+    const thumbnails = new Map(products.map(product => [product.id, orderLineImage(product)]));
 
     const now = new Date();
     const consent = o.smsConsent;
@@ -107,6 +114,7 @@ export class OrderProjectionService {
       lines: o.lines.map((line) => ({
         id: line.id,
         productId: line.productId,
+        ...(thumbnails.get(line.productId) ? { imageUrl: thumbnails.get(line.productId) } : {}),
         variantId: line.variantId,
         productName: line.productName,
         variantName: line.variantName,
