@@ -30,6 +30,8 @@ jobs:
       - name: Bounded cache retention regressions
         run: PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s scripts/ops -p test_prune_reviewed_source_caches.py -v
 
+      - name: Hardened loopback SMTP transport tests (no mail sent)
+        run: PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s scripts/ops -p test_recovery_loopback_smtp.py -v
       - name: Offline Hubtel access diagnostic tests (no provider requests)
         run: python3 -m unittest discover -s scripts -p 'test_hubtel_transaction_status_probe.py' -v
 
