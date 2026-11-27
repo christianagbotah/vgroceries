@@ -186,6 +186,8 @@ P0 = release-critical; P1 = operational completeness; P2 = enhancements. Each ch
 - [ ] UX-02 Audit all navigation, sidebar active states, responsive filters and table overflow.
 - [ ] UX-03 Verify 360/768/1440px layouts, touch targets, keyboard focus and contrast.
 - [ ] UX-04 Verify loading/empty/error/retry states, readable currency and consistent forms.
+- [x] UX-04a Owner-requested admin Orders placed timestamp format DD-MM-YYYY HH:MM:SS in Africa/Accra, both desktop and mobile, no wrapping on desktop; [PR #229](https://github.com/christianagbotah/vgroceries/pull/229), head 289a904a7370304aad2cd69208c4572da9ccf045. Lint and type check passed; full [CI](https://github.com/christianagbotah/vgroceries/actions/runs/45970021185) and [API](https://github.com/christianagbotah/vgroceries/actions/runs/45970021409) in progress.
+- [ ] UX-04b Merge #229 after green exact-head CI, include in verified compatible release preserving current recovery/payment feature gates, verify live admin Orders layout and timestamp rendering. No production change yet.
 - [ ] UX-05 Run route sweep and browser journeys for customer, staff, dispatch and rider.
 - [ ] UX-06 Validate accessibility, performance, image loading and mobile rider usability.
 - [ ] APP-01 Mobile-first web/PWA: assess installability and safe offline drafts; no fabricated offline sales.
