@@ -2,7 +2,7 @@ import type {Prisma} from "@prisma/client";
 import {deliverySmsEvents,resolveSmsDelivery} from "./order-sms-delivery-evidence";
 import {resolveSmsRefund} from "./order-sms-refund-evidence";
 
-export const paymentStatusSmsEvents=["payment.initiation_pending","payment.initiation_failed","payment.failed","payment.expired","payment.requires_review"] as const;
+export const paymentStatusSmsEvents=["payment.initiation_pending","payment.initiation_uncertain","payment.initiation_failed","payment.failed","payment.expired","payment.requires_review"] as const;
 export const paymentStatusTemplates=["payment.pending","payment.failed","payment.expired","payment.requires_review"] as const;
 type PaymentStatusTemplate=typeof paymentStatusTemplates[number];
 type PaymentEvent={type:string;aggregateId:string;payload:unknown;createdAt:Date};
@@ -29,7 +29,11 @@ export function confirmedPaymentStatus(event:PaymentEvent,attempt:Attempt|null,o
     attempt.currency!=="GHS"||!Number.isSafeInteger(attempt.amountMinor)||attempt.amountMinor<=0||attempt.amountMinor!==order.totalMinor||
     !Number.isFinite(now.getTime())||!Number.isFinite(event.createdAt.getTime())||event.createdAt>now)return null;
  if(event.type==="payment.requires_review")return order.paymentStatus==="requires_review"&&attempt.settlementState==="exception"?"payment.requires_review":null;
- if(order.cancelledAt||order.fulfilmentStatus==="cancelled"||latestAttemptId!==attempt.id||attempt.settlementState!=="unsettled")return null;
+ if(order.cancelledAt||order.fulfilmentStatus==="cancelled"||latestAttemptId!==attempt.id)return null;
+ // A provider initiation timeout can leave the order pending while the attempt
+ // is uncertain. Never interpret that as success or authorize another payment.
+ if(event.type==="payment.initiation_uncertain")return ["pending","requires_review"].includes(order.paymentStatus)&&["initiated","pending"].includes(attempt.status)&&attempt.initiationState==="uncertain"&&attempt.settlementState==="exception"&&!attempt.resolvedAt?"payment.requires_review":null;
+ if(attempt.settlementState!=="unsettled")return null;
  if(event.type==="payment.initiation_pending")return order.paymentStatus==="pending"&&attempt.status==="pending"&&attempt.initiationState==="accepted"&&!attempt.resolvedAt?"payment.pending":null;
  const expired=event.type==="payment.expired";
  const status=expired?"expired":"failed";

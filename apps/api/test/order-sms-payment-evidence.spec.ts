@@ -40,3 +40,20 @@ test("payment status notifications require exact latest persisted state, never c
  assert.equal(confirmedPaymentStatus({...event,type:"payment.requires_review"},{...attempt,settlementState:"exception"},{...order,paymentStatus:"requires_review"},"newer",now),"payment.requires_review");
  assert.equal(confirmedPaymentStatus({...event,type:"payment.requires_review"},attempt,{...order,paymentStatus:"requires_review"},attempt.id,now),null);
 });
+
+
+test("uncertain initiation warns against repeat payment only while the latest unresolved attempt remains exceptional",()=>{
+ const uncertain={...event,type:"payment.initiation_uncertain"};
+ const current={...attempt,status:"initiated",initiationState:"uncertain",settlementState:"exception",resolvedAt:null};
+ const pending={...order,paymentStatus:"pending"};
+ assert.equal(confirmedPaymentStatus(uncertain,current,pending,current.id,now),"payment.requires_review");
+ assert.equal(confirmedPaymentStatus(uncertain,{...current,status:"pending"},pending,current.id,now),"payment.requires_review");
+ assert.equal(confirmedPaymentStatus(uncertain,current,{...pending,paymentStatus:"requires_review"},current.id,now),"payment.requires_review");
+ assert.equal(confirmedPaymentStatus(uncertain,current,pending,"newer",now),null);
+ assert.equal(confirmedPaymentStatus(uncertain,current,order,current.id,now),null);
+ assert.equal(confirmedPaymentStatus(uncertain,{...current,initiationState:"accepted"},pending,current.id,now),null);
+ assert.equal(confirmedPaymentStatus(uncertain,{...current,settlementState:"unsettled"},pending,current.id,now),null);
+ assert.equal(confirmedPaymentStatus(uncertain,{...current,resolvedAt:now},pending,current.id,now),null);
+ assert.equal(confirmedPaymentStatus(uncertain,current,{...pending,fulfilmentStatus:"cancelled"},current.id,now),null);
+ assert.equal(confirmedPaymentStatus(uncertain,{...current,amountMinor:499},pending,current.id,now),null);
+});
