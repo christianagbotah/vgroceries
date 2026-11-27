@@ -13,6 +13,9 @@ import {
  */
 export const restEndpoints: Record<string, RestEndpoint> = {
   ...sharedRestEndpoints,
+  "admin.verified.fulfilment.queue": {method:"GET",path:"/admin/fulfilment"},
+  "admin.verified.fulfilment.detail": {method:"GET",path:"/admin/fulfilment/orders/{orderId}"},
+  "admin.verified.fulfilment.pick": {method:"PUT",path:"/admin/fulfilment/orders/{orderId}/picks/{reservationId}",replayTransport:"headerOnly"},
   "admin.verified.fulfilment.confirm": {method:"POST",path:"/admin/fulfilment/orders/{orderId}/confirm",replayTransport:"headerOnly"},
   "admin.verified.fulfilment.start-picking": {method:"POST",path:"/admin/fulfilment/orders/{orderId}/start-picking",replayTransport:"headerOnly"},
   "admin.verified.fulfilment.pack": {method:"POST",path:"/admin/fulfilment/orders/{orderId}/pack",replayTransport:"headerOnly"},

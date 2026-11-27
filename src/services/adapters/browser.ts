@@ -91,7 +91,7 @@ class CachingBrowserAdapter implements ServiceAdapter {
 
   async request<T = unknown>(req: ServiceRequest): Promise<T> {
     const isMutation = req.formData !== undefined || normalizedRequestBody(req) !== undefined ||
-      (Object.hasOwn(restEndpoints, req.op) && restEndpoints[req.op].method === "POST");
+      (Object.hasOwn(restEndpoints, req.op) && restEndpoints[req.op].method !== "GET");
     const ttlMs = configuredCacheTtlMs();
     if (!isMutation && ttlMs > 0 && readTags(req.op).length > 0) {
       const key = cacheKey(req);
