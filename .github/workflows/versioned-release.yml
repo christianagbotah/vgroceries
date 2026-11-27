@@ -11,6 +11,10 @@ on:
         description: "Exact fully tested main commit SHA"
         required: true
         type: string
+      enable_password_recovery:
+        description: "Expose secure password recovery UI (requires separately verified API and mailbox delivery)"
+        type: boolean
+        default: false
       enable_order_sms:
         description: "Expose order-only SMS opt-in in storefront (requires separately verified API and worker)"
         type: boolean
@@ -73,6 +77,7 @@ jobs:
         env:
           API_BASE_URL: http://127.0.0.1:3049/api/v1
           NEXT_PUBLIC_API_BASE_URL: https://portal.varietygroceries.com/api/v1
+          NEXT_PUBLIC_PASSWORD_RECOVERY_UAT: ${{ inputs.enable_password_recovery && '1' || '0' }}
           NEXT_PUBLIC_ORDER_EMAIL_OPT_IN_ENABLED: ${{ inputs.enable_order_email && '1' || '0' }}
           NEXT_PUBLIC_ORDER_SMS_OPT_IN_ENABLED: ${{ inputs.enable_order_sms && '1' || '0' }}
           NEXT_PUBLIC_HUBTEL_CUSTOMER_PAYMENT_REFRESH_ENABLED: ${{ inputs.enable_hubtel_refresh && '1' || '0' }}
@@ -129,6 +134,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           VERSION: ${{ inputs.version }}
+          ENABLE_PASSWORD_RECOVERY: ${{ inputs.enable_password_recovery }}
           ENABLE_ORDER_EMAIL: ${{ inputs.enable_order_email }}
           ENABLE_ORDER_SMS: ${{ inputs.enable_order_sms }}
           ENABLE_POS_CASH_HISTORY: ${{ inputs.enable_pos_cash_history }}
@@ -149,4 +155,4 @@ jobs:
             echo "Tag already exists; never move an existing version."
             exit 1
           fi
-          gh release create "$VERSION" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --draft --title "Variety Groceries $VERSION" --notes "GitHub-built candidate for exact source $GITHUB_SHA. Storefront build flags: order SMS=$ENABLE_ORDER_SMS; active Hubtel refresh=$ENABLE_HUBTEL_REFRESH; order email=$ENABLE_ORDER_EMAIL; POS cash history=$ENABLE_POS_CASH_HISTORY; POS till reconciliation=$ENABLE_POS_TILL_RECONCILIATION. Not deployed. Review runtime smoke, configuration parity, migration compatibility and acceptance evidence before publication or VPS installation." runtime.tar.gz SHA256SUMS source-sha.txt version.txt format.txt
+          gh release create "$VERSION" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --draft --title "Variety Groceries $VERSION" --notes "GitHub-built candidate for exact source $GITHUB_SHA. Storefront build flags: password recovery=$ENABLE_PASSWORD_RECOVERY; order SMS=$ENABLE_ORDER_SMS; active Hubtel refresh=$ENABLE_HUBTEL_REFRESH; order email=$ENABLE_ORDER_EMAIL; POS cash history=$ENABLE_POS_CASH_HISTORY; POS till reconciliation=$ENABLE_POS_TILL_RECONCILIATION. Not deployed. Review runtime smoke, configuration parity, migration compatibility and acceptance evidence before publication or VPS installation." runtime.tar.gz SHA256SUMS source-sha.txt version.txt format.txt
