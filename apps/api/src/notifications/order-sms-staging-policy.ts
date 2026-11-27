@@ -6,7 +6,7 @@ import {customerMessage} from "./customer-channel-policy";
 /** Pure planning step, not a sender or a database writer. Order-owned events and separately resolved payment evidence only;
  * refund and courier events require independent outcome checks. */
 export const orderSmsStageEvents = ["order.created","fulfilment.confirmed","fulfilment.picking_started","fulfilment.packed","fulfilment.handed_over","order.cancelled"] as const;
-export const smsStageEvents = [...orderSmsStageEvents,"payment.succeeded","refund.succeeded",...deliverySmsEvents] as const;
+export const smsStageEvents = [...orderSmsStageEvents,"order.cancelled_with_refund","payment.succeeded","refund.succeeded",...deliverySmsEvents] as const;
 const smsTemplateEvents=[...orderSmsStageEvents,"payment.succeeded","refund.succeeded","delivery.delivered","delivery.out_for_delivery"] as const;
 type EventType=typeof smsTemplateEvents[number];
 type Consent={orderId:string;recipientFingerprint:string;policyVersion:string;recordedAt:Date;revokedAt:Date|null};

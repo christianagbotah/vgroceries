@@ -60,7 +60,7 @@ export async function dispatchOneOrderSms(db:PrismaClient,options:{
     recipientVerified=registeredOrderSmsPhoneVerified(order.customerUser,order.customerPhone,now);
     if(!order.customerUserId&&order.guestSessionId){
      if(options.guestProofEnabled!==true){
-      await tx.customerMessageDelivery.updateMany({where:{id:item.id,status:"pending",attempts:0},data:{nextAttemptAt:new Date(now.getTime()+120000),lastErrorCode:"guest_sms_temporarily_disabled"}});
+      await tx.customerMessageDelivery.updateMany({where:{id:item.id,status:"pending",attempts:0},data:{nextAttemptAt:new Date(now.getTime()+30000),lastErrorCode:"guest_sms_temporarily_disabled"}});
       return {outcome:"deferred" as const};
      }
      const proof=await tx.customerOtpChallenge.findFirst({
@@ -70,7 +70,7 @@ export async function dispatchOneOrderSms(db:PrismaClient,options:{
      recipientVerified=!!proof;
      if(!recipientVerified){
       await tx.customerMessageDelivery.updateMany({where:{id:item.id,status:"pending",attempts:0},
-       data:{nextAttemptAt:new Date(now.getTime()+120000),lastErrorCode:"awaiting_guest_phone_verification"}});
+       data:{nextAttemptAt:new Date(now.getTime()+30000),lastErrorCode:"awaiting_guest_phone_verification"}});
       return {outcome:"deferred" as const};
      }
     }
