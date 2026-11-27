@@ -13,7 +13,7 @@ export function OrderLinePreview({ line }: { line: OrderLineView }) {
       <div className="flex size-12 shrink-0 items-center justify-center overflow-hidden rounded-lg border bg-muted/40 sm:size-14">
         {showImage ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={url} alt="" width={56} height={56} loading="lazy" className="size-full object-contain" onError={() => setFailedUrl(url)} />
+          <img src={url} alt="" width={56} height={56} loading="lazy" referrerPolicy="no-referrer" className="size-full object-contain" onError={() => setFailedUrl(url)} />
         ) : <Package aria-hidden className="size-5 text-muted-foreground" />}
       </div>
       <div className="min-w-0 flex-1 break-words">
