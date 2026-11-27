@@ -1,6 +1,7 @@
 /* Compatibility import for the existing web application. */
 export * from "../../../packages/contracts/src/validation";
 
+import { fulfilmentConfirmRequestSchema, fulfilmentStartPickingRequestSchema, fulfilmentPackRequestSchema, fulfilmentHandoverRequestSchema } from "../../../packages/contracts/src/fulfilment";
 import { createCategoryRequestSchema } from "../../../packages/contracts/src/categories";
 import { posQuoteRequestSchema } from "../../../packages/contracts/src/pos-quote";
 import {
@@ -22,9 +23,17 @@ const verifiedPosQuotePreviewSchema = posQuoteRequestSchema.superRefine((value, 
   }
 });
 
+const fulfilmentSchemas = {
+  "admin.verified.fulfilment.confirm": fulfilmentConfirmRequestSchema,
+  "admin.verified.fulfilment.start-picking": fulfilmentStartPickingRequestSchema,
+  "admin.verified.fulfilment.pack": fulfilmentPackRequestSchema,
+  "admin.verified.fulfilment.handover": fulfilmentHandoverRequestSchema,
+} as const;
+
 /** Web request validation additions kept in lockstep with production routes. */
 export const requestSchemas = {
   ...sharedRequestSchemas,
+  ...fulfilmentSchemas,
   "admin.categories.create": createCategoryRequestSchema,
   "pos.verified.quote": verifiedPosQuotePreviewSchema,
 };
@@ -35,9 +44,8 @@ export function validateRequest(
 ):
   | { ok: true; value: Record<string, unknown> }
   | { ok: false; issues: string[] } {
-  if (op !== "admin.categories.create" && op !== "pos.verified.quote")
-    return sharedValidateRequest(op, body);
-  const schema = op === "pos.verified.quote" ? verifiedPosQuotePreviewSchema : createCategoryRequestSchema;
+  const schema = Object.hasOwn(fulfilmentSchemas, op) ? fulfilmentSchemas[op as keyof typeof fulfilmentSchemas] : op === "pos.verified.quote" ? verifiedPosQuotePreviewSchema : op === "admin.categories.create" ? createCategoryRequestSchema : undefined;
+  if (!schema) return sharedValidateRequest(op, body);
   const result = schema.safeParse(body);
   if (result.success) return { ok: true, value: result.data as Record<string, unknown> };
   return {

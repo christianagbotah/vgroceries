@@ -228,3 +228,26 @@ test("administrator can drive the exact seven-route fulfilment workflow with str
   for (const secret of ["verificationCodeHash", "merchantReference", "providerRef", "rawBodyHash"])
     assert.equal(encoded.includes(secret), false);
 });
+
+
+test("paid order with a fully expired hold reacquires stock through confirmation without consuming it", async () => {
+  const fixture = await createOrder("fulfilment-http-expired-paid");
+  const admin = await native("admin-commerce@example.test");
+  await db.reservation.update({where:{id:fixture.reservation.id},data:{expiresAt:new Date(Date.now()-60000)}});
+  await db.paymentAttempt.create({data:{id:"expired-paid-capture",orderId:fixture.order.id,provider:"fake",method:"mobile_money",currency:"GHS",amountMinor:1000,merchantReference:"EXPIRED-PAID-CAPTURE",status:"succeeded",initiationState:"accepted",settlementState:"reconciled",resolvedAt:new Date(Date.now()-120000)}});
+  const before = (await db.stockLot.findUniqueOrThrow({where:{id:"lot-rice"}})).quantity.toString();
+  const result = await request("POST", `/admin/fulfilment/orders/${fixture.order.id}/confirm`, {token:admin,key:"expired-paid-confirm-key",body:{}});
+  assert.equal(result.response.status,200,JSON.stringify(result.body));
+  assert.equal(result.body.data.fulfilmentStatus,"confirmed");
+  assert.equal((await db.reservation.findUniqueOrThrow({where:{id:fixture.reservation.id}})).state,"expired");
+  assert.equal(await db.reservation.count({where:{claimId:fixture.order.id,state:"active",generation:2}}),1);
+  assert.equal((await db.stockLot.findUniqueOrThrow({where:{id:"lot-rice"}})).quantity.toString(),before);
+});
+test("expired hold without matching successful capture cannot confirm", async () => {
+  const fixture=await createOrder("fulfilment-http-expired-unverified");
+  const admin=await native("admin-commerce@example.test");
+  await db.reservation.update({where:{id:fixture.reservation.id},data:{expiresAt:new Date(Date.now()-60000)}});
+  const result=await request("POST",`/admin/fulfilment/orders/${fixture.order.id}/confirm`,{token:admin,key:"expired-unverified-confirm-key",body:{}});
+  assert.equal(result.response.status,409);
+  assert.equal((await db.order.findUniqueOrThrow({where:{id:fixture.order.id}})).fulfilmentStatus,"awaiting_confirmation");
+});
