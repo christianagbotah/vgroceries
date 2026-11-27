@@ -233,6 +233,8 @@ export interface PaymentAttemptView {
 
 export interface OrderLineView {
   id: string;
+  /** Current approved public product thumbnail, not an order-time image snapshot. */
+  imageUrl?: string;
   productName: string;
   variantName: string;
   unit: string;
