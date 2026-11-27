@@ -304,6 +304,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
             </Button>
           </div>
         </header>
+        {demoSessionActive ? <div role="status" className="flex flex-wrap items-center justify-between gap-3 border-b border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950"><span><strong>DEMO MODE — sample data only.</strong> Real customer orders and payments are not shown here.</span><Button asChild size="sm" variant="outline"><Link href={`/staff/login?live=1&next=${encodeURIComponent(pathname)}`}>Switch to live staff sign-in</Link></Button></div> : null}
 
         <main id="main" className="min-w-0 flex-1 p-4 lg:p-6">
           {children}

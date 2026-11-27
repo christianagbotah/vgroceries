@@ -11,10 +11,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { UAT_DEMO_ACCOUNTS } from "@/features/staff/uat-demo-accounts";
-import { isDemoStaffSessionActive, startDemoStaffSession } from "@/features/staff/staff-demo-session";
+import { clearDemoStaffSession, isDemoStaffSessionActive, startDemoStaffSession } from "@/features/staff/staff-demo-session";
 
 export function StaffLoginForm({ demoEnabled = false }: { demoEnabled?: boolean }) {
   const router = useRouter();
+  const [liveOnly, setLiveOnly] = useState(false);
   const [returnPath, setReturnPath] = useState("/admin");
   const [demoAccountId, setDemoAccountId] = useState("");
   const [email, setEmail] = useState("");
@@ -23,7 +24,11 @@ export function StaffLoginForm({ demoEnabled = false }: { demoEnabled?: boolean 
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const candidate = new URLSearchParams(window.location.search).get("next");
+    const params = new URLSearchParams(window.location.search);
+    const candidate = params.get("next");
+    const liveOnly = params.get("live") === "1";
+    setLiveOnly(liveOnly);
+    if (liveOnly || !demoEnabled) clearDemoStaffSession();
     const safeReturnPath = candidate?.startsWith("/admin") && !candidate.startsWith("//") ? candidate : "/admin";
     setReturnPath(safeReturnPath);
 
@@ -42,11 +47,11 @@ export function StaffLoginForm({ demoEnabled = false }: { demoEnabled?: boolean 
       }
     }).catch(() => undefined);
     return () => { active = false; };
-  }, [router]);
+  }, [router, demoEnabled]);
 
   const continueDemo = () => {
     const account = UAT_DEMO_ACCOUNTS.find((item) => item.id === demoAccountId);
-    if (!account) return;
+    if (!demoEnabled || liveOnly || !account) return;
     startDemoStaffSession(account.role);
     setError(null);
     router.replace(returnPath);
@@ -58,6 +63,7 @@ export function StaffLoginForm({ demoEnabled = false }: { demoEnabled?: boolean 
     setBusy(true);
     setError(null);
     try {
+      clearDemoStaffSession();
       const session = await apiOps.staffLogin(email, password);
       if (session.actor.role === "cashier") {
         router.replace("/staff/cashier/workspace");
@@ -84,10 +90,10 @@ export function StaffLoginForm({ demoEnabled = false }: { demoEnabled?: boolean 
         <div className="text-center">
           <span className="mx-auto flex size-14 items-center justify-center rounded-xl bg-primary font-serif text-2xl font-bold text-primary-foreground" aria-hidden>V</span>
           <h1 className="mt-4 font-serif text-2xl font-bold">Variety Groceries staff</h1>
-          <p className="mt-1 text-sm text-muted-foreground">Open the back office with a demo role or sign in as real staff.</p>
+          <p className="mt-1 text-sm text-muted-foreground">Sign in with your real staff account to manage customer orders.</p>
         </div>
 
-        {demoEnabled && UAT_DEMO_ACCOUNTS.length > 0 ? (
+        {demoEnabled && !liveOnly && UAT_DEMO_ACCOUNTS.length > 0 ? (
           <Card className="border-primary/25 bg-primary/[0.03]">
             <CardHeader className="pb-3">
               <CardTitle className="flex items-center gap-2 text-lg">
