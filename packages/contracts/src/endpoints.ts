@@ -1,6 +1,6 @@
 /** Stable screen operations mapped explicitly to the proposed REST API. */
 export interface RestEndpoint {
-  method: "GET" | "POST";
+  method: "GET" | "POST" | "PUT";
   path: string;
   queryAliases?: Record<string, string>;
   /** Opt-in strict REST action: retry token belongs in HTTP header only.

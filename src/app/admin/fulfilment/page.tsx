@@ -1,7 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { isDemoStaffSessionActive } from "@/features/staff/staff-demo-session";
+import { VerifiedFulfilmentWorkspace } from "@/features/staff/verified-fulfilment-workspace";
 import { apiOps, ApiError } from "@/services/client";
 import { useApiData } from "@/features/staff/admin-data";
 import { useStaff } from "@/features/staff/role-context";
@@ -29,6 +31,12 @@ type OrderCard = Fulfilment["pick"][number];
 type NoteTarget = { order: OrderCard; kind: "pick" | "pack" } | null;
 
 export default function AdminFulfilmentPage() {
+  const [demo,setDemo]=useState<boolean|null>(null);
+  useEffect(()=>{setDemo(!process.env.NEXT_PUBLIC_API_BASE_URL || isDemoStaffSessionActive());},[]);
+  if(demo===null)return <LoadingState rows={4} label="Loading fulfilment workspace" />;
+  return demo?<DemoFulfilmentPage/>:<VerifiedFulfilmentWorkspace/>;
+}
+function DemoFulfilmentPage() {
   const { user, can } = useStaff();
   const { toast } = useToast();
   const { data, loading, error, reload } = useApiData(() => apiOps.fulfilment(), []);

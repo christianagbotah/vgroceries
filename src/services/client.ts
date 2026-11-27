@@ -1,5 +1,5 @@
 import { orderFulfilmentRequest } from "./order-fulfilment-action";
-import { fulfilmentActionResponseSchema } from "../../packages/contracts/src/fulfilment";
+import { fulfilmentActionResponseSchema, fulfilmentQueueResponseSchema, fulfilmentDetailResponseSchema, fulfilmentPickRequestSchema, type ProductionFulfilmentStatus } from "../../packages/contracts/src/fulfilment";
 import { isDemoStaffSessionActive } from "@/features/staff/staff-demo-session";
 /**
  * Typed client adapter — the browser-side half of the service boundary.
@@ -411,6 +411,31 @@ export const apiOps = {
     return (await api<AdminOrderDetail>("admin.order", { query: request.query })).order;
   },
   fulfilment: () => api<FulfilmentQueues>("admin.fulfilment"),
+  verifiedFulfilmentQueue: async (status:ProductionFulfilmentStatus,page=1) => {
+    if(!process.env.NEXT_PUBLIC_API_BASE_URL || isDemoStaffSessionActive())throw new ApiError("FORBIDDEN","A real staff session is required.");
+    const result=fulfilmentQueueResponseSchema.safeParse(await api("admin.verified.fulfilment.queue",{query:{status,page,perPage:25}}));
+    if(!result.success || result.data.page!==page || result.data.perPage!==25 || result.data.items.length>25 || result.data.items.some(row=>row.fulfilmentStatus!==status))throw new ApiError("BAD_RESPONSE","Fulfilment queue could not be verified.");
+    return result.data;
+  },
+  verifiedFulfilmentDetail: async (orderId:string) => {
+    if(!process.env.NEXT_PUBLIC_API_BASE_URL || isDemoStaffSessionActive())throw new ApiError("FORBIDDEN","A real staff session is required.");
+    const result=fulfilmentDetailResponseSchema.safeParse(await api("admin.verified.fulfilment.detail",{query:{orderId}}));
+    if(!result.success || result.data.orderId!==orderId)throw new ApiError("BAD_RESPONSE","Fulfilment detail could not be verified.");
+    return result.data;
+  },
+  verifiedFulfilmentAction: async (orderId:string,action:"confirm"|"start-picking"|"pack"|"handover") => {
+    if(!process.env.NEXT_PUBLIC_API_BASE_URL || isDemoStaffSessionActive())throw new ApiError("FORBIDDEN","A real staff session is required.");
+    const result=fulfilmentActionResponseSchema.safeParse(await api("admin.verified.fulfilment."+action,{query:{orderId},body:{},idempotencyKey:"fulfilment:"+action+":"+orderId}));
+    if(!result.success || result.data.orderId!==orderId)throw new ApiError("BAD_RESPONSE","Action outcome could not be verified. Refresh before retrying.");
+    return result.data;
+  },
+  verifiedFulfilmentPick: async (orderId:string,reservationId:string,raw:unknown,key:string) => {
+    if(!process.env.NEXT_PUBLIC_API_BASE_URL || isDemoStaffSessionActive())throw new ApiError("FORBIDDEN","A real staff session is required.");
+    const body=fulfilmentPickRequestSchema.parse(raw);
+    const result=fulfilmentActionResponseSchema.safeParse(await api("admin.verified.fulfilment.pick",{query:{orderId,reservationId},body,idempotencyKey:key}));
+    if(!result.success || result.data.orderId!==orderId)throw new ApiError("BAD_RESPONSE","Pick outcome could not be verified. Refresh before retrying.");
+    return result.data;
+  },
 
   /* Real cashier — read-only, server-scoped UAT workspace. */
   cashierWorkspace: () => api<CashierWorkspace>("cashier.workspace"),

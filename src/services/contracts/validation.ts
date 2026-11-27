@@ -1,7 +1,7 @@
 /* Compatibility import for the existing web application. */
 export * from "../../../packages/contracts/src/validation";
 
-import { fulfilmentConfirmRequestSchema, fulfilmentStartPickingRequestSchema, fulfilmentPackRequestSchema, fulfilmentHandoverRequestSchema } from "../../../packages/contracts/src/fulfilment";
+import { fulfilmentPickRequestSchema, fulfilmentConfirmRequestSchema, fulfilmentStartPickingRequestSchema, fulfilmentPackRequestSchema, fulfilmentHandoverRequestSchema } from "../../../packages/contracts/src/fulfilment";
 import { createCategoryRequestSchema } from "../../../packages/contracts/src/categories";
 import { posQuoteRequestSchema } from "../../../packages/contracts/src/pos-quote";
 import {
@@ -24,6 +24,7 @@ const verifiedPosQuotePreviewSchema = posQuoteRequestSchema.superRefine((value, 
 });
 
 const fulfilmentSchemas = {
+  "admin.verified.fulfilment.pick": fulfilmentPickRequestSchema,
   "admin.verified.fulfilment.confirm": fulfilmentConfirmRequestSchema,
   "admin.verified.fulfilment.start-picking": fulfilmentStartPickingRequestSchema,
   "admin.verified.fulfilment.pack": fulfilmentPackRequestSchema,
