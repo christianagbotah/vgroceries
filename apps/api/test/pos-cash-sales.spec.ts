@@ -187,24 +187,38 @@ test("one counted cash sale atomically depletes reserved goods and updates till 
   for(const query of ["?limit=51","?limit=0","?unexpected=foo","?cursor=invalid!"])
     assert.equal((await api("GET",historyRoute+query,admin)).status,400);
   assert.equal(await db.stockDepletion.count(),beforeHistory);
+  // A safe deposit may exceed the opening float when completed sales fund it.
+  // Drawer-only subtotal is not a cash balance and may therefore be negative.
+  const drop={kind:"drop" as const,amountMinor:1200,note:"Verified cash drop to the safe"};
   const movement=await tills.move("admin-commerce",till.id,
-    "cash-sale-drop-001","drop",{
-      kind:"drop",amountMinor:100,note:"Verified cash drop to the safe",
-    });
-  assert.equal(movement.expectedDrawerCashMinor,1423);
+    "cash-sale-drop-001","drop",drop);
+  assert.equal(movement.expectedDrawerOnlyMinor,-200);
+  assert.equal(movement.expectedDrawerCashMinor,323);
+  assert.equal(movement.cashSalesMinor,523);
+  const dropReplay=await tills.move("admin-commerce",till.id,
+    "cash-sale-drop-001","drop-replay",drop);
+  assert.deepEqual(dropReplay,movement);
+  assert.equal(await db.cashierTillMovement.count({where:{sessionId:till.id}}),1);
+  const reread=await tills.detail(till.id);
+  assert.equal(reread.expectedDrawerOnlyMinor,-200);
+  assert.equal(reread.expectedDrawerCashMinor,323);
+  await assert.rejects(()=>tills.move("admin-commerce",till.id,
+    "cash-sale-overdraw-001","overdraw",{...drop,amountMinor:324}),
+    (e:any)=>e?.getStatus?.()===409);
   const closing=await tills.close("admin-commerce",till.id,
     "cash-sale-close-001","close",{
-      countedCashMinor:1423,note:"Counted all cash including completed POS sale",
+      countedCashMinor:323,note:"Counted all cash including completed POS sale",
     });
-  assert.equal(closing.closingExpectedMinor,1423);
+  assert.equal(closing.closingExpectedMinor,323);
+  assert.equal(closing.expectedDrawerOnlyMinor,-200);
   assert.equal(closing.closingDifferenceMinor,0);
   const reconciled=await app.get(PosTillReconciliationService).preview(till.id);
   assert.equal(reconciled.cashSalesCount,1);
   assert.equal(reconciled.cashSalesMinor,523);
   assert.equal(reconciled.openingFloatMinor,1000);
-  assert.equal(reconciled.manualCashDropsMinor,100);
-  assert.equal(reconciled.expectedDrawerCashMinor,1423);
-  assert.equal(reconciled.actualCountedCashMinor,1423);
+  assert.equal(reconciled.manualCashDropsMinor,1200);
+  assert.equal(reconciled.expectedDrawerCashMinor,323);
+  assert.equal(reconciled.actualCountedCashMinor,323);
   assert.equal(reconciled.closingMatchesLedger,true);
   assert.equal(reconciled.recentCashSales[0]?.reference,sale.reference);
   assert.equal(reconciled.electronicPaymentsReconciled,false);

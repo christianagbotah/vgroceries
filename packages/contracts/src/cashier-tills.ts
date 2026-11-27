@@ -1,7 +1,7 @@
 import {z} from "zod";
 
 /**
- * POS P0a is CASH-DRAWER PREPARATION ONLY. These numbers exclude POS sales.
+ * Cash-drawer records distinguish manual float/movements from recorded cash sales.
  * An open till or movement is never a confirmed sale, refund, payment or stock change.
  */
 const id=z.string().trim().min(1).max(128);
@@ -39,8 +39,10 @@ export const cashierTillSessionViewSchema=z.object({
   closingExpectedMinor:money.nullable(),
   closingDifferenceMinor:z.number().int().min(-100000000).max(100000000).nullable(),
   closeNote:z.string().nullable(),
-  // This is a drawer-only balance. Sales and payment settlement are excluded.
-  expectedDrawerOnlyMinor:money,
+  // Opening float + manual cash in - cash out - drops, excluding sales.
+  // This component can legitimately be negative when sales fund a cash drop;
+  // only the combined expectedDrawerCashMinor is the physical drawer balance.
+  expectedDrawerOnlyMinor:z.number().int().min(-Number.MAX_SAFE_INTEGER).max(Number.MAX_SAFE_INTEGER),
   cashSalesMinor:money.optional(),
   expectedDrawerCashMinor:money.optional(),
   includesSales:z.boolean(),
