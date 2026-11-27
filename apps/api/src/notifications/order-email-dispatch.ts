@@ -1,3 +1,4 @@
+import {itemizedOrderEmail} from "./itemized-order-email";
 import type {PrismaClient} from "@prisma/client";
 import {decryptCustomerDestination} from "./customer-message-crypto";
 import {resolveSmsOrder} from "./order-sms-payment-evidence";
@@ -23,7 +24,7 @@ export async function dispatchOneOrderEmail(db:PrismaClient,options:{
   let message:OrderEmailMessage|null=null;
   if(event&&event.emailStageReceipt?.outcome==="queued"&&now.getTime()-event.createdAt.getTime()<=orderEmailMaxAgeMs){
    const resolved=await resolveSmsOrder(tx,event,now);
-   const order=resolved?await tx.order.findUnique({where:{id:resolved.orderId},select:{id:true,reference:true,customerEmail:true,emailConsent:true,fulfilmentStatus:true,cancelledAt:true,paymentStatus:true,paymentMethod:true,totalMinor:true}}):null;
+   const order=resolved?await tx.order.findUnique({where:{id:resolved.orderId},select:{id:true,reference:true,customerEmail:true,emailConsent:true,fulfilmentStatus:true,cancelledAt:true,paymentStatus:true,paymentMethod:true,totalMinor:true,subtotalMinor:true,discountMinor:true,deliveryFeeMinor:true,lines:{orderBy:{id:"asc"},select:{productId:true,productName:true,variantName:true,unit:true,quantity:true,unitPriceMinor:true,lineTotalMinor:true}}}}):null;
    const plan=order&&resolved?planOrderEmail({event:{...event,type:resolved.template??event.type,aggregateId:resolved.orderId},order,enabled:true,evaluatedAt:now,paymentConfirmed:resolved.paymentConfirmed,deliveryConfirmed:resolved.deliveryConfirmed,refundAmountMinor:resolved.refundAmountMinor}):null;
    if(order?.emailConsent&&plan&&plan.recipientFingerprint===item.recipientFingerprint&&plan.templateKey===item.templateKey&&item.templateVersion===1&&item.consentRecordedAt?.getTime()===plan.consentRecordedAt.getTime()&&currentOrderSmsState(plan.templateKey,order.fulfilmentStatus,order.cancelledAt)){
     if(!hasOrderEmailProof(order.emailConsent,now)){
@@ -32,7 +33,11 @@ export async function dispatchOneOrderEmail(db:PrismaClient,options:{
     }
     try{
      const recipient=decryptCustomerDestination(item.recipientEncrypted,options.keyHex);
-     if(recipient===normalizeOrderEmail(order.customerEmail))message={recipient,...orderEmailCopy(plan.templateKey,order,resolved?.refundAmountMinor)};
+     if(recipient===normalizeOrderEmail(order.customerEmail)){
+      const products=await tx.product.findMany({where:{id:{in:[...new Set(order.lines.slice(0,40).map(l=>l.productId))]},published:true},select:{id:true,featuredMedia:{select:{publicUrl:true,status:true,archivedAt:true}}}});
+      const images=new Map(products.map(p=>[p.id,p.featuredMedia?.status==="approved"&&!p.featuredMedia.archivedAt?p.featuredMedia.publicUrl:null]));
+      message={recipient,...itemizedOrderEmail(orderEmailCopy(plan.templateKey,order,resolved?.refundAmountMinor),{...order,lines:order.lines.map(l=>({...l,quantity:l.quantity.toString(),image:images.get(l.productId)}))})};
+     }
     }catch{/* Suppress invalid ciphertext or copy. */}
    }
   }

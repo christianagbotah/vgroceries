@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { spawn } from "node:child_process";
 import { isAbsolute } from "node:path";
 
@@ -11,6 +12,7 @@ export interface OrderEmailMessage {
   recipient: string;
   subject: string;
   body: string;
+  html?: string;
 }
 
 const mailbox = /^[A-Za-z0-9][A-Za-z0-9._%+-]{0,63}@[A-Za-z0-9](?:[A-Za-z0-9.-]{0,251}[A-Za-z0-9])?\.[A-Za-z]{2,63}$/;
@@ -34,9 +36,15 @@ export function buildOrderEmail(config: OrderEmailConfig, message: OrderEmailMes
   if (!validMailbox(message.recipient) || typeof message.subject !== "string" ||
       !/^[\x20-\x7e]{1,150}$/.test(message.subject) ||
       typeof message.body !== "string" || !message.body.trim() ||
-      Buffer.byteLength(message.body, "utf8") > 16000 || /\u0000/.test(message.body))
+      Buffer.byteLength(message.body, "utf8") > 24000 || /\u0000/.test(message.body))
     throw Error("Invalid order email message.");
   const encoded = Buffer.from(message.body, "utf8").toString("base64").match(/.{1,76}/g) ?? [];
+  if (message.html !== undefined) {
+    if (typeof message.html !== "string" || !message.html.trim() || Buffer.byteLength(message.html,"utf8") > 20000 || /\u0000/.test(message.html)) throw Error("Invalid HTML order email.");
+    const boundary = "vg-" + randomUUID();
+    const htmlEncoded = Buffer.from(message.html,"utf8").toString("base64").match(/.{1,76}/g) ?? [];
+    return [`From: Variety Groceries <${config.from}>`, `To: <${message.recipient}>`, `Subject: ${message.subject}`, "MIME-Version: 1.0", `Content-Type: multipart/alternative; boundary="${boundary}"`, "X-Auto-Response-Suppress: All", "", `--${boundary}`, "Content-Type: text/plain; charset=UTF-8", "Content-Transfer-Encoding: base64", "", ...encoded, `--${boundary}`, "Content-Type: text/html; charset=UTF-8", "Content-Transfer-Encoding: base64", "", ...htmlEncoded, `--${boundary}--`, ""].join("\r\n");
+  }
   return [
     `From: Variety Groceries <${config.from}>`,
     `To: <${message.recipient}>`,
