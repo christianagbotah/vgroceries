@@ -19,7 +19,7 @@ export async function stageOrderEmailBatch(db:PrismaClient,options:{enabled:bool
    else{
     const resolved=await resolveSmsOrder(tx,event,now);
     const order=resolved?await tx.order.findUnique({where:{id:resolved.orderId},select:{id:true,reference:true,customerEmail:true,emailConsent:true}}):null;
-    const plan=order&&resolved?planOrderEmail({event:{...event,type:resolved.template??event.type,aggregateId:resolved.orderId},order,enabled,evaluatedAt:now,paymentConfirmed:resolved.paymentConfirmed,deliveryConfirmed:resolved.deliveryConfirmed}):null;
+    const plan=order&&resolved?planOrderEmail({event:{...event,type:resolved.template??event.type,aggregateId:resolved.orderId},order,enabled,evaluatedAt:now,paymentConfirmed:resolved.paymentConfirmed,deliveryConfirmed:resolved.deliveryConfirmed,refundAmountMinor:resolved.refundAmountMinor}):null;
     const email=normalizeOrderEmail(order?.customerEmail);
     if(plan&&email){
      const result=await tx.customerMessageDelivery.createMany({data:[{...plan,recipientEncrypted:encryptCustomerDestination(email,keyHex)}],skipDuplicates:true});

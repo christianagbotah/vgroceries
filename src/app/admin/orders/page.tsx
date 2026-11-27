@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { formatPlacedDateTime } from "@/lib/format";
 import { useEffect, useMemo, useState } from "react";
 import { apiOps } from "@/services/client";
 import { useApiData } from "@/features/staff/admin-data";
@@ -128,7 +129,7 @@ export default function AdminOrdersPage() {
                   <StatusBadge kind="fulfilment" status={o.fulfilmentStatus} />
                   <span className="rounded-full bg-muted px-2 py-0.5 text-xs capitalize text-muted-foreground">{o.channel}</span>
                 </div>
-                <p className="mt-1.5 text-xs text-muted-foreground">{o.createdAtLabel}</p>
+                <p className="mt-1.5 text-xs text-muted-foreground">{formatPlacedDateTime(o.createdAtLabel)}</p>
               </li>
             ))}
           </ul>
@@ -166,7 +167,7 @@ export default function AdminOrdersPage() {
                     <td className="hidden p-3 md:table-cell"><StatusBadge kind="fulfilment" status={o.fulfilmentStatus} /></td>
                     <td className="hidden p-3 capitalize text-muted-foreground lg:table-cell">{o.fulfilment}</td>
                     <td className="p-3 text-right font-medium tabular-nums">{o.totalLabel}</td>
-                    <td className="hidden p-3 text-muted-foreground lg:table-cell">{o.createdAtLabel}</td>
+                    <td className="hidden whitespace-nowrap p-3 tabular-nums text-muted-foreground lg:table-cell">{formatPlacedDateTime(o.createdAtLabel)}</td>
                     <td className="hidden p-3 font-mono text-xs text-muted-foreground xl:table-cell">{o.posReceiptNo ?? "—"}</td>
                   </tr>
                 ))}

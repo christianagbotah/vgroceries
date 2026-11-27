@@ -1,5 +1,7 @@
 "use client";
 
+import { OrderLinePreview } from "@/components/orders/order-line-preview";
+
 import { useCallback, useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
@@ -92,13 +94,7 @@ export default function AccountOrderDetailPage() {
         <h3 className="font-semibold">Items</h3>
         <ul className="mt-2 space-y-2 text-sm">
           {order.lines.map((l) => (
-            <li key={l.id} className="flex justify-between gap-2">
-              <span>
-                {l.productName} <span className="text-muted-foreground">({l.variantName}) × {l.quantity}</span>
-                {l.substitutionOfLineId ? <em className="ml-1 text-xs text-muted-foreground">(substitute)</em> : null}
-              </span>
-              <span className="tabular-nums">{l.lineTotalLabel}</span>
-            </li>
+            <OrderLinePreview key={l.id} line={l} />
           ))}
         </ul>
         <Separator className="my-3" />

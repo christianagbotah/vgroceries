@@ -32,7 +32,7 @@ export async function stageOrderSmsBatch(db:PrismaClient,options:{
     // revocation endpoint must follow the same lock order.
     const resolved=await resolveSmsOrder(tx,event,now);
     const order=resolved?await tx.order.findUnique({where:{id:resolved.orderId},select:{id:true,reference:true,customerPhone:true,smsConsent:true}}):null;
-    const plan=order&&resolved?planOrderSms({event:{...event,type:resolved.template??event.type,aggregateId:resolved.orderId},order,enabled,evaluatedAt:now,paymentConfirmed:resolved.paymentConfirmed,deliveryConfirmed:resolved.deliveryConfirmed}):null;
+    const plan=order&&resolved?planOrderSms({event:{...event,type:resolved.template??event.type,aggregateId:resolved.orderId},order,enabled,evaluatedAt:now,paymentConfirmed:resolved.paymentConfirmed,deliveryConfirmed:resolved.deliveryConfirmed,refundAmountMinor:resolved.refundAmountMinor}):null;
     if(plan&&order){
      const result=await tx.customerMessageDelivery.createMany({data:[{...plan,recipientEncrypted:encryptCustomerDestination(order.customerPhone,keyHex)}],skipDuplicates:true});
      queued+=result.count;

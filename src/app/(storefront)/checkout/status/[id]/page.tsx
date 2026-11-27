@@ -1,5 +1,7 @@
 "use client";
 
+import { OrderLinePreview } from "@/components/orders/order-line-preview";
+
 import { useCallback, useEffect, useRef, useState } from "react";
 import { OrderSmsPreference } from "@/features/checkout/order-sms-preference";
 import { OrderSmsVerification } from "@/features/checkout/order-sms-verification";
@@ -290,12 +292,7 @@ export default function CheckoutStatusPage() {
         </div>
         <ul className="space-y-1.5 text-sm">
           {order.lines.map((l) => (
-            <li key={l.id} className="flex justify-between gap-2">
-              <span>
-                {l.productName} <span className="text-muted-foreground">({l.variantName}) × {l.quantity}</span>
-              </span>
-              <span className="tabular-nums">{l.lineTotalLabel}</span>
-            </li>
+            <OrderLinePreview key={l.id} line={l} />
           ))}
         </ul>
         <div className="space-y-1 border-t pt-2 text-sm">

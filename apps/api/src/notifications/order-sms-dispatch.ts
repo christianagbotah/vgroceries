@@ -12,6 +12,7 @@ const maxAge=24*60*60*1000;
 const safeReference=(value:unknown)=>typeof value==="string"&&/^[A-Za-z0-9._:-]{1,128}$/.test(value)?value:undefined;
 
 export function currentOrderSmsState(type:string,fulfilmentStatus:string,cancelledAt:Date|null){
+ if(type==="refund.succeeded")return true; // Independent committed refund authority required, including cancelled orders.
  if(type==="order.cancelled")return !!cancelledAt&&fulfilmentStatus==="cancelled";
  if(cancelledAt||fulfilmentStatus==="cancelled")return false;
  if(type==="payment.succeeded")return true; // Independently revalidated financial evidence required.
@@ -19,6 +20,8 @@ export function currentOrderSmsState(type:string,fulfilmentStatus:string,cancell
  if(type==="delivery.delivered")return fulfilmentStatus==="delivered";
  if(type==="order.created")return true; // Historical creation is true even after preparation starts.
  if(type==="fulfilment.confirmed")return fulfilmentStatus==="confirmed";
+ if(type==="fulfilment.picking_started")return fulfilmentStatus==="picking";
+ if(type==="fulfilment.handed_over")return fulfilmentStatus==="collected";
  if(type==="fulfilment.packed")return ["packed","ready_for_collection"].includes(fulfilmentStatus);
  return false;
 }
@@ -44,7 +47,7 @@ export async function dispatchOneOrderSms(db:PrismaClient,options:{
   if(event&&event.smsStageReceipt?.outcome==="queued"&&now.getTime()-event.createdAt.getTime()<=maxAge){
    const resolved=await resolveSmsOrder(tx,event,now);
    const order=resolved?await tx.order.findUnique({where:{id:resolved.orderId},select:{id:true,reference:true,customerPhone:true,customerUserId:true,guestSessionId:true,smsConsent:true,fulfilmentStatus:true,cancelledAt:true,paymentMethod:true,paymentStatus:true,totalMinor:true,deliveryJob:{select:{assignmentKind:true,providerKey:true,providerNameSnapshot:true,riderProfile:{select:{phone:true,user:{select:{name:true,role:true,active:true}}}}}},customerUser:{select:{phone:true,phoneVerifiedAt:true,active:true,role:true}}}}):null;
-   const plan=order&&resolved?planOrderSms({event:{...event,type:resolved.template??event.type,aggregateId:resolved.orderId},order,enabled:true,evaluatedAt:now,paymentConfirmed:resolved.paymentConfirmed,deliveryConfirmed:resolved.deliveryConfirmed}):null;
+   const plan=order&&resolved?planOrderSms({event:{...event,type:resolved.template??event.type,aggregateId:resolved.orderId},order,enabled:true,evaluatedAt:now,paymentConfirmed:resolved.paymentConfirmed,deliveryConfirmed:resolved.deliveryConfirmed,refundAmountMinor:resolved.refundAmountMinor}):null;
    // Revalidate immutable queue identity and current consent before reading
    // phone proof. A guest who has not yet verified may finish the OTP flow
    // within the existing 24-hour event window, without losing the queued event.
@@ -76,7 +79,7 @@ export async function dispatchOneOrderSms(db:PrismaClient,options:{
     try{
      const recipient=decryptCustomerDestination(item.recipientEncrypted,options.keyHex);
      if(recipient===order.customerPhone){
-      let content=customerMessage(plan.templateKey,order.reference,plan.templateKey==="payment.succeeded"?order.totalMinor:undefined).body;
+      let content=customerMessage(plan.templateKey,order.reference,plan.templateKey==="payment.succeeded"?order.totalMinor:plan.templateKey==="refund.succeeded"?resolved?.refundAmountMinor:undefined,order.fulfilmentStatus).body;
       if(plan.templateKey==="order.created")
        content+=orderCreatedPaymentInstruction(order.paymentMethod,order.paymentStatus);
       if(plan.templateKey==="delivery.out_for_delivery"){
