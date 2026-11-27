@@ -32,7 +32,10 @@ type NoteTarget = { order: OrderCard; kind: "pick" | "pack" } | null;
 
 export default function AdminFulfilmentPage() {
   const [demo,setDemo]=useState<boolean|null>(null);
-  useEffect(()=>{setDemo(!process.env.NEXT_PUBLIC_API_BASE_URL || isDemoStaffSessionActive());},[]);
+  useEffect(()=>{
+    const timer=window.setTimeout(()=>setDemo(!process.env.NEXT_PUBLIC_API_BASE_URL || isDemoStaffSessionActive()),0);
+    return ()=>window.clearTimeout(timer);
+  },[]);
   if(demo===null)return <LoadingState rows={4} label="Loading fulfilment workspace" />;
   return demo?<DemoFulfilmentPage/>:<VerifiedFulfilmentWorkspace/>;
 }
