@@ -13,3 +13,11 @@ test("order thumbnail is available only for approved published same-site media",
     assert.equal(orderLineImage({ published: true, featuredMedia: { ...media, publicUrl } }), undefined);
   }
 });
+
+test("existing public catalogue photos remain available for older products without featured media", () => {
+  const image = "https://images.unsplash.com/photo-1523362628745-0c100150b504?auto=format&fit=crop&w=900&q=84";
+  assert.equal(orderLineImage({ published: true, image, featuredMedia: null }), image);
+  assert.equal(orderLineImage({ published: false, image, featuredMedia: null }), undefined);
+  assert.equal(orderLineImage({ published: true, image: image + "&token=secret", featuredMedia: null }), undefined);
+  assert.equal(orderLineImage({ published: true, image: "https://evil.example/photo-1", featuredMedia: null }), undefined);
+});
