@@ -5,7 +5,12 @@ test("administrator order reads bypass optional browser TTL caching",()=>{
  expect(operationMeta["admin.orders"]).toEqual({});
  expect(operationMeta["admin.order"]).toEqual({});
  const controller=readFileSync("apps/api/src/orders/admin-orders.controller.ts","utf8");
- expect(controller.match(/@Header\("Cache-Control", "private, no-store"\)/g)?.length).toBe(2);
+ for(const route of ['@Get()','@Get(":orderId")','@Post(":orderId/notes")']){
+  const start=controller.indexOf(route);
+  expect(start).toBeGreaterThanOrEqual(0);
+  const decorators=controller.slice(start,controller.indexOf("async ",start));
+  expect(decorators).toContain('@Header("Cache-Control", "private, no-store")');
+ }
 });
 test("order workspace offers visible, bounded refresh and explicitly submitted search",()=>{
  const page=readFileSync("src/app/admin/orders/page.tsx","utf8");
