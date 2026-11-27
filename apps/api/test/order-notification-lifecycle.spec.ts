@@ -33,12 +33,20 @@ test("both channels require independently confirmed refund amount and order cons
  assert.equal(currentOrderSmsState("refund.succeeded","cancelled",when),true);
  assert.match(orderEmailCopy("refund.succeeded",{reference,totalMinor:500,paymentStatus:"refunded",paymentMethod:"mobile_money"},300).body,/₵3\.00/);
 });
-test("preparation and collection wording and stale-state suppression",()=>{
+test("preparation and collection wording preserves committed milestones without stale instructions",()=>{
  assert.match(customerMessage("fulfilment.picking_started",reference).body,/preparing/);
  assert.match(customerMessage("fulfilment.packed",reference,undefined,"ready_for_collection").body,/ready for collection/);
  assert.match(customerMessage("fulfilment.handed_over",reference).body,/collected/);
  assert.equal(currentOrderSmsState("fulfilment.picking_started","picking",null),true);
- assert.equal(currentOrderSmsState("fulfilment.picking_started","packed",null),false);
+ assert.equal(currentOrderSmsState("fulfilment.picking_started","packed",null),true);
+ for(const type of ["fulfilment.confirmed","fulfilment.picking_started","fulfilment.packed"]){
+  assert.equal(currentOrderSmsState(type,"collected",null),true);
+  assert.equal(currentOrderSmsState(type,"awaiting_confirmation",null),false);
+  assert.equal(currentOrderSmsState(type,"cancelled",when),false);
+ }
+ assert.match(customerMessage("fulfilment.picking_started",reference,undefined,"collected").body,/Preparation started/);
+ assert.doesNotMatch(customerMessage("fulfilment.packed",reference,undefined,"collected").body,/ready for collection/);
+ assert.match(orderEmailCopy("fulfilment.picking_started",{reference,totalMinor:500,paymentStatus:"succeeded",paymentMethod:"mobile_money",fulfilmentStatus:"collected"}).body,/Preparation started/);
  assert.equal(currentOrderSmsState("fulfilment.handed_over","collected",null),true);
  assert.equal(currentOrderSmsState("fulfilment.handed_over","dispatched",null),false);
 });

@@ -12,11 +12,14 @@ test("invalid dispatch configuration is rejected before accessing queue",async()
  const db=new Proxy({}, {get(){throw Error("unexpected database call");}}) as PrismaClient;
  await assert.rejects(()=>dispatchOneOrderSms(db,{enabled:true,keyHex:"",config}),/key not configured/);
 });
-test("stale or cancelled order updates cannot be sent as current milestones",()=>{
+test("committed preparation milestones survive progression but cancelled or impossible updates are rejected",()=>{
  assert.equal(currentOrderSmsState("order.created","awaiting_confirmation",null),true);
  assert.equal(currentOrderSmsState("order.created","confirmed",null),true);
  assert.equal(currentOrderSmsState("fulfilment.packed","ready_for_collection",null),true);
- assert.equal(currentOrderSmsState("fulfilment.packed","delivered",null),false);
+ assert.equal(currentOrderSmsState("fulfilment.packed","delivered",null),true);
+ assert.equal(currentOrderSmsState("fulfilment.packed","collected",null),true);
+ assert.equal(currentOrderSmsState("fulfilment.packed","confirmed",null),false);
+ assert.equal(currentOrderSmsState("fulfilment.packed","cancelled",new Date()),false);
  assert.equal(currentOrderSmsState("order.cancelled","cancelled",new Date()),true);
  assert.equal(currentOrderSmsState("order.cancelled","cancelled",null),false);
  assert.equal(currentOrderSmsState("fulfilment.confirmed","confirmed",new Date()),false);
