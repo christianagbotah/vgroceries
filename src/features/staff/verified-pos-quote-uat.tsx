@@ -158,7 +158,11 @@ export function VerifiedPosQuoteUat() {
           The real counter quote screen is available only on explicitly approved UAT builds.
           The public store and all POS transactions remain unaffected.
         </p>
-        <Button asChild variant="outline"><Link href="/admin/pos">Return to POS</Link></Button>
+        <div className="flex flex-wrap gap-2">
+          {verifiedPosCashHistoryUatEnabled ? <Button asChild variant="outline"><Link href="/admin/pos/verified-uat/history">Cash sale history</Link></Button> : null}
+          {verifiedPosTillReconciliationUatEnabled ? <Button asChild variant="outline"><Link href="/admin/pos/verified-uat/reconciliation">Cash drawer reconciliation</Link></Button> : null}
+          <Button asChild variant="outline"><Link href="/admin/pos">Return to POS</Link></Button>
+        </div>
       </main>
     );
   }

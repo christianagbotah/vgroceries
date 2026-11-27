@@ -17,6 +17,9 @@ import { useToast } from "@/hooks/use-toast";
 import { ReceiptText, Search, Trash2, Printer, Pause, Play, Barcode, Banknote, Smartphone, CreditCard, RotateCcw } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { PaymentMethod } from "@/types/domain";
+import { verifiedPosCashHistoryUatEnabled } from "@/features/staff/verified-pos-cash-history-client";
+import { verifiedPosTillReconciliationUatEnabled } from "@/features/staff/verified-pos-till-reconciliation-client";
+import { verifiedPosQuoteUatEnabled } from "@/features/staff/verified-pos-quote-client";
 
 interface PosLine { variantId: string; productId: string; productName: string; variantName: string; unit: string; priceMinor: number; priceLabel: string; quantity: string; image: string; availableToSell: string; barcode?: string }
 interface Draft { id: string; label: string; createdAtLabel: string; expiresAt: string; lineCount: number; totalMinor: number; lines: { variantId: string; quantity: string; unitPriceMinor: number }[] }
@@ -623,9 +626,20 @@ export default function AdminPosPage() {
   if (process.env.NEXT_PUBLIC_API_BASE_URL?.trim()) {
     return (
       <section role="status" className="mx-auto max-w-2xl space-y-4 pt-8">
-        <h1 className="font-serif text-2xl font-bold">Counter sales — Launch pending</h1>
+        <h1 className="font-serif text-2xl font-bold">Counter sales</h1>
+        {(verifiedPosCashHistoryUatEnabled || verifiedPosTillReconciliationUatEnabled || verifiedPosQuoteUatEnabled) ? (
+          <section className="rounded-xl border bg-card p-5 space-y-3" aria-labelledby="verified-pos-tools">
+            <h2 id="verified-pos-tools" className="text-lg font-semibold">Verified administrator tools</h2>
+            <p className="text-sm text-muted-foreground">Review actual server records. These tools are read-only and do not complete sales, accept payments or change stock.</p>
+            <div className="grid gap-3 sm:grid-cols-2">
+              {verifiedPosCashHistoryUatEnabled ? <Button asChild variant="outline" className="h-auto min-h-12 justify-start whitespace-normal text-left"><Link href="/admin/pos/verified-uat/history"><ReceiptText className="size-4 shrink-0" aria-hidden /> Cash sales and receipts</Link></Button> : null}
+              {verifiedPosTillReconciliationUatEnabled ? <Button asChild variant="outline" className="h-auto min-h-12 justify-start whitespace-normal text-left"><Link href="/admin/pos/verified-uat/reconciliation"><Banknote className="size-4 shrink-0" aria-hidden /> Till reconciliation</Link></Button> : null}
+              {verifiedPosQuoteUatEnabled ? <Button asChild variant="outline" className="h-auto min-h-12 justify-start whitespace-normal text-left"><Link href="/admin/pos/verified-uat">Counter price preview</Link></Button> : null}
+            </div>
+          </section>
+        ) : null}
         <div className="rounded-xl border bg-card p-5">
-          <h2 className="text-lg font-semibold">Production POS is not yet activated</h2>
+          <h2 className="text-lg font-semibold">Production POS is not yet activated for new sales</h2>
           <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
             The secure cashier, shared-stock reservation, cash handover and
             receipt APIs are being prepared for a controlled live rollout.
