@@ -3,9 +3,10 @@ import { canStageCustomerDelivery } from "./customer-delivery-eligibility";
 import { customerMessage, type CustomerMessageEvent } from "./customer-channel-policy";
 import { orderCreatedPaymentInstruction } from "./order-sms-recipient-policy";
 import { smsStageEvents } from "./order-sms-staging-policy";
+import { paymentStatusTemplates } from "./order-sms-payment-evidence";
 
 export const emailStageEvents = smsStageEvents;
-const templates = new Set<string>(["order.created","payment.succeeded","fulfilment.confirmed","fulfilment.picking_started","fulfilment.packed","fulfilment.handed_over","refund.succeeded","delivery.out_for_delivery","delivery.delivered","order.cancelled"]);
+const templates = new Set<string>(["order.created","payment.succeeded",...paymentStatusTemplates,"fulfilment.confirmed","fulfilment.picking_started","fulfilment.packed","fulfilment.handed_over","refund.succeeded","delivery.out_for_delivery","delivery.delivered","delivery.failed","order.cancelled"]);
 type Consent={orderId:string;recipientFingerprint:string;policyVersion:string;recordedAt:Date;verifiedAt:Date|null;revokedAt:Date|null};
 export const orderEmailMaxAgeMs=24*60*60*1000;
 
@@ -23,7 +24,7 @@ export function planOrderEmail(input:{
  const {event,order,enabled,evaluatedAt}=input, consent=order.emailConsent;
  const email=normalizeOrderEmail(order.customerEmail);
  if(!email||!consent||consent.orderId!==order.id||event.aggregateId!==order.id||consent.policyVersion!=="order-email-v1")return null;
- if(!templates.has(event.type)||event.type==="payment.succeeded"&&input.paymentConfirmed!==true||event.type.startsWith("delivery.")&&input.deliveryConfirmed!==true)return null;
+ if(!templates.has(event.type)||event.type.startsWith("payment.")&&input.paymentConfirmed!==true||event.type.startsWith("delivery.")&&input.deliveryConfirmed!==true)return null;
  if(event.type==="refund.succeeded"&&(!Number.isSafeInteger(input.refundAmountMinor)||(input.refundAmountMinor??0)<=0))return null;
  const fingerprint=customerDestinationFingerprint(email);
  if(fingerprint!==consent.recipientFingerprint||!canStageCustomerDelivery({eventCreatedAt:event.createdAt,consentRecordedAt:consent.recordedAt,consentRevokedAt:consent.revokedAt,channelEnabled:enabled,evaluatedAt}))return null;

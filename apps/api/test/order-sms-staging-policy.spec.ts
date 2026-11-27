@@ -24,7 +24,7 @@ test("staging rejects absent, revoked, future or mismatched consent",()=>{
  assert.equal(planOrderSms({...base,event:{...event,aggregateId:"another-order"}}),null);
 });
 test("unverified financial/courier events, invalid destinations and references fail closed",()=>{
- for(const type of ["payment.succeeded","refund.succeeded","delivery.delivered","delivery.out_for_delivery","unknown"])
+ for(const type of ["payment.succeeded","payment.pending","payment.failed","payment.expired","payment.requires_review","refund.succeeded","delivery.delivered","delivery.out_for_delivery","delivery.failed","unknown"])
   assert.equal(planOrderSms({...base,event:{...event,type}}),null);
  assert.equal(planOrderSms({...base,order:{...order,reference:"invalid"}}),null);
  assert.equal(planOrderSms({...base,order:{...order,customerPhone:"0241111111"}}),null);

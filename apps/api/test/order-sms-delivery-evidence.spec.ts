@@ -22,3 +22,19 @@ test("manual courier delivery requires recorded proof and maps to canonical temp
  assert.equal(confirmedSmsDelivery(event,delivered,{...complete,cancelledAt:now},recorded,now),null);
  assert.equal(confirmedSmsDelivery(event,{...delivered,assignmentKind:"in_house"},complete,recorded,now),null);
 });
+
+
+test("failed delivery requires matching committed failure and current job state, for rider and courier",()=>{
+ for(const manual of [false,true]){
+  const action=manual?"provider_failed":"failed";
+  const event={...source,type:"delivery."+action,payload:{...source.payload,toStatus:"failed"}};
+  const failed={...job,assignmentKind:manual?"manual_provider":"in_house",status:"failed",failedAt:time,failureReasonCode:"customer_unavailable"};
+  const current={...order,deliveryStatus:"failed"};
+  const recorded={...transition,action,toStatus:"failed"};
+  assert.equal(confirmedSmsDelivery(event,failed,current,recorded,now),"delivery.failed");
+  assert.equal(confirmedSmsDelivery(event,{...failed,failedAt:null},current,recorded,now),null);
+  assert.equal(confirmedSmsDelivery(event,{...failed,status:"rescheduled"},current,recorded,now),null);
+  assert.equal(confirmedSmsDelivery(event,failed,{...current,deliveryStatus:"delivered"},recorded,now),null);
+  assert.equal(confirmedSmsDelivery(event,failed,current,{...recorded,requestId:"other"},now),null);
+ }
+});
