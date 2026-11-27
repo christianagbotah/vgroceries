@@ -20,9 +20,14 @@ export function confirmedSmsPayment(event:PaymentEvent,attempt:Attempt|null,orde
 /** Resolve attempt-owned payment events via persisted relations, not a
  * customer identifier from the payload. Preserve the order-first lock
  * sequence used by PaymentOutcomeService. */
-export async function resolveSmsOrder(tx:Prisma.TransactionClient,event:PaymentEvent,evaluatedAt:Date):Promise<{orderId:string;paymentConfirmed?:true;deliveryConfirmed?:true;refundAmountMinor?:number;template?:"delivery.delivered"|"delivery.out_for_delivery"}|null>{
+export async function resolveSmsOrder(tx:Prisma.TransactionClient,event:PaymentEvent,evaluatedAt:Date):Promise<{orderId:string;paymentConfirmed?:true;deliveryConfirmed?:true;refundAmountMinor?:number;template?:"delivery.delivered"|"delivery.out_for_delivery"|"order.cancelled"}|null>{
  if(deliverySmsEvents.includes(event.type as typeof deliverySmsEvents[number]))return resolveSmsDelivery(tx,event,evaluatedAt);
  if(event.type==="refund.succeeded")return resolveSmsRefund(tx,event,evaluatedAt);
+ if(event.type==="order.cancelled_with_refund"){
+  await tx.$queryRaw`SELECT id FROM "Order" WHERE id=${event.aggregateId} FOR UPDATE`;
+  const order=await tx.order.findUnique({where:{id:event.aggregateId},select:{id:true,fulfilmentStatus:true,cancelledAt:true}});
+  return order?.fulfilmentStatus==="cancelled"&&order.cancelledAt?{orderId:order.id,template:"order.cancelled" as const}:null;
+ }
  if(event.type==="fulfilment.handed_over"&&(!event.payload||typeof event.payload!=="object"||Array.isArray(event.payload)||(event.payload as Record<string,unknown>).toStatus!=="collected"))return null;
  if(event.type!=="payment.succeeded"){
   await tx.$queryRaw`SELECT id FROM "Order" WHERE id=${event.aggregateId} FOR UPDATE`;

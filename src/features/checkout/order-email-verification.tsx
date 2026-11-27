@@ -49,7 +49,7 @@ export function OrderEmailVerification({orderId}:{orderId:string}){
   {status.state==="revoked"?<p role="status" className="text-sm text-muted-foreground">Email updates are turned off for this order.</p>:
    <>
     {status.state==="verified"?<p role="status" className="text-sm">Your email address is verified for this order.</p>:<>
-     <p className="text-sm text-muted-foreground">Verify the email address supplied at checkout. This optional step does not affect your payment.</p>
+     <p className="text-sm text-muted-foreground">Verify your email address to receive your itemised order and payment messages. Until verification is complete, these messages will wait. Your payment is unaffected.</p>
      {status.verificationAvailable?<Button type="button" variant="outline" disabled={busy||cooling} onClick={()=>void action({action:"request"})}>{cooling?`Resend in ${remaining}s`:challenge?"Resend email code":"Send email code"}</Button>:<p className="text-sm text-muted-foreground">Email verification is currently unavailable.</p>}
      {challenge&&status.verificationAvailable?<div className="space-y-2">
       <Label htmlFor="order-email-code">Email verification code</Label>

@@ -66,7 +66,7 @@ export function OrderSmsVerification({ reference, onVerified }: {
     <section className="rounded-xl border bg-card p-4 space-y-3" aria-label="Verify phone for order SMS">
       <div>
         <h2 className="font-semibold">Verify your phone for order updates</h2>
-        <p className="text-sm text-muted-foreground">You requested SMS updates. Verify the number supplied with this order. You can continue checkout without completing this optional step.</p>
+        <p className="text-sm text-muted-foreground">You requested SMS updates. Verify your number to receive order and payment messages. Until verification is complete, those messages will wait. Your payment is unaffected.</p>
       </div>
       {error ? <p role="alert" className="text-sm text-destructive">{error}</p> : null}
       <Button type="button" variant="outline" disabled={busy || waitSeconds > 0} onClick={() => void requestCode()}>
