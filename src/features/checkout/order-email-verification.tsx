@@ -16,13 +16,15 @@ export function OrderEmailVerification({orderId}:{orderId:string}){
  const [until,setUntil]=useState(0);
  const [clock,setClock]=useState(0);
  const locked=useRef(false);
+ const [revision,setRevision]=useState(0);
+ const [loading,setLoading]=useState(true);
  const remaining=Math.max(0,Math.ceil((until-clock)/1000));
  const cooling=remaining>0;
  useEffect(()=>{
   let active=true;
-  void apiOps.orderEmailUpdatesStatus(orderId).then(s=>{if(active)setStatus(s);}).catch(()=>{if(active)setError("Email preference status could not be loaded.");});
+  void apiOps.orderEmailUpdatesStatus(orderId).then(s=>{if(active){setStatus(s);setError("");}}).catch(()=>{if(active){setStatus(null);setError("Email preference status could not be loaded.");}}).finally(()=>{if(active)setLoading(false);});
   return ()=>{active=false;};
- },[orderId]);
+ },[orderId,revision]);
  useEffect(()=>{
   if(!cooling)return;
   const timer=window.setInterval(()=>setClock(Date.now()),1000);
@@ -30,7 +32,7 @@ export function OrderEmailVerification({orderId}:{orderId:string}){
  },[cooling]);
 
  async function action(body:OrderEmailUpdatesAction){
-  if(locked.current)return;
+  if(locked.current||loading||!status||status.state==="revoked"||status.state==="not_requested")return;
   if(body.action==="request"&&remaining>0)return;
   locked.current=true;setBusy(true);setError("");
   try{
@@ -42,7 +44,8 @@ export function OrderEmailVerification({orderId}:{orderId:string}){
   }catch(e){setError(e instanceof ApiError?e.message:"Email preference could not be updated.");}
   finally{locked.current=false;setBusy(false);}
  }
- if(!status)return error?<p className="text-sm text-muted-foreground" role="status">{error}</p>:null;
+ if(loading)return <p role="status" className="text-sm text-muted-foreground">Checking email update preference…</p>;
+ if(!status)return error?<section className="space-y-2 rounded-xl border bg-card p-4" aria-label="Order email updates"><h2 className="font-semibold">Email updates</h2><p role="alert" className="text-sm text-destructive">{error}</p><Button type="button" size="sm" variant="outline" onClick={()=>{setLoading(true);setError("");setRevision(v=>v+1);}}>Retry email preference</Button></section>:null;
  if(status.state==="not_requested")return null;
  return <section className="space-y-3 rounded-xl border bg-card p-4" aria-label="Order email updates">
   <h2 className="font-semibold">Email updates</h2>

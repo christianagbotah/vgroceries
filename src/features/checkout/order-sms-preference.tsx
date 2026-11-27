@@ -9,13 +9,14 @@ export function OrderSmsPreference({orderId,onRevoked}:{orderId:string;onRevoked
  const [busy,setBusy]=useState(false);
  const lock=useRef(false);
  const [reload,setReload]=useState(0);
+ const [loading,setLoading]=useState(true);
  useEffect(()=>{
   let active=true;
-  void apiOps.orderSmsUpdatesStatus(orderId).then(s=>{if(active){setState(s.state);setError("");}}).catch(()=>{if(active)setError("SMS preference could not be loaded.");});
+  void apiOps.orderSmsUpdatesStatus(orderId).then(s=>{if(active){setState(s.state);setError("");}}).catch(()=>{if(active){setState(null);setError("SMS preference could not be loaded.");}}).finally(()=>{if(active)setLoading(false);});
   return ()=>{active=false;};
  },[orderId,reload]);
  async function revoke(){
-  if(lock.current||state!=="requested")return;
+  if(lock.current||loading||state!=="requested")return;
   lock.current=true;setBusy(true);setError("");
   try{
    const result=await apiOps.revokeOrderSmsUpdates(orderId);
@@ -24,6 +25,7 @@ export function OrderSmsPreference({orderId,onRevoked}:{orderId:string;onRevoked
   }catch(e){setError(e instanceof ApiError?e.message:"SMS preference could not be updated.");}
   finally{lock.current=false;setBusy(false);}
  }
+ if(loading)return <p role="status" className="text-sm text-muted-foreground">Checking SMS update preference…</p>;
  if(state==="not_requested")return null;
  if(state===null&&!error)return null;
  return <section className="rounded-xl border bg-card p-4 space-y-2" aria-label="Order SMS preference">
@@ -31,7 +33,7 @@ export function OrderSmsPreference({orderId,onRevoked}:{orderId:string;onRevoked
   {state==="revoked"?<p role="status" className="text-sm text-muted-foreground">SMS updates are turned off for this order.</p>:state==="requested"?<>
    <p className="text-sm text-muted-foreground">Turn off future order SMS updates without affecting payment or delivery. A message already being sent may still arrive.</p>
    <Button type="button" size="sm" variant="outline" disabled={busy} onClick={()=>void revoke()}>Turn off SMS updates</Button>
-  </>:<Button type="button" size="sm" variant="outline" onClick={()=>setReload(v=>v+1)}>Retry SMS preference</Button>}
+  </>:<Button type="button" size="sm" variant="outline" onClick={()=>{setLoading(true);setError("");setReload(v=>v+1);}}>Retry SMS preference</Button>}
   {error?<p role="alert" className="text-sm text-destructive">{error}</p>:null}
  </section>;
 }
