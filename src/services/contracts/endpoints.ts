@@ -45,6 +45,9 @@ export const restEndpoints: Record<string, RestEndpoint> = {
   "admin.categories.create": { method: "POST", path: "/admin/categories" },
   // Administrator-only UAT preview; no stock reservation or payment action.
   "pos.verified.tills": { method: "GET", path: "/admin/pos/tills" },
+  "pos.verified.till.open": {method:"POST",path:"/admin/pos/tills",replayTransport:"headerOnly"},
+  "pos.verified.till.move": {method:"POST",path:"/admin/pos/tills/{sessionId}/movements",replayTransport:"headerOnly"},
+  "pos.verified.till.close": {method:"POST",path:"/admin/pos/tills/{sessionId}/close",replayTransport:"headerOnly"},
   "pos.verified.quote": { method: "POST", path: "/admin/pos/quote" },
   "pos.verified.cash-sales": { method: "GET", path: "/admin/pos/cash-sales" },
   "pos.verified.cash-sales-page": { method: "GET", path: "/admin/pos/cash-sales/history" },

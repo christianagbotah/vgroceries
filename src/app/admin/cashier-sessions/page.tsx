@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { VerifiedTillCommands } from "@/features/staff/verified-till-commands";
 import { apiOps, ApiError } from "@/services/client";
 import { useApiData } from "@/features/staff/admin-data";
 import { useStaff } from "@/features/staff/role-context";
@@ -20,6 +21,11 @@ import { cn } from "@/lib/utils";
 type Session = Awaited<ReturnType<typeof apiOps.sessions>>[number];
 
 export default function AdminCashierSessionsPage() {
+  if (process.env.NEXT_PUBLIC_API_BASE_URL?.trim()) return <VerifiedTillCommands />;
+  return <DemoCashierSessionsPage />;
+}
+
+function DemoCashierSessionsPage() {
   const { user, can } = useStaff();
   const { toast } = useToast();
   const { data, loading, error, reload } = useApiData(() => apiOps.sessions(), []);

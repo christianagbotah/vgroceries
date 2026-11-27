@@ -3,6 +3,7 @@ export * from "../../../packages/contracts/src/validation";
 
 import { fulfilmentPickRequestSchema, fulfilmentConfirmRequestSchema, fulfilmentStartPickingRequestSchema, fulfilmentPackRequestSchema, fulfilmentHandoverRequestSchema } from "../../../packages/contracts/src/fulfilment";
 import { createCategoryRequestSchema } from "../../../packages/contracts/src/categories";
+import { cashierTillOpenSchema,cashierTillMoveSchema,cashierTillCloseSchema } from "../../../packages/contracts/src/cashier-tills";
 import { posQuoteRequestSchema } from "../../../packages/contracts/src/pos-quote";
 import {
   requestSchemas as sharedRequestSchemas,
@@ -24,6 +25,9 @@ const verifiedPosQuotePreviewSchema = posQuoteRequestSchema.superRefine((value, 
 });
 
 const fulfilmentSchemas = {
+  "pos.verified.till.open":cashierTillOpenSchema,
+  "pos.verified.till.move":cashierTillMoveSchema,
+  "pos.verified.till.close":cashierTillCloseSchema,
   "admin.verified.fulfilment.pick": fulfilmentPickRequestSchema,
   "admin.verified.fulfilment.confirm": fulfilmentConfirmRequestSchema,
   "admin.verified.fulfilment.start-picking": fulfilmentStartPickingRequestSchema,
