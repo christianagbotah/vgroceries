@@ -40,7 +40,7 @@ export class OrderProjectionService {
 
     const products = o.lines.length ? await this.db.product.findMany({
       where: { id: { in: [...new Set(o.lines.map(line => line.productId))] }, published: true },
-      select: { id: true, published: true, featuredMedia: { select: { publicUrl: true, status: true, archivedAt: true } } },
+      select: { id: true, published: true, image: true, featuredMedia: { select: { publicUrl: true, status: true, archivedAt: true } } },
     }) : [];
     const thumbnails = new Map(products.map(product => [product.id, orderLineImage(product)]));
 
