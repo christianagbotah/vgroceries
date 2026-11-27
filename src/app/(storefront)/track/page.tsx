@@ -1,5 +1,7 @@
 "use client";
 
+import { OrderLinePreview } from "@/components/orders/order-line-preview";
+
 import { Suspense, useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
@@ -198,12 +200,7 @@ function TrackFormContent({ orderId, initialReference, initialCode }: {
 
             <ul className="mt-4 space-y-1.5 text-sm">
               {order.lines.map((l) => (
-                <li key={l.id} className="flex justify-between gap-2">
-                  <span>
-                    {l.productName} <span className="text-muted-foreground">({l.variantName}) × {l.quantity}</span>
-                  </span>
-                  <span className="tabular-nums">{l.lineTotalLabel}</span>
-                </li>
+                <OrderLinePreview key={l.id} line={l} />
               ))}
             </ul>
             <div className="mt-2 flex justify-between border-t pt-2 text-sm font-bold">
