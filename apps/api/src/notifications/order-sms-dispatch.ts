@@ -14,7 +14,10 @@ const safeReference=(value:unknown)=>typeof value==="string"&&/^[A-Za-z0-9._:-]{
 export function currentOrderSmsState(type:string,fulfilmentStatus:string,cancelledAt:Date|null){
  if(type==="refund.succeeded")return true; // Independent committed refund authority required, including cancelled orders.
  if(type==="order.cancelled")return !!cancelledAt&&fulfilmentStatus==="cancelled";
+ if(type==="payment.requires_review")return true; // Current committed exception independently revalidated.
  if(cancelledAt||fulfilmentStatus==="cancelled")return false;
+ if(["payment.pending","payment.failed","payment.expired"].includes(type))return true; // Current payment state and newest attempt independently revalidated.
+ if(type==="delivery.failed")return !["delivered","collected"].includes(fulfilmentStatus); // Current authoritative failed job independently revalidated.
  if(type==="payment.succeeded")return true; // Independently revalidated financial evidence required.
  if(type==="delivery.out_for_delivery")return fulfilmentStatus==="dispatched";
  if(type==="delivery.delivered")return fulfilmentStatus==="delivered";

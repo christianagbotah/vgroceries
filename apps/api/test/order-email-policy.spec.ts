@@ -18,7 +18,7 @@ test("email consent is channel-specific, order-bound, address-bound and not retr
  assert.equal(planOrderEmail({...input,enabled:false}),null);
 });
 test("payment and delivery email require independent committed evidence",()=>{
- for(const type of ["payment.succeeded","delivery.delivered","delivery.out_for_delivery"]){
+ for(const type of ["payment.succeeded","payment.pending","payment.failed","payment.expired","payment.requires_review","delivery.delivered","delivery.out_for_delivery","delivery.failed"]){
   const changed={...input,event:{...event,type}};
   assert.equal(planOrderEmail(changed),null);
   assert.ok(planOrderEmail({...changed,paymentConfirmed:true,deliveryConfirmed:true}));
@@ -39,4 +39,12 @@ test("payment email uses cedi amount and created email does not ask a paid custo
  assert.match(orderEmailCopy("payment.succeeded",paid).body,/₵25\.35/);
  assert.doesNotMatch(orderEmailCopy("order.created",paid).body,/secure payment instructions/);
  assert.match(orderEmailCopy("order.created",{...paid,paymentStatus:"pending"}).body,/Do not pay twice/);
+});
+
+test("pending and failure copy never claims receipt or asks for an immediate repeat payment",()=>{
+ const orderState={reference:order.reference,totalMinor:500,paymentMethod:"electronic",paymentStatus:"pending"};
+ assert.match(orderEmailCopy("payment.pending",orderState).body,/do not pay again/i);
+ assert.match(orderEmailCopy("payment.failed",orderState).body,/If debited, contact support/i);
+ assert.match(orderEmailCopy("payment.requires_review",orderState).body,/Do not pay again/i);
+ assert.doesNotMatch(orderEmailCopy("payment.pending",orderState).body,/Amount received/);
 });
