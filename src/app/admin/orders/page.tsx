@@ -7,8 +7,9 @@ import { useApiData } from "@/features/staff/admin-data";
 import { LoadingState, ErrorState, EmptyState } from "@/components/shared/states";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Search, ShoppingCart } from "lucide-react";
+import { RefreshCw, Search, ShoppingCart } from "lucide-react";
 import type { FulfilmentStatus, PaymentStatus } from "@/types/domain";
 
 type OrderRow = Awaited<ReturnType<typeof apiOps.orders>>[number];
@@ -20,9 +21,9 @@ export default function AdminOrdersPage() {
   const [q, setQ] = useState("");
   const [searchInput, setSearchInput] = useState("");
 
-  const { data, loading, error, reload } = useApiData(
+  const { data, loading, error, reload, lastUpdated } = useApiData(
     () => apiOps.orders({ channel: channel === "all" ? undefined : channel, status: status === "all" ? undefined : status, payment: payment === "all" ? undefined : payment, q: q || undefined }),
-    [channel, status, payment, q]
+    [channel, status, payment, q], { refreshMs: 15000 }
   );
 
   const rows = useMemo(() => data ?? [], [data]);
@@ -30,9 +31,13 @@ export default function AdminOrdersPage() {
 
   return (
     <div className="space-y-4">
-      <div>
-        <h1 className="font-serif text-2xl font-bold">Orders</h1>
-        <p className="text-sm text-muted-foreground">Online and counter orders in one model.</p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="font-serif text-2xl font-bold">Orders</h1>
+          <p className="text-sm text-muted-foreground">Online and counter orders in one model. Automatically refreshes while visible.</p>
+          {lastUpdated ? <p className="text-xs text-muted-foreground">Last updated: {lastUpdated.toLocaleTimeString("en-GH", { timeZone: "Africa/Accra" })}</p> : null}
+        </div>
+        <Button type="button" variant="outline" disabled={loading} onClick={() => void reload()}><RefreshCw className="size-4" aria-hidden /> Refresh orders</Button>
       </div>
 
       {/* filters: one desktop row, wrapping on mobile */}
@@ -48,13 +53,13 @@ export default function AdminOrdersPage() {
           <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
           <Input
             type="search"
-            className="h-11 pl-9"
+            className="h-11 pl-9 pr-20"
             placeholder="Reference, customer or phone…"
             value={searchInput}
-            onChange={(e) => setSearchInput(e.target.value)}
+            onChange={(e) => { setSearchInput(e.target.value); if (!e.target.value.trim()) setQ(""); }}
             aria-label="Search orders"
-            key={q}
           />
+          <Button type="submit" variant="ghost" className="absolute right-1 top-1 h-9" aria-label="Apply order search">Search</Button>
         </form>
         <Select value={channel} onValueChange={setChannel} aria-label="Filter by channel">
           <SelectTrigger className="h-11 w-full sm:w-36"><SelectValue /></SelectTrigger>

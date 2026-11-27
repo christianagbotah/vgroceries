@@ -1,4 +1,4 @@
-import { Controller, Get, Param, Query, Req, UseGuards } from "@nestjs/common";
+import { Controller, Get, Header, Param, Query, Req, UseGuards } from "@nestjs/common";
 import { ApiCookieAuth, ApiOperation, ApiTags } from "@nestjs/swagger";
 import type { AdminOrderFilters } from "@variety/contracts";
 import { ApiProblem } from "../http/errors";
@@ -19,6 +19,7 @@ export class AdminOrdersController {
   }
 
   @Get()
+  @Header("Cache-Control", "private, no-store")
   @ApiOperation({ summary: "List administrator order rows" })
   async list(@Req() req: AuthRequest, @Query() query: AdminOrderFilters) {
     this.requireAdmin(req);
@@ -26,6 +27,7 @@ export class AdminOrdersController {
   }
 
   @Get(":orderId")
+  @Header("Cache-Control", "private, no-store")
   @ApiOperation({ summary: "Read administrator order detail" })
   async detail(@Req() req: AuthRequest, @Param("orderId") orderId: string) {
     this.requireAdmin(req);

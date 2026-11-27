@@ -103,8 +103,8 @@ export const operationMeta: Record<string, OperationMeta> = {
 
   /* staff: dashboard, orders, fulfilment */
   "admin.dashboard": { tags: [...ORD, ...STOCK, ...RET, ...DEL, ...SESS] },
-  "admin.orders": { tags: ORD },
-  "admin.order": { tags: [...ORD, ...RET, ...PAY, ...STOCK] },
+  "admin.orders": {}, // Live payment and fulfilment reads must never use browser TTL cache.
+  "admin.order": {}, // Private order detail must reflect durable server state.
   "admin.order.action": { invalidates: [...ORD, ...STOCK, ...CAT, ...DEL, ...PAY] },
   "admin.fulfilment": { tags: [...ORD, ...STOCK] },
 
