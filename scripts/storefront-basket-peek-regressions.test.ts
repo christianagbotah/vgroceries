@@ -111,7 +111,9 @@ test("cart quantity and destructive removal stay on one responsive row", () => {
   const qty = read("src/components/shared/quantity-input.tsx");
   const buttons = read("src/components/ui/button.tsx");
   const peek = read("src/features/checkout/basket-peek.tsx");
-  expect(cart).toContain('data-cart-line-actions className="flex min-w-0 items-center');
+  expect(cart).toContain('data-cart-line-actions className="flex w-full min-w-0 items-center');
+  expect(cart).toContain('ml-auto size-12 shrink-0');
+  expect(cart).toContain('<Trash2 className="size-6"');
   expect(cart).toContain("compact");
   expect(cart).toContain('variant="destructive-ghost"');
   expect(cart).toContain('<span className="hidden sm:inline">Remove</span>');

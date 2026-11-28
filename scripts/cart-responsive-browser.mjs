@@ -43,13 +43,16 @@ try {
       const probe=document.createElement("span");probe.className="text-destructive";el.append(probe);
       const danger=getComputedStyle(probe).color;probe.remove();
       return {row:rect(el),group:rect(group),del:rect(del),controls:controls.map(rect),
-        label:getComputedStyle(del.querySelector("span")).display,
+        icon:rect(del.querySelector("svg")), label:getComputedStyle(del.querySelector("span")).display,
         color:getComputedStyle(del).color,danger,overflow:el.scrollWidth>el.clientWidth+1};
     });
     assert.equal(g.controls.length,3);
-    assert.ok(g.controls.every(c=>Math.abs(c.y-g.del.y)<=1),"Quantity and removal must share a row");
-    assert.ok(g.controls.every(c=>c.h>=44)&&g.del.h>=44&&g.del.w>=44,"Touch targets");
+    assert.ok(g.controls.every(c=>Math.abs((c.y+c.h/2)-(g.del.y+g.del.h/2))<=1),"Quantity and removal must share a row");
+    assert.ok(g.controls.every(c=>c.h>=44)&&g.del.h>=48&&g.del.w>=48,"Touch targets");
     assert.ok(g.group.right<=g.del.x&&g.del.right<=g.row.right+1&&g.row.right<=width+1&&!g.overflow,"No overlap or overflow");
+    assert.ok(Math.abs(g.del.right-g.row.right)<=1,"Trash must align to far right");
+    assert.ok(g.icon.w>=24&&g.icon.h>=24,"Trash icon must be at least 24px");
+    assert.ok(g.controls[1].w>=28,"Editable quantity must retain usable width");
     assert.equal(g.label==="none",width<640);
     assert.equal(g.color,g.danger,"Removal must use danger foreground");
     console.log("CART_ROW_PASS",width);
