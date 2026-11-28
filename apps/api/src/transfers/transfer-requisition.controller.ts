@@ -5,7 +5,7 @@ import type {AuthRequest} from "../identity/identity.service";
 import {ApiProblem} from "../http/errors";
 import {TransferRequisitionService} from "./transfer-requisition.service";
 import {InventoryModule} from "../inventory/inventory.controller";
-import {transferDecisionSchema,transferRequestSchema,transferReserveSchema,transferCancelSchema,transferDispatchSchema} from "./transfer-requisition.schemas";
+import {transferDecisionSchema,transferRequestSchema,transferReserveSchema,transferCancelSchema,transferDispatchSchema,transferReceiptSchema} from "./transfer-requisition.schemas";
 
 @ApiExcludeController()
 @Controller("inventory/transfer-requisitions")
@@ -50,6 +50,12 @@ export class TransferRequisitionController{
   return {ok:true,data:await this.service.dispatch(req,id,parsed.data.handoverReference)};
  }
 
+ @Post(":id/receive") @HttpCode(200)
+ async receive(@Req() req:AuthRequest,@Param("id") id:string,@Body() raw:unknown,@Headers("idempotency-key") key?:string){
+  const parsed=transferReceiptSchema.safeParse(raw);
+  if(!parsed.success||!key||!/^[A-Za-z0-9:_-]{8,128}$/.test(key))throw new ApiProblem(400,"VALIDATION_FAILED","Valid receipt lines, reference and Idempotency-Key required.");
+  return {ok:true,data:await this.service.receive(req,id,parsed.data,key)};
+ }
 }
 @Module({imports:[InventoryModule],controllers:[TransferRequisitionController],providers:[TransferRequisitionService]})
 export class TransferRequisitionModule{}
