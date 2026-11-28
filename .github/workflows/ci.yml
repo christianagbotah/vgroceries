@@ -103,6 +103,12 @@ jobs:
           PLAYWRIGHT_CORE_PATH: /tmp/vgroceries-playwright/node_modules/playwright-core
         run: node scripts/checkout-browser-retry.mjs http://127.0.0.1:3000
 
+      - name: Hero responsive browser geometry (all editorial slides)
+        timeout-minutes: 3
+        env:
+          PLAYWRIGHT_CORE_PATH: /tmp/vgroceries-playwright/node_modules/playwright-core
+        run: node scripts/hero-responsive-browser.mjs http://127.0.0.1:3000
+
       # Candidate only: this does not deploy or authorize a production cutover.
       - name: Package source-light storefront candidate (exact SHA)
         shell: bash
