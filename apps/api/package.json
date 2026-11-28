@@ -25,7 +25,8 @@
     "notifications:order-email": "node --env-file-if-exists=.env dist/scripts/run-order-email.js",
     "notifications:order-sms": "node --env-file-if-exists=.env dist/scripts/run-order-sms.js",
     "notifications:project": "node --env-file-if-exists=.env dist/scripts/project-notifications.js",
-    "pickup:reminders:run": "node --env-file-if-exists=.env dist/scripts/project-pickup-reminders.js"
+    "pickup:reminders:run": "node --env-file-if-exists=.env dist/scripts/project-pickup-reminders.js",
+    "payments:hubtel:reconcile": "node --env-file-if-exists=.env dist/scripts/reconcile-hubtel-checkout.js"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "3.1151.0",

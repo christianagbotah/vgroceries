@@ -140,6 +140,24 @@ export class PaymentReconciliationService {
         return { attemptId, result: "deferred" as const };
       }
       if (stale) {
+        // A verified callback may have settled the attempt while this slower
+        // status lookup was in flight. Never downgrade an already recorded
+        // paid/refunded order to requires_review solely because the lookup's
+        // snapshot is stale. Retain evidence for the finance audit instead.
+        const latestOrder = await tx.order.findUnique({
+          where: { id: current.orderId },
+          select: { paymentStatus: true },
+        });
+        if (current.status === "succeeded" ||
+            ["succeeded", "partially_refunded", "refund_pending", "refunded"].includes(latestOrder?.paymentStatus ?? "")) {
+          await tx.paymentReconciliation.create({
+            data: this.reconciliationData(
+              attemptId, snapshot.provider, trigger, observation, "exception",
+              requestId, "A concurrent verified settlement superseded this stale lookup.",
+            ),
+          });
+          return { attemptId, result: "exception" as const };
+        }
         await this.forceException(tx, current, actorId, requestId, "stale_reconciliation_snapshot");
         await tx.paymentReconciliation.create({
           data: this.reconciliationData(attemptId, snapshot.provider, trigger, observation, "exception", requestId, "Attempt changed while provider lookup was in progress."),
@@ -185,6 +203,24 @@ export class PaymentReconciliationService {
           data: this.reconciliationData(attemptId, snapshot.provider, trigger, observation, "exception", requestId, "Payment remains in operator review."),
         });
         return { attemptId, result: "exception" as const };
+      }
+
+      // A provider may independently confirm the reference but still say
+      // "Unpaid"/Pending. That is NOT final settlement. Keep the attempt
+      // recoverable for a later lookup if the final Hubtel callback is lost.
+      if (["initiated", "pending"].includes(after.status)) {
+        if (after.settlementState === "reconciled")
+          await tx.paymentAttempt.update({
+            where: { id: attemptId },
+            data: { settlementState: "unsettled", version: { increment: 1 } },
+          });
+        await tx.paymentReconciliation.create({
+          data: this.reconciliationData(
+            attemptId, snapshot.provider, trigger, observation, "matched",
+            requestId, "Provider confirmed the reference but payment remains pending.",
+          ),
+        });
+        return { attemptId, result: "matched" as const };
       }
 
       const alreadyReconciled = after.settlementState === "reconciled";
