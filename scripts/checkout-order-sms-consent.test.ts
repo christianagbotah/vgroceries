@@ -16,3 +16,14 @@ describe("checkout order-only SMS consent", () => {
     expect(page).toContain("setCustomerPhone(e.target.value); setSmsUpdatesOptIn(false);");
   });
 });
+
+test("requested SMS verification is prominent before receipt and payment without forcing OTP or payment",()=>{
+ const status=readFileSync("src/app/(storefront)/checkout/status/[id]/page.tsx","utf8");
+ expect(status.indexOf("<OrderSmsVerification key=")).toBeGreaterThan(0);
+ expect(status.indexOf("<OrderSmsVerification key=")).toBeLessThan(status.indexOf("<OrderReceiptExperience order="));
+ const prompt=readFileSync("src/features/checkout/order-sms-verification.tsx","utf8");
+ expect(prompt).toContain("SMS updates waiting for verification");
+ expect(prompt).toContain("expire after 24 hours");
+ expect(prompt).toContain("onClick={() => void requestCode()}");
+ expect(prompt).not.toContain("paymentInitiate");
+});

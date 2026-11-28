@@ -2,7 +2,7 @@
 
 import { OrderLinePreview } from "@/components/orders/order-line-preview";
 
-import { Suspense, useCallback, useEffect, useState } from "react";
+import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { apiOps, ApiError, type PublicOrder } from "@/services/client";
@@ -37,7 +37,7 @@ function TrackForm() {
   const orderId = params.get("orderId");
   // Remount on identity changes so a previous customer's journey cannot remain
   // visible while a different order is loading.
-  return <TrackFormContent key={orderId ?? "guest"} orderId={orderId}
+  return <TrackFormContent key={orderId ?? "guest:"+(params.get("reference")??"")} orderId={orderId}
     initialReference={params.get("reference") ?? ""} initialCode={params.get("code") ?? ""} />;
 }
 
@@ -48,9 +48,10 @@ function TrackFormContent({ orderId, initialReference, initialCode }: {
   const [publicResult,setPublicResult]=useState<{reference:string;paymentStatus:string;fulfilmentStatus:string;deliveryStatus:string;fulfilment:string;createdAt:string}|null>(null);
   const [publicLoading,setPublicLoading]=useState(false);
   const [verificationCode,setVerificationCode]=useState(initialCode);
-  const [otpChallenge,setOtpChallenge]=useState<{challengeId:string;expiresAt:string}|null>(null);
+  const [otpChallenge,setOtpChallenge]=useState<{challengeId:string;expiresAt:string;reference:string}|null>(null);
   const [otpCode,setOtpCode]=useState("");
   const [otpBusy,setOtpBusy]=useState(false);
+  const guestLock=useRef(false);
   const [otpError,setOtpError]=useState<string|null>(null);
   const [otpResendAt,setOtpResendAt]=useState(0);
   const [trackingLockUntil,setTrackingLockUntil]=useState(0);
@@ -67,24 +68,35 @@ function TrackFormContent({ orderId, initialReference, initialCode }: {
     if(error.code==="RATE_LIMITED")setTrackingLockUntil(Date.now()+seconds*1000);
   };
   const requestOrderOtp=async()=>{
-    setOtpBusy(true);setOtpError(null);
-    try{const result=await apiOps.requestOrderOtp(publicResult!.reference);setOtpChallenge(result);setOtpCode("");setOtpResendAt(Date.now()+60000);}
+    if(guestLock.current||!publicResult||Date.now()<otpResendAt||Date.now()<trackingLockUntil)return;
+    const target=publicResult.reference;
+    guestLock.current=true;setOtpBusy(true);setOtpError(null);
+    try{const result=await apiOps.requestOrderOtp(target);setOtpChallenge({...result,reference:target});setOtpCode("");setOtpClock(Date.now());setOtpResendAt(Date.now()+60000);}
     catch(err){recordServerRetry(err);setOtpError(err instanceof ApiError?err.message:"Unable to request SMS verification.");}
-    finally{setOtpBusy(false);}
+    finally{guestLock.current=false;setOtpBusy(false);}
   };
-  const verifyOrderOtp=async()=>{
-    if(!publicResult||!otpChallenge)return;
-    setOtpBusy(true);setOtpError(null);
-    try{const details=await apiOps.verifyOrderOtp(publicResult.reference,otpChallenge.challengeId,otpCode);setOrder(details);setOtpChallenge(null);}
-    catch(err){recordServerRetry(err);setOtpError(err instanceof ApiError?err.message:"Verification failed. Check the code and try again.");}
-    finally{setOtpBusy(false);}
+  const verifyOrderOtp=async(e?:React.FormEvent)=>{
+    e?.preventDefault();
+    if(guestLock.current||!publicResult||!otpChallenge||otpChallenge.reference!==publicResult.reference||!/^\d{6}$/.test(otpCode)||Date.now()<trackingLockUntil)return;
+    if(Date.now()>=Date.parse(otpChallenge.expiresAt)){setOtpError("This code expired. Request a fresh SMS code.");return;}
+    const challenge=otpChallenge;
+    guestLock.current=true;setOtpBusy(true);setOtpError(null);
+    try{
+      const details=await apiOps.verifyOrderOtp(challenge.reference,challenge.challengeId,otpCode);
+      if(details.reference!==challenge.reference)throw new ApiError("BAD_RESPONSE","The server returned a different order.");
+      requests.invalidate();setVerifiedLookup(null);setOrder(details);setOtpChallenge(null);setOtpCode("");setError(null);
+    }catch(err){
+      recordServerRetry(err);
+      setOtpError(err instanceof ApiError?err.code==="NETWORK"||err.code==="BAD_RESPONSE"?"We could not confirm the verification response. Check your connection; if your code has been used, request a new code.":err.message:"Unable to confirm verification. Please try again.");
+    }finally{guestLock.current=false;setOtpBusy(false);}
   };
   const [publicError,setPublicError]=useState<string|null>(null);
   const lookupPublic=async(e?:React.FormEvent)=>{
-    e?.preventDefault();setPublicError(null);setPublicResult(null);setOtpChallenge(null);setOtpCode("");setOrder(null);setPublicLoading(true);
+    e?.preventDefault();if(guestLock.current||Date.now()<trackingLockUntil)return;
+    guestLock.current=true;requests.invalidate();setVerifiedLookup(null);setPublicError(null);setPublicResult(null);setOtpChallenge(null);setOtpCode("");setOtpError(null);setOrder(null);setPublicLoading(true);
     try{setPublicResult(await apiOps.trackPublic(reference.trim().toUpperCase()));}
     catch(err){recordServerRetry(err);setPublicError(err instanceof ApiError?err.message:"Unable to track order. Please try again.");}
-    finally{setPublicLoading(false);}
+    finally{guestLock.current=false;setPublicLoading(false);}
   };
 
   const [loading, setLoading] = useState(false);
@@ -92,13 +104,15 @@ function TrackFormContent({ orderId, initialReference, initialCode }: {
   const [order, setOrder] = useState<PublicOrder | null>(null);
   const [verifiedLookup, setVerifiedLookup] = useState<VerifiedLookup | null>(null);
   const verifyGuestOrder = async () => {
-    const candidate = reference.trim().toUpperCase();
+    if(guestLock.current||Date.now()<trackingLockUntil)return;
+    const candidate = publicResult?.reference;
     const code = verificationCode.trim().toUpperCase();
     if (!candidate || !code) return;
-    await requests.load(async () => ({
+    guestLock.current=true;
+    try{await requests.load(async () => ({
       order: await apiOps.track(candidate, code),
       lookup: { reference: candidate, code },
-    }), { replace: true });
+    }), { replace: true });}finally{guestLock.current=false;}
   };
 
   const [requests] = useState(() => createTrackingRequestCoordinator<TrackingResult>({
@@ -143,11 +157,13 @@ function TrackFormContent({ orderId, initialReference, initialCode }: {
           : "Enter your order number to see payment and fulfilment progress. Personal details remain private."}
       </p>
 
-      {!orderId ? <form onSubmit={lookupPublic} className="mt-5 space-y-4 rounded-2xl border bg-card p-4 sm:p-5" aria-label="Track order by number">
+      {!orderId ? <section className="mt-5 space-y-4 rounded-2xl border bg-card p-4 sm:p-5">
+        <form onSubmit={lookupPublic} className="space-y-3" aria-label="Track order by number">
         <Label htmlFor="public-order-number">Order number</Label>
-        <Input id="public-order-number" className="h-12 font-mono uppercase" placeholder="VG-XXXXXXXXXXXX" value={reference} onChange={e=>setReference(e.target.value)} autoComplete="off" required />
-        <Button type="submit" size="lg" className="h-12 w-full" disabled={publicLoading||!reference.trim()||trackingWait>0}>{publicLoading?"Checking…":trackingWait>0?`Tracking available in ${formatRetryCountdown(trackingWait)}`:"Track order"}</Button>
+        <Input id="public-order-number" className="h-12 font-mono uppercase" placeholder="VG-XXXXXXXXXXXX" value={reference} onChange={e=>{setReference(e.target.value);setPublicResult(null);setOrder(null);setOtpChallenge(null);setOtpCode("");setOtpError(null);setVerifiedLookup(null);requests.invalidate();}} disabled={publicLoading||otpBusy||loading} autoComplete="off" required />
+        <Button type="submit" size="lg" className="h-12 w-full" disabled={publicLoading||otpBusy||loading||!reference.trim()||trackingWait>0}>{publicLoading?"Checking…":trackingWait>0?`Tracking available in ${formatRetryCountdown(trackingWait)}`:"Track order"}</Button>
         {publicError?<p role="alert" className="text-sm text-destructive">{publicError}{trackingWait>0?` Retry in ${formatRetryCountdown(trackingWait)}.`:""}</p>:null}
+        </form>
         {publicResult?<section aria-live="polite" className="space-y-2 rounded-xl border p-4 text-sm">
           <h2 className="font-semibold">Order {publicResult.reference}</h2>
           <p>Payment: <strong>{publicResult.paymentStatus.replaceAll("_"," ")}</strong></p>
@@ -157,27 +173,28 @@ function TrackFormContent({ orderId, initialReference, initialCode }: {
             <Button asChild className="w-full"><Link href="/account/orders">View order details and items</Link></Button>
             <p className="text-xs text-muted-foreground">Sign in to the purchasing account to see product names, quantities, prices and receipts. An order number alone cannot unlock private purchases.</p>
             <div className="space-y-3 border-t pt-3" aria-label="Recover guest order by SMS">
-              <p className="font-semibold">Forgot your private order code?</p>
-              <p className="text-xs text-muted-foreground">Receive a six-digit verification code on the phone number used when placing this order. We never display the full number.</p>
+              <p className="font-semibold">Verify your phone or recover your private order code</p>
+              <p className="text-xs text-muted-foreground">Receive a six-digit verification code on the phone number used when placing this order. This also verifies ownership of the number for requested guest order SMS updates. We never display the full number.</p>
               {otpError?<p role="alert" className="text-xs text-destructive">{otpError}{trackingWait>0?` Retry in ${formatRetryCountdown(trackingWait)}.`:resendWait>0?` Available in ${formatRetryCountdown(resendWait)}.`:""}</p>:null}
-              <Button type="button" className="w-full" disabled={otpBusy||resendWait>0||trackingWait>0} onClick={()=>void requestOrderOtp()}>
+              <Button type="button" className="w-full" disabled={otpBusy||loading||resendWait>0||trackingWait>0} onClick={()=>void requestOrderOtp()}>
                 {otpBusy?"Please wait…":trackingWait>0?`Tracking available in ${formatRetryCountdown(trackingWait)}`:resendWait>0?`SMS available in ${formatRetryCountdown(resendWait)}`:otpChallenge?"Resend SMS code":"Verify with SMS OTP"}
               </Button>
-              {otpChallenge?<div className="space-y-2">
+              {otpChallenge?<form onSubmit={verifyOrderOtp} className="space-y-2" aria-label="Verify guest SMS code">
                 <Label htmlFor="guest-sms-code">SMS verification code</Label>
                 <Input id="guest-sms-code" inputMode="numeric" autoComplete="one-time-code" maxLength={6} value={otpCode} onChange={event=>setOtpCode(event.target.value.replace(/\D/g,"").slice(0,6))} placeholder="Enter 6-digit code" />
-                <Button type="button" variant="outline" className="w-full" disabled={otpBusy||trackingWait>0||otpCode.length!==6||otpClock>=new Date(otpChallenge.expiresAt).getTime()} onClick={()=>void verifyOrderOtp()}>View my order details</Button>
-              </div>:null}
+                <Button type="submit" variant="outline" className="w-full" disabled={otpBusy||loading||trackingWait>0||otpCode.length!==6||otpClock>=new Date(otpChallenge.expiresAt).getTime()}>{otpBusy?"Verifying…":"Verify SMS code and view order"}</Button>
+              {otpClock>=Date.parse(otpChallenge.expiresAt)?<p role="status" className="text-sm">Code expired. Request a fresh SMS code.</p>:null}
+              </form>:null}
             </div>
-            <div className="space-y-2 border-t pt-3" aria-label="Verify guest order details">
+            <form onSubmit={e=>{e.preventDefault();void verifyGuestOrder();}} className="space-y-2 border-t pt-3" aria-label="Verify guest order details">
               <Label htmlFor="guest-order-code">Have a private order verification code?</Label>
               <Input id="guest-order-code" type="text" autoComplete="off" value={verificationCode} onChange={event => setVerificationCode(event.target.value)} placeholder="Enter your private code" required />
-              <Button type="button" onClick={() => void verifyGuestOrder()} variant="outline" className="w-full" disabled={loading || trackingWait>0 || !verificationCode.trim()}>{loading ? "Verifying…" : trackingWait>0 ? `Retry in ${formatRetryCountdown(trackingWait)}` : "View guest order items"}</Button>
+              <Button type="submit" variant="outline" className="w-full" disabled={loading || otpBusy || trackingWait>0 || !verificationCode.trim()}>{loading ? "Verifying…" : trackingWait>0 ? `Retry in ${formatRetryCountdown(trackingWait)}` : "View guest order items"}</Button>
               <p className="text-xs text-muted-foreground">Only the correct order number and private code can unlock itemised details. Do not share your code publicly.</p>
-            </div>
+            </form>
           </div>
         </section>:null}
-      </form> : null}
+      </section> : null}
       {orderId && loading ? <LoadingState rows={4} label="Loading your order status" /> : null}
 
       {error ? <ErrorState title="Could not track that order" message={error} className="mt-4" /> : null}

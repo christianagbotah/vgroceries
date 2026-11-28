@@ -63,13 +63,14 @@ export function OrderSmsVerification({ reference, onVerified }: {
   }
   if (verified) return <p role="status" className="rounded-lg border p-3 text-sm">Your phone has been verified for this order. SMS updates are subject to delivery availability.</p>;
   return (
-    <section className="rounded-xl border bg-card p-4 space-y-3" aria-label="Verify phone for order SMS">
+    <section className="rounded-xl border border-warning/50 bg-warning/10 p-4 space-y-3" aria-label="Verify phone for order SMS">
       <div>
+        <p className="text-xs font-semibold uppercase tracking-wide">SMS updates waiting for verification</p>
         <h2 className="font-semibold">Verify your phone for order updates</h2>
-        <p className="text-sm text-muted-foreground">You requested SMS updates. Verify your number to receive order and payment messages. Until verification is complete, those messages will wait. You can continue checkout without verifying, but SMS updates will remain pending.</p>
+        <p className="text-sm text-muted-foreground">You requested SMS updates. Tap Send verification code and enter the six-digit code received on your phone. Order messages cannot be sent until you verify your number; unverified queued messages expire after 24 hours. You can continue checkout without verifying. This does not affect your payment or order.</p>
       </div>
       {error ? <p role="alert" className="text-sm text-destructive">{error}</p> : null}
-      <Button type="button" variant="outline" disabled={busy || waitSeconds > 0} onClick={() => void requestCode()}>
+      <Button type="button" className="w-full sm:w-auto" disabled={busy || waitSeconds > 0} onClick={() => void requestCode()}>
         {busy ? "Please wait…" : waitSeconds > 0 ? `Resend in ${waitSeconds}s` : challenge ? "Resend verification code" : "Send verification code"}
       </Button>
       {challenge ? <div className="space-y-2">
