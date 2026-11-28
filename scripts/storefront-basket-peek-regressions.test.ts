@@ -105,3 +105,20 @@ describe("non-authoritative basket peek", () => {
     expect(tile.indexOf("add({")).toBeLessThan(tile.indexOf("flyProductToCart("));
   });
 });
+
+test("cart quantity and destructive removal stay on one responsive row", () => {
+  const cart = read("src/app/(storefront)/cart/page.tsx");
+  const qty = read("src/components/shared/quantity-input.tsx");
+  const buttons = read("src/components/ui/button.tsx");
+  const peek = read("src/features/checkout/basket-peek.tsx");
+  expect(cart).toContain('data-cart-line-actions className="flex min-w-0 items-center');
+  expect(cart).toContain("compact");
+  expect(cart).toContain('variant="destructive-ghost"');
+  expect(cart).toContain('<span className="hidden sm:inline">Remove</span>');
+  expect(cart).toContain('onClick={() => remove(line.variantId)}');
+  expect(qty).toContain("grid-cols-[2.75rem_minmax(0,1fr)_2.75rem]");
+  expect(qty).toContain('compact ? "size-11 shrink-0"');
+  expect(buttons).toContain('"destructive-ghost"');
+  expect(buttons).toContain("text-destructive hover:bg-destructive/10 hover:text-destructive");
+  expect(peek).toContain('variant="destructive-ghost"');
+});

@@ -17,6 +17,7 @@ export function QuantityInput({
   disabled,
   ariaLabel,
   size = "md",
+  compact = false,
 }: {
   value: string;
   onChange: (next: string) => void;
@@ -26,6 +27,8 @@ export function QuantityInput({
   disabled?: boolean;
   ariaLabel?: string;
   size?: "sm" | "md";
+  /** Fluid cart stepper with 44px targets and a shrinking editable field. */
+  compact?: boolean;
 }) {
   const [text, setText] = useState<string | null>(null);
   const step = (dir: 1 | -1) => {
@@ -35,9 +38,9 @@ export function QuantityInput({
     if (cmpQty(next, "0") < 0) next = "0";
     onChange(next);
   };
-  const btn = size === "sm" ? "size-9" : "size-11";
+  const btn = compact ? "size-11 shrink-0" : size === "sm" ? "size-9" : "size-11";
   return (
-    <div className="inline-flex items-center gap-1" role="group" aria-label={ariaLabel ?? "Quantity"}>
+    <div className={compact ? "grid w-full min-w-0 max-w-48 grid-cols-[2.75rem_minmax(0,1fr)_2.75rem] items-center gap-1" : "inline-flex items-center gap-1"} role="group" aria-label={ariaLabel ?? "Quantity"}>
       <Button
         type="button"
         variant="outline"
@@ -52,7 +55,7 @@ export function QuantityInput({
       <Input
         type="text"
         inputMode="decimal"
-        className={size === "sm" ? "h-9 w-16 text-center" : "h-11 w-20 text-center"}
+        className={compact ? "h-11 w-full min-w-0 px-1 text-center tabular-nums" : size === "sm" ? "h-9 w-16 text-center" : "h-11 w-20 text-center"}
         value={text ?? formatQty(value)}
         disabled={disabled}
         aria-label={ariaLabel ? `${ariaLabel} value` : "Quantity value"}

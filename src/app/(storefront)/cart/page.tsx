@@ -111,13 +111,13 @@ export default function CartPage() {
                 {product ? (
                   <Link
                     href={`/products/${product.slug}`}
-                    className="relative size-20 shrink-0 overflow-hidden rounded-lg bg-muted sm:size-24"
+                    className="relative size-16 shrink-0 overflow-hidden rounded-lg bg-muted min-[360px]:size-20 sm:size-24"
                     aria-hidden
                   >
                     <Image src={product.image} alt="" fill sizes="96px" className="object-cover" />
                   </Link>
                 ) : (
-                  <div className="size-20 shrink-0 rounded-lg bg-muted sm:size-24" aria-hidden />
+                  <div className="size-16 shrink-0 rounded-lg bg-muted min-[360px]:size-20 sm:size-24" aria-hidden />
                 )}
                 <div className="min-w-0 flex-1 space-y-2">
                   <div className="flex flex-wrap items-start justify-between gap-2">
@@ -142,10 +142,11 @@ export default function CartPage() {
                     </p>
                   ) : null}
 
-                  <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div data-cart-line-actions className="flex min-w-0 items-center gap-1.5 sm:gap-2">
                     {variant?.isAvailable ? (
                       <QuantityInput
                         size="sm"
+                        compact
                         value={line.quantity}
                         onChange={(q) => setQty(line.variantId, q)}
                         max={variant.availableToSell}
@@ -155,13 +156,14 @@ export default function CartPage() {
                       <span />
                     )}
                     <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-9 text-muted-foreground hover:text-destructive"
+                      type="button"
+                      variant="destructive-ghost"
+                      size="icon"
+                      className="size-11 shrink-0 sm:w-auto sm:px-3"
                       onClick={() => remove(line.variantId)}
                       aria-label={`Remove ${product?.name ?? "item"} from cart`}
                     >
-                      <Trash2 className="size-4" aria-hidden /> Remove
+                      <Trash2 className="size-4" aria-hidden /> <span className="hidden sm:inline">Remove</span>
                     </Button>
                   </div>
                 </div>

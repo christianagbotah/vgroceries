@@ -163,12 +163,12 @@ export function BasketPeekDock() {
                                   ? "Review amount in cart"
                                   : formatMoney(amount)}
                               </span>
-                              <button type="button"
+                              <Button type="button" variant="destructive-ghost" size="icon"
                                 onClick={() => remove(line.variantId)}
                                 aria-label={"Remove " + line.name + " from basket"}
-                                className="inline-flex min-h-9 items-center gap-1 rounded-lg px-2 text-xs font-semibold text-[#916053] transition hover:bg-red-50 hover:text-red-700 focus-visible:outline-2 focus-visible:outline-primary">
-                                <Trash2 className="size-3.5" aria-hidden /> Remove
-                              </button>
+                                className="size-11 shrink-0 sm:w-auto sm:px-2 text-xs font-semibold">
+                                <Trash2 className="size-4" aria-hidden /> <span className="hidden sm:inline">Remove</span>
+                              </Button>
                             </div>
                           </div>
                         </motion.li>
