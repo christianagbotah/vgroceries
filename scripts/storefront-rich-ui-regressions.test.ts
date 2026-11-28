@@ -109,3 +109,18 @@ test("FreshMarket hero keeps the real carousel, category navigation and accessib
   for (const marker of ["storefrontHeroImage","storefrontProducePromoImage","storefrontPantryPromoImage","window.setInterval","document.visibilityState","onMouseEnter","onFocusCapture","ArrowLeft","ArrowRight","Pause featured slideshow","aria-current","useReducedMotion","href={current.ctaHref}","href={current.secondaryCtaHref}",'href="/track"',"md:grid-cols-4","md:grid-cols-[46%_54%]"]) expect(hero).toContain(marker);
   for (const unsupported of ["100% Organic","12K Reviews","4.9/5","Same Day Delivery"]) expect(hero).not.toContain(unsupported);
 });
+
+test("hero primary and secondary actions share one equal-width row at every breakpoint", () => {
+  const hero = read("src/features/catalog/storefront-editorial-hero.tsx");
+  const start = hero.indexOf("data-hero-actions");
+  expect(start).toBeGreaterThan(0);
+  const actions = hero.slice(start, hero.indexOf("</div>", start));
+  expect(actions).toContain("grid w-full min-w-0 grid-cols-2 items-stretch");
+  expect(actions).not.toContain("flex-wrap");
+  expect(actions).not.toMatch(/(?:sm:|md:|lg:|xl:)grid-cols-/);
+  expect(actions.match(/h-full min-h-12 w-full min-w-0/g)).toHaveLength(2);
+  expect(actions.match(/min-w-0 break-words \[overflow-wrap:anywhere\]/g)).toHaveLength(2);
+  expect(actions.match(/hidden size-3.5 shrink-0 min-\[360px\]:block/g)).toHaveLength(2);
+  expect(actions).toContain("href={current.ctaHref}");
+  expect(actions).toContain("href={current.secondaryCtaHref}");
+});
