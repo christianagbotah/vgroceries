@@ -142,7 +142,7 @@ export default function CartPage() {
                     </p>
                   ) : null}
 
-                  <div data-cart-line-actions className="flex min-w-0 items-center gap-1.5 sm:gap-2">
+                  <div data-cart-line-actions className="flex w-full min-w-0 items-center gap-1.5 sm:gap-2">
                     {variant?.isAvailable ? (
                       <QuantityInput
                         size="sm"
@@ -159,11 +159,11 @@ export default function CartPage() {
                       type="button"
                       variant="destructive-ghost"
                       size="icon"
-                      className="size-11 shrink-0 sm:w-auto sm:px-3"
+                      className="ml-auto size-12 shrink-0 sm:w-auto sm:px-3"
                       onClick={() => remove(line.variantId)}
                       aria-label={`Remove ${product?.name ?? "item"} from cart`}
                     >
-                      <Trash2 className="size-4" aria-hidden /> <span className="hidden sm:inline">Remove</span>
+                      <Trash2 className="size-6" aria-hidden /> <span className="hidden sm:inline">Remove</span>
                     </Button>
                   </div>
                 </div>
