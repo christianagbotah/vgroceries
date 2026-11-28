@@ -30,6 +30,9 @@ jobs:
       - name: Bounded cache retention regressions
         run: PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s scripts/ops -p test_prune_reviewed_source_caches.py -v
 
+      - name: Hosted payment recovery scheduler safety tests
+        run: PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s scripts/ops -p test_hosted_recovery_units.py -v
+
       - name: Verified runtime retention guard tests
         run: PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s scripts/ops -p test_retire_verified_runtime.py -v
 

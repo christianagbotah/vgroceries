@@ -1,0 +1,33 @@
+[Unit]
+Description=Variety Groceries bounded hosted payment reconciliation
+After=network-online.target
+Wants=network-online.target
+# This host-only approval file must be deliberately created during rollout.
+ConditionPathExists=/etc/varietygroceries/hosted-recovery.approved
+
+[Service]
+Type=oneshot
+User=lightworld
+Group=lightworld
+# Example runtime locations; bind to the verified canonical release on installation.
+WorkingDirectory=/opt/varietygroceries/runtime/api/apps/api
+EnvironmentFile=/etc/varietygroceries/api.env
+# Last file: must explicitly set HUBTEL_HOSTED_RECONCILIATION_WORKER_ENABLED=true.
+# Start with false. Missing approval or activation file fails closed.
+EnvironmentFile=/etc/varietygroceries/hosted-recovery.env
+Environment=HUBTEL_HOSTED_RECONCILIATION_WORKER_ENABLED=false
+ExecStart=/usr/bin/node dist/scripts/recover-hosted-payments.js
+TimeoutStartSec=15min
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+PrivateDevices=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+StandardOutput=journal
+StandardError=journal

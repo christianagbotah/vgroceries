@@ -1,0 +1,12 @@
+[Unit]
+Description=Check eligible pending hosted payments after each completed recovery run
+
+[Timer]
+OnBootSec=2min
+OnUnitInactiveSec=1min
+AccuracySec=10s
+Persistent=false
+Unit=varietygroceries-hosted-payment-recovery.service
+
+[Install]
+WantedBy=timers.target
