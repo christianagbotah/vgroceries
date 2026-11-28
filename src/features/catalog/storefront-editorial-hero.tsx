@@ -144,12 +144,12 @@ export function StorefrontEditorialHero({
                 {current.headline}{" "}<span className="text-[#16703b]">{current.emphasis}</span>
               </h1>
               <p className="mt-4 max-w-[475px] text-sm leading-relaxed text-[#53634e] sm:text-base md:line-clamp-4">{current.body}</p>
-              <div className="mt-5 flex flex-wrap gap-2.5 sm:mt-7">
-                <Link href={current.ctaHref} className="inline-flex min-h-12 min-w-0 items-center justify-center gap-2 rounded-full bg-[#087438] px-4 py-3 text-center text-xs font-bold text-white shadow-sm transition hover:bg-[#075c2e] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#087438] sm:px-6 sm:text-sm">
-                  <span>{current.ctaLabel}</span><ArrowRight className="size-4 shrink-0" aria-hidden />
+              <div data-hero-actions className="mt-5 grid w-full min-w-0 grid-cols-2 items-stretch gap-2 sm:mt-7 sm:gap-3">
+                <Link href={current.ctaHref} className="inline-flex h-full min-h-12 w-full min-w-0 items-center justify-center gap-1.5 rounded-full sm:gap-2 bg-[#087438] px-2 py-2.5 text-center text-xs font-bold leading-tight text-white shadow-sm transition hover:bg-[#075c2e] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#087438] sm:px-3 sm:text-sm lg:px-4">
+                  <span className="min-w-0 break-words [overflow-wrap:anywhere]">{current.ctaLabel}</span><ArrowRight className="hidden size-3.5 shrink-0 min-[360px]:block sm:size-4" aria-hidden />
                 </Link>
-                <Link href={current.secondaryCtaHref} className="inline-flex min-h-12 min-w-0 items-center justify-center gap-2 rounded-full bg-[#ffcf42] px-4 py-3 text-center text-xs font-bold text-[#26351c] transition hover:bg-[#f5bc22] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#087438] sm:px-6 sm:text-sm">
-                  <span>{current.secondaryCtaLabel}</span><ArrowRight className="size-4 shrink-0" aria-hidden />
+                <Link href={current.secondaryCtaHref} className="inline-flex h-full min-h-12 w-full min-w-0 items-center justify-center gap-1.5 rounded-full sm:gap-2 bg-[#ffcf42] px-2 py-2.5 text-center text-xs font-bold leading-tight text-[#26351c] transition hover:bg-[#f5bc22] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#087438] sm:px-3 sm:text-sm lg:px-4">
+                  <span className="min-w-0 break-words [overflow-wrap:anywhere]">{current.secondaryCtaLabel}</span><ArrowRight className="hidden size-3.5 shrink-0 min-[360px]:block sm:size-4" aria-hidden />
                 </Link>
               </div>
             </motion.div>
