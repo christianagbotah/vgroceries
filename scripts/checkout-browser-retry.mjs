@@ -75,7 +75,8 @@ try {
   await page.locator('label[for="ful-collection"]').click();
   assert.equal(new URL(page.url()).pathname, "/checkout", "Fulfilment choice must not leave checkout");
   await page.locator("#co-name").fill("Browser QA Customer");
-  await page.locator("#co-phone").fill("+233241111111");
+  await page.locator("#co-phone").fill("0241111111");
+  assert.equal(await page.locator("#co-phone").getAttribute("placeholder"),"024 123 4567");
   await page.locator('label[for="pay-cash_counter"]').click();
   await page.waitForFunction(() => document.querySelector('#pay-cash_counter')?.getAttribute('aria-checked') === 'true');
   assert.equal(new URL(page.url()).pathname, "/checkout", "Cash choice must not leave checkout");
@@ -123,6 +124,7 @@ try {
   await submitAndWaitForRequest(1);
   await expectVisibleError("Checkout outcome could not be confirmed.");
   assert.equal(seen.length, 1, "First submit must make one POST");
+  assert.equal(seen[0].body.customerPhone,"+233241111111","Local input must reach checkout as canonical international number");
   const key1 = seen[0].key;
   assert.match(key1, /^co_[0-9a-f]{32}$/);
   assert.equal(seen[0].body.idempotencyKey, key1, "Body and HTTP replay key must match");
