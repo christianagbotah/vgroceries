@@ -32,6 +32,7 @@ export default async function HelpPage() {
           { href: "/returns-policy", icon: RotateCcw, title: "Returns & refunds", copy: "Return, inspection and refund information" },
           { href: "/track", icon: Package, title: "Track an order", copy: "Use your reference and verification code" },
           { href: "/account/orders", icon: MapPin, title: "Your orders", copy: "History, repeats and eligible cancellations" },
+          { href: "/manual", icon: Package, title: "Full user manual", copy: "Step-by-step screen guide and illustrated workflows, printable or downloadable" },
         ].map((item) => (
           <Link key={item.href} href={item.href} className="rounded-xl border bg-card p-4 transition-colors hover:border-primary/50 hover:bg-accent">
             <p className="flex items-center gap-2 font-semibold"><item.icon className="size-5 text-primary" aria-hidden /> {item.title}</p>

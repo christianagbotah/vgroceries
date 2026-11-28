@@ -13,7 +13,7 @@ import { useStaff, DEMO_ROLE_OPTIONS } from "@/features/staff/role-context";
 import { clearDemoStaffSession, isDemoStaffSessionActive } from "@/features/staff/staff-demo-session";
 import { ROLE_LABELS } from "@/types/domain";
 import type { Permission } from "@/lib/perms";
-import { LayoutDashboard, Menu, ShoppingCart, Store, Boxes, Package, ClipboardList, Truck, Users, RotateCcw, CreditCard, UserRound, BarChart3, Sparkles, ShieldCheck, ScrollText, Settings2, FlaskConical, LogOut, Warehouse, ClipboardCheck, TriangleAlert, ReceiptText, Landmark, Network, FileText, Home, ExternalLink, PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import { LayoutDashboard, Menu, ShoppingCart, Store, Boxes, Package, ClipboardList, Truck, Users, RotateCcw, CreditCard, UserRound, BarChart3, Sparkles, ShieldCheck, ScrollText, Settings2, FlaskConical, LogOut, Warehouse, ClipboardCheck, TriangleAlert, ReceiptText, Landmark, Network, FileText, Home, ExternalLink, PanelLeftClose, PanelLeftOpen, BookOpen } from "lucide-react";
 
 interface NavItem {
   href: string;
@@ -31,6 +31,7 @@ const GROUPS: NavGroup[] = [
     title: "Overview",
     items: [
       { href: "/admin", label: "Dashboard", permission: "orders.view", icon: LayoutDashboard },
+      { href: "/manual", label: "System user manual", permission: "orders.view", icon: BookOpen },
     ],
   },
   {
