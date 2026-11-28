@@ -1,5 +1,5 @@
 import { Prisma } from "@prisma/client";
-import type { CartLineInput, CompleteOrderRequest } from "@variety/contracts";
+import { normalizeGhanaPhone as canonicalGhanaPhone, type CartLineInput, type CompleteOrderRequest } from "@variety/contracts";
 import { createHash } from "node:crypto";
 import { ApiProblem } from "../http/errors";
 import { normalizeOrderEmail } from "../notifications/order-email-policy";
@@ -42,15 +42,16 @@ export function validateCheckoutLines(
   }
 }
 
-const ghPhone = /^\+233(?:2\d|5\d)\d{7}$/;
 const email = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 const gps = /^[A-Z]{2}-\d{3,4}-\d{3,4}$/;
 export function normalizeGhanaPhone(value: string) {
-  return value.replace(/[\s-]/g, "");
+  const normalized = canonicalGhanaPhone(value);
+  if (!normalized) throw validation("Enter a valid Ghana mobile number.");
+  return normalized;
 }
 export function validateCheckoutContact(input: CompleteOrderRequest): void {
   if (!input.customerName?.trim()) throw validation("Customer name is required.");
-  if (!ghPhone.test(normalizeGhanaPhone(input.customerPhone ?? "")))
+  if (!canonicalGhanaPhone(input.customerPhone ?? ""))
     throw validation("A valid Ghana customer phone is required.");
   if (input.customerEmail && !email.test(input.customerEmail.trim()))
     throw validation("Customer email is invalid.");
@@ -60,7 +61,7 @@ export function validateCheckoutContact(input: CompleteOrderRequest): void {
   if (a) {
     if (![a.recipientName, a.locality, a.street].every((v) => v?.trim()))
       throw validation("Delivery address fields are required.");
-    if (!ghPhone.test(normalizeGhanaPhone(a.phone ?? "")))
+    if (!canonicalGhanaPhone(a.phone ?? ""))
       throw validation("Delivery phone is invalid.");
     if (a.ghanaPostGps && !gps.test(a.ghanaPostGps.trim().toUpperCase()))
       throw validation("GhanaPostGPS address is invalid.");

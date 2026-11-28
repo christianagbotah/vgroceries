@@ -61,17 +61,19 @@ test("checkout fails closed when the configured commerce stock location becomes 
 test("order SMS opt-in is atomic, replay-safe and never inferred from a phone number", async () => {
   const g = await guest();
   const h = {cookie:g.cookie,"x-csrf-token":g.csrf};
-  const input = {...collectionBody(), smsUpdatesOptIn:true};
+  const input = {...collectionBody(), customerPhone:"0241111111", smsUpdatesOptIn:true};
   const result = await complete(input,"order-sms-optin-001",h);
   assert.equal(result.r.status,201);
   const id = result.body.data.orderId;
   const consent = await db.orderSmsConsent.findUniqueOrThrow({where:{orderId:id}});
   assert.equal(consent.policyVersion,"order-sms-v1");
-  assert.match(consent.recipientFingerprint,/^[0-9a-f]{64}$/);
+  assert.equal((await db.order.findUniqueOrThrow({where:{id}})).customerPhone,"+233241111111");
+  const { customerDestinationFingerprint } = await import("../src/notifications/customer-message-crypto");
+  assert.equal(consent.recipientFingerprint,customerDestinationFingerprint("+233241111111"));
   assert.equal(consent.revokedAt,null);
   const event = await db.outboxEvent.findFirstOrThrow({where:{aggregateId:id,type:"order.created"}});
   assert.ok(consent.recordedAt.getTime() <= event.createdAt.getTime());
-  const replay = await complete(input,"order-sms-optin-001",h);
+  const replay = await complete({...input,customerPhone:"+233241111111"},"order-sms-optin-001",h);
   assert.equal(replay.r.status,201);
   assert.deepEqual(replay.body.data,result.body.data);
   const changed = await complete({...input,smsUpdatesOptIn:false},"order-sms-optin-001",h);

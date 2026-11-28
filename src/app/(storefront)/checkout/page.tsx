@@ -8,7 +8,8 @@ import { useCart } from "@/features/checkout/cart-store";
 import { CHECKOUT_ATTEMPT_KEY, clearCheckoutAttemptAfterDefiniteRejection, clearCheckoutAttemptKey, getOrCreateCheckoutAttemptKey } from "@/features/checkout/checkout-attempt";
 import { apiOps, ApiError } from "@/services/client";
 import { formatMoney, parseMoneyToMinor } from "@/lib/money";
-import { isValidGhanaPhone, isValidGhanaPostGps } from "@/lib/format";
+import { isValidGhanaPostGps } from "@/lib/format";
+import { normalizeGhanaPhone } from "@/services/contracts";
 import { LoadingState, EmptyState, ErrorState } from "@/components/shared/states";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -193,7 +194,7 @@ export default function CheckoutPage() {
   const validate = (): boolean => {
     const errs: Record<string, string> = {};
     if (!customerName.trim()) errs.customerName = "Enter the contact name for this order.";
-    if (!isValidGhanaPhone(customerPhone)) errs.customerPhone = "Enter a valid Ghana number, e.g. +233 24 123 4567.";
+    if (!normalizeGhanaPhone(customerPhone)) errs.customerPhone = "Enter a valid 10-digit Ghana mobile number, e.g. 024 123 4567.";
     if (customerEmail && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(customerEmail)) errs.customerEmail = "Enter a valid email or leave it empty.";
     if (fulfilment === "delivery") {
       if (!zoneId) errs.zoneId = "Choose a delivery zone.";
@@ -203,7 +204,7 @@ export default function CheckoutPage() {
       }
       if (destinationKind === "doorstep" && addressId === "new") {
         if (!recipientName.trim()) errs.recipientName = "Who should receive the order?";
-        if (!isValidGhanaPhone(phone)) errs.phone = "Recipient phone must be a +233 number.";
+        if (!normalizeGhanaPhone(phone)) errs.phone = "Enter a valid 10-digit Ghana mobile number, e.g. 055 123 4567.";
         if (!locality.trim()) errs.locality = "Enter the locality (e.g. Labone).";
         if (!street.trim()) errs.street = "Enter the street or a descriptive address.";
         if (ghanaPostGps && !isValidGhanaPostGps(ghanaPostGps)) errs.ghanaPostGps = "GhanaPostGPS addresses look like GA-457-2029.";
@@ -246,7 +247,7 @@ export default function CheckoutPage() {
       const result = await apiOps.complete({
         lines: lines.map((l) => ({ variantId: l.variantId, quantity: l.quantity })),
         customerName: customerName.trim(),
-        customerPhone: customerPhone.replace(/[\s-]/g, ""),
+        customerPhone: normalizeGhanaPhone(customerPhone)!,
         customerEmail: customerEmail.trim() || undefined,
         ...(emailUpdatesEnabled && emailUpdatesOptIn ? { emailUpdatesOptIn: true } : {}),
         ...(smsUpdatesEnabled && smsUpdatesOptIn ? { smsUpdatesOptIn: true } : {}),
@@ -264,7 +265,7 @@ export default function CheckoutPage() {
             ? {
                 label: "Delivery address",
                 recipientName: recipientName.trim(),
-                phone: phone.replace(/[\s-]/g, ""),
+                phone: normalizeGhanaPhone(phone)!,
                 locality: locality.trim(),
                 street: street.trim(),
                 landmark: landmark.trim() || undefined,
@@ -439,7 +440,7 @@ export default function CheckoutPage() {
               </div>
               <div>
                 <Label htmlFor="co-phone">Phone (Ghana)</Label>
-                <Input id="co-phone" className="h-11" value={customerPhone} onChange={(e) => { setCustomerPhone(e.target.value); setSmsUpdatesOptIn(false); }} placeholder="+233 24 123 4567" autoComplete="tel" inputMode="tel" />
+                <Input id="co-phone" className="h-11" value={customerPhone} onChange={(e) => { setCustomerPhone(e.target.value); setSmsUpdatesOptIn(false); if (normalizeGhanaPhone(e.target.value)) setFieldErrors((prev) => { const next = { ...prev }; delete next.customerPhone; return next; }); }} placeholder="024 123 4567" autoComplete="tel" inputMode="tel" />
                 {field("customerPhone")}
               </div>
               <div className="sm:col-span-2">
@@ -625,7 +626,7 @@ export default function CheckoutPage() {
                       </div>
                       <div>
                         <Label htmlFor="co-phone2">Recipient phone</Label>
-                        <Input id="co-phone2" className="h-11" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+233 24 123 4567" inputMode="tel" />
+                        <Input id="co-phone2" className="h-11" value={phone} onChange={(e) => { setPhone(e.target.value); if (normalizeGhanaPhone(e.target.value)) setFieldErrors((prev) => { const next = { ...prev }; delete next.phone; return next; }); }} placeholder="024 123 4567" inputMode="tel" />
                         {field("phone")}
                       </div>
                       <div>

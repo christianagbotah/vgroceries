@@ -10,7 +10,7 @@ import { ApiProblem, ApiRequest } from "../http/errors";
 import type { CheckoutPrincipal } from "../commerce-identity/checkout-principal.service";
 import { PaymentPolicyService } from "../payments/payment-policy.service";
 import { ShipmentPlanningService } from "../logistics/shipment-planning.service";
-import { checkoutRequestHash, roundLineTotalMinor, validateCheckoutContact, validateCheckoutLines } from "./checkout.values";
+import { checkoutRequestHash, normalizeGhanaPhone, roundLineTotalMinor, validateCheckoutContact, validateCheckoutLines } from "./checkout.values";
 import { VerificationCodeService } from "./verification-code.service";
 import { customerDestinationFingerprint } from "../notifications/customer-message-crypto";
 import { normalizeOrderEmail } from "../notifications/order-email-policy";
@@ -113,14 +113,14 @@ export class CheckoutCommandService {
       const orderId=randomUUID(); const reference=`VG-${randomUUID().replaceAll("-","").slice(0,12).toUpperCase()}`; const keyVersion=commerce.verificationActiveKeyVersion; const code=this.verification.codeFor(orderId,keyVersion); const codeHash=this.verification.digestFor(orderId,code,keyVersion); const paymentRequired=electronic.has(input.paymentMethod); const expiryMinutes=paymentRequired?commerce.paymentHoldMinutes:commerce.offlineHoldMinutes; const expiresAt=new Date(Date.now()+expiryMinutes*60000);
       let customerEmail=input.customerEmail?.trim().toLowerCase();
       if(!customerEmail&&principal.kind==="customer"){const owner=await tx.user.findUnique({where:{id:principal.userId},select:{email:true}}); customerEmail=owner?.email?.trim().toLowerCase()??undefined;}
-      await tx.order.create({data:{id:orderId,reference,customerUserId:principal.kind==="customer"?principal.userId:null,guestSessionId:principal.kind==="guest"?principal.guestSessionId:null,customerName:input.customerName.trim(),customerPhone:input.customerPhone.replace(/[\s-]/g,""),customerEmail,fulfilment:input.fulfilment,zoneId:zone?.id,slotId:input.slotId,paymentMethod:input.paymentMethod,paymentStatus:paymentRequired?"pending":"unpaid",fulfilmentStatus:"awaiting_confirmation",deliveryStatus:"unassigned",subtotalMinor,discountMinor:0,deliveryFeeMinor,totalMinor:subtotalMinor+deliveryFeeMinor,verificationKeyVersion:keyVersion,verificationCodeHash:codeHash,note:input.note?.trim()||null,lines:{create:lines.map(l=>({...l,id:l.id}))}}});
+      await tx.order.create({data:{id:orderId,reference,customerUserId:principal.kind==="customer"?principal.userId:null,guestSessionId:principal.kind==="guest"?principal.guestSessionId:null,customerName:input.customerName.trim(),customerPhone:normalizeGhanaPhone(input.customerPhone),customerEmail,fulfilment:input.fulfilment,zoneId:zone?.id,slotId:input.slotId,paymentMethod:input.paymentMethod,paymentStatus:paymentRequired?"pending":"unpaid",fulfilmentStatus:"awaiting_confirmation",deliveryStatus:"unassigned",subtotalMinor,discountMinor:0,deliveryFeeMinor,totalMinor:subtotalMinor+deliveryFeeMinor,verificationKeyVersion:keyVersion,verificationCodeHash:codeHash,note:input.note?.trim()||null,lines:{create:lines.map(l=>({...l,id:l.id}))}}});
       if(input.emailUpdatesOptIn===true){
         const destination=normalizeOrderEmail(input.customerEmail);
         if(!destination||destination!==customerEmail)throw new ApiProblem(400,"VALIDATION_FAILED","Email preference requires the exact checkout address.");
         await tx.orderEmailConsent.create({data:{orderId,recipientFingerprint:customerDestinationFingerprint(destination),policyVersion:"order-email-v1"}});
       }
-      if (input.smsUpdatesOptIn === true) await tx.orderSmsConsent.create({data:{orderId,recipientFingerprint:customerDestinationFingerprint(input.customerPhone.replace(/[\s-]/g,"")),policyVersion:"order-sms-v1"}});
-      if(address)await tx.orderDeliveryAddress.create({data:{orderId,label:address.label?.trim()||"Delivery",recipientName:address.recipientName.trim(),phone:address.phone.replace(/[\s-]/g,""),locality:address.locality.trim(),street:address.street.trim(),landmark:address.landmark?.trim()||null,ghanaPostGps:address.ghanaPostGps?.trim().toUpperCase()||null}});
+      if (input.smsUpdatesOptIn === true) await tx.orderSmsConsent.create({data:{orderId,recipientFingerprint:customerDestinationFingerprint(normalizeGhanaPhone(input.customerPhone)),policyVersion:"order-sms-v1"}});
+      if(address)await tx.orderDeliveryAddress.create({data:{orderId,label:address.label?.trim()||"Delivery",recipientName:address.recipientName.trim(),phone:normalizeGhanaPhone(address.phone),locality:address.locality.trim(),street:address.street.trim(),landmark:address.landmark?.trim()||null,ghanaPostGps:address.ghanaPostGps?.trim().toUpperCase()||null}});
       if(this.config.shipmentExecutionEnabled && input.fulfilment==="delivery") await this.shipmentPlanning.planInTransaction(
         tx,orderId,{destinationKind, ...(destinationKind==="pickup_point"?{finalPickupNodeId:input.finalPickupNodeId}:{})},
         {actorId:principal.actorId,requestId:req.requestId});

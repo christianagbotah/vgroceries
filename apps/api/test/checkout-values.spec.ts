@@ -129,7 +129,9 @@ test("checkout config allows the fully absent commerce bundle as closed, rejects
 test("checkout contact and address boundaries reject whitespace and malformed Ghana data", () => {
   for (const bad of [
     request({ customerName: "   " }),
-    request({ customerPhone: "0201234567" }),
+    request({ customerPhone: "020123456" }),
+    request({ customerPhone: "02412345678" }),
+    request({ customerPhone: "+2348012345678" }),
     request({ customerEmail: "not-an-email" }),
     request({
       fulfilment: "delivery",
@@ -156,4 +158,21 @@ test("email preference is explicit, independent and bound to a valid checkout ad
   assert.notEqual(checkoutRequestHash(request({emailUpdatesOptIn:true})),checkoutRequestHash(request({smsUpdatesOptIn:true})));
   assert.doesNotThrow(()=>validateCheckoutContact(request({emailUpdatesOptIn:true})));
   for(const customerEmail of [undefined,"","bad@example.test,other@example.test","bad@example.test\r\nBcc: other@example.test"])expectValidation(()=>validateCheckoutContact(request({emailUpdatesOptIn:true,customerEmail})));
+});
+
+test("Ghana checkout accepts local mobile numbers and keeps canonical replay identity", () => {
+  for (const local of ["0241234567","024 123 4567","024-123-4567","233241234567","+233241234567"]) {
+    const input = request({ customerPhone: local });
+    assert.doesNotThrow(() => validateCheckoutContact(input));
+    assert.equal(canonicalCheckoutRequest(input).customerPhone, "+233241234567");
+    assert.equal(checkoutRequestHash(input), checkoutRequestHash(request()));
+  }
+  for (const local of ["0201234567","0551234567","0591234567"]) {
+    assert.doesNotThrow(() => validateCheckoutContact(request({ customerPhone: local })));
+  }
+  const address = { recipientName:"Ama", phone:"0551234567", locality:"Accra", street:"Road" };
+  const input = request({ fulfilment:"delivery", guestAddress:address });
+  assert.doesNotThrow(() => validateCheckoutContact(input));
+  assert.deepEqual(canonicalCheckoutRequest(input).guestAddress, canonicalCheckoutRequest({...input,guestAddress:{...address,phone:"+233551234567"}}).guestAddress);
+  assert.equal(checkoutRequestHash(input),checkoutRequestHash({...input,guestAddress:{...address,phone:"+233551234567"}}));
 });
